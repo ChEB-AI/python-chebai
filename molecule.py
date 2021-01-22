@@ -39,7 +39,7 @@ class Molecule:
             self.reduce_graph_rings()
 
         self.create_directed_graphs()
-        #self.create_feature_vectors()
+        self.create_feature_vectors()
 
     def create_directed_graphs(self):
         '''
