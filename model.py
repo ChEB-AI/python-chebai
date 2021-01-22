@@ -3,6 +3,7 @@ import torch.nn as nn
 
 from typing import Iterable
 import networkx as nx
+from molecule import Molecule
 
 class ChEBIRecNN(nn.Module):
 
@@ -23,11 +24,11 @@ class ChEBIRecNN(nn.Module):
         self.dag_weight = torch.autograd.Variable(torch.rand(self.length))
         self.final = nn.Linear(self.length, self.num_of_classes)
 
-    def forward(self, DAGs_of_a_mol: Iterable[nx.DiGraph]):
+    def forward(self, molecule: Molecule):
         sinks_output = []
         # for each DAG, generate a hidden representation at its sink node
         final_outputs = torch.empty(self.length)
-        for dag in DAGs_of_a_mol:
+        for sink, dag in molecule.dag_to_node.items():
             inputs = {node: torch.empty(self.length) for node in dag.nodes}
             last = None
             for node in nx.topological_sort(dag):
