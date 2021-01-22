@@ -32,7 +32,7 @@ class ChEBIRecNN(nn.Module):
             inputs = {node: torch.empty(self.length) for node in dag.nodes}
             last = None
             for node in nx.topological_sort(dag):
-                if not dag.has_predecessor(node):
+                if not any(dag.predecessors(node)):
                     output = self.activation(self.NN_single_node(nx.get_node_attributes(dag, "atom_features")))
                     for succ in dag.successors(node):
                         inputs[succ] = inputs[succ].stack(output)
