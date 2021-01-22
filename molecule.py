@@ -59,7 +59,7 @@ class Molecule:
             for i in range(self.no_of_atoms):
                 temp = path[i]
                 temp.reverse()
-                G.add_path(temp)
+                nx.add_path(G, temp)
             self.dag_to_node[idx] = G
 
     def create_feature_vectors(self):
