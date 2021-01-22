@@ -88,7 +88,7 @@ def execute_network(model, loss_fn, optimizer, train_data, train_actual_labels, 
 
 
 def prepare_data(infile):
-    data = pickle.load(infile)[10:]
+    data = pickle.load(infile)[:10]
     infile.close()
 
     data_frame = pd.DataFrame.from_dict(data)
