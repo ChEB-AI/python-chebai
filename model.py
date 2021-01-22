@@ -25,21 +25,20 @@ class ChEBIRecNN(nn.Module):
         self.final = nn.Linear(self.length, self.num_of_classes)
 
     def forward(self, molecule: Molecule):
-        sinks_output = []
         # for each DAG, generate a hidden representation at its sink node
         final_outputs = torch.empty(self.length)
         for sink, dag in molecule.dag_to_node.items():
             inputs = {node: torch.empty(self.length) for node in dag.nodes}
             last = None
             for node in nx.topological_sort(dag):
+                atom = nx.get_node_attributes(dag, "atom_features")[node]
                 if not any(dag.predecessors(node)):
-                    output = self.activation(self.NN_single_node(nx.get_node_attributes(dag, "atom_features")[node]))
+                    output = self.activation(self.NN_single_node(atom))
                     for succ in dag.successors(node):
                         inputs[succ] = inputs[succ].stack(output)
                 else:
                       inp = torch.sum(torch.softmax(self.attention_weight*inputs[node], dim=0)*inputs[node])
-
-                      inp = torch.cat((inp, nx.get_node_attributes(dag, "atom_features")))
+                      inp = torch.cat((inp, atom))
                       output = self.activation(self.merge(inp))
                       for succ in dag.successors(node):
                           inputs[succ] = inputs[succ].stack(output)

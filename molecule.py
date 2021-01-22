@@ -52,11 +52,11 @@ class Molecule:
 
         # parse all the atoms one by one and get directed graph to that atom
         # as the sink node
-        for idx in range(self.no_of_atoms):
+        for idx in self.graph.nodes:
             # get shortest path from the root to all the other atoms and then reverse the edges.
             path = nx.single_source_dijkstra_path(self.graph, idx)
             G = nx.DiGraph()
-            for i in range(self.no_of_atoms):
+            for i in self.graph.nodes:
                 temp = path[i]
                 temp.reverse()
                 nx.add_path(G, temp)
