@@ -26,7 +26,7 @@ class ChEBIRecNN(nn.Module):
     def forward(self, DAGs_of_a_mol: Iterable[nx.DiGraph]):
         sinks_output = []
         # for each DAG, generate a hidden representation at its sink node
-        final_outputs = torch.empty()
+        final_outputs = torch.empty(self.length)
         for dag in DAGs_of_a_mol:
             inputs = {node: torch.empty(self.length) for node in dag.nodes}
             last = None
