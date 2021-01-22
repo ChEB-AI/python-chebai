@@ -19,8 +19,8 @@ class ChEBIRecNN(nn.Module):
 
         self.NN_single_node = nn.Linear(self.length, self.length)
         self.merge = nn.Linear(2*self.length, self.length)
-        self.attention_weight = torch.transpose(torch.autograd.Variable(torch.rand(self.length)), 1, 0)
-        self.dag_weight = torch.transpose(torch.autograd.Variable(torch.rand(self.length)), 1, 0)
+        self.attention_weight = torch.autograd.Variable(torch.rand(self.length))
+        self.dag_weight = torch.autograd.Variable(torch.rand(self.length))
         self.final = nn.Linear(self.length, self.num_of_classes)
 
     def forward(self, DAGs_of_a_mol: Iterable[nx.DiGraph]):

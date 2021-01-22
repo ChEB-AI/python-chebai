@@ -88,7 +88,7 @@ def execute_network(model, loss_fn, optimizer, train_data, train_actual_labels, 
 
 
 def prepare_data(infile):
-    data = pickle.load(infile)
+    data = pickle.load(infile)[10:]
     infile.close()
 
     data_frame = pd.DataFrame.from_dict(data)
@@ -126,14 +126,11 @@ train_dataset = []
 train_actual_labels = []
 
 for index, row in train_data.iterrows():
-    try:
-        mol = Molecule(row['SMILES'], True)
+    mol = Molecule(row['SMILES'], True)
 
-        DAGs_meta_info = mol.dag_to_node
-        train_dataset.append(mol)
-        train_actual_labels.append(torch.tensor(row['LABELS']).float())
-    except:
-      pass
+    DAGs_meta_info = mol.dag_to_node
+    train_dataset.append(mol)
+    train_actual_labels.append(torch.tensor(row['LABELS']).float())
 
 
 print('prepare validation data!')
