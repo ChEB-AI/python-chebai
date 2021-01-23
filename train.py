@@ -131,11 +131,14 @@ else:
     train_actual_labels = []
 
     for index, row in train_data.iterrows():
-        mol = Molecule(row['SMILES'], True)
+        try:
+            mol = Molecule(row['SMILES'], True)
 
-        DAGs_meta_info = mol.dag_to_node
-        train_dataset.append(mol)
-        train_actual_labels.append(torch.tensor(row['LABELS']).float())
+            DAGs_meta_info = mol.dag_to_node
+            train_dataset.append(mol)
+            train_actual_labels.append(torch.tensor(row['LABELS']).float())
+        except:
+            pass
 
 
     print('prepare validation data!')
