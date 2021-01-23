@@ -114,51 +114,6 @@ class Molecule:
         except:
             return []
 
-    def reduce_graph_rings(self):
-        '''
-        :return:
-        '''
-        cycle_name_format = "R_{:}"
-        index = 0
-        cycle = self.get_cycle()
-
-        while cycle:
-            cycle_name = cycle_name_format.format(index)
-            self.graph.add_node(cycle_name)
-
-            # ebunch = zip(cycle, (cycle[1:] + cycle[:1]))
-            self.graph.remove_edges_from(cycle)
-
-            for node1, node2 in cycle:
-                if isinstance(node1, six.string_types):
-                    self.graph.add_edge(node1, cycle_name,
-                                        attr_dict={"bond_features": Molecule.bond_features_between_contract_rings()})
-                    continue
-
-                neighbours = self.graph.neighbors(node1)
-                if not neighbours:
-                    continue
-                for neighbour in neighbours:
-                    edge_attrs = self.get_bond_features(neighbour, node1)
-                    self.graph.add_edge(neighbour, cycle_name, attr_dict={
-                        "bond_features": edge_attrs})
-                    self.graph.remove_edge(node1, neighbour)
-
-            nx.set_node_attributes(self.graph, "atom_features",
-                                   values={cycle_name: Molecule.atom_features_of_contract_rings(0)})
-
-            for node1, node2 in cycle:
-                if not isinstance(node1, six.string_types):
-                    self.graph.remove_node(node1)
-            index += 1
-            cycle = self.get_cycle()
-
-        self.graph = nx.convert_node_labels_to_integers(self.graph,
-                                                        first_label=0)
-
-        nx.draw(self.graph)
-        self.no_of_atoms = len(self.graph)
-
     def get_atom_features(self, node_id):
         return torch.tensor(self.graph.nodes[node_id]["attr_dict"]["atom_features"]).double()
 
