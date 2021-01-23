@@ -12,7 +12,7 @@ import csv
 import os
 
 NUM_EPOCHS = 10
-LEARNING_RATE = 0.01
+LEARNING_RATE = 0.001
 
 def eval_model(model, dataset, test_labels):
   raw_values = []
@@ -64,7 +64,7 @@ def execute_network(model, loss_fn, optimizer, train_data, train_actual_labels, 
         for idx in range(len(train_data)):
             optimizer.zero_grad()
             prediction = model(train_data[idx])
-            loss = loss_fn(prediction, train_actual_labels[idx])
+            loss = loss_fn(prediction, train_actual_labels[idx].double())
             train_running_loss = loss.item()
             loss.backward()
             optimizer.step()
@@ -89,7 +89,7 @@ def execute_network(model, loss_fn, optimizer, train_data, train_actual_labels, 
 
 
 def prepare_data(infile):
-    data = pickle.load(infile)[:10]
+    data = pickle.load(infile)
     infile.close()
 
     data_frame = pd.DataFrame.from_dict(data)
@@ -159,9 +159,9 @@ else:
 
 
 
-model = ChEBIRecNN()
-loss_fn = nn.BCEWithLogitsLoss()
-optimizer = torch.optim.SGD(model.parameters(), lr=LEARNING_RATE)
+model = ChEBIRecNN().double()
+loss_fn = nn.MSELoss()
+optimizer = torch.optim.Adam(model.parameters())
 
 print('num of parameters of the model: ', sum(p.numel() for p in model.parameters() if p.requires_grad))
 

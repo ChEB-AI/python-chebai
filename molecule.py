@@ -11,6 +11,7 @@ except ModuleNotFoundError:
 import networkx as nx
 import numpy as np
 import six
+import torch
 
 logger = logging.getLogger(__name__)
 
@@ -158,10 +159,8 @@ class Molecule:
         nx.draw(self.graph)
         self.no_of_atoms = len(self.graph)
 
-
     def get_atom_features(self, node_id):
-        attrs = nx.get_node_attributes(self.graph, "atom_features")
-        return attrs[node_id]
+        return torch.tensor(self.graph.nodes[node_id]["attr_dict"]["atom_features"]).double()
 
     def get_bond_features(self, node1, node2):
         attrs = self.graph.get_edge_data(node1, node2)
