@@ -115,7 +115,7 @@ def prepare_data(infile):
 
 if os.path.isfile("data/full.pickle"):
     with open("data/full.pickle", "rb") as f:
-        train_data, test_data, validation_data = pickle.load(f)
+        train_dataset, train_actual_labels, validation_dataset, validation_actual_labels = pickle.load(f)
 else:
     print('reading data from files!')
     train_infile = open('./data/train.pkl','rb')
@@ -125,36 +125,38 @@ else:
     train_data = prepare_data(train_infile)
     test_data = prepare_data(test_infile)
     validation_data = prepare_data(validation_infile)
-    with open("data/full.pickle", "wb") as f:
-        pickle.dump((train_data, test_data, validation_data), f)
 
-print('prepare train data!')
-train_dataset = []
-train_actual_labels = []
+    print('prepare train data!')
+    train_dataset = []
+    train_actual_labels = []
 
-for index, row in train_data.iterrows():
-    mol = Molecule(row['SMILES'], True)
-
-    DAGs_meta_info = mol.dag_to_node
-    train_dataset.append(mol)
-    train_actual_labels.append(torch.tensor(row['LABELS']).float())
-
-
-print('prepare validation data!')
-validation_dataset = []
-validation_actual_labels = []
-
-
-for index, row in validation_data.iterrows():
-    try:
+    for index, row in train_data.iterrows():
         mol = Molecule(row['SMILES'], True)
 
         DAGs_meta_info = mol.dag_to_node
+        train_dataset.append(mol)
+        train_actual_labels.append(torch.tensor(row['LABELS']).float())
 
-        validation_dataset.append(mol)
-        validation_actual_labels.append(torch.tensor(row['LABELS']).float())
-    except:
-      pass
+
+    print('prepare validation data!')
+    validation_dataset = []
+    validation_actual_labels = []
+
+
+    for index, row in validation_data.iterrows():
+        try:
+            mol = Molecule(row['SMILES'], True)
+
+            DAGs_meta_info = mol.dag_to_node
+
+            validation_dataset.append(mol)
+            validation_actual_labels.append(torch.tensor(row['LABELS']).float())
+        except:
+          pass
+
+    with open("data/full.pickle", "wb") as f:
+        pickle.dump((train_dataset, train_actual_labels, validation_dataset, validation_actual_labels), f)
+
 
 
 model = ChEBIRecNN()

@@ -2,7 +2,7 @@ from __future__ import absolute_import
 from __future__ import division
 
 import logging
-from rdkit import Chem
+
 
 import networkx as nx
 import numpy as np
@@ -15,6 +15,7 @@ class Molecule:
     max_number_of_parents = 7
 
     def __init__(self, smile, logp=None, contract_rings=False):
+        from rdkit import Chem
         self.smile = smile
         self.logp = logp
         # logger.info("Parsing Molecule {:},contract rings: {:}".format(smile, contract_rings))
