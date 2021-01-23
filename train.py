@@ -9,6 +9,7 @@ from model import ChEBIRecNN
 import torch.nn as nn
 import torch
 import csv
+import os
 
 NUM_EPOCHS = 10
 LEARNING_RATE = 0.01
@@ -111,15 +112,21 @@ def prepare_data(infile):
     train_df = pd.DataFrame(train_data, columns=['SMILES', 'LABELS'])
     return train_df
 
-print('reading data from files!')
-train_infile = open('./data/train.pkl','rb')
-test_infile = open('./data/test.pkl','rb')
-validation_infile = open('./data/validation.pkl','rb')
 
-train_data = prepare_data(train_infile)
-test_data = prepare_data(test_infile)
-validation_data = prepare_data(validation_infile)
+if os.path.isfile("data/full.pickle"):
+    with open("data/full.pickle", "rb") as f:
+        train_data, test_data, validation_data = pickle.load(f)
+else:
+    print('reading data from files!')
+    train_infile = open('./data/train.pkl','rb')
+    test_infile = open('./data/test.pkl','rb')
+    validation_infile = open('./data/validation.pkl','rb')
 
+    train_data = prepare_data(train_infile)
+    test_data = prepare_data(test_infile)
+    validation_data = prepare_data(validation_infile)
+    with open("data/full.pickle", "wb") as f:
+        pickle.dump((train_data, test_data, validation_data), f)
 
 print('prepare train data!')
 train_dataset = []

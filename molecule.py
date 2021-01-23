@@ -35,11 +35,8 @@ class Molecule:
                 self.graph.add_edge(i, neighbour_idx,
                                 attr_dict={"bond_features": Molecule.bond_features(bond)})
 
-        if contract_rings:
-            self.reduce_graph_rings()
-
         self.create_directed_graphs()
-        self.create_feature_vectors()
+        #self.create_feature_vectors()
 
     def create_directed_graphs(self):
         '''
