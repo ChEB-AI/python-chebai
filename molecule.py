@@ -63,6 +63,7 @@ class Molecule:
                 temp.reverse()
                 nx.add_path(G, temp)
             self.dag_to_node[idx] = G
+            break
 
     def create_feature_vectors(self):
         '''

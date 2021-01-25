@@ -11,23 +11,24 @@ import torch
 import csv
 import os
 
-NUM_EPOCHS = 10
-LEARNING_RATE = 0.001
+NUM_EPOCHS = 100
+LEARNING_RATE = 0.005
 
 def eval_model(model, dataset, test_labels):
   raw_values = []
   predictions = []
   final_scores = []
 
-  for idx in range(len(dataset)):
-      model_outputs = model(dataset[idx])
-      prediction = [1.0 if i > 0.5 else 0.0 for i in model_outputs]
-      predictions.append(prediction)
-      raw_values.append(model_outputs)
-      final_scores.append(f1_score(prediction, test_labels[idx].tolist()))
+  with torch.no_grad():
+      for idx in range(len(dataset)):
+          model_outputs = model(dataset[idx])
+          prediction = [1.0 if i > 0.5 else 0.0 for i in model_outputs]
+          predictions.append(prediction)
+          raw_values.append(model_outputs)
+          final_scores.append(f1_score(prediction, test_labels[idx].tolist()))
 
-  avg_f1 = sum(final_scores) / len(final_scores)
-  return raw_values, predictions, final_scores, avg_f1
+      avg_f1 = sum(final_scores) / len(final_scores)
+      return raw_values, predictions, final_scores, avg_f1
 
 
 def crawl_info(DAG, sink_parents):
@@ -50,6 +51,7 @@ def crawl_info(DAG, sink_parents):
 
   return topological_order, sources, parents, sink, sink_parents
 
+import random
 
 def execute_network(model, loss_fn, optimizer, train_data, train_actual_labels, validation_data, validation_actual_labels, epochs):
     model = model.double()
@@ -61,21 +63,25 @@ def execute_network(model, loss_fn, optimizer, train_data, train_actual_labels, 
 
     for epoch in range(epochs):
         train_running_loss = 0
+
+        loss = 0
+        batch_size = 0
         for idx in range(len(train_data)):
             optimizer.zero_grad()
             prediction = model(train_data[idx])
             loss = loss_fn(prediction, train_actual_labels[idx].double())
-            train_running_loss = loss.item()
+            batch_size += 1
+            train_running_loss += loss.item()
             loss.backward()
             optimizer.step()
-        print('train loss at epoch {} : {:.5f}'.format(epoch, train_running_loss))
+        print('train loss at epoch {} : {:.5f}'.format(epoch, train_running_loss/batch_size))
         raw_values, predictions, final_scores, train_running_f1 = eval_model(model, train_data, train_actual_labels)
         print('train f1 at epoch {} : {:.5f}'.format(epoch, train_running_f1))
 
         eval_running_loss = 0
         for eval_idx in range(len(validation_data)):
             eval_prediction = model(validation_data[eval_idx])
-            eval_loss = loss_fn(eval_prediction, validation_actual_labels[eval_idx])
+            eval_loss = loss_fn(eval_prediction, validation_actual_labels[eval_idx].double())
             eval_running_loss = eval_loss.item()
         print('validation loss at epoch {} : {:.5f}'.format(epoch, eval_running_loss))
         raw_values, predictions, final_scores, eval_running_f1 = eval_model(model, validation_data, validation_actual_labels)
@@ -163,8 +169,8 @@ else:
 
 
 model = ChEBIRecNN().double()
-loss_fn = nn.MSELoss()
-optimizer = torch.optim.Adam(model.parameters())
+loss_fn = nn.BCEWithLogitsLoss()
+optimizer = torch.optim.Adam(model.parameters(), lr=LEARNING_RATE)
 
 print('num of parameters of the model: ', sum(p.numel() for p in model.parameters() if p.requires_grad))
 
