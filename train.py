@@ -150,7 +150,7 @@ else:
     validation_actual_labels = []
 
 
-    for index, row in prepare_data(validation_infile):
+    for index, row in prepare_data(validation_infile).iterrows():
         try:
             mol = Molecule(row['SMILES'], True)
 
