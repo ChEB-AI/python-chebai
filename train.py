@@ -128,15 +128,13 @@ else:
     test_infile = open('./data/test.pkl','rb')
     validation_infile = open('./data/validation.pkl','rb')
 
-    train_data = prepare_data(train_infile)
-    test_data = prepare_data(test_infile)
-    validation_data = prepare_data(validation_infile)
+    #test_data = prepare_data(test_infile)
 
     print('prepare train data!')
     train_dataset = []
     train_actual_labels = []
 
-    for index, row in train_data.iterrows():
+    for index, row in prepare_data(train_infile).iterrows():
         try:
             mol = Molecule(row['SMILES'], True)
 
@@ -152,7 +150,7 @@ else:
     validation_actual_labels = []
 
 
-    for index, row in validation_data.iterrows():
+    for index, row in prepare_data(validation_infile):
         try:
             mol = Molecule(row['SMILES'], True)
 
