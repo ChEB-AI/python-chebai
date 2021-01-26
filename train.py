@@ -65,7 +65,7 @@ def _execute(model, loss_fn, optimizer, data, device, with_grad=True):
         loss = 0
         for molecule, label in batch:
             prediction = model(molecule)
-            loss += loss_fn(prediction, label.to(device).double())
+            loss += loss_fn(prediction, label)
             data_size += 1
             predicted_labels = [1.0 if i > 0.5 else 0.0 for i in prediction]
             f1 += f1_score(predicted_labels, label.tolist())
@@ -80,6 +80,10 @@ def execute_network(model, loss_fn, optimizer, train_data, validation_data, epoc
     model.to(device)
     model.device = device
     model = model.double()
+
+    for name, param in model.named_parameters():
+        if param.requires_grad:
+            print(name)
 
     columns_name=['epoch', 'train_running_loss', 'train_running_f1', 'eval_running_loss', 'eval_running_f1']
     with open(r'loss_f1_training_validation.csv', 'w') as f:
@@ -176,8 +180,15 @@ else:
     with open("data/full.pickle", "wb") as f:
         pickle.dump((train_dataset, train_actual_labels, validation_dataset, validation_actual_labels), f)
 
-train_data = batchify(train_dataset, train_actual_labels)
-validation_data = batchify(validation_dataset, validation_actual_labels)
+
+device = torch.device("cuda:1") if torch.cuda.is_available() else torch.device("cpu:0")
+
+def move_molecule(m):
+    m.collect_atom_features(device)
+    return m
+
+train_data = batchify([move_molecule(m) for m in train_dataset], [l.to(device) for l in train_actual_labels])
+validation_data = batchify([move_molecule(m) for m in validation_dataset], [l.to(device) for l in validation_actual_labels])
 
 model = ChEBIRecNN().double()
 loss_fn = nn.BCEWithLogitsLoss()
@@ -192,7 +203,7 @@ params = {
     'train_data': train_data,
     'validation_data': validation_data,
     'epochs':NUM_EPOCHS,
-    'device': torch.device("cuda:1") if torch.cuda.is_available() else torch.device("cpu:0")
+    'device': device
 }
 
 print('start training!')

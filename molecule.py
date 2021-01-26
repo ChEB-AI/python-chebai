@@ -115,8 +115,11 @@ class Molecule:
         except:
             return []
 
+    def collect_atom_features(self, device):
+        self.af = {node_id: torch.tensor(self.graph.nodes[node_id]["attr_dict"]["atom_features"]).double().to(device) for node_id in range(self.no_of_atoms)}
+
     def get_atom_features(self, node_id):
-        return torch.tensor(self.graph.nodes[node_id]["attr_dict"]["atom_features"]).double()
+        return self.af[node_id]
 
     def get_bond_features(self, node1, node2):
         attrs = self.graph.get_edge_data(node1, node2)
