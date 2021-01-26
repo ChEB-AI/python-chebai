@@ -11,7 +11,7 @@ class ChEBIRecNN(nn.Module):
         super(ChEBIRecNN, self).__init__()
 
         self.atom_enc = 62
-        self.length = 100
+        self.length = 200
         self.output_of_sinks = 500
         self.num_of_classes = 500
 
@@ -21,8 +21,8 @@ class ChEBIRecNN(nn.Module):
 
         self.norm = torch.nn.LayerNorm(self.length)
 
-        self.NN_single_node = nn.Linear(self.atom_enc, self.length).double()
-        self.merge = nn.Linear(2*self.length, self.length).double()
+        self.NN_single_node = nn.Sequential(nn.Linear(self.atom_enc, self.length), nn.ReLU(), nn.Linear(self.length, self.length)).double()
+        self.merge = nn.Sequential(nn.Linear(2*self.length, self.length), nn.ReLU(), nn.Linear(self.length, self.length)).double()
         self.attention_weight = torch.autograd.Variable(torch.rand(self.length,1, requires_grad=True).double())
         self.dag_weight = torch.autograd.Variable(torch.rand(self.length,1, requires_grad=True).double())
         self.final = nn.Linear(self.length, self.num_of_classes).double()

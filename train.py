@@ -13,7 +13,7 @@ import os
 
 BATCH_SIZE = 100
 NUM_EPOCHS = 100
-LEARNING_RATE = 0.005
+LEARNING_RATE = 0.01
 
 def eval_model(model, dataset, test_labels):
   raw_values = []
@@ -55,6 +55,27 @@ def crawl_info(DAG, sink_parents):
 
 import random
 
+def _execute(model, loss_fn, optimizer, data, with_grad=True):
+    train_running_loss = 0
+    data_size = 0
+    f1 = 0
+    model.train(with_grad)
+    for batch in data:
+        optimizer.zero_grad()
+        loss = 0
+        for molecule, label in batch:
+            prediction = model(molecule)
+            loss += loss_fn(prediction, label.double())
+            data_size += 1
+            predicted_labels = [1.0 if i > 0.5 else 0.0 for i in prediction]
+            f1 += f1_score(predicted_labels, label.tolist())
+        train_running_loss += loss.item()
+        if with_grad:
+            print(train_running_loss/data_size)
+            loss.backward()
+            optimizer.step()
+    return train_running_loss/data_size, f1/data_size
+
 def execute_network(model, loss_fn, optimizer, train_data, validation_data, epochs):
     model = model.double()
 
@@ -64,39 +85,14 @@ def execute_network(model, loss_fn, optimizer, train_data, validation_data, epoc
         writer.writerow(columns_name)
 
     for epoch in range(epochs):
-        data_size = 0
-        train_running_loss = 0
         random.shuffle(train_data)
-        for batch in train_data:
-            batch_size = 0
-            optimizer.zero_grad()
-            loss = 0
-            for molecule, label in batch:
-                prediction = model(molecule)
-                l = loss_fn(prediction, label.double())
-                loss += l
-                data_size += 1
-                train_running_loss += l.item()
-            loss.backward()
-            optimizer.step()
-        print('train loss at epoch {} : {:.5f}'.format(epoch, train_running_loss/data_size))
-        raw_values, predictions, final_scores, train_running_f1 = eval_model(model, train_data, train_actual_labels)
-        print('train f1 at epoch {} : {:.5f}'.format(epoch, train_running_f1))
+        train_running_loss, train_running_f1 = _execute(model, loss_fn, optimizer, train_data, with_grad=True)
 
         with torch.no_grad():
-            eval_running_loss = 0
-            data_size = 0
-            for batch in validation_data:
-                for molecule, label in batch:
-                    eval_prediction = model(molecule)
-                    eval_loss = loss_fn(eval_prediction, label.double())
-                    eval_running_loss += eval_loss.item()
-                    data_size += 1
-            print('validation loss at epoch {} : {:.5f}'.format(epoch, eval_running_loss/data_size))
-            raw_values, predictions, final_scores, eval_running_f1 = eval_model(model, validation_data, validation_actual_labels)
-            print('validation f1 at epoch {} : {:.5f}'.format(epoch, eval_running_f1))
-
-
+            eval_running_loss, eval_running_f1 = _execute(model, loss_fn, optimizer, validation_data, with_grad=False)
+        print(
+            f'Epoch {epoch}: loss={train_running_loss}, f1={train_running_f1}, val_loss={eval_running_loss}, val_f1={eval_running_f1}'.format(
+                epoch, train_running_f1))
         fields=[epoch, train_running_loss, train_running_f1, eval_running_loss, eval_running_f1]
         with open(r'loss_f1_training_validation.csv', 'a') as f:
             writer = csv.writer(f)
