@@ -192,7 +192,7 @@ params = {
     'train_data': train_data,
     'validation_data': validation_data,
     'epochs':NUM_EPOCHS,
-    'device': torch.device("gpu:1") if torch.cuda.is_available() else torch.device("cpu:0")
+    'device': torch.device("cuda:1") if torch.cuda.is_available() else torch.device("cpu:0")
 }
 
 print('start training!')
