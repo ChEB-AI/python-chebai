@@ -56,7 +56,7 @@ class ChEBIRecNN(nn.Module):
         return result
 
     def process_atom(self, node, molecule):
-        return self.dropout(self.activation(self.NN_single_node(molecule.get_atom_features(node))))
+        return self.dropout(self.activation(self.NN_single_node(molecule.get_atom_features(node).to(self.device))))
 
     def attention(self, weights, x):
         return torch.sum(torch.mul(torch.softmax(torch.matmul(x, weights), dim=0),x), dim=0)

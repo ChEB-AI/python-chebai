@@ -55,7 +55,7 @@ def crawl_info(DAG, sink_parents):
 
 import random
 
-def _execute(model, loss_fn, optimizer, data, with_grad=True):
+def _execute(model, loss_fn, optimizer, data, device, with_grad=True):
     train_running_loss = 0
     data_size = 0
     f1 = 0
@@ -65,7 +65,7 @@ def _execute(model, loss_fn, optimizer, data, with_grad=True):
         loss = 0
         for molecule, label in batch:
             prediction = model(molecule)
-            loss += loss_fn(prediction, label.double())
+            loss += loss_fn(prediction, label.to(device).double())
             data_size += 1
             predicted_labels = [1.0 if i > 0.5 else 0.0 for i in prediction]
             f1 += f1_score(predicted_labels, label.tolist())
@@ -76,7 +76,9 @@ def _execute(model, loss_fn, optimizer, data, with_grad=True):
             optimizer.step()
     return train_running_loss/data_size, f1/data_size
 
-def execute_network(model, loss_fn, optimizer, train_data, validation_data, epochs):
+def execute_network(model, loss_fn, optimizer, train_data, validation_data, epochs, device):
+    model.to(device)
+    model.device = device
     model = model.double()
 
     columns_name=['epoch', 'train_running_loss', 'train_running_f1', 'eval_running_loss', 'eval_running_f1']
@@ -86,10 +88,10 @@ def execute_network(model, loss_fn, optimizer, train_data, validation_data, epoc
 
     for epoch in range(epochs):
         random.shuffle(train_data)
-        train_running_loss, train_running_f1 = _execute(model, loss_fn, optimizer, train_data, with_grad=True)
+        train_running_loss, train_running_f1 = _execute(model, loss_fn, optimizer, train_data, device, with_grad=True)
 
         with torch.no_grad():
-            eval_running_loss, eval_running_f1 = _execute(model, loss_fn, optimizer, validation_data, with_grad=False)
+            eval_running_loss, eval_running_f1 = _execute(model, loss_fn, optimizer, validation_data, device, with_grad=False)
         print(
             f'Epoch {epoch}: loss={train_running_loss}, f1={train_running_f1}, val_loss={eval_running_loss}, val_f1={eval_running_f1}'.format(
                 epoch, train_running_f1))
@@ -127,7 +129,6 @@ def prepare_data(infile):
 def batchify(x, y):
     data = list(zip(x,y))
     return [data[i*BATCH_SIZE:(i+1)*BATCH_SIZE] for i in range(1 + len(data)//BATCH_SIZE)]
-
 
 
 if os.path.isfile("data/full.pickle"):
@@ -190,7 +191,8 @@ params = {
     'optimizer':optimizer,
     'train_data': train_data,
     'validation_data': validation_data,
-    'epochs':NUM_EPOCHS
+    'epochs':NUM_EPOCHS,
+    'device': torch.device("gpu:1") if torch.cuda.is_available() else torch.device("cpu:0")
 }
 
 print('start training!')
