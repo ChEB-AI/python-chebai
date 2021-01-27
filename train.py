@@ -60,7 +60,10 @@ def _execute(model, loss_fn, optimizer, data, device, with_grad=True):
     data_size = 0
     f1 = 0
     model.train(with_grad)
+    num_batches = len(data)
+    num_batch = 0
     for batch in data:
+        num_batch += 1
         optimizer.zero_grad()
         loss = 0
         for molecule, label in batch:
@@ -71,6 +74,7 @@ def _execute(model, loss_fn, optimizer, data, device, with_grad=True):
             f1 += f1_score(predicted_labels, label.tolist())
         train_running_loss += loss.item()
         if with_grad:
+            print(f"Batch {num_batch}/{num_batches}")
             loss.backward()
             optimizer.step()
     return train_running_loss/data_size, f1/data_size
