@@ -25,7 +25,7 @@ class ChEBIRecNN(nn.Module):
         self.merge = nn.Sequential(nn.Linear(2*self.length, self.length), nn.ReLU(), nn.Linear(self.length, self.length))
         self.register_parameter("attention_weight", torch.nn.Parameter(torch.rand(self.length,1, requires_grad=True)))
         self.register_parameter("dag_weight", torch.nn.Parameter(torch.rand(self.length,1, requires_grad=True)))
-        self.final = nn.Linear(self.length, self.num_of_classes)
+        self.final = nn.Sequential(nn.Linear(self.length, self.length), nn.ReLU(), nn.Linear(self.length, self.length), nn.ReLU(), nn.Linear(self.length, self.num_of_classes))
 
     def forward(self, molecule: Molecule):
         final_outputs = None
