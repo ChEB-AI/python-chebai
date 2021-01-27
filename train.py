@@ -190,7 +190,7 @@ def move_molecule(m):
 train_data = batchify([move_molecule(m) for m in train_dataset], [l.to(device) for l in train_actual_labels])
 validation_data = batchify([move_molecule(m) for m in validation_dataset], [l.to(device) for l in validation_actual_labels])
 
-model = ChEBIRecNN().double()
+model = ChEBIRecNN()
 loss_fn = nn.BCEWithLogitsLoss()
 optimizer = torch.optim.Adam(model.parameters(), lr=LEARNING_RATE)
 
