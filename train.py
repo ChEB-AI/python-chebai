@@ -71,7 +71,6 @@ def _execute(model, loss_fn, optimizer, data, device, with_grad=True):
             f1 += f1_score(predicted_labels, label.tolist())
         train_running_loss += loss.item()
         if with_grad:
-            print(train_running_loss/data_size)
             loss.backward()
             optimizer.step()
     return train_running_loss/data_size, f1/data_size
@@ -79,7 +78,6 @@ def _execute(model, loss_fn, optimizer, data, device, with_grad=True):
 def execute_network(model, loss_fn, optimizer, train_data, validation_data, epochs, device):
     model.to(device)
     model.device = device
-    model = model.double()
 
     for name, param in model.named_parameters():
         if param.requires_grad:
@@ -97,7 +95,7 @@ def execute_network(model, loss_fn, optimizer, train_data, validation_data, epoc
         with torch.no_grad():
             eval_running_loss, eval_running_f1 = _execute(model, loss_fn, optimizer, validation_data, device, with_grad=False)
         print(
-            f'Epoch {epoch}: loss={train_running_loss}, f1={train_running_f1}, val_loss={eval_running_loss}, val_f1={eval_running_f1}'.format(
+            f'Epoch {epoch}: loss={train_running_loss:.5f}, f1={train_running_f1:.5f}, val_loss={eval_running_loss:.5f}, val_f1={eval_running_f1:.5f}'.format(
                 epoch, train_running_f1))
         fields=[epoch, train_running_loss, train_running_f1, eval_running_loss, eval_running_f1]
         with open(r'loss_f1_training_validation.csv', 'a') as f:
@@ -187,8 +185,8 @@ def move_molecule(m):
     m.collect_atom_features(device)
     return m
 
-train_data = batchify([move_molecule(m) for m in train_dataset], [l.to(device) for l in train_actual_labels])
-validation_data = batchify([move_molecule(m) for m in validation_dataset], [l.to(device) for l in validation_actual_labels])
+train_data = batchify([move_molecule(m) for m in train_dataset], [l.float().to(device) for l in train_actual_labels])
+validation_data = batchify([move_molecule(m) for m in validation_dataset], [l.float().to(device) for l in validation_actual_labels])
 
 model = ChEBIRecNN()
 loss_fn = nn.BCEWithLogitsLoss()

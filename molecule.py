@@ -116,7 +116,7 @@ class Molecule:
             return []
 
     def collect_atom_features(self, device):
-        self.af = {node_id: torch.tensor(self.graph.nodes[node_id]["attr_dict"]["atom_features"]).to(device) for node_id in range(self.no_of_atoms)}
+        self.af = {node_id: torch.tensor(self.graph.nodes[node_id]["attr_dict"]["atom_features"]).float().to(device) for node_id in range(self.no_of_atoms)}
 
     def get_atom_features(self, node_id):
         return self.af[node_id]
