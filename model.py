@@ -6,7 +6,7 @@ import networkx as nx
 import torch.nn.functional as F
 from molecule import Molecule
 import pytorch_lightning as pl
-
+from pytorch_lightning.metrics import F1
 class ChEBIRecNN(pl.LightningModule):
 
     def __init__(self):
@@ -25,6 +25,8 @@ class ChEBIRecNN(pl.LightningModule):
         self.c4 = nn.Linear(self.length, self.length)
         self.c5 = nn.Linear(self.length, self.length)
         self.c = {1: self.c1, 2: self.c2, 3: self.c3, 4: self.c4, 5: self.c5}
+
+        self._f1 = F1(500, threshold=0.5)
 
         self.NN_single_node = nn.Sequential(nn.Linear(self.atom_enc, self.length), nn.ReLU(), nn.Linear(self.length, self.length))
         self.merge = nn.Sequential(nn.Linear(2*self.length, self.length), nn.ReLU(), nn.Linear(self.length, self.length))
@@ -65,15 +67,22 @@ class ChEBIRecNN(pl.LightningModule):
         # take the average of hidden representation at all sinks
         return self.final(self.attention(self.dag_weight, final_outputs))
 
+    def _calculate_metrics(self, prediction, labels, prefix=""):
+        loss = F.binary_cross_entropy_with_logits(prediction, labels)
+        f1 = self._f1(prediction, labels)
+        self.log(prefix+'loss', loss, on_step=False, on_epoch=True, prog_bar=True, logger=True)
+        self.log(prefix+"f1", f1, on_step=False, on_epoch=True, prog_bar=True, logger=True),
+        return loss
+
     def training_step(self, batch, batch_idx):
         molecules, labels = batch
         prediction = self(molecules)
-        return F.binary_cross_entropy_with_logits(prediction, labels)
+        return self._calculate_metrics(prediction, labels)
 
     def validation_step(self, batch, batch_idx):
         molecules, labels = batch
         prediction = self(molecules)
-        return F.binary_cross_entropy_with_logits(prediction, labels)
+        return self._calculate_metrics(prediction, labels, prefix="val_")
 
     def process_atom(self, node, molecule):
         return F.dropout(F.relu(self.NN_single_node(molecule.get_atom_features(node).to(self.device))), p=0.1)

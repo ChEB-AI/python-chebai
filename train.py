@@ -17,7 +17,7 @@ from pytorch_lightning import loggers as pl_loggers
 import multiprocessing as mp
 
 BATCH_SIZE = 100
-NUM_EPOCHS = 100
+NUM_EPOCHS = 1
 LEARNING_RATE = 0.01
 
 def eval_model(model, dataset, test_labels):
@@ -142,7 +142,7 @@ def batchify(x, y):
     return [data[i*BATCH_SIZE:(i+1)*BATCH_SIZE] for i in range(1 + len(data)//BATCH_SIZE)]
 
 def load_data():
-    fpath = "data/full.pickle"
+    fpath = "data/small.pickle"
     if os.path.isfile(fpath):
         with open(fpath, "rb") as f:
             train_dataset, train_actual_labels, validation_dataset, validation_actual_labels = pickle.load(f)
@@ -211,8 +211,7 @@ if __name__ == "__main__":
     model = ChEBIRecNN()
 
     tb_logger = pl_loggers.TensorBoardLogger('logs/')
-
-    trainer = pl.Trainer( accelerator=accelerator, logger=tb_logger, **trainer_kwargs)
+    trainer = pl.Trainer( accelerator=accelerator, max_epochs=NUM_EPOCHS, **trainer_kwargs)
     trainer.fit(model, train_data, val_dataloaders=validation_data)
 
 """
