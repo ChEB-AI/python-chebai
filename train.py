@@ -13,7 +13,8 @@ import csv
 import os
 
 import pytorch_lightning as pl
-from pytorch_lightning.cluster_environments.torchelastic_environment import TorchElasticEnvironment
+from pytorch_lightning import loggers as pl_loggers
+
 BATCH_SIZE = 100
 NUM_EPOCHS = 100
 LEARNING_RATE = 0.01
@@ -188,7 +189,13 @@ def load_data():
 
     return train_dataset, train_actual_labels, validation_dataset, validation_actual_labels
 if __name__ == "__main__":
-    device = torch.device("cuda:1") if torch.cuda.is_available() else torch.device("cpu:0")
+    if torch.cuda.is_available():
+        device = torch.device("cuda:1")
+        accelerator = "ddp"
+    else:
+        device = torch.device("cpu")
+        accelerator = None
+
     def move_molecule(m):
         m.collect_atom_features(device)
         return m
@@ -196,13 +203,15 @@ if __name__ == "__main__":
 
     train_dataset, train_actual_labels, validation_dataset, validation_actual_labels = load_data()
     train_data = data.DataLoader(list(zip(map(move_molecule, train_dataset), [l.float().to(device) for l in train_actual_labels])), batch_size=BATCH_SIZE, shuffle=True, collate_fn=collate, num_workers=0)
-    validation_data = data.DataLoader(list(zip(map(move_molecule, validation_dataset), [l.float().to(device) for l in validation_actual_labels])), collate_fn=collate, num_workers=0)
+    validation_data = data.DataLoader(list(zip(map(move_molecule, validation_dataset), [l.float().to(device) for l in validation_actual_labels])), batch_size=BATCH_SIZE, collate_fn=collate, num_workers=0)
     #train_data = batchify([move_molecule(m) for m in train_dataset], [l.float().to(device) for l in train_actual_labels])
     #validation_data = batchify([move_molecule(m) for m in validation_dataset], [l.float().to(device) for l in validation_actual_labels])
 
     model = ChEBIRecNN()
 
-    trainer = pl.Trainer(plugins=[TorchElasticEnvironment()], accelerator="ddp_cpu")
+    tb_logger = pl_loggers.TensorBoardLogger('logs/')
+
+    trainer = pl.Trainer(accelerator=accelerator, val_check_interval=BATCH_SIZE, logger=tb_logger)
     trainer.fit(model, train_data, val_dataloaders=validation_data)
 
 """
