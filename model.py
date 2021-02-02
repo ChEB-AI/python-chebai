@@ -7,8 +7,8 @@ import torch.nn.functional as F
 from molecule import Molecule
 import pytorch_lightning as pl
 from pytorch_lightning.metrics import F1
-class ChEBIRecNN(pl.LightningModule):
 
+class ChEBIRecNN(pl.LightningModule):
     def __init__(self):
         super(ChEBIRecNN, self).__init__()
 
@@ -19,14 +19,17 @@ class ChEBIRecNN(pl.LightningModule):
 
         self.norm = torch.nn.LayerNorm(self.length)
 
+        self.metrics = {
+            "loss": F.binary_cross_entropy_with_logits,
+            "f1": F1(500, threshold=0.5)
+        }
+
         self.c1 = nn.Linear(self.length, self.length)
         self.c2 = nn.Linear(self.length, self.length)
         self.c3 = nn.Linear(self.length, self.length)
         self.c4 = nn.Linear(self.length, self.length)
         self.c5 = nn.Linear(self.length, self.length)
         self.c = {1: self.c1, 2: self.c2, 3: self.c3, 4: self.c4, 5: self.c5}
-
-        self._f1 = F1(500, threshold=0.5)
 
         self.NN_single_node = nn.Sequential(nn.Linear(self.atom_enc, self.length), nn.ReLU(), nn.Linear(self.length, self.length))
         self.merge = nn.Sequential(nn.Linear(2*self.length, self.length), nn.ReLU(), nn.Linear(self.length, self.length))
@@ -68,11 +71,7 @@ class ChEBIRecNN(pl.LightningModule):
         return self.final(self.attention(self.dag_weight, final_outputs))
 
     def _calculate_metrics(self, prediction, labels, prefix=""):
-        loss = F.binary_cross_entropy_with_logits(prediction, labels)
-        f1 = self._f1(prediction, labels)
-        self.log(prefix+'loss', loss, on_step=False, on_epoch=True, prog_bar=True, logger=True)
-        self.log(prefix+"f1", f1, on_step=False, on_epoch=True, prog_bar=True, logger=True),
-        return loss
+        return {m: mf(prediction, labels) for m, mf in self.metrics.items()}
 
     def training_step(self, batch, batch_idx):
         molecules, labels = batch
@@ -86,6 +85,17 @@ class ChEBIRecNN(pl.LightningModule):
 
     def process_atom(self, node, molecule):
         return F.dropout(F.relu(self.NN_single_node(molecule.get_atom_features(node).to(self.device))), p=0.1)
+
+    def training_epoch_end(self, outputs) -> None:
+        for metric in self.metrics:
+            avg = torch.stack([o[metric] for o in  outputs]).mean()
+            self.log(metric, avg)
+
+    def validation_epoch_end(self, outputs) -> None:
+        if not self.trainer.running_sanity_check:
+            for metric in self.metrics:
+                avg = torch.stack([o[metric] for o in  outputs]).mean()
+                self.log("val_" + metric, avg)
 
     @staticmethod
     def attention(weights, x):
