@@ -195,8 +195,8 @@ if __name__ == "__main__":
 
 
     train_dataset, train_actual_labels, validation_dataset, validation_actual_labels = load_data()
-    train_data = data.DataLoader(list(zip(map(move_molecule, train_dataset), [l.float().to(device) for l in train_actual_labels])), batch_size=BATCH_SIZE, shuffle=True, collate_fn=collate)
-    validation_data = data.DataLoader(list(zip(map(move_molecule, validation_dataset), [l.float().to(device) for l in validation_actual_labels])), collate_fn=collate)
+    train_data = data.DataLoader(list(zip(map(move_molecule, train_dataset), [l.float().to(device) for l in train_actual_labels])), batch_size=BATCH_SIZE, shuffle=True, collate_fn=collate, num_workers=0)
+    validation_data = data.DataLoader(list(zip(map(move_molecule, validation_dataset), [l.float().to(device) for l in validation_actual_labels])), collate_fn=collate, num_workers=0)
     #train_data = batchify([move_molecule(m) for m in train_dataset], [l.float().to(device) for l in train_actual_labels])
     #validation_data = batchify([move_molecule(m) for m in validation_dataset], [l.float().to(device) for l in validation_actual_labels])
 
