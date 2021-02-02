@@ -76,7 +76,7 @@ class ChEBIRecNN(pl.LightningModule):
         return F.binary_cross_entropy_with_logits(prediction, labels)
 
     def process_atom(self, node, molecule):
-        return F.dropout(F.relu(self.NN_single_node(molecule.get_atom_features(node))), p=0.1)
+        return F.dropout(F.relu(self.NN_single_node(molecule.get_atom_features(node).to(self.device))), p=0.1)
 
     @staticmethod
     def attention(weights, x):
