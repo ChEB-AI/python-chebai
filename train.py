@@ -7,10 +7,13 @@ import pandas as pd
 from molecule import Molecule
 from model import ChEBIRecNN
 import torch.nn as nn
+from torch.utils import data
 import torch
 import csv
 import os
 
+import pytorch_lightning as pl
+from pytorch_lightning.cluster_environments.torchelastic_environment import TorchElasticEnvironment
 BATCH_SIZE = 100
 NUM_EPOCHS = 100
 LEARNING_RATE = 0.01
@@ -55,6 +58,10 @@ def crawl_info(DAG, sink_parents):
 
 import random
 
+def collate(batch):
+    input, labels = zip(*batch)
+    return input, torch.stack(labels)
+
 def _execute(model, loss_fn, optimizer, data, device, with_grad=True):
     train_running_loss = 0
     data_size = 0
@@ -62,16 +69,13 @@ def _execute(model, loss_fn, optimizer, data, device, with_grad=True):
     model.train(with_grad)
     num_batches = len(data)
     num_batch = 0
-    for batch in data:
+    for molecules, labels in data:
         num_batch += 1
         optimizer.zero_grad()
-        loss = 0
-        for molecule, label in batch:
-            prediction = model(molecule)
-            loss += loss_fn(prediction, label)
-            data_size += 1
-            predicted_labels = [1.0 if i > 0.5 else 0.0 for i in prediction]
-            f1 += f1_score(predicted_labels, label.tolist())
+        prediction = model(molecules)
+        loss = loss_fn(prediction, labels)
+        data_size += 1
+        f1 += f1_score(prediction > 0.5, labels > 0.5, average='micro')
         train_running_loss += loss.item()
         if with_grad:
             print(f"Batch {num_batch}/{num_batches}")
@@ -93,7 +97,6 @@ def execute_network(model, loss_fn, optimizer, train_data, validation_data, epoc
         writer.writerow(columns_name)
 
     for epoch in range(epochs):
-        random.shuffle(train_data)
         train_running_loss, train_running_f1 = _execute(model, loss_fn, optimizer, train_data, device, with_grad=True)
 
         with torch.no_grad():
@@ -136,62 +139,73 @@ def batchify(x, y):
     data = list(zip(x,y))
     return [data[i*BATCH_SIZE:(i+1)*BATCH_SIZE] for i in range(1 + len(data)//BATCH_SIZE)]
 
+def load_data():
+    fpath = "data/full.pickle"
+    if os.path.isfile(fpath):
+        with open(fpath, "rb") as f:
+            train_dataset, train_actual_labels, validation_dataset, validation_actual_labels = pickle.load(f)
+    else:
+        print('reading data from files!')
+        train_infile = open('./data/train.pkl','rb')
+        test_infile = open('./data/test.pkl','rb')
+        validation_infile = open('./data/validation.pkl','rb')
 
-if os.path.isfile("data/full.pickle"):
-    with open("data/full.pickle", "rb") as f:
-        train_dataset, train_actual_labels, validation_dataset, validation_actual_labels = pickle.load(f)
-else:
-    print('reading data from files!')
-    train_infile = open('./data/train.pkl','rb')
-    test_infile = open('./data/test.pkl','rb')
-    validation_infile = open('./data/validation.pkl','rb')
+        #test_data = prepare_data(test_infile)
 
-    #test_data = prepare_data(test_infile)
+        print('prepare train data!')
+        train_dataset = []
+        train_actual_labels = []
 
-    print('prepare train data!')
-    train_dataset = []
-    train_actual_labels = []
+        for index, row in prepare_data(train_infile).iterrows():
+            try:
+                mol = Molecule(row['SMILES'], True)
 
-    for index, row in prepare_data(train_infile).iterrows():
-        try:
-            mol = Molecule(row['SMILES'], True)
-
-            DAGs_meta_info = mol.dag_to_node
-            train_dataset.append(mol)
-            train_actual_labels.append(torch.tensor(row['LABELS']).float())
-        except:
-            pass
-
-
-    print('prepare validation data!')
-    validation_dataset = []
-    validation_actual_labels = []
+                DAGs_meta_info = mol.dag_to_node
+                train_dataset.append(mol)
+                train_actual_labels.append(torch.tensor(row['LABELS']).float())
+            except:
+                pass
 
 
-    for index, row in prepare_data(validation_infile).iterrows():
-        try:
-            mol = Molecule(row['SMILES'], True)
-
-            DAGs_meta_info = mol.dag_to_node
-
-            validation_dataset.append(mol)
-            validation_actual_labels.append(torch.tensor(row['LABELS']).float())
-        except:
-          pass
-
-    with open("data/full.pickle", "wb") as f:
-        pickle.dump((train_dataset, train_actual_labels, validation_dataset, validation_actual_labels), f)
+        print('prepare validation data!')
+        validation_dataset = []
+        validation_actual_labels = []
 
 
-device = torch.device("cuda:1") if torch.cuda.is_available() else torch.device("cpu:0")
+        for index, row in prepare_data(validation_infile).iterrows():
+            try:
+                mol = Molecule(row['SMILES'], True)
 
-def move_molecule(m):
-    m.collect_atom_features(device)
-    return m
+                DAGs_meta_info = mol.dag_to_node
 
-train_data = batchify([move_molecule(m) for m in train_dataset], [l.float().to(device) for l in train_actual_labels])
-validation_data = batchify([move_molecule(m) for m in validation_dataset], [l.float().to(device) for l in validation_actual_labels])
+                validation_dataset.append(mol)
+                validation_actual_labels.append(torch.tensor(row['LABELS']).float())
+            except:
+              pass
 
+        with open(fpath, "wb") as f:
+            pickle.dump((train_dataset, train_actual_labels, validation_dataset, validation_actual_labels), f)
+
+    return train_dataset, train_actual_labels, validation_dataset, validation_actual_labels
+if __name__ == "__main__":
+    device = torch.device("cuda:1") if torch.cuda.is_available() else torch.device("cpu:0")
+    def move_molecule(m):
+        m.collect_atom_features(device)
+        return m
+
+
+    train_dataset, train_actual_labels, validation_dataset, validation_actual_labels = load_data()
+    train_data = data.DataLoader(list(zip(map(move_molecule, train_dataset), [l.float().to(device) for l in train_actual_labels])), batch_size=BATCH_SIZE, shuffle=True, collate_fn=collate)
+    validation_data = data.DataLoader(list(zip(map(move_molecule, validation_dataset), [l.float().to(device) for l in validation_actual_labels])), collate_fn=collate)
+    #train_data = batchify([move_molecule(m) for m in train_dataset], [l.float().to(device) for l in train_actual_labels])
+    #validation_data = batchify([move_molecule(m) for m in validation_dataset], [l.float().to(device) for l in validation_actual_labels])
+
+    model = ChEBIRecNN()
+
+    trainer = pl.Trainer(plugins=[TorchElasticEnvironment()], accelerator="ddp_cpu")
+    trainer.fit(model, train_data, val_dataloaders=validation_data)
+
+"""
 model = ChEBIRecNN()
 loss_fn = nn.BCEWithLogitsLoss()
 optimizer = torch.optim.Adam(model.parameters(), lr=LEARNING_RATE)
@@ -213,3 +227,4 @@ execute_network(**params)
 
 torch.save(model.state_dict(), 'ChEBI_RvNN_{}_epochs'.format(NUM_EPOCHS))
 print('model saved!')
+"""

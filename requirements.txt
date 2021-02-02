@@ -19,3 +19,4 @@ threadpoolctl
 torch
 typing-extensions
 urllib3
+pytorch_lightning
