@@ -199,20 +199,20 @@ def move_molecule(m):
 if __name__ == "__main__":
     if torch.cuda.is_available():
         accelerator = "ddp"
+        trainer_kwargs = dict(gpus=-1)
     else:
         accelerator = None
+        trainer_kwargs = dict()
 
     train_dataset, train_actual_labels, validation_dataset, validation_actual_labels = load_data()
-    train_data = data.DataLoader(list(zip(map(move_molecule, train_dataset), [l.float().to(device) for l in train_actual_labels])), batch_size=BATCH_SIZE, shuffle=True, collate_fn=collate)
-    validation_data = data.DataLoader(list(zip(map(move_molecule, validation_dataset), [l.float().to(device) for l in validation_actual_labels])), batch_size=BATCH_SIZE, collate_fn=collate)
-    #train_data = batchify([move_molecule(m) for m in train_dataset], [l.float().to(device) for l in train_actual_labels])
-    #validation_data = batchify([move_molecule(m) for m in validation_dataset], [l.float().to(device) for l in validation_actual_labels])
+    train_data = data.DataLoader(list(zip(map(move_molecule, train_dataset), [l.float() for l in train_actual_labels])), batch_size=BATCH_SIZE, shuffle=True, collate_fn=collate)
+    validation_data = data.DataLoader(list(zip(map(move_molecule, validation_dataset), [l.float() for l in validation_actual_labels])), batch_size=BATCH_SIZE, collate_fn=collate)
 
     model = ChEBIRecNN()
 
     tb_logger = pl_loggers.TensorBoardLogger('logs/')
 
-    trainer = pl.Trainer(gpus=2, accelerator=accelerator, logger=tb_logger)
+    trainer = pl.Trainer( accelerator=accelerator, logger=tb_logger, **trainer_kwargs)
     trainer.fit(model, train_data, val_dataloaders=validation_data)
 
 """

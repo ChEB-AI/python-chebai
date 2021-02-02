@@ -17,10 +17,6 @@ class ChEBIRecNN(pl.LightningModule):
         self.output_of_sinks = 500
         self.num_of_classes = 500
 
-        self.activation = nn.ReLU()
-        self.sigmoid_activation = nn.Sigmoid()
-        self.dropout = nn.Dropout(p=0.1)
-
         self.norm = torch.nn.LayerNorm(self.length)
 
         self.c1 = nn.Linear(self.length, self.length)
@@ -53,7 +49,7 @@ class ChEBIRecNN(pl.LightningModule):
                 else:
                     inp_prev = self.attention(self.attention_weight, inputs[node])
                     inp = torch.cat((inp_prev, atom), dim=0)
-                    output = self.activation(self.merge(inp)) + inp_prev
+                    output = F.relu(self.merge(inp)) + inp_prev
                 for succ in dag.successors(node):
                     try:
                         inputs[succ] = torch.cat((self.c[num_inputs[succ]](inputs[succ]), output.unsqueeze(0)))
@@ -80,7 +76,7 @@ class ChEBIRecNN(pl.LightningModule):
         return F.binary_cross_entropy_with_logits(prediction, labels)
 
     def process_atom(self, node, molecule):
-        return self.dropout(self.activation(self.NN_single_node(molecule.get_atom_features(node))))
+        return F.dropout(F.relu(self.NN_single_node(molecule.get_atom_features(node))), p=0.1)
 
     @staticmethod
     def attention(weights, x):
