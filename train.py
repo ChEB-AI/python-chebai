@@ -189,22 +189,22 @@ def load_data():
             pickle.dump((train_dataset, train_actual_labels, validation_dataset, validation_actual_labels), f)
 
     return train_dataset, train_actual_labels, validation_dataset, validation_actual_labels
+
+
+def move_molecule(m):
+    m.collect_atom_features()
+    return m
+
+
 if __name__ == "__main__":
     if torch.cuda.is_available():
-        device = torch.device("cuda:1")
         accelerator = "ddp"
     else:
-        device = torch.device("cpu")
         accelerator = None
 
-    def move_molecule(m):
-        m.collect_atom_features(device)
-        return m
-
-
     train_dataset, train_actual_labels, validation_dataset, validation_actual_labels = load_data()
-    train_data = data.DataLoader(list(zip(map(move_molecule, train_dataset), [l.float().to(device) for l in train_actual_labels])), batch_size=BATCH_SIZE, shuffle=True, collate_fn=collate, num_workers=mp.cpu_count())
-    validation_data = data.DataLoader(list(zip(map(move_molecule, validation_dataset), [l.float().to(device) for l in validation_actual_labels])), batch_size=BATCH_SIZE, collate_fn=collate, num_workers=mp.cpu_count())
+    train_data = data.DataLoader(list(zip(map(move_molecule, train_dataset), [l.float() for l in train_actual_labels])), batch_size=BATCH_SIZE, shuffle=True, collate_fn=collate, num_workers=mp.cpu_count()//2)
+    validation_data = data.DataLoader(list(zip(map(move_molecule, validation_dataset), [l.float() for l in validation_actual_labels])), batch_size=BATCH_SIZE, collate_fn=collate, num_workers=mp.cpu_count()//2)
     #train_data = batchify([move_molecule(m) for m in train_dataset], [l.float().to(device) for l in train_actual_labels])
     #validation_data = batchify([move_molecule(m) for m in validation_dataset], [l.float().to(device) for l in validation_actual_labels])
 
