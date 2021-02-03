@@ -19,9 +19,12 @@ class ChEBIRecNN(pl.LightningModule):
 
         self.norm = torch.nn.LayerNorm(self.length)
 
+        self._f1 = F1(500, threshold=0.5)
+        self._loss_fun = F.binary_cross_entropy_with_logits
+
         self.metrics = {
-            "loss": F.binary_cross_entropy_with_logits,
-            "f1": F1(500, threshold=0.5)
+            "loss": self._loss_fun,
+            "f1": self._f1
         }
 
         self.c1 = nn.Linear(self.length, self.length)
