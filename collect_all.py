@@ -5,12 +5,13 @@ import os
 from sklearn.model_selection import train_test_split
 import torch
 from torch import nn
+import requests
 
 try:
     from rdkit import Chem
 except:
     pass
-
+import multiprocessing as mp
 from torch_geometric.nn import GATConv
 from torch_geometric.utils.convert import from_networkx
 from torch_geometric.data import Dataset, Data
@@ -60,7 +61,9 @@ class PartOfData(Dataset):
             self.part_cache = torch.load(self.part_cache)
 
     def download(self):
-        pass
+        url = 'http://purl.obolibrary.org/obo/chebi.obo'
+        r = requests.get(url, allow_redirects=True)
+        open(self.raw_paths[0], 'wb').write(r.content)
 
     def process(self):
         doc = fastobo.load("chebi.obo")
@@ -77,21 +80,12 @@ class PartOfData(Dataset):
 
         print("pass parts")
         self.pass_parts(g, "CHEBI:23367", set())
-        self.part_cache = dict()
         print("Load data")
-        raw_data = [
-            (l, rs)
-            for l, rs in self.extract_children(g, "CHEBI:23367", part_cache=self.part_cache) if rs
-        ]
-
-        all_parts = {p for _, rs in raw_data for p in rs}
-        torch.save(self.part_cache, self.processed_cache_names[0])
-        print(len(all_parts))
-        for i, r in enumerate(all_parts):
-            print(i, r)
-            data = [PrePairData(l, r, float(r in rs)) for l, rs in raw_data]
-            torch.save(data, os.path.join(f"part_{i}.pt"))
-
+        children = nx.single_source_shortest_path(g, "CHEBI:23367").keys()
+        with mp.Pool() as p:
+            nx.set_node_attributes(g, dict(p.map(get_mol_enc,((g,i) for i in children))), "enc")
+        data = [PrePairData(l, r, float(r in rs)) for l, rs in raw_data]
+        torch.save(data, os.path.join(f"part_{i}.pt"))
 
     @property
     def raw_file_names(self):
@@ -116,16 +110,7 @@ class PartOfData(Dataset):
     def extract_children(self, d: nx.DiGraph, root, part_cache):
         smiles = d.nodes[root]["smiles"]
         if smiles:
-            ident = self.add_to_cache(d, root, part_cache)
-            if ident is not None:
-                ps = set()
-                for part in d.nodes[root]["has_part"]:
-                    psmiles = d.nodes[part]["smiles"]
-                    if psmiles:
-                        pid = self.add_to_cache(d, part, part_cache)
-                        if pid is not None:
-                            ps.add(pid)
-                yield ident, ps
+            yield root
         for child in d.successors(root):
             for r in self.extract_children(d, child, part_cache):
                 yield r
@@ -190,16 +175,25 @@ class PartOfNet(nn.Module):
         return self.output_net(torch.cat([torch.sum(a,dim=0),torch.sum(b,dim=0)], dim=0))
 
 
-def mol_to_data(mol):
-    graph = nx.Graph()
-    for i in range(mol.GetNumAtoms()):
-        atom = mol.GetAtomWithIdx(i)
-        graph.add_node(i, x=[float(i == atom.GetAtomicNum()) for i in range(1,120)])
-        for neighbour in atom.GetNeighbors():
-            neighbour_idx = neighbour.GetIdx()
-            bond = mol.GetBondBetweenAtoms(i, neighbour_idx)
-            graph.add_edge(i, neighbour_idx, edge_x=int(bond.GetBondType()))
-    return from_networkx(graph)
+def get_mol_enc(x):
+    g, i = x
+    s = g.nodes[i]["smiles"]
+    return i, mol_to_data(s) if s else None
+
+def mol_to_data(smiles):
+    mol = Chem.MolFromSmiles(smiles)
+    if mol is None:
+        return None
+    else:
+        graph = nx.Graph()
+        for i in range(mol.GetNumAtoms()):
+            atom = mol.GetAtomWithIdx(i)
+            graph.add_node(i, x=[float(i == atom.GetAtomicNum()) for i in range(1,120)])
+            for neighbour in atom.GetNeighbors():
+                neighbour_idx = neighbour.GetIdx()
+                bond = mol.GetBondBetweenAtoms(i, neighbour_idx)
+                graph.add_edge(i, neighbour_idx, edge_x=int(bond.GetBondType()))
+        return from_networkx(graph)
 
 
 def train(data, cache, all_parts):
