@@ -165,7 +165,7 @@ def train(data, cache, all_parts):
     net.to(device)
     optimizer = torch.optim.Adam(net.parameters())
     for cidx, parts in data:
-        c = cache[cidx][3]
+        c = cache[cidx][3].to(device)
         loss = 0
         for pidx in all_parts:
             optimizer.zero_grad()
