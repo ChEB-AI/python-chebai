@@ -12,13 +12,13 @@ try:
 except:
     pass
 import multiprocessing as mp
-from torch_geometric.nn import GATConv
+from torch_geometric import nn as tgnn
 from torch_geometric.utils.convert import from_networkx
-from torch_geometric.data import Dataset, Data
+from torch_geometric.data import InMemoryDataset, Data, DataLoader
 
 
 class PrePairData(Data):
-    def __init__(self, l, r, label):
+    def __init__(self, l=None, r=None, label=None):
         super(PrePairData, self).__init__()
         self.l = l
         self.r = r
@@ -26,39 +26,31 @@ class PrePairData(Data):
 
 
 class PairData(Data):
-    def __init__(self, ppd: PrePairData, cache):
+    def __init__(self, ppd: PrePairData, graph):
         super(PairData, self).__init__()
 
-        s = cache[ppd.l][3]
+        s = graph.nodes[ppd.l]["enc"]
         self.edge_index_s = s.edge_index
         self.x_s = s.x
 
-        t = cache[ppd.r][3]
+        t = graph.nodes[ppd.r]["enc"]
         self.edge_index_t = t.edge_index
         self.x_t = t.x
 
         self.label = ppd.label
 
 
-class PartOfData(Dataset):
-
-    def len(self):
-        return len(self.processed_file_names)
-
-    def get(self, idx):
-        data = torch.load(os.path.join(self.processed_dir, 'data_{}.pt'.format(idx)))
-        return data
+class PartOfData(InMemoryDataset):
 
     def transform(self, ppd: PrePairData):
-        return PairData(ppd, self.cache)
+        return PairData(ppd, self.graph)
 
     def __init__(self, root, transform=None, pre_transform=None):
         self.cache_file = ".part_data.pkl"
         self._ignore = set()
-        self.part_cache = dict()
-        super().__init__(root, transform, pre_transform)
-        if not self.part_cache:
-            self.part_cache = torch.load(self.part_cache)
+        super().__init__(root, self.transform, pre_transform)
+        self.data, self.slices = torch.load(self.processed_paths[0])
+        self.graph = torch.load(os.path.join(self.processed_dir, self.processed_cache_names[0]))
 
     def download(self):
         url = 'http://purl.obolibrary.org/obo/chebi.obo'
@@ -66,7 +58,7 @@ class PartOfData(Dataset):
         open(self.raw_paths[0], 'wb').write(r.content)
 
     def process(self):
-        doc = fastobo.load("chebi.obo")
+        doc = fastobo.load(self.raw_paths[0])
         elements = list()
         for clause in doc:
             callback = CALLBACKS.get(type(clause))
@@ -81,11 +73,21 @@ class PartOfData(Dataset):
         print("pass parts")
         self.pass_parts(g, "CHEBI:23367", set())
         print("Load data")
-        children = nx.single_source_shortest_path(g, "CHEBI:23367").keys()
-        with mp.Pool() as p:
-            nx.set_node_attributes(g, dict(p.map(get_mol_enc,((g,i) for i in children))), "enc")
-        data = [PrePairData(l, r, float(r in rs)) for l, rs in raw_data]
-        torch.save(data, os.path.join(f"part_{i}.pt"))
+        children = list(nx.single_source_shortest_path(g, "CHEBI:23367").keys())[:100]
+        parts = list({p for c in children for p in g.nodes[c]["has_part"]})
+        print("Create molecules")
+        with mp.Pool(1) as p:
+            nx.set_node_attributes(g, dict(p.map(get_mol_enc,((g,i) for i in (children + parts)))), "enc")
+
+        # Filter invalid structures
+        children = [p for p in children if g.nodes[p]["enc"]]
+        parts = [p for p in parts if g.nodes[p]["enc"]]
+
+        data_list = [PrePairData(l, r, float(r in g.nodes[l]["has_part"])) for l in children for r in parts]
+
+        data, slices = self.collate(data_list)
+        torch.save((data, slices), self.processed_paths[0])
+        torch.save(g, os.path.join(self.processed_dir, self.processed_cache_names[0]))
 
     @property
     def raw_file_names(self):
@@ -93,7 +95,7 @@ class PartOfData(Dataset):
 
     @property
     def processed_file_names(self):
-        return [f"part_{i}.pt" for i in range(2000)]
+        return ["data.pt"]
 
     @property
     def processed_cache_names(self):
@@ -165,13 +167,13 @@ class PartOfNet(nn.Module):
     def __init__(self, in_length, loops=10):
         super().__init__()
         self.loops=loops
-        self.left_graph_net = GATConv(in_length, in_length)
-        self.right_graph_net = GATConv(in_length, in_length)
+        self.left_graph_net = tgnn.GATConv(in_length, in_length)
+        self.right_graph_net = tgnn.GATConv(in_length, in_length)
         self.output_net = nn.Sequential(nn.Linear(2*in_length,in_length*in_length), nn.Linear(in_length*in_length,in_length), nn.Linear(in_length,1))
 
-    def forward(self, l, r):
-        a = self.left_graph_net(l.x, l.edge_index.long())
-        b = self.right_graph_net(r.x, r.edge_index.long())
+    def forward(self, x):
+        a = self.left_graph_net(x.x_s, x.edge_index_s.long())
+        b = self.right_graph_net(x.x_t, x.edge_index_t.long())
         return self.output_net(torch.cat([torch.sum(a,dim=0),torch.sum(b,dim=0)], dim=0))
 
 
@@ -196,7 +198,7 @@ def mol_to_data(smiles):
         return from_networkx(graph)
 
 
-def train(data, cache, all_parts):
+def train(dataset):
     floss = torch.nn.BCEWithLogitsLoss()
     net = PartOfNet(119)
     if torch.cuda.is_available():
@@ -205,20 +207,22 @@ def train(data, cache, all_parts):
         device = torch.device("cpu")
     net.to(device)
     optimizer = torch.optim.Adam(net.parameters())
-    for cidx, parts in data:
-        c = cache[cidx][3].to(device)
-        loss = 0
-        for pidx in all_parts:
+    for epoch in range(10):
+        running_loss = 0
+        batches = 0
+        for data in dataset:
             optimizer.zero_grad()
-            p = cache[pidx][3].to(device)
-            label = torch.tensor([float(pidx in parts)]).to(device)
-            pred = net(c, p)
-            loss += floss(pred, label)
-        print(loss.item())
-        loss.backward()
-        optimizer.step()
+            pred = net(data)
+            loss = floss(pred, data.label)
+            running_loss += loss.item()
+            batches += 1
+            loss.backward()
+            optimizer.step()
+        print("Epoch", epoch, "loss =", running_loss/batches)
+    torch.save(net,"net.pt")
+
 
 if __name__ == "__main__":
     data = PartOfData(".")
-    all_parts = {p for _,ps in data for p in ps}
-    train(data, all_parts)
+    loader = DataLoader(data)#, follow_batch=["x_s", "x_t", "edge_index_s", "edge_index_t"])
+    train(loader)
