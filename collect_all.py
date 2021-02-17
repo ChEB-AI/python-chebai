@@ -159,15 +159,18 @@ def train(data, cache, all_parts):
     floss = torch.nn.BCEWithLogitsLoss()
     net = PartOfNet(119)
     if torch.cuda.is_available():
-        net.to("cuda:0")
+        device = torch.device("cuda:0")
+    else:
+        device = torch.device("cpu")
+    net.to(device)
     optimizer = torch.optim.Adam(net.parameters())
     for cidx, parts in data:
         c = cache[cidx][3]
         loss = 0
         for pidx in all_parts:
             optimizer.zero_grad()
-            p = cache[pidx][3]
-            label = torch.tensor([float(pidx in parts)])
+            p = cache[pidx][3].to(device)
+            label = torch.tensor([float(pidx in parts)]).to(device)
             pred = net(c, p)
             loss += floss(pred, label)
         print(loss.item())
