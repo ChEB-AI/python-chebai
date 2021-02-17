@@ -5,10 +5,12 @@ import os
 from sklearn.model_selection import train_test_split
 import torch
 from torch import nn
-from sklearn.metrics import f1_score
-from model import Molecule
-from typing import Iterable
-from rdkit import Chem
+
+try:
+    from rdkit import Chem
+except:
+    pass
+
 from torch_geometric.nn import GATConv
 from torch_geometric.utils.convert import from_networkx
 
