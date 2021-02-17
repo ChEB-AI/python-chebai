@@ -211,6 +211,7 @@ def train(dataset):
         running_loss = 0
         batches = 0
         for data in dataset:
+            data.to(device)
             optimizer.zero_grad()
             pred = net(data)
             loss = floss(pred, data.label)
