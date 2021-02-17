@@ -13,10 +13,56 @@ except:
 
 from torch_geometric.nn import GATConv
 from torch_geometric.utils.convert import from_networkx
+from torch_geometric.data import Dataset, Data
 
-def load_parts():
-    cache_file = ".part_data.pkl"
-    if not os.path.isfile(cache_file):
+
+class PrePairData(Data):
+    def __init__(self, l, r, label):
+        super(PrePairData, self).__init__()
+        self.l = l
+        self.r = r
+        self.label = label
+
+
+class PairData(Data):
+    def __init__(self, ppd: PrePairData, cache):
+        super(PairData, self).__init__()
+
+        s = cache[ppd.l][3]
+        self.edge_index_s = s.edge_index
+        self.x_s = s.x
+
+        t = cache[ppd.r][3]
+        self.edge_index_t = t.edge_index
+        self.x_t = t.x
+
+        self.label = ppd.label
+
+
+class PartOfData(Dataset):
+
+    def len(self):
+        return len(self.processed_file_names)
+
+    def get(self, idx):
+        data = torch.load(os.path.join(self.processed_dir, 'data_{}.pt'.format(idx)))
+        return data
+
+    def transform(self, ppd: PrePairData):
+        return PairData(ppd, self.cache)
+
+    def __init__(self, root, transform=None, pre_transform=None):
+        self.cache_file = ".part_data.pkl"
+        self._ignore = set()
+        self.part_cache = dict()
+        super().__init__(root, transform, pre_transform)
+        if not self.part_cache:
+            self.part_cache = torch.load(self.part_cache)
+
+    def download(self):
+        pass
+
+    def process(self):
         doc = fastobo.load("chebi.obo")
         elements = list()
         for clause in doc:
@@ -29,74 +75,73 @@ def load_parts():
             g.add_node(n["id"], **n)
         g.add_edges_from([(p, q["id"]) for q in elements for p in q["parents"]])
 
-        pass_parts(g, "CHEBI:23367", set())
-        part_cache = dict()
-        data = [
-            (l, r)
-            for l, r in extract_children(g, "CHEBI:23367", part_cache=part_cache)
-            if r
+        print("pass parts")
+        self.pass_parts(g, "CHEBI:23367", set())
+        self.part_cache = dict()
+        print("Load data")
+        raw_data = [
+            (l, rs)
+            for l, rs in self.extract_children(g, "CHEBI:23367", part_cache=self.part_cache) if rs
         ]
-        parts = list({p for l, r in data for p in r})
-        train_parts, test_parts = train_test_split(parts, test_size=0.1, shuffle=True)
-        tr, te = train_test_split(data, test_size=0.3, shuffle=True)
-        te, val = train_test_split(te, test_size=0.3, shuffle=True)
-        d = ((
-                    unfold_dataset(tr, train_parts),
-                    unfold_dataset(val, train_parts),
-                    unfold_dataset(te, train_parts),
-                    unfold_dataset(te, test_parts),
-                ), part_cache)
-        pickle.dump(d, open(cache_file, "wb"))
-        return d
-    else:
-        return pickle.load(open(cache_file, "rb"))
+
+        all_parts = {p for _, rs in raw_data for p in rs}
+        torch.save(self.part_cache, self.processed_cache_names[0])
+        print(len(all_parts))
+        for i, r in enumerate(all_parts):
+            print(i, r)
+            data = [PrePairData(l, r, float(r in rs)) for l, rs in raw_data]
+            torch.save(data, os.path.join(f"part_{i}.pt"))
 
 
-def unfold_dataset(data, parts):
-    return data #[(l, p, p in r) for l, r in data for p in parts]
+    @property
+    def raw_file_names(self):
+        return ["chebi.obo"]
 
+    @property
+    def processed_file_names(self):
+        return [f"part_{i}.pt" for i in range(2000)]
 
-def pass_parts(d: nx.DiGraph, root, parts=None):
-    if parts is None:
-        parts = set()
-    parts = set(parts.union(d.nodes[root]["has_part"]))
-    nx.set_node_attributes(d, {root: parts}, "has_part")
-    for child in d.successors(root):
-        pass_parts(d, child, set(parts))
+    @property
+    def processed_cache_names(self):
+        return ["cache.pt"]
 
+    def pass_parts(self, d: nx.DiGraph, root, parts=None):
+        if parts is None:
+            parts = set()
+        parts = set(parts.union(d.nodes[root]["has_part"]))
+        nx.set_node_attributes(d, {root: parts}, "has_part")
+        for child in d.successors(root):
+            self.pass_parts(d, child, set(parts))
 
-def extract_children(d: nx.DiGraph, root, part_cache):
-    smiles = d.nodes[root]["smiles"]
-    if smiles:
-        try:
-            ident = add_to_cache(d, root, part_cache)
-        except ValueError as e:
-            print(e)
-        else:
-            ps = set()
-            for part in d.nodes[root]["has_part"]:
-                psmiles = d.nodes[part]["smiles"]
-                if psmiles:
-                    try:
-                        ps.add(add_to_cache(d, part, part_cache))
-                    except ValueError as e:
-                        print(e)
-            yield ident, ps
-    for child in d.successors(root):
-        for r in extract_children(d, child, part_cache):
-            yield r
+    def extract_children(self, d: nx.DiGraph, root, part_cache):
+        smiles = d.nodes[root]["smiles"]
+        if smiles:
+            ident = self.add_to_cache(d, root, part_cache)
+            if ident is not None:
+                ps = set()
+                for part in d.nodes[root]["has_part"]:
+                    psmiles = d.nodes[part]["smiles"]
+                    if psmiles:
+                        pid = self.add_to_cache(d, part, part_cache)
+                        if pid is not None:
+                            ps.add(pid)
+                yield ident, ps
+        for child in d.successors(root):
+            for r in self.extract_children(d, child, part_cache):
+                yield r
 
-
-def add_to_cache(d, node, cache):
-    n = d.nodes[node]
-    s = n["id"]
-    ident = int(s[s.index(":") + 1 :])
-    if ident not in cache:
-        mol = Chem.MolFromSmiles(n["smiles"])
-        if mol is None:
-            raise ValueError("Could not process molecule: %s"%n)
-        cache[ident] = (s, n["smiles"], n["name"], mol_to_data(mol))
-    return ident
+    def add_to_cache(self, d, node, cache):
+        n = d.nodes[node]
+        s = n["id"]
+        ident = int(s[s.index(":") + 1:])
+        if ident not in self._ignore:
+            if ident not in cache:
+                mol = Chem.MolFromSmiles(n["smiles"])
+                if mol is None:
+                    self._ignore.add(ident)
+                    return None
+                cache[ident] = (s, n["smiles"], n["name"], mol_to_data(mol))
+            return ident
 
 
 def term_callback(doc):
@@ -144,6 +189,7 @@ class PartOfNet(nn.Module):
         b = self.right_graph_net(r.x, r.edge_index.long())
         return self.output_net(torch.cat([torch.sum(a,dim=0),torch.sum(b,dim=0)], dim=0))
 
+
 def mol_to_data(mol):
     graph = nx.Graph()
     for i in range(mol.GetNumAtoms()):
@@ -154,6 +200,7 @@ def mol_to_data(mol):
             bond = mol.GetBondBetweenAtoms(i, neighbour_idx)
             graph.add_edge(i, neighbour_idx, edge_x=int(bond.GetBondType()))
     return from_networkx(graph)
+
 
 def train(data, cache, all_parts):
     floss = torch.nn.BCEWithLogitsLoss()
@@ -178,7 +225,6 @@ def train(data, cache, all_parts):
         optimizer.step()
 
 if __name__ == "__main__":
-    (train_data, validation_data, _, _), cache = load_parts()
-
-    all_parts = {p for _,ps in train_data for p in ps}
-    train(train_data, cache, all_parts)
+    data = PartOfData(".")
+    all_parts = {p for _,ps in data for p in ps}
+    train(data, all_parts)
