@@ -349,6 +349,7 @@ def train(dataset):
         running_loss = 0
         batches = 0
         for data in dataset:
+            print(batches,"/", len(dataset))
             data.to(device)
             optimizer.zero_grad()
             pred = net(data)
@@ -363,5 +364,5 @@ def train(dataset):
 
 if __name__ == "__main__":
     data = PartOfData(".")
-    loader = DataLoader(data, batch_size=100, follow_batch=["x_s", "x_t", "edge_index_s", "edge_index_t"])
+    loader = DataLoader(data, batch_size=1000, follow_batch=["x_s", "x_t", "edge_index_s", "edge_index_t"])
     train(loader)
