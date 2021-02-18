@@ -52,13 +52,18 @@ class PairData(Data):
         else:
             return super().__inc__(key, value)
 
-
+transform_cache = {}
 
 class PartOfData(InMemoryDataset):
 
-    @lru_cache(5000)
     def transform(self, ppd: PrePairData):
-        return PairData(ppd, self.graph)
+        try:
+            return transform_cache[(ppd.l,ppd.r)]
+        except KeyError:
+            v = PairData(ppd, self.graph)
+            transform_cache[(ppd.l, ppd.r)] = v
+            return v
+
 
     def __init__(self, root, transform=None, pre_transform=None, **kwargs):
         self.cache_file = ".part_data.pkl"
