@@ -16,6 +16,8 @@ from pytorch_lightning.metrics import F1
 from pytorch_lightning import loggers as pl_loggers
 import pysmiles as ps
 import torch.nn.functional as F
+import random
+
 
 import multiprocessing as mp
 from torch_geometric import nn as tgnn
@@ -63,12 +65,15 @@ class PartOfData(InMemoryDataset):
     def transform(self, ppd: PrePairData):
         return PairData(ppd, self.graph)
 
-
-    def __init__(self, root, transform=None, pre_transform=None, **kwargs):
+    def __init__(self, root, kind="train", train_split=0.8, part_split=0.1, pre_transform=None, **kwargs):
         self.cache_file = ".part_data.pkl"
         self._ignore = set()
+        self.train_split = train_split
+        self.part_split = part_split
         super().__init__(root, self.transform, pre_transform, **kwargs)
-        self.data, self.slices = torch.load(self.processed_paths[0])
+        self.data = {}
+        self.slices = {}
+        self.data, self.slices = torch.load(os.path.join(self.processed_dir, f"{kind}.pt"))
         self.graph = torch.load(os.path.join(self.processed_dir, self.processed_cache_names[0]))
 
     def download(self):
@@ -100,13 +105,32 @@ class PartOfData(InMemoryDataset):
 
         print("Filter invalid structures")
         children = [p for p in children if g.nodes[p]["enc"]]
+        random.shuffle(children)
+        children_test_only = children[:int(len(children)*self.part_split)]
+        children = children[int(len(children) * self.part_split):]
+
         parts = [p for p in parts if g.nodes[p]["enc"]]
+        random.shuffle(parts)
+        parts_test_only = parts[:int(len(parts)*self.part_split)]
+        parts = parts[int(len(parts)*self.part_split):]
 
         print("Transform into torch structure")
-        data, slices = self.collate([PrePairData(l, r, float(r in g.nodes[l]["has_part"])) for l in children for r in parts])
+        ppds = [PrePairData(l, r, float(r in g.nodes[l]["has_part"])) for l in children for r in parts]
+        ppds_test_only = [PrePairData(l, r, float(r in g.nodes[l]["has_part"])) for l in children for r in parts_test_only] + [PrePairData(l, r, float(r in g.nodes[l]["has_part"])) for l in children_test_only for r in parts_test_only] + [PrePairData(l, r, float(r in g.nodes[l]["has_part"])) for l in children_test_only for r in parts]
 
-        print("Save")
-        torch.save((data, slices), self.processed_paths[0])
+        lp = len(ppds)
+        splits = {
+            "train":(0,int(lp*self.train_split)),
+            "validation":(int(lp*self.train_split),int(lp*self.train_split)+int(lp*(self.train_split**2))),
+            "test":(int(lp*self.train_split)+int(lp*(self.train_split**2)),-1)
+        }
+        for kind, (l,r) in splits.items():
+            print("Save", kind)
+            d = ppds[l:r]
+            if kind == "test":
+                d += ppds_test_only
+            data, slices = self.collate(d)
+            torch.save((data, slices), os.path.join(self.processed_dir, f"{kind}.pt"))
         torch.save(g, os.path.join(self.processed_dir, self.processed_cache_names[0]))
 
     @property
@@ -115,7 +139,7 @@ class PartOfData(InMemoryDataset):
 
     @property
     def processed_file_names(self):
-        return ["data.pt"]
+        return ["train.pt", "test.pt", "validation.pt"]
 
     @property
     def processed_cache_names(self):
@@ -388,16 +412,11 @@ def train(train_loader, validation_loader):
 
 
 if __name__ == "__main__":
-    data = PartOfData(".")
-    l = len(data)
-    dtrain = data[:int(l*0.7)]
-    dvalidation = data[int(l*0.8):int(l*0.85)]
-    dtest = data[int(l*0.85):]
-    train_loader = DataLoader(dtrain, shuffle = True, batch_size = int(
+    train_loader = DataLoader(PartOfData(".", kind="train"), shuffle = True, batch_size = int(
         sys.argv[1]), follow_batch = ["x_s", "x_t", "edge_index_s",
                                       "edge_index_t"])
 
-    validation_loader = DataLoader(dvalidation, shuffle = True, batch_size = int(
+    validation_loader = DataLoader(PartOfData(".", kind="validation"), shuffle = True, batch_size = int(
         sys.argv[1]), follow_batch = ["x_s", "x_t", "edge_index_s",
                                       "edge_index_t"])
 
