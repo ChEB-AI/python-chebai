@@ -367,5 +367,5 @@ def train(dataset):
 
 if __name__ == "__main__":
     data = PartOfData(".")
-    loader = DataLoader(data, batch_size=int(sys.argv[1]), follow_batch=["x_s", "x_t", "edge_index_s", "edge_index_t"])
+    loader = DataLoader(data, shuffle=True, batch_size=int(sys.argv[1]), follow_batch=["x_s", "x_t", "edge_index_s", "edge_index_t"])
     train(loader)
