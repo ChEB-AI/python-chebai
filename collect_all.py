@@ -7,10 +7,6 @@ import torch
 from torch import nn
 import requests
 
-try:
-    from rdkit import Chem
-except:
-    pass
 import multiprocessing as mp
 from torch_geometric import nn as tgnn
 from torch_geometric.utils.convert import from_networkx
@@ -73,19 +69,21 @@ class PartOfData(InMemoryDataset):
         print("pass parts")
         self.pass_parts(g, "CHEBI:23367", set())
         print("Load data")
-        children = list(nx.single_source_shortest_path(g, "CHEBI:23367").keys())[:100]
+        children = list(nx.single_source_shortest_path(g, "CHEBI:23367").keys())
         parts = list({p for c in children for p in g.nodes[c]["has_part"]})
         print("Create molecules")
-        with mp.Pool(1) as p:
-            nx.set_node_attributes(g, dict(p.map(get_mol_enc,((g,i) for i in (children + parts)))), "enc")
+        with mp.Pool(mp.cpu_count()//2) as p:
+            nx.set_node_attributes(g, dict(p.imap_unordered(get_mol_enc,((g,i) for i in (children + parts)))), "enc")
 
-        # Filter invalid structures
+        print("Filter invalid structures")
         children = [p for p in children if g.nodes[p]["enc"]]
         parts = [p for p in parts if g.nodes[p]["enc"]]
 
+        print("Transform into torch structure")
         data_list = [PrePairData(l, r, float(r in g.nodes[l]["has_part"])) for l in children for r in parts]
-
         data, slices = self.collate(data_list)
+
+        print("Save")
         torch.save((data, slices), self.processed_paths[0])
         torch.save(g, os.path.join(self.processed_dir, self.processed_cache_names[0]))
 
@@ -116,19 +114,6 @@ class PartOfData(InMemoryDataset):
         for child in d.successors(root):
             for r in self.extract_children(d, child, part_cache):
                 yield r
-
-    def add_to_cache(self, d, node, cache):
-        n = d.nodes[node]
-        s = n["id"]
-        ident = int(s[s.index(":") + 1:])
-        if ident not in self._ignore:
-            if ident not in cache:
-                mol = Chem.MolFromSmiles(n["smiles"])
-                if mol is None:
-                    self._ignore.add(ident)
-                    return None
-                cache[ident] = (s, n["smiles"], n["name"], mol_to_data(mol))
-            return ident
 
 
 def term_callback(doc):
@@ -182,25 +167,36 @@ def get_mol_enc(x):
     s = g.nodes[i]["smiles"]
     return i, mol_to_data(s) if s else None
 
+import pysmiles as ps
+
+atom_cache = []
 def mol_to_data(smiles):
-    mol = Chem.MolFromSmiles(smiles)
-    if mol is None:
-        return None
-    else:
-        graph = nx.Graph()
-        for i in range(mol.GetNumAtoms()):
-            atom = mol.GetAtomWithIdx(i)
-            graph.add_node(i, x=[float(i == atom.GetAtomicNum()) for i in range(1,120)])
-            for neighbour in atom.GetNeighbors():
-                neighbour_idx = neighbour.GetIdx()
-                bond = mol.GetBondBetweenAtoms(i, neighbour_idx)
-                graph.add_edge(i, neighbour_idx, edge_x=int(bond.GetBondType()))
-        return from_networkx(graph)
+    mol = ps.read_smiles(smiles)
+    d = {}
+    for node in mol.nodes:
+        el = mol.nodes[node].get("element")
+        if el is not None:
+            try:
+                v = atom_cache.index(el)
+            except ValueError:
+                atom_cache.append(el)
+                v = len(atom_cache)-1
+            base = [float(i == v) for i in range(118)]
+            wildcard = [0.0]
+        else:
+            base = [0.0 for i in range(118)]
+            wildcard = [1.0]
+        d[node] = base + [mol.nodes[node].get("charge",0.0), mol.nodes[node].get("hcount",0.0)] + wildcard
+
+        for attr in list(mol.nodes[node].keys()):
+            del mol.nodes[node][attr]
+    nx.set_node_attributes(mol, d, "x")
+    return from_networkx(mol)
 
 
 def train(dataset):
     floss = torch.nn.BCEWithLogitsLoss()
-    net = PartOfNet(119)
+    net = PartOfNet(121)
     if torch.cuda.is_available():
         device = torch.device("cuda:0")
     else:
