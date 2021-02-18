@@ -350,8 +350,12 @@ atom_index =(
 )
 
 def train(dataset):
+    if torch.cuda.is_available():
+        trainer_kwargs = dict(gpus=-1, accelerator="ddp")
+    else:
+        trainer_kwargs = dict()
     net = PartOfNet(121)
-    trainer = pl.Trainer()
+    trainer = pl.Trainer(**trainer_kwargs)
     trainer.fit(net, dataset)
     torch.save(net,"net.pt")
 
