@@ -18,6 +18,7 @@ from torch_geometric.data import InMemoryDataset, Data, DataLoader
 import logging
 logging.getLogger('pysmiles').setLevel(logging.CRITICAL)
 
+
 class PrePairData(Data):
     def __init__(self, l=None, r=None, label=None):
         super(PrePairData, self).__init__()
@@ -30,15 +31,19 @@ class PairData(Data):
     def __init__(self, ppd: PrePairData, graph):
         super(PairData, self).__init__()
 
-        s = graph.nodes[ppd.l.item()]["enc"]
-        self.edge_index_s = s.edge_index
-        self.x_s = s.x
+        self.s = graph.nodes[ppd.l.item()]["enc"]
+        self.edge_index_s = self.s.edge_index
+        self.x_s = self.s.x
 
-        t = graph.nodes[ppd.r.item()]["enc"]
-        self.edge_index_t = t.edge_index
-        self.x_t = t.x
+        self.t = graph.nodes[ppd.r.item()]["enc"]
+        self.edge_index_t = self.t.edge_index
+        self.x_t = self.t.x
 
         self.label = ppd.label
+
+    @property
+    def num_nodes(self):
+        return self.s.num_nodes + self.t.num_nodes
 
 
 class PartOfData(InMemoryDataset):
