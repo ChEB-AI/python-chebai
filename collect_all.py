@@ -34,13 +34,13 @@ class PairData(Data):
     def __init__(self, ppd: PrePairData, graph):
         super(PairData, self).__init__()
 
-        self.s = graph.nodes[ppd.l.item()]["enc"]
-        self.edge_index_s = self.s.edge_index
-        self.x_s = self.s.x
+        s = graph.nodes[ppd.l.item()]["enc"]
+        self.edge_index_s = s.edge_index
+        self.x_s = s.x
 
-        self.t = graph.nodes[ppd.r.item()]["enc"]
-        self.edge_index_t = self.t.edge_index
-        self.x_t = self.t.x
+        t = graph.nodes[ppd.r.item()]["enc"]
+        self.edge_index_t = t.edge_index
+        self.x_t = t.x
 
         self.label = ppd.label
 
@@ -52,17 +52,11 @@ class PairData(Data):
         else:
             return super().__inc__(key, value)
 
-transform_cache = {}
 
 class PartOfData(InMemoryDataset):
 
     def transform(self, ppd: PrePairData):
-        try:
-            return transform_cache[(ppd.l,ppd.r)]
-        except KeyError:
-            v = PairData(ppd, self.graph)
-            transform_cache[(ppd.l, ppd.r)] = v
-            return v
+        return PairData(ppd, self.graph)
 
 
     def __init__(self, root, transform=None, pre_transform=None, **kwargs):
@@ -363,6 +357,7 @@ def train(dataset):
             pred = net(data)
             loss = floss(pred.squeeze(1), data.label.squeeze(0))
             running_loss += loss.item()
+            print(loss.item())
             batches += 1
             loss.backward()
             optimizer.step()
