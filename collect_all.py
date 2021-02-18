@@ -11,6 +11,7 @@ from torch.utils.data import random_split
 import requests
 from functools import lru_cache
 import pytorch_lightning as pl
+from pytorch_lightning.callbacks import ModelCheckpoint
 from pytorch_lightning.metrics import F1
 from pytorch_lightning import loggers as pl_loggers
 import pysmiles as ps
@@ -201,7 +202,6 @@ class PartOfNet(pl.LightningModule):
             self.log('val_f1', f1, on_step=True, on_epoch=True, prog_bar=True, logger=True)
             return loss
 
-
     def forward(self, x):
         a = self.left_graph_net(x.x_s, x.edge_index_s.long())
         b = self.right_graph_net(x.x_t, x.edge_index_t.long())
@@ -371,12 +371,20 @@ def train(train_loader, validation_loader):
     if torch.cuda.is_available():
         trainer_kwargs = dict(gpus=-1, accelerator="ddp")
     else:
-        trainer_kwargs = dict(gpus=0, accelerator="ddp_cpu")
+        trainer_kwargs = dict(gpus=0)
     net = PartOfNet(121)
     tb_logger = pl_loggers.CSVLogger('logs/')
-    trainer = pl.Trainer(max_epochs=2, logger=tb_logger, replace_sampler_ddp=False, **trainer_kwargs)
+    checkpoint_callback = ModelCheckpoint(
+        dirpath=os.path.join(tb_logger.log_dir, "checkpoints"),
+        filename="{epoch}-{step}-{val_loss:.7f}",
+        save_top_k=5,
+        save_last=True,
+        verbose=True,
+        monitor='val_loss',
+        mode='min'
+    )
+    trainer = pl.Trainer(max_epochs=2, logger=tb_logger, callbacks=[checkpoint_callback], replace_sampler_ddp=False, log_every_n_steps=1 ,**trainer_kwargs)
     trainer.fit(net, train_loader, val_dataloaders=validation_loader)
-    torch.save(net, "net.pt")
 
 
 if __name__ == "__main__":
