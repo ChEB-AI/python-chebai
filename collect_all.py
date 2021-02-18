@@ -17,6 +17,7 @@ import torch.nn.functional as F
 import multiprocessing as mp
 from torch_geometric import nn as tgnn
 from torch_geometric.utils.convert import from_networkx
+from torch_geometric.utils import train_test_split_edges
 from torch_geometric.data import InMemoryDataset, Data, DataLoader
 
 import logging
@@ -349,18 +350,29 @@ atom_index =(
             "p",
 )
 
-def train(dataset):
+def train(train_loader, validation_loader):
     if torch.cuda.is_available():
         trainer_kwargs = dict(gpus=-1, accelerator="ddp", replace_sampler_ddp=False)
     else:
         trainer_kwargs = dict(gpus=0, accelerator="ddp_cpu", replace_sampler_ddp=False)
     net = PartOfNet(121)
     trainer = pl.Trainer(**trainer_kwargs)
-    trainer.fit(net, dataset)
+    trainer.fit(net, train_loader, val_dataloaders=validation_loader)
     torch.save(net,"net.pt")
 
 
 if __name__ == "__main__":
     data = PartOfData(".")
-    loader = DataLoader(data, shuffle=True, batch_size=int(sys.argv[1]), follow_batch=["x_s", "x_t", "edge_index_s", "edge_index_t"])
-    train(loader)
+    l = len(data)
+    dtrain = data[:int(l*0.7)]
+    dvalidation = data[int(l*0.8):int(l*0.85)]
+    dtest = data[int(l*0.85):]
+    train_loader = DataLoader(dtrain, shuffle = True, batch_size = int(
+        sys.argv[1]), follow_batch = ["x_s", "x_t", "edge_index_s",
+                                      "edge_index_t"])
+
+    validation_loader = DataLoader(dvalidation, shuffle = True, batch_size = int(
+        sys.argv[1]), follow_batch = ["x_s", "x_t", "edge_index_s",
+                                      "edge_index_t"])
+
+    train(train_loader, validation_loader)
