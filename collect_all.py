@@ -351,7 +351,7 @@ atom_index =(
 
 def train(dataset):
     if torch.cuda.is_available():
-        trainer_kwargs = dict(gpus=-1, accelerator="ddp")
+        trainer_kwargs = dict(gpus=-1, accelerator="ddp", replace_sampler_ddp=False)
     else:
         trainer_kwargs = dict(gpus=0, accelerator="ddp_cpu", replace_sampler_ddp=False)
     net = PartOfNet(121)
