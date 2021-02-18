@@ -7,6 +7,9 @@ import torch
 from torch import nn
 import requests
 
+import pysmiles as ps
+
+
 import multiprocessing as mp
 from torch_geometric import nn as tgnn
 from torch_geometric.utils.convert import from_networkx
@@ -167,20 +170,14 @@ def get_mol_enc(x):
     s = g.nodes[i]["smiles"]
     return i, mol_to_data(s) if s else None
 
-import pysmiles as ps
 
-atom_cache = []
 def mol_to_data(smiles):
     mol = ps.read_smiles(smiles)
     d = {}
     for node in mol.nodes:
         el = mol.nodes[node].get("element")
         if el is not None:
-            try:
-                v = atom_cache.index(el)
-            except ValueError:
-                atom_cache.append(el)
-                v = len(atom_cache)-1
+            v = atom_index.index(el)
             base = [float(i == v) for i in range(118)]
             wildcard = [0.0]
         else:
@@ -193,6 +190,133 @@ def mol_to_data(smiles):
     nx.set_node_attributes(mol, d, "x")
     return from_networkx(mol)
 
+atom_index =(
+            "\*",
+            "H",
+            "He",
+            "Li",
+            "Be",
+            "B",
+            "C",
+            "N",
+            "O",
+            "F",
+            "Ne",
+            "Na",
+            "Mg",
+            "Al",
+            "Si",
+            "P",
+            "S",
+            "Cl",
+            "Ar",
+            "K",
+            "Ca",
+            "Sc",
+            "Ti",
+            "V",
+            "Cr",
+            "Mn",
+            "Fe",
+            "Co",
+            "Ni",
+            "Cu",
+            "Zn",
+            "Ga",
+            "Ge",
+            "As",
+            "Se",
+            "Br",
+            "Kr",
+            "Rb",
+            "Sr",
+            "Y",
+            "Zr",
+            "Nb",
+            "Mo",
+            "Tc",
+            "Ru",
+            "Rh",
+            "Pd",
+            "Ag",
+            "Cd",
+            "In",
+            "Sn",
+            "Sb",
+            "Te",
+            "I",
+            "Xe",
+            "Cs",
+            "Ba",
+            "La",
+            "Hf",
+            "Ta",
+            "W",
+            "Re",
+            "Os",
+            "Ir",
+            "Pt",
+            "Au",
+            "Hg",
+            "Tl",
+            "Pb",
+            "Bi",
+            "Po",
+            "At",
+            "Rn",
+            "Fr",
+            "Ra",
+            "Ac",
+            "Rf",
+            "Db",
+            "Sg",
+            "Bh",
+            "Hs",
+            "Mt",
+            "Ds",
+            "Rg",
+            "Cn",
+            "Nh",
+            "Fl",
+            "Mc",
+            "Lv",
+            "Ts",
+            "Og",
+            "Ce",
+            "Pr",
+            "Nd",
+            "Pm",
+            "Sm",
+            "Eu",
+            "Gd",
+            "Tb",
+            "Dy",
+            "Ho",
+            "Er",
+            "Tm",
+            "Yb",
+            "Lu",
+            "Th",
+            "Pa",
+            "U",
+            "Np",
+            "Pu",
+            "Am",
+            "Cm",
+            "Bk",
+            "Cf",
+            "Es",
+            "Fm",
+            "Md",
+            "No",
+            "Lr",
+            "c",
+            "n",
+            "s",
+            "o",
+            "se",
+            "p",
+)
 
 def train(dataset):
     floss = torch.nn.BCEWithLogitsLoss()
