@@ -2,11 +2,13 @@ import fastobo
 import networkx as nx
 import pickle
 import os
+import sys
 from sklearn.model_selection import train_test_split
 import torch
 from torch import nn
 from torch.utils.data import random_split
 import requests
+from functools import lru_cache
 
 import pysmiles as ps
 
@@ -54,6 +56,7 @@ class PairData(Data):
 
 class PartOfData(InMemoryDataset):
 
+    @lru_cache(5000)
     def transform(self, ppd: PrePairData):
         return PairData(ppd, self.graph)
 
@@ -364,5 +367,5 @@ def train(dataset):
 
 if __name__ == "__main__":
     data = PartOfData(".")
-    loader = DataLoader(data, batch_size=1000, follow_batch=["x_s", "x_t", "edge_index_s", "edge_index_t"])
+    loader = DataLoader(data, batch_size=int(sys.argv[0]), follow_batch=["x_s", "x_t", "edge_index_s", "edge_index_t"])
     train(loader)
