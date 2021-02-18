@@ -30,11 +30,11 @@ class PairData(Data):
     def __init__(self, ppd: PrePairData, graph):
         super(PairData, self).__init__()
 
-        s = graph.nodes[ppd.l]["enc"]
+        s = graph.nodes[ppd.l.item()]["enc"]
         self.edge_index_s = s.edge_index
         self.x_s = s.x
 
-        t = graph.nodes[ppd.r]["enc"]
+        t = graph.nodes[ppd.r.item()]["enc"]
         self.edge_index_t = t.edge_index
         self.x_t = t.x
 
@@ -74,7 +74,7 @@ class PartOfData(InMemoryDataset):
         print("pass parts")
         self.pass_parts(g, 23367, set())
         print("Load data")
-        children = list(nx.single_source_shortest_path(g, 23367).keys())
+        children = list(nx.single_source_shortest_path(g, 23367).keys())[:100]
         parts = list({p for c in children for p in g.nodes[c]["has_part"]})
         print("Create molecules")
         with mp.Pool() as p:
