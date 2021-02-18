@@ -72,7 +72,7 @@ class PartOfData(InMemoryDataset):
         children = list(nx.single_source_shortest_path(g, "CHEBI:23367").keys())
         parts = list({p for c in children for p in g.nodes[c]["has_part"]})
         print("Create molecules")
-        with mp.Pool(mp.cpu_count()//2) as p:
+        with mp.Pool() as p:
             nx.set_node_attributes(g, dict(p.imap_unordered(get_mol_enc,((g,i) for i in (children + parts)))), "enc")
 
         print("Filter invalid structures")
