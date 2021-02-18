@@ -176,7 +176,7 @@ class PartOfNet(pl.LightningModule):
         self.right_graph_net = tgnn.GATConv(in_length, in_length)
         self.attention = nn.Linear(in_length, 1)
         self.global_attention = tgnn.GlobalAttention(self.attention)
-        self.output_net = nn.Sequential(nn.Linear(2*in_length,2*in_length), nn.Linear(in_length*in_length,in_length), nn.Linear(in_length,1))
+        self.output_net = nn.Sequential(nn.Linear(2*in_length,2*in_length), nn.Linear(2*in_length,in_length), nn.Linear(in_length,1))
 
     def training_step(self, batch, batch_idx):
         pred = self(batch).squeeze(1)
@@ -353,7 +353,7 @@ def train(dataset):
     if torch.cuda.is_available():
         trainer_kwargs = dict(gpus=-1, accelerator="ddp")
     else:
-        trainer_kwargs = dict()
+        trainer_kwargs = dict(gpus=0, accelerator="ddp_cpu", replace_sampler_ddp=False)
     net = PartOfNet(121)
     trainer = pl.Trainer(**trainer_kwargs)
     trainer.fit(net, dataset)
