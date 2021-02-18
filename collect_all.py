@@ -15,6 +15,8 @@ from torch_geometric import nn as tgnn
 from torch_geometric.utils.convert import from_networkx
 from torch_geometric.data import InMemoryDataset, Data, DataLoader
 
+import logging
+logging.getLogger('pysmiles').setLevel(logging.CRITICAL)
 
 class PrePairData(Data):
     def __init__(self, l=None, r=None, label=None):
@@ -75,8 +77,8 @@ class PartOfData(InMemoryDataset):
         children = list(nx.single_source_shortest_path(g, "CHEBI:23367").keys())
         parts = list({p for c in children for p in g.nodes[c]["has_part"]})
         print("Create molecules")
-        with mp.Pool() as p:
-            nx.set_node_attributes(g, dict(p.imap_unordered(get_mol_enc,((i,g.nodes[i]["smiles"]) for i in (children + parts)))), "enc")
+        #with mp.Pool() as p:
+        nx.set_node_attributes(g, dict(map(get_mol_enc,((i,g.nodes[i]["smiles"]) for i in (children + parts)))), "enc")
 
         print("Filter invalid structures")
         children = [p for p in children if g.nodes[p]["enc"]]
