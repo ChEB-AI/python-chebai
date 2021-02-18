@@ -359,7 +359,7 @@ def train(dataset):
             pred = net(data).squeeze(1)
             loss = floss(pred, data.label.squeeze(0))
             running_loss += loss.item()
-            batch_f1 = f1_score(data.label > 0.5, pred > 0.5, average="micro")
+            batch_f1 = f1_score(data.label > 0.5, pred.detach() > 0.5, average="micro")
             running_f1 += batch_f1
             print(loss.item(), batch_f1)
             batches += 1
