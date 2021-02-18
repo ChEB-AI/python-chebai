@@ -5,6 +5,7 @@ import os
 from sklearn.model_selection import train_test_split
 import torch
 from torch import nn
+from torch.utils.data import random_split
 import requests
 
 import pysmiles as ps
@@ -41,9 +42,14 @@ class PairData(Data):
 
         self.label = ppd.label
 
-    @property
-    def num_nodes(self):
-        return self.s.num_nodes + self.t.num_nodes
+    def __inc__(self, key, value):
+        if key == 'edge_index_s':
+            return self.x_s.size(0)
+        if key == 'edge_index_t':
+            return self.x_t.size(0)
+        else:
+            return super().__inc__(key, value)
+
 
 
 class PartOfData(InMemoryDataset):
@@ -51,10 +57,10 @@ class PartOfData(InMemoryDataset):
     def transform(self, ppd: PrePairData):
         return PairData(ppd, self.graph)
 
-    def __init__(self, root, transform=None, pre_transform=None):
+    def __init__(self, root, transform=None, pre_transform=None, **kwargs):
         self.cache_file = ".part_data.pkl"
         self._ignore = set()
-        super().__init__(root, self.transform, pre_transform)
+        super().__init__(root, self.transform, pre_transform, **kwargs)
         self.data, self.slices = torch.load(self.processed_paths[0])
         self.graph = torch.load(os.path.join(self.processed_dir, self.processed_cache_names[0]))
 
@@ -165,12 +171,14 @@ class PartOfNet(nn.Module):
         self.loops=loops
         self.left_graph_net = tgnn.GATConv(in_length, in_length)
         self.right_graph_net = tgnn.GATConv(in_length, in_length)
+        self.attention = nn.Linear(in_length, 1)
+        self.global_attention = tgnn.GlobalAttention(self.attention)
         self.output_net = nn.Sequential(nn.Linear(2*in_length,in_length*in_length), nn.Linear(in_length*in_length,in_length), nn.Linear(in_length,1))
 
     def forward(self, x):
         a = self.left_graph_net(x.x_s, x.edge_index_s.long())
         b = self.right_graph_net(x.x_t, x.edge_index_t.long())
-        return self.output_net(torch.cat([torch.sum(a,dim=0),torch.sum(b,dim=0)], dim=0))
+        return self.output_net(torch.cat([self.global_attention(a, x.x_s_batch),self.global_attention(b,x.x_t_batch)], dim=1))
 
 
 def get_mol_enc(x):
@@ -344,7 +352,7 @@ def train(dataset):
             data.to(device)
             optimizer.zero_grad()
             pred = net(data)
-            loss = floss(pred, data.label)
+            loss = floss(pred.squeeze(1), data.label.squeeze(0))
             running_loss += loss.item()
             batches += 1
             loss.backward()
@@ -355,5 +363,5 @@ def train(dataset):
 
 if __name__ == "__main__":
     data = PartOfData(".")
-    loader = DataLoader(data)#, follow_batch=["x_s", "x_t", "edge_index_s", "edge_index_t"])
+    loader = DataLoader(data, batch_size=100, follow_batch=["x_s", "x_t", "edge_index_s", "edge_index_t"])
     train(loader)
