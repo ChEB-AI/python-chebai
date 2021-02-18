@@ -4,6 +4,7 @@ import pickle
 import os
 import sys
 from sklearn.model_selection import train_test_split
+from sklearn.metrics import f1_score
 import torch
 from torch import nn
 from torch.utils.data import random_split
@@ -349,15 +350,18 @@ def train(dataset):
     optimizer = torch.optim.Adam(net.parameters())
     for epoch in range(10):
         running_loss = 0
+        running_f1 = 0
         batches = 0
         for data in dataset:
             print(batches,"/", len(dataset))
             data.to(device)
             optimizer.zero_grad()
-            pred = net(data)
-            loss = floss(pred.squeeze(1), data.label.squeeze(0))
+            pred = net(data).squeeze(1)
+            loss = floss(pred, data.label.squeeze(0))
             running_loss += loss.item()
-            print(loss.item())
+            batch_f1 = f1_score(data.label > 0.5, pred > 0., average="micro")
+            running_f1 += batch_f1
+            print(loss.item(), batch_f1)
             batches += 1
             loss.backward()
             optimizer.step()
