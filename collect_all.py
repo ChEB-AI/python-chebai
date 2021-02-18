@@ -180,24 +180,25 @@ class PartOfNet(pl.LightningModule):
         self.attention = nn.Linear(in_length, 1)
         self.global_attention = tgnn.GlobalAttention(self.attention)
         self.output_net = nn.Sequential(nn.Linear(2*in_length,2*in_length), nn.Linear(2*in_length,in_length), nn.Linear(in_length,1))
+        self.f1 = F1(1, average="micro", threshold=0.5)
 
     def _execute(self, batch, batch_idx):
         pred = self(batch).squeeze(1)
         loss = F.binary_cross_entropy_with_logits(pred, batch.label)
-        f1 = f1_score(batch.label > 0.5, pred > 0.5)
+        f1 = self.f1(batch.label > 0.5, pred > 0.5)
         return loss, f1
 
     def training_step(self, *args, **kwargs):
         loss, f1 = self._execute(*args, **kwargs)
-        self.log('train_loss', loss)
-        self.log('train_f1', f1)
+        self.log('train_loss', loss, on_step=True, on_epoch=True, prog_bar=True, logger=True)
+        self.log('train_f1', f1, on_step=True, on_epoch=True, prog_bar=True, logger=True)
         return loss
 
     def validation_step(self, *args, **kwargs):
         with torch.no_grad():
             loss, f1 = self._execute(*args, **kwargs)
-            self.log('val_loss', loss)
-            self.log('val_f1', f1)
+            self.log('val_loss', loss, on_step=True, on_epoch=True, prog_bar=True, logger=True)
+            self.log('val_f1', f1, on_step=True, on_epoch=True, prog_bar=True, logger=True)
             return loss
 
 
@@ -372,10 +373,10 @@ def train(train_loader, validation_loader):
     else:
         trainer_kwargs = dict(gpus=0, accelerator="ddp_cpu")
     net = PartOfNet(121)
-    tb_logger = pl_loggers.TensorBoardLogger('logs/')
+    tb_logger = pl_loggers.CSVLogger('logs/')
     trainer = pl.Trainer(max_epochs=2, logger=tb_logger, replace_sampler_ddp=False, **trainer_kwargs)
     trainer.fit(net, train_loader, val_dataloaders=validation_loader)
-    torch.save(net,"net.pt")
+    torch.save(net, "net.pt")
 
 
 if __name__ == "__main__":
