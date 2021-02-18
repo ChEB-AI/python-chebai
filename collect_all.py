@@ -173,7 +173,7 @@ def get_mol_enc(x):
 def mol_to_data(smiles):
     try:
         mol = ps.read_smiles(smiles)
-    except ValueError:
+    except:
         return None
     d = {}
     for node in mol.nodes:
