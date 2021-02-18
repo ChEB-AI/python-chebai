@@ -72,21 +72,20 @@ class PartOfData(InMemoryDataset):
         g.add_edges_from([(p, q["id"]) for q in elements for p in q["parents"]])
 
         print("pass parts")
-        self.pass_parts(g, "CHEBI:23367", set())
+        self.pass_parts(g, 23367, set())
         print("Load data")
-        children = list(nx.single_source_shortest_path(g, "CHEBI:23367").keys())
+        children = list(nx.single_source_shortest_path(g, 23367).keys())
         parts = list({p for c in children for p in g.nodes[c]["has_part"]})
         print("Create molecules")
-        #with mp.Pool() as p:
-        nx.set_node_attributes(g, dict(map(get_mol_enc,((i,g.nodes[i]["smiles"]) for i in (children + parts)))), "enc")
+        with mp.Pool() as p:
+            nx.set_node_attributes(g, dict(p.imap_unordered(get_mol_enc,((i,g.nodes[i]["smiles"]) for i in (children + parts)))), "enc")
 
         print("Filter invalid structures")
         children = [p for p in children if g.nodes[p]["enc"]]
         parts = [p for p in parts if g.nodes[p]["enc"]]
 
         print("Transform into torch structure")
-        data_list = [PrePairData(l, r, float(r in g.nodes[l]["has_part"])) for l in children for r in parts]
-        data, slices = self.collate(data_list)
+        data, slices = self.collate([PrePairData(l, r, float(r in g.nodes[l]["has_part"])) for l in children for r in parts])
 
         print("Save")
         torch.save((data, slices), self.processed_paths[0])
@@ -120,6 +119,8 @@ class PartOfData(InMemoryDataset):
             for r in self.extract_children(d, child, part_cache):
                 yield r
 
+def chebi_to_int(s):
+    return int(s[s.index(":")+1:])
 
 def term_callback(doc):
     parts = set()
@@ -133,13 +134,13 @@ def term_callback(doc):
                 smiles = t.value
         elif isinstance(clause, fastobo.term.RelationshipClause):
             if str(clause.typedef) == "has_part":
-                parts.add(str(clause.term))
+                parts.add(chebi_to_int(str(clause.term)))
         elif isinstance(clause, fastobo.term.IsAClause):
-            parents.append(str(clause.term))
+            parents.append(chebi_to_int(str(clause.term)))
         elif isinstance(clause, fastobo.term.NameClause):
             name = str(clause.name)
     return {
-        "id": str(doc.id),
+        "id": chebi_to_int(str(doc.id)),
         "parents": parents,
         "has_part": parts,
         "name": name,
