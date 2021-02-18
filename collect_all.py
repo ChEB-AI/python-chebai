@@ -176,7 +176,7 @@ class PartOfNet(pl.LightningModule):
         self.right_graph_net = tgnn.GATConv(in_length, in_length)
         self.attention = nn.Linear(in_length, 1)
         self.global_attention = tgnn.GlobalAttention(self.attention)
-        self.output_net = nn.Sequential(nn.Linear(2*in_length,in_length*in_length), nn.Linear(in_length*in_length,in_length), nn.Linear(in_length,1))
+        self.output_net = nn.Sequential(nn.Linear(2*in_length,2*in_length), nn.Linear(in_length*in_length,in_length), nn.Linear(in_length,1))
 
     def training_step(self, batch, batch_idx):
         pred = self(batch).squeeze(1)
