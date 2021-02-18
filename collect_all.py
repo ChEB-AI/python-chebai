@@ -76,7 +76,7 @@ class PartOfData(InMemoryDataset):
         parts = list({p for c in children for p in g.nodes[c]["has_part"]})
         print("Create molecules")
         with mp.Pool() as p:
-            nx.set_node_attributes(g, dict(p.imap_unordered(get_mol_enc,((g,i) for i in (children + parts)))), "enc")
+            nx.set_node_attributes(g, dict(p.imap_unordered(get_mol_enc,((i,g.nodes[i]["smiles"]) for i in (children + parts)))), "enc")
 
         print("Filter invalid structures")
         children = [p for p in children if g.nodes[p]["enc"]]
@@ -166,13 +166,15 @@ class PartOfNet(nn.Module):
 
 
 def get_mol_enc(x):
-    g, i = x
-    s = g.nodes[i]["smiles"]
+    i, s= x
     return i, mol_to_data(s) if s else None
 
 
 def mol_to_data(smiles):
-    mol = ps.read_smiles(smiles)
+    try:
+        mol = ps.read_smiles(smiles)
+    except ValueError:
+        return None
     d = {}
     for node in mol.nodes:
         el = mol.nodes[node].get("element")
