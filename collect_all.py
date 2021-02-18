@@ -11,6 +11,8 @@ from torch.utils.data import random_split
 import requests
 from functools import lru_cache
 import pytorch_lightning as pl
+from pytorch_lightning.metrics import F1
+from pytorch_lightning import loggers as pl_loggers
 import pysmiles as ps
 import torch.nn.functional as F
 
@@ -179,11 +181,25 @@ class PartOfNet(pl.LightningModule):
         self.global_attention = tgnn.GlobalAttention(self.attention)
         self.output_net = nn.Sequential(nn.Linear(2*in_length,2*in_length), nn.Linear(2*in_length,in_length), nn.Linear(in_length,1))
 
-    def training_step(self, batch, batch_idx):
+    def _execute(self, batch, batch_idx):
         pred = self(batch).squeeze(1)
         loss = F.binary_cross_entropy_with_logits(pred, batch.label)
+        f1 = f1_score(batch.label > 0.5, pred > 0.5)
+        return loss, f1
+
+    def training_step(self, *args, **kwargs):
+        loss, f1 = self._execute(*args, **kwargs)
         self.log('train_loss', loss)
+        self.log('train_f1', f1)
         return loss
+
+    def validation_step(self, *args, **kwargs):
+        with torch.no_grad():
+            loss, f1 = self._execute(*args, **kwargs)
+            self.log('val_loss', loss)
+            self.log('val_f1', f1)
+            return loss
+
 
     def forward(self, x):
         a = self.left_graph_net(x.x_s, x.edge_index_s.long())
@@ -352,11 +368,12 @@ atom_index =(
 
 def train(train_loader, validation_loader):
     if torch.cuda.is_available():
-        trainer_kwargs = dict(gpus=-1, accelerator="ddp", replace_sampler_ddp=False)
+        trainer_kwargs = dict(gpus=-1, accelerator="ddp")
     else:
-        trainer_kwargs = dict(gpus=0, accelerator="ddp_cpu", replace_sampler_ddp=False)
+        trainer_kwargs = dict(gpus=0, accelerator="ddp_cpu")
     net = PartOfNet(121)
-    trainer = pl.Trainer(**trainer_kwargs)
+    tb_logger = pl_loggers.TensorBoardLogger('logs/')
+    trainer = pl.Trainer(max_epochs=2, logger=tb_logger, replace_sampler_ddp=False, **trainer_kwargs)
     trainer.fit(net, train_loader, val_dataloaders=validation_loader)
     torch.save(net,"net.pt")
 
