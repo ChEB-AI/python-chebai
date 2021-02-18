@@ -10,9 +10,9 @@ from torch import nn
 from torch.utils.data import random_split
 import requests
 from functools import lru_cache
-
+import pytorch_lightning as pl
 import pysmiles as ps
-
+import torch.nn.functional as F
 
 import multiprocessing as mp
 from torch_geometric import nn as tgnn
@@ -167,7 +167,7 @@ CALLBACKS = {
 }
 
 
-class PartOfNet(nn.Module):
+class PartOfNet(pl.LightningModule):
 
     def __init__(self, in_length, loops=10):
         super().__init__()
@@ -178,10 +178,20 @@ class PartOfNet(nn.Module):
         self.global_attention = tgnn.GlobalAttention(self.attention)
         self.output_net = nn.Sequential(nn.Linear(2*in_length,in_length*in_length), nn.Linear(in_length*in_length,in_length), nn.Linear(in_length,1))
 
+    def training_step(self, batch, batch_idx):
+        pred = self(batch).squeeze(1)
+        loss = F.binary_cross_entropy_with_logits(pred, batch.label)
+        self.log('train_loss', loss)
+        return loss
+
     def forward(self, x):
         a = self.left_graph_net(x.x_s, x.edge_index_s.long())
         b = self.right_graph_net(x.x_t, x.edge_index_t.long())
         return self.output_net(torch.cat([self.global_attention(a, x.x_s_batch),self.global_attention(b,x.x_t_batch)], dim=1))
+
+    def configure_optimizers(self):
+        optimizer = torch.optim.Adam(self.parameters())
+        return optimizer
 
 
 def get_mol_enc(x):
@@ -340,34 +350,9 @@ atom_index =(
 )
 
 def train(dataset):
-    floss = torch.nn.BCEWithLogitsLoss()
     net = PartOfNet(121)
-    if torch.cuda.device_count() > 1:
-        net = nn.DataParallel(net)
-    if torch.cuda.is_available():
-        device = torch.device("cuda:0")
-    else:
-        device = torch.device("cpu")
-    net.to(device)
-    optimizer = torch.optim.Adam(net.parameters())
-    for epoch in range(10):
-        running_loss = 0
-        running_f1 = 0
-        batches = 0
-        for data in dataset:
-            print(batches,"/", len(dataset))
-            data.to(device)
-            optimizer.zero_grad()
-            pred = net(data).squeeze(1)
-            loss = floss(pred, data.label.squeeze(0))
-            running_loss += loss.item()
-            batch_f1 = f1_score(data.label.cpu() > 0.5, torch.sigmoid(pred.detach().cpu()) > 0.5)
-            running_f1 += batch_f1
-            print(loss.item(), batch_f1)
-            batches += 1
-            loss.backward()
-            optimizer.step()
-        print("Epoch", epoch, "loss =", running_loss/batches)
+    trainer = pl.Trainer()
+    trainer.fit(net, dataset)
     torch.save(net,"net.pt")
 
 
