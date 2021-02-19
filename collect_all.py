@@ -407,7 +407,7 @@ def train(train_loader, validation_loader):
         monitor='val_loss',
         mode='min'
     )
-    trainer = pl.Trainer(max_epochs=2, logger=tb_logger, callbacks=[checkpoint_callback], replace_sampler_ddp=False, log_every_n_steps=1 ,**trainer_kwargs)
+    trainer = pl.Trainer(max_epochs=2, logger=tb_logger, callbacks=[checkpoint_callback], replace_sampler_ddp=False, log_every_n_steps=10, val_check_interval=0.1 ,**trainer_kwargs)
     trainer.fit(net, train_loader, val_dataloaders=validation_loader)
 
 
