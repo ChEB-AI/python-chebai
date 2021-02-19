@@ -225,6 +225,9 @@ class PartOfNet(pl.LightningModule):
             self.log('val_f1', f1, on_step=True, on_epoch=True, prog_bar=True, logger=True)
             return loss
 
+    def training_step_end(self, *args, **kwargs):
+        torch.cuda.empty_cache()
+
     def forward(self, x):
         a = self.left_graph_net(x.x_s, x.edge_index_s.long())
         b = self.right_graph_net(x.x_t, x.edge_index_t.long())
