@@ -100,8 +100,7 @@ class PartOfData(InMemoryDataset):
         children = list(nx.single_source_shortest_path(g, 23367).keys())[:100]
         parts = list({p for c in children for p in g.nodes[c]["has_part"]})
         print("Create molecules")
-        with mp.Pool() as p:
-            nx.set_node_attributes(g, dict(p.imap_unordered(get_mol_enc,((i,g.nodes[i]["smiles"]) for i in (children + parts)))), "enc")
+        nx.set_node_attributes(g, dict(map(get_mol_enc,((i,g.nodes[i]["smiles"]) for i in (children + parts)))), "enc")
 
         print("Filter invalid structures")
         children = [p for p in children if g.nodes[p]["enc"]]
