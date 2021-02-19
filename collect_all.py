@@ -65,7 +65,7 @@ class PartOfData(InMemoryDataset):
     def transform(self, ppd: PrePairData):
         return PairData(ppd, self.graph)
 
-    def __init__(self, root, kind="train", train_split=0.8, part_split=0.1, pre_transform=None, **kwargs):
+    def __init__(self, root, kind="train", train_split=0.9, part_split=0.1, pre_transform=None, **kwargs):
         self.cache_file = ".part_data.pkl"
         self._ignore = set()
         self.train_split = train_split
@@ -115,20 +115,20 @@ class PartOfData(InMemoryDataset):
         parts = parts[int(len(parts)*self.part_split):]
 
         print("Transform into torch structure")
-        ppds = [PrePairData(l, r, float(r in g.nodes[l]["has_part"])) for l in children for r in parts]
-        ppds_test_only = [PrePairData(l, r, float(r in g.nodes[l]["has_part"])) for l in children for r in parts_test_only] + [PrePairData(l, r, float(r in g.nodes[l]["has_part"])) for l in children_test_only for r in parts_test_only] + [PrePairData(l, r, float(r in g.nodes[l]["has_part"])) for l in children_test_only for r in parts]
+        ppd_train, tmp = train_test_split([PrePairData(l, r, float(r in g.nodes[l]["has_part"])) for l in children for r in parts], train_size=self.train_split)
+        ppd_test, ppd_val = train_test_split(tmp, train_size=self.train_split)
 
-        lp = len(ppds)
-        splits = {
-            "train":(0,int(lp*self.train_split)),
-            "validation":(int(lp*self.train_split),int(lp*self.train_split)+int(lp*(self.train_split**2))),
-            "test":(int(lp*self.train_split)+int(lp*(self.train_split**2)),-1)
-        }
-        for kind, (l,r) in splits.items():
+        ppds_test_only = [PrePairData(l, r, float(r in g.nodes[l]["has_part"])) for l in children for r in parts_test_only] + [PrePairData(l, r, float(r in g.nodes[l]["has_part"])) for l in children_test_only for r in parts_test_only] + [PrePairData(l, r, float(r in g.nodes[l]["has_part"])) for l in children_test_only for r in parts]
+        for kind in ("train", "test", "validation"):
             print("Save", kind)
-            d = ppds[l:r]
-            if kind == "test":
-                d += ppds_test_only
+            if kind == "train":
+                d = ppd_train
+            elif kind == "validation":
+                d = ppd_val
+            elif kind == "test":
+                d = ppd_test + ppds_test_only
+            else:
+                raise Exception("unknown data kind:", kind)
             data, slices = self.collate(d)
             torch.save((data, slices), os.path.join(self.processed_dir, f"{kind}.pt"))
         torch.save(g, os.path.join(self.processed_dir, self.processed_cache_names[0]))
