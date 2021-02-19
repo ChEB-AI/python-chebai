@@ -413,7 +413,7 @@ def train(train_loader, validation_loader):
 if __name__ == "__main__":
     train_loader = DataLoader(PartOfData(".", kind="train"), shuffle = True, batch_size = int(
         sys.argv[1]), follow_batch = ["x_s", "x_t", "edge_index_s",
-                                      "edge_index_t"])
+                                      "edge_index_t"], num_workers=mp.cpu_count())
 
     validation_loader = DataLoader(PartOfData(".", kind="validation"), shuffle = True, batch_size = int(
         sys.argv[1]), follow_batch = ["x_s", "x_t", "edge_index_s",
