@@ -97,25 +97,25 @@ class PartOfData(InMemoryDataset):
         print("pass parts")
         self.pass_parts(g, 23367, set())
         print("Load data")
-        children = list(nx.single_source_shortest_path(g, 23367).keys())[:100]
-        parts = list({p for c in children for p in g.nodes[c]["has_part"]})
+        children = tuple(nx.single_source_shortest_path(g, 23367).keys())
+        parts = tuple({p for c in children for p in g.nodes[c]["has_part"]})
         print("Create molecules")
         nx.set_node_attributes(g, dict(map(get_mol_enc,((i,g.nodes[i]["smiles"]) for i in (children + parts)))), "enc")
 
         print("Filter invalid structures")
         children = [p for p in children if g.nodes[p]["enc"]]
         random.shuffle(children)
-        children_test_only = children[:int(len(children)*self.part_split)]
-        children = children[int(len(children) * self.part_split):]
+        children, children_test_only = train_test_split(children, test_size=self.part_split)
 
         parts = [p for p in parts if g.nodes[p]["enc"]]
         random.shuffle(parts)
-        parts_test_only = parts[:int(len(parts)*self.part_split)]
-        parts = parts[int(len(parts)*self.part_split):]
+        parts, parts_test_only = train_test_split(parts, test_size=self.part_split)
 
         print("Transform into torch structure")
         ppd_train, tmp = train_test_split([PrePairData(l, r, float(r in g.nodes[l]["has_part"])) for l in children for r in parts], train_size=self.train_split)
         ppd_test, ppd_val = train_test_split(tmp, train_size=self.train_split)
+        del tmp
+
 
         ppds_test_only = [PrePairData(l, r, float(r in g.nodes[l]["has_part"])) for l in children for r in parts_test_only] + [PrePairData(l, r, float(r in g.nodes[l]["has_part"])) for l in children_test_only for r in parts_test_only] + [PrePairData(l, r, float(r in g.nodes[l]["has_part"])) for l in children_test_only for r in parts]
         for kind in ("train", "test", "validation"):
@@ -214,8 +214,8 @@ class PartOfNet(pl.LightningModule):
 
     def training_step(self, *args, **kwargs):
         loss, f1 = self._execute(*args, **kwargs)
-        self.log('train_loss', loss, on_step=True, on_epoch=True, prog_bar=True, logger=True)
-        self.log('train_f1', f1, on_step=True, on_epoch=True, prog_bar=True, logger=True)
+        self.log('train_loss', loss.detach().item(), on_step=True, on_epoch=True, prog_bar=True, logger=True)
+        self.log('train_f1', f1.detach().item(), on_step=True, on_epoch=True, prog_bar=True, logger=True)
         return loss
 
     def validation_step(self, *args, **kwargs):
@@ -413,7 +413,7 @@ def train(train_loader, validation_loader):
 if __name__ == "__main__":
     train_loader = DataLoader(PartOfData(".", kind="train"), shuffle = True, batch_size = int(
         sys.argv[1]), follow_batch = ["x_s", "x_t", "edge_index_s",
-                                      "edge_index_t"], num_workers=mp.cpu_count())
+                                      "edge_index_t"])
 
     validation_loader = DataLoader(PartOfData(".", kind="validation"), shuffle = True, batch_size = int(
         sys.argv[1]), follow_batch = ["x_s", "x_t", "edge_index_s",
