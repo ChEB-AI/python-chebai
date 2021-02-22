@@ -110,7 +110,7 @@ class PartOfData(Dataset):
         print("pass parts")
         self.pass_parts(g, 23367, set())
         print("Load data")
-        children = tuple(nx.single_source_shortest_path(g, 23367).keys())[:100]
+        children = tuple(nx.single_source_shortest_path(g, 23367).keys())
         parts = tuple({p for c in children for p in g.nodes[c]["has_part"]})
 
         print("Create molecules")
