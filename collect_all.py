@@ -17,13 +17,15 @@ from pytorch_lightning import loggers as pl_loggers
 import pysmiles as ps
 import torch.nn.functional as F
 import random
+from itertools import chain
 
 
 import multiprocessing as mp
 from torch_geometric import nn as tgnn
 from torch_geometric.utils.convert import from_networkx
 from torch_geometric.utils import train_test_split_edges
-from torch_geometric.data import InMemoryDataset, Data, DataLoader
+from torch_geometric.data import Dataset, Data, DataLoader
+from torch_geometric.data.dataloader import Collater
 
 import logging
 logging.getLogger('pysmiles').setLevel(logging.CRITICAL)
@@ -41,11 +43,11 @@ class PairData(Data):
     def __init__(self, ppd: PrePairData, graph):
         super(PairData, self).__init__()
 
-        s = graph.nodes[ppd.l.item()]["enc"]
+        s = graph.nodes[ppd.l]["enc"]
         self.edge_index_s = s.edge_index
         self.x_s = s.x
 
-        t = graph.nodes[ppd.r.item()]["enc"]
+        t = graph.nodes[ppd.r]["enc"]
         self.edge_index_t = t.edge_index
         self.x_t = t.x
 
@@ -60,21 +62,32 @@ class PairData(Data):
             return super().__inc__(key, value)
 
 
-class PartOfData(InMemoryDataset):
+class PartOfData(Dataset):
 
-    def transform(self, ppd: PrePairData):
-        return PairData(ppd, self.graph)
+    def len(self):
+        if self.kind == "train":
+            return 3
+        elif self.kind == "validation":
+            return 1
+        elif self.kind == "test":
+            return 2
 
-    def __init__(self, root, kind="train", train_split=0.9, part_split=0.1, pre_transform=None, **kwargs):
+    def get(self, idx):
+        return pickle.load(open(os.path.join(self.processed_dir, f"{self.kind}.{idx}.pt"), "rb"))
+
+    def __init__(self, root, kind="train", batch_size=100, train_split=0.95, part_split=0.1, pre_transform=None, **kwargs):
         self.cache_file = ".part_data.pkl"
         self._ignore = set()
         self.train_split = train_split
         self.part_split = part_split
-        super().__init__(root, self.transform, pre_transform, **kwargs)
-        self.data = {}
-        self.slices = {}
-        self.data, self.slices = torch.load(os.path.join(self.processed_dir, f"{kind}.pt"))
-        self.graph = torch.load(os.path.join(self.processed_dir, self.processed_cache_names[0]))
+        self.kind = kind
+        self.batch_size = batch_size
+        super().__init__(root, pre_transform=pre_transform, transform=self.transform, **kwargs)
+        self.graph = pickle.load(open(os.path.join(self.processed_dir, self.processed_cache_names[0]), "rb"))
+
+
+    def transform(self, ppds):
+        return [PairData(ppd, self.graph) for ppd in ppds]
 
     def download(self):
         url = 'http://purl.obolibrary.org/obo/chebi.obo'
@@ -97,13 +110,14 @@ class PartOfData(InMemoryDataset):
         print("pass parts")
         self.pass_parts(g, 23367, set())
         print("Load data")
-        children = tuple(nx.single_source_shortest_path(g, 23367).keys())
+        children = tuple(nx.single_source_shortest_path(g, 23367).keys())[:100]
         parts = tuple({p for c in children for p in g.nodes[c]["has_part"]})
+
         print("Create molecules")
         nx.set_node_attributes(g, dict(map(get_mol_enc,((i,g.nodes[i]["smiles"]) for i in (children + parts)))), "enc")
 
         print("Filter invalid structures")
-        children = [p for p in children if g.nodes[p]["enc"]]
+        children = [p for p in children if g.nodes[p]["enc"] if set(g.nodes[p]["has_part"]).intersection(parts)]
         random.shuffle(children)
         children, children_test_only = train_test_split(children, test_size=self.part_split)
 
@@ -111,26 +125,48 @@ class PartOfData(InMemoryDataset):
         random.shuffle(parts)
         parts, parts_test_only = train_test_split(parts, test_size=self.part_split)
 
+        has_parts = {n: g.nodes[n]["has_part"] for n in g.nodes}
+        pickle.dump(g, open(os.path.join(self.processed_dir, self.processed_cache_names[0]), "wb"))
+        del g
+
         print("Transform into torch structure")
-        ppd_train, tmp = train_test_split([PrePairData(l, r, float(r in g.nodes[l]["has_part"])) for l in children for r in parts], train_size=self.train_split)
-        ppd_test, ppd_val = train_test_split(tmp, train_size=self.train_split)
-        del tmp
 
+        kinds = ("train", "test", "validation")
+        batches = {k:list() for k in kinds}
+        batch_counts = {k:0 for k in kinds}
+        for l in children:
+            for r in parts:
+                if random.random() < self.train_split:
+                    k = "train"
+                elif random.random() < self.train_split or batch_counts["validation"]:
+                    k = "test"
+                else:
+                    k = "validation"
+                batches[k].append(PrePairData(l, r, float(r in has_parts[l])))
+                if len(batches[k]) >= self.batch_size:
+                    pickle.dump(batches[k], open(os.path.join(self.processed_dir, f"{k}.{batch_counts[k]}.pt"), "wb"))
+                    batch_counts[k] += 1
+                    batches[k] = []
 
-        ppds_test_only = [PrePairData(l, r, float(r in g.nodes[l]["has_part"])) for l in children for r in parts_test_only] + [PrePairData(l, r, float(r in g.nodes[l]["has_part"])) for l in children_test_only for r in parts_test_only] + [PrePairData(l, r, float(r in g.nodes[l]["has_part"])) for l in children_test_only for r in parts]
-        for kind in ("train", "test", "validation"):
-            print("Save", kind)
-            if kind == "train":
-                d = ppd_train
-            elif kind == "validation":
-                d = ppd_val
-            elif kind == "test":
-                d = ppd_test + ppds_test_only
-            else:
-                raise Exception("unknown data kind:", kind)
-            data, slices = self.collate(d)
-            torch.save((data, slices), os.path.join(self.processed_dir, f"{kind}.pt"))
-        torch.save(g, os.path.join(self.processed_dir, self.processed_cache_names[0]))
+        k = k0 = "train"
+        b = batches[k]
+        if b:
+            if not batch_counts["validation"]:
+                k = "validation"
+            pickle.dump(b, open(os.path.join(self.processed_dir, f"{k}.{batch_counts[k]}.pt"), "wb"))
+            del batches[k0]
+            del b
+
+        test_batch = batches["test"]
+        batch_count = batch_counts["test"]
+        for l,r in chain(((l,r) for l in children for r in parts_test_only), ((l,r) for l in children_test_only for r in parts_test_only), ((l,r) for l in children_test_only for r in parts)):
+            test_batch.append(PrePairData(l, r, float(r in has_parts[l])))
+            if len(test_batch) >= self.batch_size:
+                pickle.dump(test_batch, open(os.path.join(self.processed_dir, f"test.{batch_count}.pt"), "wb"))
+                batch_count += 1
+                test_batch = []
+        if test_batch:
+            pickle.dump(test_batch, open(os.path.join(self.processed_dir, f"test.{batch_count}.pt"), "wb"))
 
     @property
     def raw_file_names(self):
@@ -138,7 +174,7 @@ class PartOfData(InMemoryDataset):
 
     @property
     def processed_file_names(self):
-        return ["train.pt", "test.pt", "validation.pt"]
+        return ["train.0.pt", "test.0.pt", "validation.0.pt"]
 
     @property
     def processed_cache_names(self):
@@ -208,13 +244,13 @@ class PartOfNet(pl.LightningModule):
     def _execute(self, batch, batch_idx):
         pred = self(batch).squeeze(1)
         loss = F.binary_cross_entropy_with_logits(pred, batch.label)
-        f1 = f1_score(batch.label.item() > 0.5, torch.sigmoid(pred).item() > 0.5)
+        f1 = f1_score(batch.label > 0.5, torch.sigmoid(pred) > 0.5)
         return loss, f1
 
     def training_step(self, *args, **kwargs):
         loss, f1 = self._execute(*args, **kwargs)
         self.log('train_loss', loss.detach().item(), on_step=True, on_epoch=True, prog_bar=True, logger=True)
-        self.log('train_f1', f1.detach().item(), on_step=True, on_epoch=True, prog_bar=True, logger=True)
+        self.log('train_f1', f1.item(), on_step=True, on_epoch=True, prog_bar=True, logger=True)
         return loss
 
     def validation_step(self, *args, **kwargs):
@@ -230,7 +266,7 @@ class PartOfNet(pl.LightningModule):
     def forward(self, x):
         a = self.left_graph_net(x.x_s, x.edge_index_s.long())
         b = self.right_graph_net(x.x_t, x.edge_index_t.long())
-        return self.output_net(torch.cat([self.global_attention(a, x.x_s_batch),self.global_attention(b,x.x_t_batch)], dim=1))
+        return self.output_net(torch.cat([self.global_attention(a, x.x_s_batch),self.global_attention(b, x.x_t_batch)], dim=1))
 
     def configure_optimizers(self):
         optimizer = torch.optim.Adam(self.parameters())
@@ -392,6 +428,7 @@ atom_index =(
             "p",
 )
 
+
 def train(train_loader, validation_loader):
     if torch.cuda.is_available():
         trainer_kwargs = dict(gpus=-1, accelerator="ddp")
@@ -413,12 +450,8 @@ def train(train_loader, validation_loader):
 
 
 if __name__ == "__main__":
-    train_loader = DataLoader(PartOfData(".", kind="train"), shuffle = True, batch_size = int(
-        sys.argv[1]), follow_batch = ["x_s", "x_t", "edge_index_s",
-                                      "edge_index_t"])
-
-    validation_loader = DataLoader(PartOfData(".", kind="validation"), shuffle = True, batch_size = int(
-        sys.argv[1]), follow_batch = ["x_s", "x_t", "edge_index_s",
-                                      "edge_index_t"])
-
+    batch_size = int(sys.argv[1])
+    tr = PartOfData(".", kind="train", batch_size=batch_size)
+    train_loader = DataLoader(tr, shuffle = True, batch_size=None, follow_batch = ["x_s", "x_t", "edge_index_s", "edge_index_t"])
+    validation_loader = DataLoader(PartOfData(".", kind="validation"), batch_size=None, follow_batch = ["x_s", "x_t", "edge_index_s", "edge_index_t"])
     train(train_loader, validation_loader)
