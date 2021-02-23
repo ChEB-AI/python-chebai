@@ -239,7 +239,7 @@ class PartOfNet(pl.LightningModule):
         self.attention = nn.Linear(in_length, 1)
         self.global_attention = tgnn.GlobalAttention(self.attention)
         self.output_net = nn.Sequential(nn.Linear(2*in_length,2*in_length), nn.Linear(2*in_length,in_length), nn.Linear(in_length,1))
-        self.f1 = F1(2, threshold=0.5)
+        self.f1 = F1(1, threshold=0.5)
 
     def _execute(self, batch, batch_idx):
         pred = self(batch).squeeze(1)
@@ -259,9 +259,6 @@ class PartOfNet(pl.LightningModule):
             self.log('val_loss', loss, on_step=True, on_epoch=True, prog_bar=True, logger=True)
             self.log('val_f1', f1, on_step=True, on_epoch=True, prog_bar=True, logger=True)
             return loss
-
-    def training_step_end(self, *args, **kwargs):
-        torch.cuda.empty_cache()
 
     def forward(self, x):
         a = self.left_graph_net(x.x_s, x.edge_index_s.long())
