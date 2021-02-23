@@ -239,11 +239,12 @@ class PartOfNet(pl.LightningModule):
         self.attention = nn.Linear(in_length, 1)
         self.global_attention = tgnn.GlobalAttention(self.attention)
         self.output_net = nn.Sequential(nn.Linear(2*in_length,2*in_length), nn.Linear(2*in_length,in_length), nn.Linear(in_length,1))
+        self.f1 = F1(2, threshold=0.5)
 
     def _execute(self, batch, batch_idx):
         pred = self(batch).squeeze(1)
         loss = F.binary_cross_entropy_with_logits(pred, batch.label)
-        f1 = f1_score(batch.label > 0.5, torch.sigmoid(pred) > 0.5)
+        f1 = self.f1(batch.label, torch.sigmoid(pred))
         return loss, f1
 
     def training_step(self, *args, **kwargs):
