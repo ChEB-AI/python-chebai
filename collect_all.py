@@ -18,6 +18,7 @@ import pysmiles as ps
 import torch.nn.functional as F
 import random
 from itertools import chain
+import glob
 
 
 import multiprocessing as mp
@@ -62,15 +63,13 @@ class PairData(Data):
             return super().__inc__(key, value)
 
 
+def extract_largest_index(path, kind):
+    return max(int(n[len(path+kind)+2:-len(".pt")]) for n in glob.glob(os.path.join(path, f'{kind}.*.pt')))+1
+
 class PartOfData(Dataset):
 
     def len(self):
-        if self.kind == "train":
-            return 3
-        elif self.kind == "validation":
-            return 1
-        elif self.kind == "test":
-            return 2
+        return extract_largest_index(self.processed_dir, self.kind)
 
     def get(self, idx):
         return pickle.load(open(os.path.join(self.processed_dir, f"{self.kind}.{idx}.pt"), "rb"))
