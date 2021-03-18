@@ -25,7 +25,7 @@ import multiprocessing as mp
 from torch_geometric import nn as tgnn
 from torch_geometric.utils.convert import from_networkx
 from torch_geometric.utils import train_test_split_edges
-from torch_geometric.data import Dataset, Data, DataLoader
+from torch_geometric.data import Dataset, Data, DataLoader, InMemoryDataset
 from torch_geometric.data.dataloader import Collater
 
 import logging
@@ -65,6 +65,43 @@ class PairData(Data):
 
 def extract_largest_index(path, kind):
     return max(int(n[len(path+kind)+2:-len(".pt")]) for n in glob.glob(os.path.join(path, f'{kind}.*.pt')))+1
+
+
+class JCIClassificationData(InMemoryDataset):
+
+    def __init__(self, root, split="train", **kwargs):
+        self.split = split
+        super().__init__(root, **kwargs)
+        self.data, self.slices = torch.load(os.path.join(self.processed_dir,f"{split}.pkl"))
+
+    @property
+    def processed_file_names(self):
+        return ["test.pkl", "train.pkl", "validation.pkl"]
+
+    def download(self):
+        pass
+
+    def process(self):
+        for f in self.processed_file_names:
+            structure = pickle.load(open(os.path.join(self.raw_dir,f), "rb"))
+            s = structure.apply(self.process_row, axis=1)
+            data, slices = self.collate([x for x in s if x is not None and x["edge_index"].size()[1]!=0])
+            print("Could not process the following molecules", [x["Name"] for x in s if x is not None and x["edge_index"].size()[1]==0])
+            torch.save((data, slices), os.path.join(self.processed_dir,f))
+
+    @property
+    def raw_file_names(self):
+        return ["test.pkl", "train.pkl", "validation.pkl"]
+
+    @staticmethod
+    def process_row(row):
+        d = mol_to_data(row[1])
+        if d is not None:
+            d["label"] = torch.tensor(row[2:])
+        else:
+            print(f"Could not process {row[0]}: {row[1]}")
+        return d
+
 
 class PartOfData(Dataset):
 
@@ -109,14 +146,14 @@ class PartOfData(Dataset):
         print("pass parts")
         self.pass_parts(g, 23367, set())
         print("Load data")
-        children = tuple(nx.single_source_shortest_path(g, 23367).keys())
-        parts = tuple({p for c in children for p in g.nodes[c]["has_part"]})
+        children = frozenset(list(nx.single_source_shortest_path(g, 23367).keys())[:100])
+        parts = frozenset({p for c in children for p in g.nodes[c]["has_part"]})
 
         print("Create molecules")
-        nx.set_node_attributes(g, dict(map(get_mol_enc,((i,g.nodes[i]["smiles"]) for i in (children + parts)))), "enc")
+        nx.set_node_attributes(g, dict(map(get_mol_enc,((i,g.nodes[i]["smiles"]) for i in (children.union(parts))))), "enc")
 
         print("Filter invalid structures")
-        children = [p for p in children if g.nodes[p]["enc"] if set(g.nodes[p]["has_part"]).intersection(parts)]
+        children = [p for p in children if g.nodes[p]["enc"]]
         random.shuffle(children)
         children, children_test_only = train_test_split(children, test_size=self.part_split)
 
@@ -134,14 +171,19 @@ class PartOfData(Dataset):
         batches = {k:list() for k in kinds}
         batch_counts = {k:0 for k in kinds}
         for l in children:
+            pts = has_parts[l]
             for r in parts:
-                if random.random() < self.train_split:
-                    k = "train"
-                elif random.random() < self.train_split or batch_counts["validation"]:
-                    k = "test"
+                # If there are no positive labels, move the datapoint to test set (where it has positive labels)
+                if pts.intersection(parts):
+                    if random.random() < self.train_split:
+                        k = "train"
+                    elif random.random() < self.train_split or batch_counts["validation"]:
+                        k = "test"
+                    else:
+                        k = "validation"
                 else:
-                    k = "validation"
-                batches[k].append(PrePairData(l, r, float(r in has_parts[l])))
+                    k = "test"
+                batches[k].append(PrePairData(l, r, float(r in pts)))
                 if len(batches[k]) >= self.batch_size:
                     pickle.dump(batches[k], open(os.path.join(self.processed_dir, f"{k}.{batch_counts[k]}.pt"), "wb"))
                     batch_counts[k] += 1
@@ -238,7 +280,7 @@ class PartOfNet(pl.LightningModule):
         self.right_graph_net = tgnn.GATConv(in_length, in_length)
         self.attention = nn.Linear(in_length, 1)
         self.global_attention = tgnn.GlobalAttention(self.attention)
-        self.output_net = nn.Sequential(nn.Linear(2*in_length,2*in_length), nn.Linear(2*in_length,in_length), nn.Linear(in_length,1))
+        self.output_net = nn.Sequential(nn.Linear(2*in_length,2*in_length), nn.Linear(2*in_length,in_length), nn.Linear(in_length,500))
         self.f1 = F1(1, threshold=0.5)
 
     def _execute(self, batch, batch_idx):
@@ -256,14 +298,52 @@ class PartOfNet(pl.LightningModule):
     def validation_step(self, *args, **kwargs):
         with torch.no_grad():
             loss, f1 = self._execute(*args, **kwargs)
-            self.log('val_loss', loss, on_step=True, on_epoch=True, prog_bar=True, logger=True)
-            self.log('val_f1', f1, on_step=True, on_epoch=True, prog_bar=True, logger=True)
+            self.log('val_loss', loss.detach().item(), on_step=True, on_epoch=True, prog_bar=True, logger=True)
+            self.log('val_f1', f1.item(), on_step=True, on_epoch=True, prog_bar=True, logger=True)
             return loss
 
     def forward(self, x):
         a = self.left_graph_net(x.x_s, x.edge_index_s.long())
         b = self.right_graph_net(x.x_t, x.edge_index_t.long())
         return self.output_net(torch.cat([self.global_attention(a, x.x_s_batch),self.global_attention(b, x.x_t_batch)], dim=1))
+
+    def configure_optimizers(self):
+        optimizer = torch.optim.Adam(self.parameters())
+        return optimizer
+
+class JCINet(pl.LightningModule):
+
+    def __init__(self, in_length, loops=10):
+        super().__init__()
+        self.loops=loops
+        self.left_graph_net = tgnn.GATConv(in_length, in_length)
+        self.attention = nn.Linear(in_length, 1)
+        self.global_attention = tgnn.GlobalAttention(self.attention)
+        self.output_net = nn.Sequential(nn.Linear(in_length,in_length), nn.Linear(in_length,in_length), nn.Linear(in_length, 500))
+        self.f1 = F1(1, threshold=0.5)
+
+    def _execute(self, batch, batch_idx):
+        pred = self(batch)
+        loss = F.binary_cross_entropy_with_logits(pred, batch.label.float())
+        f1 = self.f1(batch.label.float(), torch.sigmoid(pred))
+        return loss, f1
+
+    def training_step(self, *args, **kwargs):
+        loss, f1 = self._execute(*args, **kwargs)
+        self.log('train_loss', loss.detach().item(), on_step=True, on_epoch=True, prog_bar=True, logger=True)
+        self.log('train_f1', f1.item(), on_step=True, on_epoch=True, prog_bar=True, logger=True)
+        return loss
+
+    def validation_step(self, *args, **kwargs):
+        with torch.no_grad():
+            loss, f1 = self._execute(*args, **kwargs)
+            self.log('val_loss', loss.detach().item(), on_step=True, on_epoch=True, prog_bar=True, logger=True)
+            self.log('val_f1', f1.item(), on_step=True, on_epoch=True, prog_bar=True, logger=True)
+            return loss
+
+    def forward(self, x):
+        a = self.left_graph_net(x.x, x.edge_index.long())
+        return self.output_net(self.global_attention(a, x.x_batch)).squeeze(0)
 
     def configure_optimizers(self):
         optimizer = torch.optim.Adam(self.parameters())
@@ -431,7 +511,7 @@ def train(train_loader, validation_loader):
         trainer_kwargs = dict(gpus=-1, accelerator="ddp")
     else:
         trainer_kwargs = dict(gpus=0)
-    net = PartOfNet(121)
+    net = JCINet(121)
     tb_logger = pl_loggers.CSVLogger('logs/')
     checkpoint_callback = ModelCheckpoint(
         dirpath=os.path.join(tb_logger.log_dir, "checkpoints"),
@@ -442,13 +522,19 @@ def train(train_loader, validation_loader):
         monitor='val_loss',
         mode='min'
     )
-    trainer = pl.Trainer(max_epochs=2, logger=tb_logger, callbacks=[checkpoint_callback], replace_sampler_ddp=False, log_every_n_steps=10, val_check_interval=0.1 ,**trainer_kwargs)
+    trainer = pl.Trainer(max_epochs=2, val_check_interval=0.1, logger=tb_logger, callbacks=[checkpoint_callback], replace_sampler_ddp=False, log_every_n_steps=10, **trainer_kwargs)
     trainer.fit(net, train_loader, val_dataloaders=validation_loader)
+
+
 
 
 if __name__ == "__main__":
     batch_size = int(sys.argv[1])
-    tr = PartOfData(".", kind="train", batch_size=batch_size)
-    train_loader = DataLoader(tr, shuffle = True, batch_size=None, follow_batch = ["x_s", "x_t", "edge_index_s", "edge_index_t"])
-    validation_loader = DataLoader(PartOfData(".", kind="validation"), batch_size=None, follow_batch = ["x_s", "x_t", "edge_index_s", "edge_index_t"])
+    tr = JCIClassificationData("data/JCI_data", split="train")
+    #tr = PartOfData(".", kind="train", batch_size=batch_size)
+    #train_loader = DataLoader(tr, shuffle = True, batch_size=None, follow_batch = ["x_s", "x_t", "edge_index_s", "edge_index_t"])
+    train_loader = DataLoader(tr, shuffle = True, follow_batch = ["x", "edge_index"])
+    #validation_loader = DataLoader(PartOfData(".", kind="validation"), batch_size=None, follow_batch = ["x_s", "x_t", "edge_index_s", "edge_index_t"])
+    validation_loader = DataLoader(JCIClassificationData("data/JCI_data", split="validation"), follow_batch = ["x", "edge_index"])
+
     train(train_loader, validation_loader)
