@@ -533,7 +533,7 @@ if __name__ == "__main__":
     tr = JCIClassificationData("data/JCI_data", split="train")
     #tr = PartOfData(".", kind="train", batch_size=batch_size)
     #train_loader = DataLoader(tr, shuffle = True, batch_size=None, follow_batch = ["x_s", "x_t", "edge_index_s", "edge_index_t"])
-    train_loader = DataLoader(tr, shuffle = True, follow_batch = ["x", "edge_index"])
+    train_loader = DataLoader(tr, shuffle = True, batch_size=batch_size, follow_batch = ["x", "edge_index"])
     #validation_loader = DataLoader(PartOfData(".", kind="validation"), batch_size=None, follow_batch = ["x_s", "x_t", "edge_index_s", "edge_index_t"])
     validation_loader = DataLoader(JCIClassificationData("data/JCI_data", split="validation"), follow_batch = ["x", "edge_index"])
 
