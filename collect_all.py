@@ -324,8 +324,9 @@ class JCINet(pl.LightningModule):
 
     def _execute(self, batch, batch_idx):
         pred = self(batch)
-        loss = F.binary_cross_entropy_with_logits(pred, batch.label.float())
-        f1 = self.f1(batch.label.float(), torch.sigmoid(pred))
+        labels = batch.label.float().view(batch.num_graphs,-1)
+        loss = F.binary_cross_entropy_with_logits(pred, labels)
+        f1 = self.f1(labels, torch.sigmoid(pred))
         return loss, f1
 
     def training_step(self, *args, **kwargs):
@@ -343,7 +344,7 @@ class JCINet(pl.LightningModule):
 
     def forward(self, x):
         a = self.left_graph_net(x.x, x.edge_index.long())
-        return self.output_net(self.global_attention(a, x.x_batch)).squeeze(0)
+        return self.output_net(self.global_attention(a, x.x_batch))
 
     def configure_optimizers(self):
         optimizer = torch.optim.Adam(self.parameters())
@@ -533,8 +534,8 @@ if __name__ == "__main__":
     tr = JCIClassificationData("data/JCI_data", split="train")
     #tr = PartOfData(".", kind="train", batch_size=batch_size)
     #train_loader = DataLoader(tr, shuffle = True, batch_size=None, follow_batch = ["x_s", "x_t", "edge_index_s", "edge_index_t"])
-    train_loader = DataLoader(tr, shuffle = True, batch_size=batch_size, follow_batch = ["x", "edge_index"])
+    train_loader = DataLoader(tr, shuffle = True, batch_size=batch_size, follow_batch = ["x", "edge_index", "label"])
     #validation_loader = DataLoader(PartOfData(".", kind="validation"), batch_size=None, follow_batch = ["x_s", "x_t", "edge_index_s", "edge_index_t"])
-    validation_loader = DataLoader(JCIClassificationData("data/JCI_data", split="validation"), follow_batch = ["x", "edge_index"])
+    validation_loader = DataLoader(JCIClassificationData("data/JCI_data", split="validation"), follow_batch = ["x", "edge_index", "label"], batch_size=batch_size)
 
     train(train_loader, validation_loader)
