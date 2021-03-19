@@ -352,7 +352,7 @@ class JCINet(pl.LightningModule):
         pred = self(batch)
         labels = batch.label.float()
         loss = F.binary_cross_entropy_with_logits(pred, labels)
-        f1 = f1_score(labels>0.5, torch.sigmoid(pred)>0.5, average="micro")
+        f1 = f1_score(labels.cpu()>0.5, torch.sigmoid(pred).cpu()>0.5, average="micro")
         return loss, f1
 
     def training_step(self, *args, **kwargs):
