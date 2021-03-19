@@ -342,7 +342,8 @@ class JCINet(pl.LightningModule):
 
         self.node_net = nn.Sequential(nn.Linear(hidden_length,hidden_length), nn.ReLU())
         self.embedding = torch.nn.Embedding(700, in_length)
-        self.left_graph_net = tgnn.GATConv(in_length, hidden_length, dropout=0.1)
+        self.left_graph_net = tgnn.GATConv(in_length, in_length, dropout=0.1)
+        self.final_graph_net = tgnn.GATConv(in_length, hidden_length, dropout=0.1)
         self.attention = nn.Linear(hidden_length, 1)
         self.global_attention = tgnn.GlobalAttention(self.attention)
         self.output_net = nn.Sequential(nn.Linear(hidden_length,hidden_length), nn.Linear(hidden_length, 500))
@@ -370,7 +371,9 @@ class JCINet(pl.LightningModule):
 
     def forward(self, x):
         a = self.embedding(x.x)
-        a = self.left_graph_net(a, x.edge_index.long())
+        for _ in range(10):
+            a = self.left_graph_net(a, x.edge_index.long())
+        a = self.final_graph_net(a, x.edge_index.long())
         at = self.global_attention(self.node_net(a), x.x_batch)
         return self.output_net(at)
 
