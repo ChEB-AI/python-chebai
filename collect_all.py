@@ -27,7 +27,7 @@ from torch_geometric.utils.convert import from_networkx
 from torch_geometric.utils import train_test_split_edges
 from torch_geometric.data import Dataset, Data, DataLoader, InMemoryDataset
 from torch_geometric.data.dataloader import Collater
-
+from torch_geometric.nn import GATConv
 from torch_scatter.utils import broadcast
 
 import logging
@@ -336,21 +336,23 @@ class PartOfNet(pl.LightningModule):
 
 class JCINet(pl.LightningModule):
 
-    def __init__(self, in_length, loops=10):
+    def __init__(self, in_length, hidden_length, loops=10):
         super().__init__()
         self.loops=loops
+
+        self.node_net = nn.Sequential(nn.Linear(hidden_length,hidden_length), nn.ReLU())
         self.embedding = torch.nn.Embedding(700, in_length)
-        self.left_graph_net = tgnn.GATConv(in_length, in_length)
-        self.attention = nn.Linear(in_length, 1)
+        self.left_graph_net = tgnn.GATConv(in_length, hidden_length, dropout=0.1)
+        self.attention = nn.Linear(hidden_length, 1)
         self.global_attention = tgnn.GlobalAttention(self.attention)
-        self.output_net = nn.Sequential(nn.Linear(in_length,in_length), nn.Linear(in_length,in_length), nn.Linear(in_length, 500))
+        self.output_net = nn.Sequential(nn.Linear(hidden_length,hidden_length), nn.Linear(hidden_length, 500))
         self.f1 = F1(500, threshold=0.5)
 
     def _execute(self, batch, batch_idx):
         pred = self(batch)
         labels = batch.label.float()
         loss = F.binary_cross_entropy_with_logits(pred, labels)
-        f1 = self.f1(labels, torch.sigmoid(pred))
+        f1 = f1_score(labels>0.5, torch.sigmoid(pred)>0.5, average="micro")
         return loss, f1
 
     def training_step(self, *args, **kwargs):
@@ -362,15 +364,14 @@ class JCINet(pl.LightningModule):
     def validation_step(self, *args, **kwargs):
         with torch.no_grad():
             loss, f1 = self._execute(*args, **kwargs)
-            self.log('val_loss', loss.detach().item(), on_step=True, on_epoch=True, prog_bar=True, logger=True)
-            self.log('val_f1', f1.item(), on_step=True, on_epoch=True, prog_bar=True, logger=True)
+            self.log('val_loss', loss.detach().item(), on_step=False, on_epoch=True, prog_bar=True, logger=True)
+            self.log('val_f1', f1.item(), on_step=False, on_epoch=True, prog_bar=True, logger=True)
             return loss
 
     def forward(self, x):
         a = self.embedding(x.x)
-        for _ in range(self.loops):
-            a = self.left_graph_net(a, x.edge_index.long())
-        at = self.global_attention(a, x.x_batch)
+        a = self.left_graph_net(a, x.edge_index.long())
+        at = self.global_attention(self.node_net(a), x.x_batch)
         return self.output_net(at)
 
     def configure_optimizers(self):
@@ -539,7 +540,7 @@ def train(train_loader, validation_loader):
         trainer_kwargs = dict(gpus=-1, accelerator="ddp")
     else:
         trainer_kwargs = dict(gpus=0)
-    net = JCINet(1000)
+    net = JCINet(100,1000)
     tb_logger = pl_loggers.CSVLogger('logs/')
     checkpoint_callback = ModelCheckpoint(
         dirpath=os.path.join(tb_logger.log_dir, "checkpoints"),
