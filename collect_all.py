@@ -378,7 +378,7 @@ class JCINet(pl.LightningModule):
         return self.output_net(at)
 
     def configure_optimizers(self):
-        optimizer = torch.optim.Adam(self.parameters(), lr=0.01)
+        optimizer = torch.optim.Adam(self.parameters())
         return optimizer
 
 
