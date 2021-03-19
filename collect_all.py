@@ -84,25 +84,45 @@ class JCIClassificationData(InMemoryDataset):
         pass
 
     def process(self):
+        self.cache = []
         for f in self.processed_file_names:
             structure = pickle.load(open(os.path.join(self.raw_dir,f), "rb"))
             s = structure.apply(self.process_row, axis=1)
             data, slices = self.collate([x for x in s if x is not None and x["edge_index"].size()[1]!=0])
             print("Could not process the following molecules", [x["Name"] for x in s if x is not None and x["edge_index"].size()[1]==0])
             torch.save((data, slices), os.path.join(self.processed_dir,f))
+        print(len(self.cache))
 
     @property
     def raw_file_names(self):
         return ["test.pkl", "train.pkl", "validation.pkl"]
 
-    @staticmethod
-    def process_row(row):
-        d = mol_to_data(row[1])
+    def process_row(self, row):
+        d = self.mol_to_data(row[1])
         if d is not None:
             d["label"] = torch.tensor(row[2:]).unsqueeze(0)
         else:
             print(f"Could not process {row[0]}: {row[1]}")
         return d
+
+    def mol_to_data(self, smiles):
+        try:
+            mol = ps.read_smiles(smiles)
+        except:
+            return None
+        d = {}
+        for node in mol.nodes:
+            m = mol.nodes[node]
+            try:
+                x = self.cache.index(m)
+            except ValueError:
+                x = len(self.cache)
+                self.cache.append(m.copy())
+            d[node] = x
+            for attr in list(mol.nodes[node].keys()):
+                del mol.nodes[node][attr]
+        nx.set_node_attributes(mol, d, "x")
+        return from_networkx(mol)
 
 
 class PartOfData(Dataset):
@@ -319,6 +339,7 @@ class JCINet(pl.LightningModule):
     def __init__(self, in_length, loops=10):
         super().__init__()
         self.loops=loops
+        self.embedding = torch.nn.Embedding(700, in_length)
         self.left_graph_net = tgnn.GATConv(in_length, in_length)
         self.attention = nn.Linear(in_length, 1)
         self.global_attention = tgnn.GlobalAttention(self.attention)
@@ -346,7 +367,7 @@ class JCINet(pl.LightningModule):
             return loss
 
     def forward(self, x):
-        a = x.x
+        a = self.embedding(x.x)
         for _ in range(self.loops):
             a = self.left_graph_net(a, x.edge_index.long())
         at = self.global_attention(a, x.x_batch)
