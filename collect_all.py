@@ -91,7 +91,7 @@ class JCIClassificationData(InMemoryDataset):
             data, slices = self.collate([x for x in s if x is not None and x["edge_index"].size()[1]!=0])
             print("Could not process the following molecules", [x["Name"] for x in s if x is not None and x["edge_index"].size()[1]==0])
             torch.save((data, slices), os.path.join(self.processed_dir,f))
-        print(len(self.cache))
+        torch.save(self.cache, os.path.join(self.processed_dir, "embeddings.pt"))
 
     @property
     def raw_file_names(self):
