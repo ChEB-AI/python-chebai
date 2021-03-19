@@ -355,8 +355,8 @@ class JCINet(pl.LightningModule):
 
     def training_step(self, *args, **kwargs):
         loss, f1 = self._execute(*args, **kwargs)
-        self.log('train_loss', loss.detach().item(), on_step=True, on_epoch=True, prog_bar=True, logger=True)
-        self.log('train_f1', f1.item(), on_step=True, on_epoch=True, prog_bar=True, logger=True)
+        self.log('train_loss', loss.detach().item(), on_step=False, on_epoch=True, prog_bar=True, logger=True)
+        self.log('train_f1', f1.item(), on_step=False, on_epoch=True, prog_bar=True, logger=True)
         return loss
 
     def validation_step(self, *args, **kwargs):
@@ -374,7 +374,7 @@ class JCINet(pl.LightningModule):
         return self.output_net(at)
 
     def configure_optimizers(self):
-        optimizer = torch.optim.Adam(self.parameters())
+        optimizer = torch.optim.Adam(self.parameters(), lr=0.01)
         return optimizer
 
 
@@ -539,7 +539,7 @@ def train(train_loader, validation_loader):
         trainer_kwargs = dict(gpus=-1, accelerator="ddp")
     else:
         trainer_kwargs = dict(gpus=0)
-    net = JCINet(121)
+    net = JCINet(1000)
     tb_logger = pl_loggers.CSVLogger('logs/')
     checkpoint_callback = ModelCheckpoint(
         dirpath=os.path.join(tb_logger.log_dir, "checkpoints"),
