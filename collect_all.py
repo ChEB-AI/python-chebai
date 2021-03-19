@@ -28,6 +28,8 @@ from torch_geometric.utils import train_test_split_edges
 from torch_geometric.data import Dataset, Data, DataLoader, InMemoryDataset
 from torch_geometric.data.dataloader import Collater
 
+from torch_scatter.utils import broadcast
+
 import logging
 logging.getLogger('pysmiles').setLevel(logging.CRITICAL)
 
@@ -97,7 +99,7 @@ class JCIClassificationData(InMemoryDataset):
     def process_row(row):
         d = mol_to_data(row[1])
         if d is not None:
-            d["label"] = torch.tensor(row[2:])
+            d["label"] = torch.tensor(row[2:]).unsqueeze(0)
         else:
             print(f"Could not process {row[0]}: {row[1]}")
         return d
@@ -284,7 +286,7 @@ class PartOfNet(pl.LightningModule):
         self.f1 = F1(1, threshold=0.5)
 
     def _execute(self, batch, batch_idx):
-        pred = self(batch).squeeze(1)
+        pred = self(batch)
         loss = F.binary_cross_entropy_with_logits(pred, batch.label)
         f1 = self.f1(batch.label, torch.sigmoid(pred))
         return loss, f1
@@ -311,6 +313,7 @@ class PartOfNet(pl.LightningModule):
         optimizer = torch.optim.Adam(self.parameters())
         return optimizer
 
+
 class JCINet(pl.LightningModule):
 
     def __init__(self, in_length, loops=10):
@@ -320,11 +323,11 @@ class JCINet(pl.LightningModule):
         self.attention = nn.Linear(in_length, 1)
         self.global_attention = tgnn.GlobalAttention(self.attention)
         self.output_net = nn.Sequential(nn.Linear(in_length,in_length), nn.Linear(in_length,in_length), nn.Linear(in_length, 500))
-        self.f1 = F1(1, threshold=0.5)
+        self.f1 = F1(500, threshold=0.5)
 
     def _execute(self, batch, batch_idx):
         pred = self(batch)
-        labels = batch.label.float().view(batch.num_graphs,-1)
+        labels = batch.label.float()
         loss = F.binary_cross_entropy_with_logits(pred, labels)
         f1 = self.f1(labels, torch.sigmoid(pred))
         return loss, f1
@@ -343,8 +346,11 @@ class JCINet(pl.LightningModule):
             return loss
 
     def forward(self, x):
-        a = self.left_graph_net(x.x, x.edge_index.long())
-        return self.output_net(self.global_attention(a, x.x_batch))
+        a = x.x
+        for _ in range(self.loops):
+            a = self.left_graph_net(a, x.edge_index.long())
+        at = self.global_attention(a, x.x_batch)
+        return self.output_net(at)
 
     def configure_optimizers(self):
         optimizer = torch.optim.Adam(self.parameters())
@@ -523,7 +529,7 @@ def train(train_loader, validation_loader):
         monitor='val_loss',
         mode='min'
     )
-    trainer = pl.Trainer(max_epochs=2, val_check_interval=0.1, logger=tb_logger, callbacks=[checkpoint_callback], replace_sampler_ddp=False, log_every_n_steps=10, **trainer_kwargs)
+    trainer = pl.Trainer(logger=tb_logger, callbacks=[checkpoint_callback], replace_sampler_ddp=False, **trainer_kwargs)
     trainer.fit(net, train_loader, val_dataloaders=validation_loader)
 
 
