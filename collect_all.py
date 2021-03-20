@@ -69,40 +69,83 @@ def extract_largest_index(path, kind):
     return max(int(n[len(path+kind)+2:-len(".pt")]) for n in glob.glob(os.path.join(path, f'{kind}.*.pt')))+1
 
 
-class JCIClassificationData(InMemoryDataset):
+class ClassificationData(Dataset):
+
+    def len(self):
+        return self.set_lengths[self.split]
+
+    def get(self, idx):
+        return torch.load(os.path.join(self.processed_dir,f"{self.split}.{idx}.pt"))
 
     def __init__(self, root, split="train", **kwargs):
         self.split = split
+        self.train_split = 0.8
+        self.set_lengths = dict(test=19, train=98, validation=4)
         super().__init__(root, **kwargs)
-        self.data, self.slices = torch.load(os.path.join(self.processed_dir,f"{split}.pkl"))
+
+    def download(self):
+        url = 'http://purl.obolibrary.org/obo/chebi.obo'
+        r = requests.get(url, allow_redirects=True)
+        open(self.raw_paths[0], 'wb').write(r.content)
 
     @property
     def processed_file_names(self):
-        return ["test.pkl", "train.pkl", "validation.pkl"]
-
-    def download(self):
-        pass
-
-    def process(self):
-        self.cache = []
-        for f in self.processed_file_names:
-            structure = pickle.load(open(os.path.join(self.raw_dir,f), "rb"))
-            s = structure.apply(self.process_row, axis=1)
-            data, slices = self.collate([x for x in s if x is not None and x["edge_index"].size()[1]!=0])
-            print("Could not process the following molecules", [x["Name"] for x in s if x is not None and x["edge_index"].size()[1]==0])
-            torch.save((data, slices), os.path.join(self.processed_dir,f))
-        torch.save(self.cache, os.path.join(self.processed_dir, "embeddings.pt"))
+        return [f"{k}.{i}.pt" for k in ("train", "test", "validation") for i in range(self.set_lengths[k])]
 
     @property
     def raw_file_names(self):
-        return ["test.pkl", "train.pkl", "validation.pkl"]
+        return ["chebi.obo"]
 
-    def process_row(self, row):
-        d = self.mol_to_data(row[1])
+    def process(self):
+        self.cache = []
+        elements = list()
+        for clause in fastobo.load(self.raw_paths[0]):
+            callback = CALLBACKS.get(type(clause))
+            if callback is not None:
+                elements.append(callback(clause))
+
+        g = nx.DiGraph()
+        for n in elements:
+            g.add_node(n["id"], **n)
+        g.add_edges_from([(p, q["id"]) for q in elements for p in q["parents"]])
+        g = nx.transitive_closure_dag(g)
+        fixed_nodes = list(g.nodes)
+        #collater = Collater(follow_batch=["x", "edge_index", "label"])
+        smiles = nx.get_node_attributes(g, "smiles")
+        print("Create graphs")
+        kinds = ("train", "test", "validation")
+        batches = {k: [] for k in kinds}
+        batch_count = {k: 0 for k in kinds}
+        for node in g.nodes:
+            if smiles[node] is not None:
+                superclasses = set(g.predecessors(node))
+                labels = tuple(n in superclasses for n in fixed_nodes)
+                d = self.process_row(node, smiles[node], labels)
+                if d is not None and d.edge_index.shape[1] > 0:
+                    if random.random() < self.train_split:
+                        k = "train"
+                    elif random.random() < self.train_split:
+                        k = "test"
+                    else:
+                        k = "validation"
+                    batches[k].append(d)
+                    if len(batches[k]) > 1000:
+
+                        print(f"Save {k}.{batch_count[k]}.pt")
+                        torch.save(batches[k], os.path.join(self.processed_dir, f"{k}.{batch_count[k]}.pt"))
+                        batch_count[k] += 1
+                        batches[k] = []
+        for k in kinds:
+            if batches[k]:
+                torch.save(batches[k], os.path.join(self.processed_dir, f"{k}.{batch_count[k]}.pt"))
+        torch.save(self.cache, os.path.join(self.processed_dir, "embeddings.pt"))
+
+    def process_row(self, iden, smiles, labels):
+        d = self.mol_to_data(smiles)
         if d is not None:
-            d["label"] = torch.tensor(row[2:]).unsqueeze(0)
+            d["label"] = torch.tensor(labels).unsqueeze(0)
         else:
-            print(f"Could not process {row[0]}: {row[1]}")
+            print(f"Could not process {iden}: {smiles}")
         return d
 
     def mol_to_data(self, smiles):
@@ -124,6 +167,42 @@ class JCIClassificationData(InMemoryDataset):
         nx.set_node_attributes(mol, d, "x")
         return from_networkx(mol)
 
+
+class JCIClassificationData(ClassificationData):
+
+    def __init__(self, root, split="train", **kwargs):
+        self.split = split
+        super().__init__(root, **kwargs)
+        self.data, self.slices = torch.load(os.path.join(self.processed_dir,f"{split}.pkl"))
+
+    @property
+    def processed_file_names(self):
+        return ["test.pkl", "train.pkl", "validation.pkl"]
+
+    def download(self):
+        pass
+
+    @property
+    def raw_file_names(self):
+        return ["test.pkl", "train.pkl", "validation.pkl"]
+
+    def process(self):
+        self.cache = []
+        for f in self.processed_file_names:
+            structure = pickle.load(open(os.path.join(self.raw_dir,f), "rb"))
+            s = structure.apply(self.process_row, axis=1)
+            data, slices = self.collate([x for x in s if x is not None and x["edge_index"].size()[1]!=0])
+            print("Could not process the following molecules", [x["Name"] for x in s if x is not None and x["edge_index"].size()[1]==0])
+            torch.save((data, slices), os.path.join(self.processed_dir,f))
+        torch.save(self.cache, os.path.join(self.processed_dir, "embeddings.pt"))
+
+    def process_row(self, row):
+        d = self.mol_to_data(row[1])
+        if d is not None:
+            d["label"] = torch.tensor(row[2:]).unsqueeze(0)
+        else:
+            print(f"Could not process {row[0]}: {row[1]}")
+        return d
 
 class PartOfData(Dataset):
 
@@ -562,11 +641,13 @@ def train(train_loader, validation_loader):
 
 if __name__ == "__main__":
     batch_size = int(sys.argv[1])
-    tr = JCIClassificationData("data/JCI_data", split="train")
+    tr = ClassificationData("data/full_chebi", split="validation")
+    vl = ClassificationData("data/full_chebi", split="train")
+    #tr = JCIClassificationData("data/JCI_data", split="train")
     #tr = PartOfData(".", kind="train", batch_size=batch_size)
     #train_loader = DataLoader(tr, shuffle = True, batch_size=None, follow_batch = ["x_s", "x_t", "edge_index_s", "edge_index_t"])
     train_loader = DataLoader(tr, shuffle = True, batch_size=batch_size, follow_batch = ["x", "edge_index", "label"])
     #validation_loader = DataLoader(PartOfData(".", kind="validation"), batch_size=None, follow_batch = ["x_s", "x_t", "edge_index_s", "edge_index_t"])
-    validation_loader = DataLoader(JCIClassificationData("data/JCI_data", split="validation"), follow_batch = ["x", "edge_index", "label"], batch_size=batch_size)
+    validation_loader = DataLoader(vl, follow_batch = ["x", "edge_index", "label"], batch_size=batch_size)
 
     train(train_loader, validation_loader)
