@@ -80,7 +80,7 @@ class ClassificationData(Dataset):
     def __init__(self, root, split="train", **kwargs):
         self.split = split
         self.train_split = 0.8
-        self.set_lengths = dict(test=1, train=1, validation=1)
+        self.set_lengths = dict(test=196, train=976, validation=49)
         super().__init__(root, **kwargs)
 
     def download(self):
@@ -415,7 +415,7 @@ class JCINet(pl.LightningModule):
         self.loops=loops
 
         self.node_net = nn.Sequential(nn.Linear(hidden_length,hidden_length), nn.ReLU())
-        self.embedding = torch.nn.Embedding(700, in_length)
+        self.embedding = torch.nn.Embedding(800, in_length)
         self.left_graph_net = tgnn.GATConv(in_length, in_length, dropout=0.1)
         self.final_graph_net = tgnn.GATConv(in_length, hidden_length, dropout=0.1)
         self.attention = nn.Linear(hidden_length, 1)
