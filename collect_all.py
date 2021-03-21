@@ -636,8 +636,8 @@ def train(train_loader, validation_loader):
 
 if __name__ == "__main__":
     batch_size = int(sys.argv[1])
-    tr = ClassificationData("data/full_chebi", split="validation")
-    vl = ClassificationData("data/full_chebi", split="train")
+    vl = ClassificationData("data/full_chebi", split="validation")
+    tr = ClassificationData("data/full_chebi", split="train")
     #tr = JCIClassificationData("data/JCI_data", split="train")
     #tr = PartOfData(".", kind="train", batch_size=batch_size)
     #train_loader = DataLoader(tr, shuffle = True, batch_size=None, follow_batch = ["x_s", "x_t", "edge_index_s", "edge_index_t"])
