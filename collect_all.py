@@ -80,7 +80,7 @@ class ClassificationData(Dataset):
     def __init__(self, root, split="train", **kwargs):
         self.split = split
         self.train_split = 0.8
-        self.set_lengths = dict(test=19, train=98, validation=4)
+        self.set_lengths = dict(test=1, train=1, validation=1)
         super().__init__(root, **kwargs)
 
     def download(self):
@@ -110,34 +110,28 @@ class ClassificationData(Dataset):
         g.add_edges_from([(p, q["id"]) for q in elements for p in q["parents"]])
         g = nx.transitive_closure_dag(g)
         fixed_nodes = list(g.nodes)
-        #collater = Collater(follow_batch=["x", "edge_index", "label"])
+        random.shuffle(fixed_nodes)
+        train_split, test_split = train_test_split(fixed_nodes, train_size=self.train_split, shuffle=True)
+        test_split, validation_split = train_test_split(test_split, train_size=self.train_split, shuffle=True)
         smiles = nx.get_node_attributes(g, "smiles")
         print("Create graphs")
-        kinds = ("train", "test", "validation")
-        batches = {k: [] for k in kinds}
-        batch_count = {k: 0 for k in kinds}
-        for node in g.nodes:
-            if smiles[node] is not None:
-                superclasses = set(g.predecessors(node))
-                labels = tuple(n in superclasses for n in fixed_nodes)
-                d = self.process_row(node, smiles[node], labels)
-                if d is not None and d.edge_index.shape[1] > 0:
-                    if random.random() < self.train_split:
-                        k = "train"
-                    elif random.random() < self.train_split:
-                        k = "test"
-                    else:
-                        k = "validation"
-                    batches[k].append(d)
-                    if len(batches[k]) > 1000:
-
-                        print(f"Save {k}.{batch_count[k]}.pt")
-                        torch.save(batches[k], os.path.join(self.processed_dir, f"{k}.{batch_count[k]}.pt"))
-                        batch_count[k] += 1
-                        batches[k] = []
-        for k in kinds:
-            if batches[k]:
-                torch.save(batches[k], os.path.join(self.processed_dir, f"{k}.{batch_count[k]}.pt"))
+        for k, nodes in dict(train=train_split, test=test_split, validation=validation_split).items():
+            counter = 0
+            l = []
+            for node in nodes:
+                if smiles[node] is not None:
+                    superclasses = set(g.predecessors(node))
+                    labels = tuple(n in superclasses for n in fixed_nodes)
+                    d = self.process_row(node, smiles[node], labels)
+                    if d is not None and d.edge_index.shape[1] > 0:
+                        l.append(d)
+                    if len(l) > 100:
+                        print(f"Save {k}.{counter}.pt")
+                        torch.save(l, os.path.join(self.processed_dir, f"{k}.{counter}.pt"))
+                        counter += 1
+                        l = []
+            if l:
+                torch.save(l, os.path.join(self.processed_dir, f"{k}.{counter}.pt"))
         torch.save(self.cache, os.path.join(self.processed_dir, "embeddings.pt"))
 
     def process_row(self, iden, smiles, labels):
@@ -256,7 +250,7 @@ class PartOfData(Dataset):
         print("Filter invalid structures")
         children = [p for p in children if g.nodes[p]["enc"]]
         random.shuffle(children)
-        children, children_test_only = train_test_split(children, test_size=self.part_split)
+        children, children_test_only = train_test_split(children[:100], test_size=self.part_split)
 
         parts = [p for p in parts if g.nodes[p]["enc"]]
         random.shuffle(parts)
@@ -350,6 +344,7 @@ def term_callback(doc):
         if isinstance(clause, fastobo.term.PropertyValueClause):
             t = clause.property_value
             if str(t.relation) == "http://purl.obolibrary.org/obo/chebi/smiles":
+                assert smiles is None
                 smiles = t.value
         elif isinstance(clause, fastobo.term.RelationshipClause):
             if str(clause.typedef) == "has_part":
@@ -415,7 +410,7 @@ class PartOfNet(pl.LightningModule):
 
 class JCINet(pl.LightningModule):
 
-    def __init__(self, in_length, hidden_length, loops=10):
+    def __init__(self, in_length, hidden_length, num_classes, loops=10):
         super().__init__()
         self.loops=loops
 
@@ -425,8 +420,8 @@ class JCINet(pl.LightningModule):
         self.final_graph_net = tgnn.GATConv(in_length, hidden_length, dropout=0.1)
         self.attention = nn.Linear(hidden_length, 1)
         self.global_attention = tgnn.GlobalAttention(self.attention)
-        self.output_net = nn.Sequential(nn.Linear(hidden_length,hidden_length), nn.Linear(hidden_length, 500))
-        self.f1 = F1(500, threshold=0.5)
+        self.output_net = nn.Sequential(nn.Linear(hidden_length,hidden_length), nn.Linear(hidden_length, num_classes))
+        self.f1 = F1(num_classes, threshold=0.5)
 
     def _execute(self, batch, batch_idx):
         pred = self(batch)
@@ -622,7 +617,7 @@ def train(train_loader, validation_loader):
         trainer_kwargs = dict(gpus=-1, accelerator="ddp")
     else:
         trainer_kwargs = dict(gpus=0)
-    net = JCINet(100,1000)
+    net = JCINet(100,1000, 137337)
     tb_logger = pl_loggers.CSVLogger('logs/')
     checkpoint_callback = ModelCheckpoint(
         dirpath=os.path.join(tb_logger.log_dir, "checkpoints"),
@@ -646,8 +641,8 @@ if __name__ == "__main__":
     #tr = JCIClassificationData("data/JCI_data", split="train")
     #tr = PartOfData(".", kind="train", batch_size=batch_size)
     #train_loader = DataLoader(tr, shuffle = True, batch_size=None, follow_batch = ["x_s", "x_t", "edge_index_s", "edge_index_t"])
-    train_loader = DataLoader(tr, shuffle = True, batch_size=batch_size, follow_batch = ["x", "edge_index", "label"])
+    train_loader = DataLoader(tr, shuffle = True, batch_size=None, follow_batch = ["x", "edge_index", "label"])
     #validation_loader = DataLoader(PartOfData(".", kind="validation"), batch_size=None, follow_batch = ["x_s", "x_t", "edge_index_s", "edge_index_t"])
-    validation_loader = DataLoader(vl, follow_batch = ["x", "edge_index", "label"], batch_size=batch_size)
+    validation_loader = DataLoader(vl, follow_batch = ["x", "edge_index", "label"], batch_size=None)
 
     train(train_loader, validation_loader)
