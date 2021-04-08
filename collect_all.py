@@ -67,7 +67,7 @@ class JCINet(pl.LightningModule):
         super().__init__()
         self.loops=loops
 
-        self.node_net = nn.Sequential(nn.Linear(hidden_length,hidden_length), nn.ReLU())
+        self.node_net = nn.Sequential(nn.Linear(self.loops*in_length,hidden_length), nn.ReLU())
         self.embedding = torch.nn.Embedding(800, in_length)
         self.left_graph_net = tgnn.GATConv(in_length, in_length, dropout=0.1)
         self.final_graph_net = tgnn.GATConv(in_length, hidden_length, dropout=0.1)
@@ -98,10 +98,11 @@ class JCINet(pl.LightningModule):
 
     def forward(self, x):
         a = self.embedding(x.x)
-        for _ in range(10):
-            a = a + self.left_graph_net(a, x.edge_index.long())
-        a = self.final_graph_net(a, x.edge_index.long())
-        at = self.global_attention(self.node_net(a), x.x_batch)
+        l = []
+        for _ in range(self.loops):
+            a = self.left_graph_net(a, x.edge_index.long())
+            l.append(a)
+        at = self.global_attention(self.node_net(torch.cat(l,dim=1)), x.x_batch)
         return self.output_net(at)
 
     def configure_optimizers(self):
@@ -114,7 +115,7 @@ def train(train_loader, validation_loader):
         trainer_kwargs = dict(gpus=-1, accelerator="ddp")
     else:
         trainer_kwargs = dict(gpus=0)
-    net = JCINet(100, 1000, 500)
+    net = JCINet(100, 100, 500)
     tb_logger = pl_loggers.CSVLogger('logs/')
     checkpoint_callback = ModelCheckpoint(
         dirpath=os.path.join(tb_logger.log_dir, "checkpoints"),
