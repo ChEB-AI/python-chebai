@@ -136,7 +136,7 @@ if __name__ == "__main__":
     tr = JCIClassificationData("data/JCI_data", split="train")
     vl = JCIClassificationData("data/JCI_data", split="validation")
 
-    train_loader = DataLoader(tr, shuffle=True, follow_batch=["x", "edge_index", "label"])
-    validation_loader = DataLoader(vl, follow_batch=["x", "edge_index", "label"])
+    train_loader = DataLoader(tr, shuffle=True, batch_size=batch_size, follow_batch=["x", "edge_index", "label"])
+    validation_loader = DataLoader(vl, batch_size=batch_size, follow_batch=["x", "edge_index", "label"])
 
     train(train_loader, validation_loader)
