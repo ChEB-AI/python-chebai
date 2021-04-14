@@ -76,12 +76,27 @@ class GraphCYK(pl.LightningModule):
 
     @staticmethod
     def get_all_subgraphs(graph: nx.Graph):
-        clusters = set(frozenset((n,)) for n in graph.nodes)
-        yield clusters
-        while len(clusters) != 1:
-            clusters = {c.union((n,)) for c in clusters for n in set(neig for node in c for neig in graph.neighbors(node)).difference(c)}
-            print(len(clusters))
-            yield clusters
+        clusters = dict()
+        for n in graph.nodes:
+            g2 = graph.subgraph((n,))
+            hsh = nx.weisfeiler_lehman_graph_hash(g2, node_attr="x")
+            clusters[hsh] = clusters.get(hsh, []) + [(g2,[])]
+        new_clusters = clusters
+        while new_clusters:
+            new_clusters = {}
+            for lhash, lgraphs in clusters.items():
+                for lhash, rgraphs in clusters.items():
+                    for l, _ in lgraphs:
+                        for r, _ in rgraphs:
+                            if l != r:
+                                g2 = graph.subgraph(set(l.nodes).union(set(r.nodes)))
+                                if nx.is_connected(g2):
+                                    hsh = nx.weisfeiler_lehman_graph_hash(g2, node_attr="x")
+                                    new_clusters[hsh] = new_clusters.get(hsh, []) + [(g2, [l, r])]
+            clusters.update(new_clusters)
+        return clusters
+
+
 
 
 if __name__ == "__main__":
