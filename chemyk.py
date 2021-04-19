@@ -12,6 +12,7 @@ import pytorch_lightning as pl
 from pytorch_lightning import loggers as pl_loggers
 from pytorch_lightning.callbacks import ModelCheckpoint
 from data import JCIPureData
+from treelib import Node, Tree
 import pysmiles as ps
 
 import logging
@@ -59,17 +60,9 @@ class GraphCYK(pl.LightningModule):
         return self.output(self.step(graph))
 
     def step(self, graph):
-        clusters = self.get_all_subgraphs(graph)
-        outputs = [{(c, self.embedding(torch.tensor(graph.nodes[n]["x"]))) for c in next(clusters) for n in c}]
-        for layer in clusters:
-            outputs.append(self.merge_clusters(layer, outputs))
+        clusters = list(self.get_all_subgraphs(graph))
+        nx.subgraph(graph)
         return list(outputs[-1])[0][1]
-
-    def merge_clusters(self, layer, output_list):
-        return {(cluster, sum(self.merge(torch.cat((o1, o2))) for i in range(len(cluster) // 2)
-                              for c1, o1 in output_list[i]
-                              for c2, o2 in output_list[-i - 1]
-                              if c1.union(c2) == cluster)) for cluster in layer}
 
     def weight_merge(self, x):
         return x * self.softmax(self.attention_weights(x))
@@ -78,25 +71,31 @@ class GraphCYK(pl.LightningModule):
     def get_all_subgraphs(graph: nx.Graph):
         clusters = dict()
         for n in graph.nodes:
-            g2 = graph.subgraph((n,))
-            hsh = nx.weisfeiler_lehman_graph_hash(g2, node_attr="x")
-            clusters[hsh] = clusters.get(hsh, []) + [(g2,[])]
-        new_clusters = clusters
-        while new_clusters:
-            new_clusters = {}
-            for lhash, lgraphs in clusters.items():
-                for lhash, rgraphs in clusters.items():
-                    for l, _ in lgraphs:
-                        for r, _ in rgraphs:
-                            if l != r:
-                                g2 = graph.subgraph(set(l.nodes).union(set(r.nodes)))
-                                if nx.is_connected(g2):
-                                    hsh = nx.weisfeiler_lehman_graph_hash(g2, node_attr="x")
-                                    new_clusters[hsh] = new_clusters.get(hsh, []) + [(g2, [l, r])]
-            clusters.update(new_clusters)
-        return clusters
+            t = nx.Graph()
+            t.add_node(n, x=graph.nodes[n]["x"])
+            for x in _extend(t, graph, n, {n}, [t]):
+                yield x
 
 
+def _extend(tree: nx.Graph, graph: nx.Graph, max_source_index, opens:set, parents: list):
+    hidden_parents = {}
+    for to_extend in opens:
+        for neigh in graph.neighbors(to_extend):
+            if neigh not in tree.nodes:
+                t2 = tree.copy()
+                t2.add_node(neigh, x=graph.nodes[neigh]["x"])
+                t2.add_edge(to_extend, neigh)
+                new_opens = opens.copy()
+                new_opens.remove(to_extend)
+                new_opens.add(neigh)
+                new_parents = parents + [t2]
+                parent_map = (tree, nx.weisfeiler_lehman_graph_hash(t2, node_attr="x"))
+                if ((neigh == max_source_index and graph.nodes[neigh]["x"] > graph.nodes[to_extend]["x"]) or neigh > max_source_index):
+                    yield t2, parent_map
+                    for x in _extend(t2, graph, max(max_source_index, to_extend), new_opens, new_parents):
+                        yield x
+                    else:
+                        yield None, parent_map
 
 
 if __name__ == "__main__":
