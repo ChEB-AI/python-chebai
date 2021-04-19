@@ -12,9 +12,10 @@ import pytorch_lightning as pl
 from pytorch_lightning import loggers as pl_loggers
 from pytorch_lightning.callbacks import ModelCheckpoint
 from data import JCIPureData
-from treelib import Node, Tree
-import pysmiles as ps
-
+from torch_geometric.nn import GraphConv
+from torch_geometric.utils import from_networkx
+from torch_geometric.data.dataloader import Collater
+from itertools import chain
 import logging
 
 logging.getLogger('pysmiles').setLevel(logging.CRITICAL)
@@ -29,6 +30,8 @@ class GraphCYK(pl.LightningModule):
         self.embedding = nn.Embedding(800, dim)
         self.attention_weights = nn.Linear(dim, dim)
         self.output = nn.Linear(dim, out)
+        self.subgraph_net = GraphConv(dim, out)
+
 
     def _execute(self, batch, batch_idx):
         loss = 0
@@ -60,25 +63,50 @@ class GraphCYK(pl.LightningModule):
         return self.output(self.step(graph))
 
     def step(self, graph):
-        clusters = list(self.get_all_subgraphs(graph))
-        nx.subgraph(graph)
-        return list(outputs[-1])[0][1]
+        final_result = 0
+        c = Collater(follow_batch=["x", "edge_index", "label"])
+        g = nx.DiGraph()
+        data = {}
+        for execution_tree in self.get_all_subgraphs(graph):
+            for (tree, parent_hash,  hsh) in execution_tree:
+                if tree:
+                    g.add_node(hsh, tree=tree)
+                if parent_hash:
+                    g.add_edge(parent_hash, hsh)
+                else:
+                    assert root is None, f"Multiple roots found: {root}, {hsh}"
+                    root = hsh
+
+            inv_levels = nx.single_source_shortest_path_length(g, root)
+            levels = [[] for i in set(inv_levels.values())]
+            for x, i in inv_levels.items():
+                levels[i].append(x)
+
+            for tree_ids in levels:
+                y = []
+                for tid in tree_ids:
+                    sg = nx.subgraph(graph, g.nodes[tid]["tree"].nodes)
+                    y.append(sg)
+                y = c(map(from_networkx, y))
+                x = torch.sum(self.subgraph_net(x=y.x_batch, edge_index=y.edge_index_batch))
+                for pred in g.predecessors(tree_id):
+                    x += data[pred]
+                data[tree_id] = x
+            final_result += data[root]
+        return final_result
 
     def weight_merge(self, x):
         return x * self.softmax(self.attention_weights(x))
 
     @staticmethod
     def get_all_subgraphs(graph: nx.Graph):
-        clusters = dict()
         for n in graph.nodes:
             t = nx.Graph()
             t.add_node(n, x=graph.nodes[n]["x"])
-            for x in _extend(t, graph, n, {n}, [t]):
-                yield x
+            yield chain(((t, None, nx.weisfeiler_lehman_graph_hash(t, node_attr="x")),), _extend(t, graph, n, {n}))
 
 
-def _extend(tree: nx.Graph, graph: nx.Graph, max_source_index, opens:set, parents: list):
-    hidden_parents = {}
+def _extend(tree: nx.Graph, graph: nx.Graph, max_source_index, opens:set):
     for to_extend in opens:
         for neigh in graph.neighbors(to_extend):
             if neigh not in tree.nodes:
@@ -86,16 +114,15 @@ def _extend(tree: nx.Graph, graph: nx.Graph, max_source_index, opens:set, parent
                 t2.add_node(neigh, x=graph.nodes[neigh]["x"])
                 t2.add_edge(to_extend, neigh)
                 new_opens = opens.copy()
-                new_opens.remove(to_extend)
+                #new_opens.remove(to_extend)
                 new_opens.add(neigh)
-                new_parents = parents + [t2]
-                parent_map = (tree, nx.weisfeiler_lehman_graph_hash(t2, node_attr="x"))
+                parent_map = (nx.weisfeiler_lehman_graph_hash(tree, node_attr="x"), nx.weisfeiler_lehman_graph_hash(t2, node_attr="x"))
                 if ((neigh == max_source_index and graph.nodes[neigh]["x"] > graph.nodes[to_extend]["x"]) or neigh > max_source_index):
-                    yield t2, parent_map
-                    for x in _extend(t2, graph, max(max_source_index, to_extend), new_opens, new_parents):
+                    yield t2, *parent_map
+                    for x in _extend(t2, graph, max(max_source_index, to_extend), new_opens):
                         yield x
-                    else:
-                        yield None, parent_map
+                else:
+                    yield None, *parent_map
 
 
 if __name__ == "__main__":
