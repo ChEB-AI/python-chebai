@@ -30,8 +30,9 @@ class ChemLSTM(pl.LightningModule):
         x, y = batch
         pred = self(x)
         loss = self.loss(pred, y.float())
-        f1 = self.f1(y, pred)
-        return loss, f1, self.mse(y.float(), pred)
+        pred_label = F.sigmoid(pred)
+        f1 = self.f1(y, pred_label)
+        return loss, f1, self.mse(y.float(), pred_label)
 
     def training_step(self, *args, **kwargs):
         loss, f1, mse = self._execute(*args, **kwargs)
