@@ -8,6 +8,7 @@ from pytorch_lightning import loggers as pl_loggers
 from pytorch_lightning.callbacks import ModelCheckpoint
 from data import JCIExtendedData
 import logging
+import sys
 
 logging.getLogger('pysmiles').setLevel(logging.CRITICAL)
 
@@ -25,7 +26,7 @@ class ChemLSTM(pl.LightningModule):
         x, y = batch
         pred = self(x)
         loss += F.binary_cross_entropy_with_logits(pred, y.float())
-        f1 += f1_score(y, torch.sigmoid(pred) > 0.5, average="micro")
+        f1 += f1_score(y, torch.sigmoid(pred).cpu() > 0.5, average="micro")
         return loss, f1
 
     def training_step(self, *args, **kwargs):
@@ -51,8 +52,8 @@ class ChemLSTM(pl.LightningModule):
         x = self.output(x)
         return x.squeeze(0)
 
-def run_lstm():
-    data = JCIExtendedData(batch_size=100)
+def run_lstm(batch_size):
+    data = JCIExtendedData(batch_size=batch_size)
     data.prepare_data()
     data.setup()
     train_data = data.train_dataloader()
@@ -77,4 +78,5 @@ def run_lstm():
     trainer.fit(net, train_data, val_dataloaders=val_data)
 
 if __name__ == "__main__":
-    run_lstm()
+    batch_size = int(sys.argv[1])
+    run_lstm(batch_size)
