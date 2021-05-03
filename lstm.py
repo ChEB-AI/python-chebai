@@ -6,7 +6,7 @@ import torch.nn.functional as F
 import pytorch_lightning as pl
 from pytorch_lightning import loggers as pl_loggers
 from pytorch_lightning.callbacks import ModelCheckpoint
-from data import JCIExtendedData
+from data import JCIExtendedData, JCIData
 import logging
 import sys
 
@@ -16,9 +16,9 @@ class ChemLSTM(pl.LightningModule):
 
     def __init__(self, in_d, out_d):
         super().__init__()
-        self.lstm = nn.LSTM(in_d, out_d, batch_first=True)
-        self.embedding = nn.Embedding(800, in_d)
-        self.output = nn.Sequential(nn.Linear(out_d, out_d), nn.ReLU(), nn.Linear(out_d, out_d))
+        self.lstm = nn.LSTM(100, 300, batch_first=True)
+        self.embedding = nn.Embedding(800, 100)
+        self.output = nn.Sequential(nn.Linear(300, 1000), nn.ReLU(), nn.Dropout(0.2), nn.Linear(1000, 500))
 
     def _execute(self, batch, batch_idx):
         x, y = batch
@@ -41,7 +41,7 @@ class ChemLSTM(pl.LightningModule):
             return loss
 
     def configure_optimizers(self):
-        optimizer = torch.optim.Adam(self.parameters())
+        optimizer = torch.optim.Adam(self.parameters(), lr=1e-4)
         return optimizer
 
     def forward(self, x):
@@ -50,8 +50,9 @@ class ChemLSTM(pl.LightningModule):
         x = self.output(x)
         return x.squeeze(0)
 
+
 def run_lstm(batch_size):
-    data = JCIExtendedData(batch_size=batch_size)
+    data = JCIData(batch_size=batch_size)
     data.prepare_data()
     data.setup()
     train_data = data.train_dataloader(num_workers=10)
@@ -75,6 +76,6 @@ def run_lstm(batch_size):
     trainer = pl.Trainer(logger=tb_logger, callbacks=[checkpoint_callback], max_epochs=100, replace_sampler_ddp=False, **trainer_kwargs)
     trainer.fit(net, train_data, val_dataloaders=val_data)
 
+
 if __name__ == "__main__":
-    batch_size = int(sys.argv[1])
-    run_lstm(batch_size)
+    run_lstm(int(sys.argv[1]))
