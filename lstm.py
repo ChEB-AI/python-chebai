@@ -24,7 +24,7 @@ class ChemLSTM(pl.LightningModule):
         x, y = batch
         pred = self(x)
         loss = F.binary_cross_entropy_with_logits(pred, y.float())
-        f1 = f1_score(y.cpu()>0.5, torch.sigmoid(pred).cpu()>0.5, average="micro")
+        f1 = f1_score(y.cpu(), torch.sigmoid(pred).cpu()>0.5, average="micro")
         return loss, f1
 
     def training_step(self, *args, **kwargs):
