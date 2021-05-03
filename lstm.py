@@ -29,15 +29,15 @@ class ChemLSTM(pl.LightningModule):
 
     def training_step(self, *args, **kwargs):
         loss, f1 = self._execute(*args, **kwargs)
-        self.log('train_loss', loss.detach().item(), on_step=True, on_epoch=True, prog_bar=True, logger=True)
-        self.log('train_f1', f1.item(), on_step=True, on_epoch=True, prog_bar=True, logger=True)
+        self.log('train_loss', loss.item(), on_step=False, on_epoch=True, prog_bar=True, logger=True)
+        self.log('train_f1', f1.item(), on_step=False, on_epoch=True, prog_bar=True, logger=True)
         return loss
 
     def validation_step(self, *args, **kwargs):
         with torch.no_grad():
             loss, f1 = self._execute(*args, **kwargs)
-            self.log('val_loss', loss.detach().item(), on_step=True, on_epoch=True, prog_bar=True, logger=True)
-            self.log('val_f1', f1.item(), on_step=True, on_epoch=True, prog_bar=True, logger=True)
+            self.log('val_loss', loss.item(), on_step=False, on_epoch=True, prog_bar=True, logger=True)
+            self.log('val_f1', f1.item(), on_step=False, on_epoch=True, prog_bar=True, logger=True)
             return loss
 
     def configure_optimizers(self):
@@ -72,7 +72,7 @@ def run_lstm(batch_size):
         mode='min'
     )
 
-    trainer = pl.Trainer(logger=tb_logger, callbacks=[checkpoint_callback], replace_sampler_ddp=False, **trainer_kwargs)
+    trainer = pl.Trainer(logger=tb_logger, callbacks=[checkpoint_callback], max_epochs=100, replace_sampler_ddp=False, **trainer_kwargs)
     trainer.fit(net, train_data, val_dataloaders=val_data)
 
 if __name__ == "__main__":
