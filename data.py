@@ -199,13 +199,17 @@ class JCIData(torch.utils.data.Dataset):
             self.process()
 
     def train_dataloader(self, *args, **kwargs) -> DataLoader:
-        return DataLoader(torch.load(os.path.join(self.processed_dir, "train.pt")), batch_size=self.batch_size, **kwargs)
+        return DataLoader(torch.load(os.path.join(self.processed_dir, "train.pt")), batch_size=self.batch_size, collate_fn=self.collate, **kwargs)
 
     def val_dataloader(self, *args, **kwargs) -> Union[DataLoader, List[DataLoader]]:
-        return DataLoader(torch.load(os.path.join(self.processed_dir, "validation.pt")), batch_size=self.batch_size, **kwargs)
+        return DataLoader(torch.load(os.path.join(self.processed_dir, "validation.pt")), batch_size=self.batch_size, collate_fn=self.collate, **kwargs)
 
     def test_dataloader(self, *args, **kwargs) -> Union[DataLoader, List[DataLoader]]:
         return DataLoader(torch.load(os.path.join(self.processed_dir, "test.pt")), **kwargs)
+
+    def collate(self, list_of_tuples):
+        x,y = zip(*list_of_tuples)
+        return x, y
 
     def __init__(self, batch_size, **kwargs):
         root = os.path.join("data", "JCI")
@@ -227,12 +231,10 @@ class JCIData(torch.utils.data.Dataset):
     def process(self):
         for f in ["test", "train", "validation"]:
             structure = pickle.load(open(os.path.join(self.raw_dir,f"{f}.pkl"), "rb"))
-            x = pad_sequence([torch.tensor([ord(s) for s in smile]) for smile in structure.iloc[:,1].values], batch_first=True)
+            x = [torch.tensor([ord(s) for s in smile]) for smile in structure.iloc[:,1].values]
             labels = [list(row) for row in structure.iloc[:,2:].values]
             data = JCISmilesData(x, torch.tensor(labels))
             torch.save(data, os.path.join(self.processed_dir,f"{f}.pt"))
-
-from torch.nn.utils.rnn import pad_sequence
 
 class JCISmilesData(torch.utils.data.Dataset):
 

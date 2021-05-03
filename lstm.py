@@ -8,6 +8,7 @@ from pytorch_lightning import loggers as pl_loggers
 from pytorch_lightning.callbacks import ModelCheckpoint
 from pytorch_lightning.metrics import F1
 from pytorch_lightning.metrics import MeanSquaredError
+from torch.nn.utils.rnn import pad_sequence
 from data import JCIExtendedData, JCIData
 import logging
 import sys
@@ -28,7 +29,8 @@ class ChemLSTM(pl.LightningModule):
 
     def _execute(self, batch, batch_idx):
         x, y = batch
-        pred = self(x)
+        y = torch.stack(y)
+        pred = self(pad_sequence(x, batch_first=True))
         loss = self.loss(pred, y.float())
         pred_label = F.sigmoid(pred)
         f1 = self.f1(y, pred_label)
