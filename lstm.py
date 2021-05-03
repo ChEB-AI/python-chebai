@@ -30,8 +30,8 @@ class ChemLSTM(pl.LightningModule):
         x, y = batch
         pred = self(x)
         loss = self.loss(pred, y.float())
-        f1 = self.f1(y.cpu(), pred.cpu())
-        return loss, f1, self.mse(y.cpu().float(), pred.cpu())
+        f1 = self.f1(y, pred)
+        return loss, f1, self.mse(y.float(), pred)
 
     def training_step(self, *args, **kwargs):
         loss, f1, mse = self._execute(*args, **kwargs)
