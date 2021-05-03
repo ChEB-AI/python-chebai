@@ -21,12 +21,10 @@ class ChemLSTM(pl.LightningModule):
         self.output = nn.Sequential(nn.Linear(out_d, out_d), nn.ReLU(), nn.Linear(out_d, out_d))
 
     def _execute(self, batch, batch_idx):
-        loss = 0
-        f1 = 0
         x, y = batch
         pred = self(x)
-        loss += F.binary_cross_entropy_with_logits(pred, y.float())
-        f1 += f1_score(y, torch.sigmoid(pred).cpu() > 0.5, average="micro")
+        loss = F.binary_cross_entropy_with_logits(pred, y.float())
+        f1 = f1_score(y.cpu()>0.5, torch.sigmoid(pred).cpu()>0.5, average="micro")
         return loss, f1
 
     def training_step(self, *args, **kwargs):
