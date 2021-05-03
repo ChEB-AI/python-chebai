@@ -6,6 +6,8 @@ import torch.nn.functional as F
 import pytorch_lightning as pl
 from pytorch_lightning import loggers as pl_loggers
 from pytorch_lightning.callbacks import ModelCheckpoint
+from pytorch_lightning.metrics import F1
+from pytorch_lightning.metrics import MeanSquaredError
 from data import JCIExtendedData, JCIData
 import logging
 import sys
@@ -18,26 +20,32 @@ class ChemLSTM(pl.LightningModule):
         super().__init__()
         self.lstm = nn.LSTM(100, 300, batch_first=True)
         self.embedding = nn.Embedding(800, 100)
-        self.output = nn.Sequential(nn.Linear(300, 1000), nn.ReLU(), nn.Dropout(0.2), nn.Linear(1000, 500), nn.Sigmoid())
+        self.output = nn.Sequential(nn.Linear(300, 1000), nn.ReLU(), nn.Dropout(0.2), nn.Linear(1000, 500))
+        self.loss = nn.BCEWithLogitsLoss()
+        self.f1 = F1(500, threshold=0.5)
+        self.mse = MeanSquaredError()
+
 
     def _execute(self, batch, batch_idx):
         x, y = batch
         pred = self(x)
-        loss = F.binary_cross_entropy(pred, y.float())
-        f1 = f1_score(y.cpu(), pred.cpu()>0.5, average="micro")
-        return loss, f1
+        loss = self.loss(pred, y.float())
+        f1 = self.f1(y.cpu(), pred.cpu())
+        return loss, f1, self.mse(y.cpu().float(), pred.cpu())
 
     def training_step(self, *args, **kwargs):
-        loss, f1 = self._execute(*args, **kwargs)
+        loss, f1, mse = self._execute(*args, **kwargs)
         self.log('train_loss', loss.item(), on_step=False, on_epoch=True, prog_bar=True, logger=True)
-        self.log('train_f1', f1.item(), on_step=False, on_epoch=True, prog_bar=True, logger=True)
+        self.log('train_f1', f1.item(), on_step=True, on_epoch=True, prog_bar=True, logger=True)
+        self.log('train_mse', mse.item(), on_step=True, on_epoch=True, prog_bar=True, logger=True)
         return loss
 
     def validation_step(self, *args, **kwargs):
         with torch.no_grad():
-            loss, f1 = self._execute(*args, **kwargs)
+            loss, f1, mse = self._execute(*args, **kwargs)
             self.log('val_loss', loss.item(), on_step=False, on_epoch=True, prog_bar=True, logger=True)
             self.log('val_f1', f1.item(), on_step=False, on_epoch=True, prog_bar=True, logger=True)
+            self.log('val_mse', mse.item(), on_step=False, on_epoch=True, prog_bar=True, logger=True)
             return loss
 
     def configure_optimizers(self):
