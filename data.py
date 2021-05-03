@@ -267,6 +267,12 @@ class JCIExtendedData(pl.LightningDataModule):
             r = requests.get(url, allow_redirects=True)
             open(os.path.join(self.raw_dir, "chebi.obo"), 'wb').write(r.content)
 
+    def transfer_batch_to_device(self, batch, device):
+        x, y = batch
+        x.to(device)
+        y.to(device)
+        return batch
+
 class JCIPureData(pl.LightningDataModule):
 
     def prepare_data(self, *args, **kwargs):
