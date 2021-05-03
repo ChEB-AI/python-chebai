@@ -202,7 +202,7 @@ class JCIData(torch.utils.data.Dataset):
         return DataLoader(torch.load(os.path.join(self.processed_dir, "train.pt")), batch_size=self.batch_size, **kwargs)
 
     def val_dataloader(self, *args, **kwargs) -> Union[DataLoader, List[DataLoader]]:
-        return DataLoader(torch.load(os.path.join(self.processed_dir, "validation.pt")), **kwargs)
+        return DataLoader(torch.load(os.path.join(self.processed_dir, "validation.pt")), batch_size=self.batch_size, **kwargs)
 
     def test_dataloader(self, *args, **kwargs) -> Union[DataLoader, List[DataLoader]]:
         return DataLoader(torch.load(os.path.join(self.processed_dir, "test.pt")), **kwargs)
