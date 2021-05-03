@@ -18,13 +18,13 @@ class ChemLSTM(pl.LightningModule):
         super().__init__()
         self.lstm = nn.LSTM(100, 300, batch_first=True)
         self.embedding = nn.Embedding(800, 100)
-        self.output = nn.Sequential(nn.Linear(300, 1000), nn.ReLU(), nn.Dropout(0.2), nn.Linear(1000, 500))
+        self.output = nn.Sequential(nn.Linear(300, 1000), nn.ReLU(), nn.Dropout(0.2), nn.Linear(1000, 500), nn.Sigmoid())
 
     def _execute(self, batch, batch_idx):
         x, y = batch
         pred = self(x)
-        loss = F.binary_cross_entropy_with_logits(pred, y.float())
-        f1 = f1_score(y.cpu(), torch.sigmoid(pred).cpu()>0.5, average="micro")
+        loss = F.binary_cross_entropy(pred, y.float())
+        f1 = f1_score(y.cpu(), pred.cpu()>0.5, average="micro")
         return loss, f1
 
     def training_step(self, *args, **kwargs):
