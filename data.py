@@ -150,7 +150,7 @@ class ClassificationData(TGDataset):
         return from_networkx(mol)
 
 
-class JCIClassificationData(InMemoryDataset):
+class JCIGraphClassificationData(InMemoryDataset):
 
     def __init__(self, root, split="train", **kwargs):
         self.split = split
@@ -186,6 +186,53 @@ class JCIClassificationData(InMemoryDataset):
             print(f"Could not process {row[0]}: {row[1]}")
         return d
 
+class JCIData(torch.utils.data.Dataset):
+
+
+    def prepare_data(self, *args, **kwargs):
+        if not all(os.path.isfile(os.path.join(self.processed_dir, f)) for f in self.processed_file_names):
+            self.process()
+
+    def setup(self, **kwargs):
+        if any(not os.path.isfile(os.path.join(self.processed_dir, f)) for f in
+               self.processed_file_names):
+            self.process()
+
+    def train_dataloader(self, *args, **kwargs) -> DataLoader:
+        return DataLoader(torch.load(os.path.join(self.processed_dir, "train.pt")), batch_size=self.batch_size, **kwargs)
+
+    def val_dataloader(self, *args, **kwargs) -> Union[DataLoader, List[DataLoader]]:
+        return DataLoader(torch.load(os.path.join(self.processed_dir, "validation.pt")), **kwargs)
+
+    def test_dataloader(self, *args, **kwargs) -> Union[DataLoader, List[DataLoader]]:
+        return DataLoader(torch.load(os.path.join(self.processed_dir, "test.pt")), **kwargs)
+
+    def __init__(self, batch_size, **kwargs):
+        root = os.path.join("data", "JCI")
+        self.processed_dir = os.path.join(root,"processed")
+        self.raw_dir = os.path.join(root, "raw")
+        self.batch_size = batch_size
+
+    @property
+    def processed_file_names(self):
+        return ["test.pt", "train.pt", "validation.pt"]
+
+    def download(self):
+        pass
+
+    @property
+    def raw_file_names(self):
+        return ["test.pkl", "train.pkl", "validation.pkl"]
+
+    def process(self):
+        for f in ["test", "train", "validation"]:
+            structure = pickle.load(open(os.path.join(self.raw_dir,f"{f}.pkl"), "rb"))
+            x = [torch.tensor([ord(s) for s in smile]) for smile in structure.iloc[:,1].values]
+            x = pad_sequence(x)
+            labels = [list(row) for row in structure.iloc[:,2:].values]
+            data = JCISmilesData(x, torch.tensor(labels))
+            torch.save(data, os.path.join(self.processed_dir,f"{f}.pt"))
+
 from torch.nn.utils.rnn import pad_sequence
 
 class JCISmilesData(torch.utils.data.Dataset):
@@ -198,8 +245,8 @@ class JCISmilesData(torch.utils.data.Dataset):
 
     def __init__(self, x, y, **kwargs):
         super().__init__(**kwargs)
-        self.x = pad_sequence(x, batch_first=True)
-        self.y = torch.tensor(y)
+        self.x = x
+        self.y = y
 
 
 class JCIExtendedData(pl.LightningDataModule):
@@ -233,7 +280,7 @@ class JCIExtendedData(pl.LightningDataModule):
                     if any(labels):
                         x.append(torch.tensor([ord(s) for s in smiles[node]]))
                         y.append(labels)
-            torch.save(JCISmilesData(x,y), os.path.join(self.processed_dir, f"{k}.pt"))
+            torch.save(JCISmilesData(pad_sequence(x, batch_first=True),y), os.path.join(self.processed_dir, f"{k}.pt"))
 
     def train_dataloader(self, *args, **kwargs) -> DataLoader:
         return DataLoader(torch.load(os.path.join(self.processed_dir, "train.pt")), batch_size=self.batch_size, **kwargs)
@@ -273,7 +320,8 @@ class JCIExtendedData(pl.LightningDataModule):
         y.to(device)
         return batch
 
-class JCIPureData(pl.LightningDataModule):
+
+class JCIGraphData(pl.LightningDataModule):
 
     def prepare_data(self, *args, **kwargs):
         if not all(os.path.isfile(os.path.join(self.processed_dir, f)) for f in self.processed_file_names):
@@ -292,7 +340,7 @@ class JCIPureData(pl.LightningDataModule):
         return DataLoader(torch.load(os.path.join(self.processed_dir, "test.pkl")), collate_fn=lambda x:x)
 
     def __init__(self,**kwargs):
-        root = os.path.join("data", "JCI_pure")
+        root = os.path.join("data", "JCI_graph")
         self.processed_dir = os.path.join(root,"processed")
         self.raw_dir = os.path.join(root, "raw")
         self.cache = list()
