@@ -56,7 +56,7 @@ def run_lstm(batch_size):
     data = JCIExtendedData(batch_size=batch_size)
     data.prepare_data()
     data.setup()
-    train_data = data.train_dataloader()
+    train_data = data.train_dataloader(num_workers=10)
     val_data = data.val_dataloader()
     if torch.cuda.is_available():
         trainer_kwargs = dict(gpus=-1, accelerator="ddp")

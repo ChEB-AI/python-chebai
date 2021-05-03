@@ -236,13 +236,13 @@ class JCIExtendedData(pl.LightningDataModule):
             torch.save(JCISmilesData(x,y), os.path.join(self.processed_dir, f"{k}.pt"))
 
     def train_dataloader(self, *args, **kwargs) -> DataLoader:
-        return DataLoader(torch.load(os.path.join(self.processed_dir, "train.pt")), batch_size=self.batch_size)
+        return DataLoader(torch.load(os.path.join(self.processed_dir, "train.pt")), batch_size=self.batch_size, **kwargs)
 
     def val_dataloader(self, *args, **kwargs) -> Union[DataLoader, List[DataLoader]]:
-        return DataLoader(torch.load(os.path.join(self.processed_dir, "validation.pt")))
+        return DataLoader(torch.load(os.path.join(self.processed_dir, "validation.pt")), **kwargs)
 
     def test_dataloader(self, *args, **kwargs) -> Union[DataLoader, List[DataLoader]]:
-        return DataLoader(torch.load(os.path.join(self.processed_dir, "test.pt")))
+        return DataLoader(torch.load(os.path.join(self.processed_dir, "test.pt")), **kwargs)
 
     def __init__(self, batch_size=1, **kwargs):
         root = os.path.join("data", "JCI_extended")
