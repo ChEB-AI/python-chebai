@@ -229,7 +229,7 @@ class JCIData(torch.utils.data.Dataset):
             structure = pickle.load(open(os.path.join(self.raw_dir,f"{f}.pkl"), "rb"))
             x = [torch.tensor([ord(s) for s in smile]) for smile in structure.iloc[:,1].values]
             labels = [list(row) for row in structure.iloc[:,2:].values]
-            data = JCISmilesData(x, torch.tensor(labels))
+            data = JCISmilesData(pad_sequence(x), torch.tensor(labels))
             torch.save(data, os.path.join(self.processed_dir,f"{f}.pt"))
 
 from torch.nn.utils.rnn import pad_sequence
