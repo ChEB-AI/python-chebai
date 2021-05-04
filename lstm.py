@@ -63,7 +63,7 @@ class ChemLSTM(pl.LightningModule):
 
 
 def run_lstm(batch_size):
-    data = JCIData(batch_size=batch_size)
+    data = JCIExtendedData(batch_size=batch_size)
     data.prepare_data()
     data.setup()
     train_data = data.train_dataloader(num_workers=10)

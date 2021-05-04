@@ -264,33 +264,33 @@ class JCIExtendedData(pl.LightningDataModule):
         for n in elements:
             g.add_node(n["id"], **n)
         g.add_edges_from([(p, q["id"]) for q in elements for p in q["parents"]])
+        print("Compute transitive closure")
         g = nx.transitive_closure_dag(g)
         fixed_nodes = list(g.nodes)
+        print("Split datasets")
         random.shuffle(fixed_nodes)
         train_split, test_split = train_test_split(fixed_nodes, train_size=self.train_split, shuffle=True)
         test_split, validation_split = train_test_split(test_split, train_size=self.train_split, shuffle=True)
         smiles = nx.get_node_attributes(g, "smiles")
-        print("Create graphs")
+        print("build labels")
         for k, nodes in dict(train=train_split, test=test_split, validation=validation_split).items():
-            x = []
-            y = []
-            for node in nodes:
-                if smiles[node] is not None:
-                    superclasses = set(g.predecessors(node))
-                    labels = tuple(int(n.split(":")[-1]) in superclasses for n in JCI_500_COLUMNS)
-                    if any(labels):
-                        x.append(torch.tensor([ord(s) for s in smiles[node]]))
-                        y.append(labels)
-            torch.save(JCISmilesData(pad_sequence(x, batch_first=True),y), os.path.join(self.processed_dir, f"{k}.pt"))
+            print("Process", k)
+            z = ((torch.tensor([ord(s) for s in smiles[node]]), torch.tensor([int(n.split(":")[-1]) in g.predecessors(node) for n in JCI_500_COLUMNS])) for node in nodes if smiles[node] is not None)
+            z = filter(lambda t: any(t[1]), z)
+            torch.save(JCISmilesData(*zip(*z)), os.path.join(self.processed_dir, f"{k}.pt"))
 
     def train_dataloader(self, *args, **kwargs) -> DataLoader:
-        return DataLoader(torch.load(os.path.join(self.processed_dir, "train.pt")), batch_size=self.batch_size, **kwargs)
+        return DataLoader(torch.load(os.path.join(self.processed_dir, "train.pt")), batch_size=self.batch_size, collate_fn=self.collate, **kwargs)
 
     def val_dataloader(self, *args, **kwargs) -> Union[DataLoader, List[DataLoader]]:
-        return DataLoader(torch.load(os.path.join(self.processed_dir, "validation.pt")), **kwargs)
+        return DataLoader(torch.load(os.path.join(self.processed_dir, "validation.pt")), batch_size=self.batch_size, collate_fn=self.collate, **kwargs)
 
     def test_dataloader(self, *args, **kwargs) -> Union[DataLoader, List[DataLoader]]:
         return DataLoader(torch.load(os.path.join(self.processed_dir, "test.pt")), **kwargs)
+
+    def collate(self, list_of_tuples):
+        x,y = zip(*list_of_tuples)
+        return x, y
 
     def __init__(self, batch_size=1, **kwargs):
         root = os.path.join("data", "JCI_extended")
