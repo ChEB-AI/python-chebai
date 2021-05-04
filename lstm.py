@@ -38,17 +38,17 @@ class ChemLSTM(pl.LightningModule):
 
     def training_step(self, *args, **kwargs):
         loss, f1, mse = self._execute(*args, **kwargs)
-        self.log('train_loss', loss.item(), on_step=True, on_epoch=True, prog_bar=True, logger=True)
-        self.log('train_f1', f1.item(), on_step=True, on_epoch=True, prog_bar=True, logger=True)
-        self.log('train_mse', mse.item(), on_step=True, on_epoch=True, prog_bar=True, logger=True)
+        self.log('train_loss', loss.item(), on_step=False, on_epoch=True, prog_bar=True, logger=True)
+        self.log('train_f1', f1.item(), on_step=False, on_epoch=True, prog_bar=True, logger=True)
+        self.log('train_mse', mse.item(), on_step=False, on_epoch=True, prog_bar=True, logger=True)
         return loss
 
     def validation_step(self, *args, **kwargs):
         with torch.no_grad():
             loss, f1, mse = self._execute(*args, **kwargs)
-            self.log('val_loss', loss.item(), on_step=True, on_epoch=True, prog_bar=True, logger=True)
-            self.log('val_f1', f1.item(), on_step=True, on_epoch=True, prog_bar=True, logger=True)
-            self.log('val_mse', mse.item(), on_step=True, on_epoch=True, prog_bar=True, logger=True)
+            self.log('val_loss', loss.item(), on_step=False, on_epoch=True, prog_bar=True, logger=True)
+            self.log('val_f1', f1.item(), on_step=False, on_epoch=True, prog_bar=True, logger=True)
+            self.log('val_mse', mse.item(), on_step=False, on_epoch=True, prog_bar=True, logger=True)
             return loss
 
     def configure_optimizers(self):
