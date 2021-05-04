@@ -275,7 +275,7 @@ class JCIExtendedData(pl.LightningDataModule):
         print("build labels")
         for k, nodes in dict(train=train_split, test=test_split, validation=validation_split).items():
             print("Process", k)
-            z = ((torch.tensor([ord(s) for s in smiles[node]]), torch.tensor([int(n.split(":")[-1]) in g.predecessors(node) for n in JCI_500_COLUMNS])) for node in nodes if smiles[node] is not None)
+            z = ((torch.tensor([ord(s) for s in smiles[node]]), torch.tensor([ (n in g.predecessors(node) or n == node) for n in JCI_500_COLUMNS_INT])) for node in nodes if smiles[node] is not None)
             z = filter(lambda t: any(t[1]), z)
             torch.save(JCISmilesData(*zip(*z)), os.path.join(self.processed_dir, f"{k}.pt"))
 
@@ -1207,3 +1207,5 @@ JCI_500_COLUMNS = ['CHEBI:25716',
  'CHEBI:50699',
  'CHEBI:22475',
  'CHEBI:35436']
+
+JCI_500_COLUMNS_INT = [int(n.split(":")[-1]) for n in JCI_500_COLUMNS]
