@@ -291,11 +291,10 @@ class JCIExtendedData(pl.LightningDataModule):
         print("build labels")
         for k, nodes in dict(train=train_split, test=test_split, validation=validation_split).items():
             print("Process", k)
-            with mp.Pool() as pool:
-                a = [(node, smiles[node], g.predecessors(node)) for node in nodes if smiles.get(node) is not None]
-                b = pool.imap(self.f, a)
-                b = filter(lambda t: any(t[1]) and t[0] is not None, b)
-                torch.save(list(self.to_data(b)), os.path.join(self.processed_dir, f"{k}.pt"))
+            a = [(node, smiles[node], g.predecessors(node)) for node in nodes if smiles.get(node) is not None]
+            b = map(self.f, a)
+            b = filter(lambda t: any(t[1]) and t[0] is not None, b)
+            torch.save(list(self.to_data(b)), os.path.join(self.processed_dir, f"{k}.pt"))
 
     def f(self, x):
         node, smiles, predecessors = x
