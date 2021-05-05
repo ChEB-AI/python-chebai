@@ -19,6 +19,8 @@ import pandas as pd
 
 from torch_geometric.utils.convert import from_networkx
 from torch_geometric.data import Dataset as TGDataset, Data
+from torch_geometric.data.dataloader import Collater
+import multiprocessing as mp
 
 class PrePairData(Data):
     def __init__(self, l=None, r=None, label=None):
@@ -186,8 +188,8 @@ class JCIGraphClassificationData(InMemoryDataset):
             print(f"Could not process {row[0]}: {row[1]}")
         return d
 
-class JCIData(torch.utils.data.Dataset):
 
+class JCIData(torch.utils.data.Dataset):
 
     def prepare_data(self, *args, **kwargs):
         if not all(os.path.isfile(os.path.join(self.processed_dir, f)) for f in self.processed_file_names):
@@ -236,6 +238,7 @@ class JCIData(torch.utils.data.Dataset):
             data = JCISmilesData(x, torch.tensor(labels))
             torch.save(data, os.path.join(self.processed_dir,f"{f}.pt"))
 
+
 class JCISmilesData(torch.utils.data.Dataset):
 
     def __getitem__(self, index) -> T_co:
@@ -251,49 +254,79 @@ class JCISmilesData(torch.utils.data.Dataset):
 
 
 class JCIExtendedData(pl.LightningDataModule):
+    ROOT = os.path.join("data", "JCI_extended")
 
     def setup(self, **kwargs):
         if any(not os.path.isfile(os.path.join(self.processed_dir, f)) for f in self.processed_file_names):
             print("Extract data from CHEBI")
-            self.setup_from_chebi()
+            g = self.extract_class_hierarchy()
+            self.save(g, *self.get_splits(g))
 
-    def setup_from_chebi(self):
-        elements = [term_callback(clause) for clause in fastobo.load(os.path.join(self.raw_dir, "chebi.obo")) if clause and ":" in str(clause.id)]
-
+    def extract_class_hierarchy(self):
+        elements = [term_callback(clause) for clause in
+                    fastobo.load(os.path.join(self.raw_dir, "chebi.obo")) if
+                    clause and ":" in str(clause.id)]
         g = nx.DiGraph()
         for n in elements:
             g.add_node(n["id"], **n)
         g.add_edges_from([(p, q["id"]) for q in elements for p in q["parents"]])
         print("Compute transitive closure")
-        g = nx.transitive_closure_dag(g)
+        return nx.transitive_closure_dag(g)
+
+    def get_splits(self, g):
         fixed_nodes = list(g.nodes)
         print("Split datasets")
         random.shuffle(fixed_nodes)
-        train_split, test_split = train_test_split(fixed_nodes, train_size=self.train_split, shuffle=True)
-        test_split, validation_split = train_test_split(test_split, train_size=self.train_split, shuffle=True)
+        train_split, test_split = train_test_split(fixed_nodes,
+                                                   train_size=self.train_split,
+                                                   shuffle=True)
+        test_split, validation_split = train_test_split(test_split,
+                                                        train_size=self.train_split,
+                                                        shuffle=True)
+        return train_split, test_split, validation_split
+
+    def save(self, g, train_split, test_split, validation_split):
+
         smiles = nx.get_node_attributes(g, "smiles")
         print("build labels")
         for k, nodes in dict(train=train_split, test=test_split, validation=validation_split).items():
             print("Process", k)
-            z = ((torch.tensor([ord(s) for s in smiles[node]]), torch.tensor([ (n in g.predecessors(node) or n == node) for n in JCI_500_COLUMNS_INT])) for node in nodes if smiles[node] is not None)
-            z = filter(lambda t: any(t[1]), z)
-            torch.save(JCISmilesData(*zip(*z)), os.path.join(self.processed_dir, f"{k}.pt"))
+            with mp.Pool() as pool:
+                a = [(node, smiles[node], g.predecessors(node)) for node in nodes[:10] if smiles.get(node) is not None]
+                b = map(self.f, a)
+                #b = filter(lambda t: any(t[1]), b)
+                torch.save(list(self.to_data(b)), os.path.join(self.processed_dir, f"{k}.pt"))
+
+    def f(self, x):
+        node, smiles, predecessors = x
+        return (self.process_smiles(smiles), torch.tensor(
+            [(n in predecessors or n == node) for n in
+             JCI_500_COLUMNS_INT]))
+
+    def to_data(self, values):
+        return values
+
+    def process_smiles(self, smiles):
+        return torch.tensor([ord(s) for s in smiles])
+
+    def dataloader(self, kind, **kwargs):
+        return DataLoader(torch.load(os.path.join(self.processed_dir, f"{kind}.pt")),
+                   shuffle=True, collate_fn=self.collate, batch_size=self.batch_size, **kwargs)
 
     def train_dataloader(self, *args, **kwargs) -> DataLoader:
-        return DataLoader(torch.load(os.path.join(self.processed_dir, "train.pt")), shuffle=True, batch_size=self.batch_size, collate_fn=self.collate, **kwargs)
+        return self.dataloader("train", **kwargs)
 
     def val_dataloader(self, *args, **kwargs) -> Union[DataLoader, List[DataLoader]]:
-        return DataLoader(torch.load(os.path.join(self.processed_dir, "validation.pt")), batch_size=self.batch_size, collate_fn=self.collate, **kwargs)
+        return self.dataloader("validation", **kwargs)
 
     def test_dataloader(self, *args, **kwargs) -> Union[DataLoader, List[DataLoader]]:
-        return DataLoader(torch.load(os.path.join(self.processed_dir, "test.pt")), **kwargs)
+        return self.dataloader("test", **kwargs)
 
     def collate(self, list_of_tuples):
-        x,y = zip(*list_of_tuples)
-        return x, y
+        return JCISmilesData(*zip(*list_of_tuples))
 
     def __init__(self, batch_size=1, **kwargs):
-        root = os.path.join("data", "JCI_extended")
+        root = self.ROOT
         self.processed_dir = os.path.join(root,"processed")
         self.raw_dir = os.path.join(root, "raw")
         self.train_split=0.85
@@ -322,54 +355,27 @@ class JCIExtendedData(pl.LightningDataModule):
         return batch
 
 
-class JCIGraphData(pl.LightningDataModule):
+class JCIExtendedGraphData(JCIExtendedData):
+    ROOT = os.path.join("data", "JCI_extended_graph")
 
-    def prepare_data(self, *args, **kwargs):
-        if not all(os.path.isfile(os.path.join(self.processed_dir, f)) for f in self.processed_file_names):
-            self.process()
-
-    def setup(self, stage: Optional[str] = None):
-        pass
-
-    def train_dataloader(self, *args, **kwargs) -> DataLoader:
-        return DataLoader(torch.load(os.path.join(self.processed_dir, "train.pkl")), collate_fn=lambda x:x)
-
-    def val_dataloader(self, *args, **kwargs) -> Union[DataLoader, List[DataLoader]]:
-        return DataLoader(torch.load(os.path.join(self.processed_dir, "validation.pkl")), collate_fn=lambda x:x)
-
-    def test_dataloader(self, *args, **kwargs) -> Union[DataLoader, List[DataLoader]]:
-        return DataLoader(torch.load(os.path.join(self.processed_dir, "test.pkl")), collate_fn=lambda x:x)
-
-    def __init__(self,**kwargs):
-        root = os.path.join("data", "JCI_graph")
-        self.processed_dir = os.path.join(root,"processed")
-        self.raw_dir = os.path.join(root, "raw")
-        self.cache = list()
-        super().__init__(root, **kwargs)
-
-    @property
-    def processed_file_names(self):
-        return ["test.pkl", "train.pkl", "validation.pkl"]
-
-    def download(self):
-        pass
-
-    @property
-    def raw_file_names(self):
-        return ["test.pkl", "train.pkl", "validation.pkl"]
-
-    def process(self):
+    def __init__(self, batch_size, **kwargs):
+        super().__init__(batch_size, **kwargs)
+        self.collater = Collater(follow_batch=["x", "edge_index", "label"])
         self.cache = []
-        for f in self.processed_file_names:
-            structure = pickle.load(open(os.path.join(self.raw_dir,f), "rb"))
-            l = structure.apply(self.process_row, axis=1)
-            torch.save(list(l), os.path.join(self.processed_dir,f))
-        torch.save(self.cache, os.path.join(self.processed_dir, "embeddings.pt"))
 
-    def process_row(self, row):
-        return self.mol_to_data(row[1]), torch.tensor(row[2:])
+    def save(self, g, train_split, test_split, validation_split):
+        super().save(g, train_split, test_split, validation_split)
+        torch.save(self.cache, os.path.join(self.processed_dir, f"embeddings.pt"))
 
-    def mol_to_data(self, smiles):
+    def collate(self, list_of_tuples):
+        return self.collater(list_of_tuples)
+
+    def to_data(self, values):
+        for d, l in values:
+            d.y = l.unsqueeze(0)
+            yield d
+
+    def process_smiles(self, smiles):
         try:
             mol = ps.read_smiles(smiles)
         except:
@@ -387,7 +393,7 @@ class JCIGraphData(pl.LightningDataModule):
                 del mol.nodes[node][attr]
         nx.set_node_attributes(mol, d, "x")
         nx.set_edge_attributes(mol, {e:e for e in mol.edges}, "original" )
-        return mol
+        return from_networkx(mol)
 
 class PartOfData(TGDataset):
 

@@ -22,14 +22,13 @@ class ChemLSTM(pl.LightningModule):
         self.lstm = nn.LSTM(100, 300, batch_first=True)
         self.embedding = nn.Embedding(800, 100)
         self.output = nn.Sequential(nn.Linear(300, 1000), nn.ReLU(), nn.Dropout(0.2), nn.Linear(1000, 500))
-        self.loss = nn.BCEWithLogitsLoss(reduction='none')
+        self.loss = nn.BCEWithLogitsLoss()
         self.f1 = F1(500, threshold=0.5)
         self.mse = MeanSquaredError()
 
     def _execute(self, batch, batch_idx):
-        x, y = batch
-        y = torch.stack(y)
-        pred = self(pad_sequence(x, batch_first=True))
+        y = torch.stack(batch.y)
+        pred = self(pad_sequence(batch.x, batch_first=True))
         loss = self.loss(pred, y.float())
         pred_label = F.sigmoid(pred)
         f1 = self.f1(y, pred_label)
