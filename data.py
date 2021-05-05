@@ -293,7 +293,7 @@ class JCIExtendedData(pl.LightningDataModule):
             print("Process", k)
             with mp.Pool() as pool:
                 a = [(node, smiles[node], g.predecessors(node)) for node in nodes if smiles.get(node) is not None]
-                b = map(self.f, a)
+                b = pool.imap(self.f, a)
                 b = filter(lambda t: any(t[1]) and t[0] is not None, b)
                 torch.save(list(self.to_data(b)), os.path.join(self.processed_dir, f"{k}.pt"))
 
