@@ -22,9 +22,10 @@ class ChemLSTM(pl.LightningModule):
         self.lstm = nn.LSTM(100, 300, batch_first=True)
         self.embedding = nn.Embedding(800, 100)
         self.output = nn.Sequential(nn.Linear(300, 1000), nn.ReLU(), nn.Dropout(0.2), nn.Linear(1000, 500))
-        self.loss = nn.BCEWithLogitsLoss()
+        self.loss = nn.BCEWithLogitsLoss(reduction='none')
         self.f1 = F1(500, threshold=0.5)
         self.mse = MeanSquaredError()
+        self.automatic_optimization = False
 
 
     def _execute(self, batch, batch_idx):
@@ -37,16 +38,21 @@ class ChemLSTM(pl.LightningModule):
         return loss, f1, self.mse(y.float(), pred_label)
 
     def training_step(self, *args, **kwargs):
+        opt = self.optimizers()
+        opt.zero_grad()
         loss, f1, mse = self._execute(*args, **kwargs)
-        self.log('train_loss', loss.item(), on_step=False, on_epoch=True, prog_bar=True, logger=True)
+        self.log('train_loss', torch.mean(loss), on_step=False, on_epoch=True, prog_bar=True, logger=True)
         self.log('train_f1', f1.item(), on_step=False, on_epoch=True, prog_bar=True, logger=True)
         self.log('train_mse', mse.item(), on_step=False, on_epoch=True, prog_bar=True, logger=True)
+        for l in loss:
+            self.manual_backward(torch.mean(l), opt, retain_graph=True)
+        opt.step()
         return loss
 
     def validation_step(self, *args, **kwargs):
         with torch.no_grad():
             loss, f1, mse = self._execute(*args, **kwargs)
-            self.log('val_loss', loss.item(), on_step=False, on_epoch=True, prog_bar=True, logger=True)
+            self.log('val_loss', torch.mean(loss), on_step=False, on_epoch=True, prog_bar=True, logger=True)
             self.log('val_f1', f1.item(), on_step=False, on_epoch=True, prog_bar=True, logger=True)
             self.log('val_mse', mse.item(), on_step=False, on_epoch=True, prog_bar=True, logger=True)
             return loss
