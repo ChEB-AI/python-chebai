@@ -58,7 +58,7 @@ class ChemLSTM(pl.LightningModule):
             return loss
 
     def configure_optimizers(self):
-        optimizer = torch.optim.Adam(self.parameters())
+        optimizer = torch.optim.Adam(self.parameters(), lr=1e-4)
         return optimizer
 
     def forward(self, x):
