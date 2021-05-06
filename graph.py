@@ -22,19 +22,20 @@ class JCINet(pl.LightningModule):
         super().__init__()
         self.loops=loops
 
-        self.node_net = nn.Sequential(nn.Linear(self.loops*in_length,hidden_length), nn.ReLU())
+        self.node_net = nn.Sequential(nn.Linear(in_length,hidden_length), nn.ReLU())
         self.embedding = torch.nn.Embedding(800, in_length)
         self.left_graph_net = tgnn.GATConv(in_length, in_length, dropout=0.1)
-        self.final_graph_net = tgnn.GATConv(in_length, hidden_length, dropout=0.1)
         self.attention = nn.Linear(hidden_length, 1)
         self.global_attention = tgnn.GlobalAttention(self.attention)
         self.output_net = nn.Sequential(nn.Linear(hidden_length,hidden_length), nn.Linear(hidden_length, num_classes))
         self.f1 = F1(num_classes, threshold=0.5)
+        self.loss = nn.BCEWithLogitsLoss()
+        self.f1 = F1(500, threshold=0.5)
 
     def _execute(self, batch, batch_idx):
         pred = self(batch)
         labels = batch.y.float()
-        loss = F.binary_cross_entropy_with_logits(pred, labels)
+        loss = self.loss(pred, labels)
         f1 = f1_score(labels.cpu()>0.5, torch.sigmoid(pred).cpu()>0.5, average="micro")
         return loss, f1
 
@@ -53,15 +54,13 @@ class JCINet(pl.LightningModule):
 
     def forward(self, x):
         a = self.embedding(x.x)
-        l = []
         for _ in range(self.loops):
             a = self.left_graph_net(a, x.edge_index.long())
-            l.append(a)
-        at = self.global_attention(self.node_net(torch.cat(l,dim=1)), x.x_batch)
+        at = self.global_attention(self.node_net(a), x.x_batch)
         return self.output_net(at)
 
     def configure_optimizers(self):
-        optimizer = torch.optim.Adam(self.parameters())
+        optimizer = torch.optim.Adam(self.parameters(), lr=1e-4)
         return optimizer
 
 def run_graph(batch_size):
