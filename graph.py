@@ -31,6 +31,7 @@ class JCINet(pl.LightningModule):
         self.f1 = F1(num_classes, threshold=0.5)
         self.loss = nn.BCEWithLogitsLoss()
         self.f1 = F1(500, threshold=0.5)
+        self.dropout = nn.Dropout()
 
     def _execute(self, batch, batch_idx):
         pred = self(batch)
@@ -54,6 +55,7 @@ class JCINet(pl.LightningModule):
 
     def forward(self, x):
         a = self.embedding(x.x)
+        a = self.dropout(a)
         for _ in range(self.loops):
             a = self.left_graph_net(a, x.edge_index.long())
         at = self.global_attention(self.node_net(a), x.x_batch)
