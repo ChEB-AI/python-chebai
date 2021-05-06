@@ -291,18 +291,10 @@ class JCIExtendedData(pl.LightningDataModule):
         print("build labels")
         for k, nodes in dict(train=train_split, test=test_split, validation=validation_split).items():
             print("Process", k)
-            l = []
-            for node in nodes:
-                if smiles.get(node) is not None:
-                    preds = list(g.predecessors(node))
-                    y = [((n in preds) or (n == node)) for n in JCI_500_COLUMNS_INT]
-                    if any(y):
-                        x = self.process_smiles(smiles[node])
-                        if x is not None:
-                            l.append((x, torch.tensor(y)))
-
-            print(len(l))
-            torch.save(list(self.to_data(l)), os.path.join(self.processed_dir, f"{k}.pt"))
+            data = ((node ,[((n in g.predecessors(node)) or (n == node)) for n in JCI_500_COLUMNS_INT ]) for node in nodes if smiles.get(node))
+            data = ((self.process_smiles(smiles[node]), torch.tensor(y)) for (node, y) in data if any(y))
+            data = filter(lambda d: d[0] is not None and d[0].num_edges>0, data)
+            torch.save(list(self.to_data(data)), os.path.join(self.processed_dir, f"{k}.pt"))
 
     def to_data(self, values):
         return values
