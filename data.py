@@ -291,16 +291,18 @@ class JCIExtendedData(pl.LightningDataModule):
         print("build labels")
         for k, nodes in dict(train=train_split, test=test_split, validation=validation_split).items():
             print("Process", k)
-            a = [(node, smiles[node], g.predecessors(node)) for node in nodes if smiles.get(node) is not None]
-            b = map(self.f, a)
-            b = filter(lambda t: any(t[1]) and t[0] is not None, b)
-            torch.save(list(self.to_data(b)), os.path.join(self.processed_dir, f"{k}.pt"))
+            l = []
+            for node in nodes:
+                if smiles.get(node) is not None:
+                    preds = list(g.predecessors(node))
+                    y = [((n in preds) or (n == node)) for n in JCI_500_COLUMNS_INT]
+                    if any(y):
+                        x = self.process_smiles(smiles[node])
+                        if x is not None:
+                            l.append((x, torch.tensor(y)))
 
-    def f(self, x):
-        node, smiles, predecessors = x
-        return (self.process_smiles(smiles), torch.tensor(
-            [(n in predecessors or n == node) for n in
-             JCI_500_COLUMNS_INT]))
+            print(len(l))
+            torch.save(list(self.to_data(l)), os.path.join(self.processed_dir, f"{k}.pt"))
 
     def to_data(self, values):
         return values
@@ -1213,4 +1215,4 @@ JCI_500_COLUMNS = ['CHEBI:25716',
  'CHEBI:22475',
  'CHEBI:35436']
 
-JCI_500_COLUMNS_INT = [int(n.split(":")[-1]) for n in JCI_500_COLUMNS]
+JCI_500_COLUMNS_INT = sorted([int(n.split(":")[-1]) for n in JCI_500_COLUMNS])
