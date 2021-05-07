@@ -21,9 +21,11 @@ class JCINet(pl.LightningModule):
     def __init__(self, in_length, hidden_length, num_classes, loops=10):
         super().__init__()
         self.loops=loops
-
-        self.node_net = nn.Sequential(nn.Linear(in_length,hidden_length), nn.ReLU())
         self.embedding = torch.nn.Embedding(800, in_length)
+        self.random_tail = 10
+        in_length += self.random_tail
+        self.node_net = nn.Sequential(nn.Linear(in_length,hidden_length), nn.ReLU())
+
         self.left_graph_net = tgnn.GATConv(in_length, in_length, dropout=0.1)
         self.attention = nn.Linear(hidden_length, 1)
         self.global_attention = tgnn.GlobalAttention(self.attention)
@@ -32,6 +34,7 @@ class JCINet(pl.LightningModule):
         self.loss = nn.BCEWithLogitsLoss()
         self.f1 = F1(500, threshold=0.5)
         self.dropout = nn.Dropout(0.1)
+
 
     def _execute(self, batch, batch_idx):
         pred = self(batch)
@@ -55,6 +58,7 @@ class JCINet(pl.LightningModule):
 
     def forward(self, x):
         a = self.embedding(x.x)
+        a = torch.cat([a, torch.rand(a.size()[0], self.random_tail)], dim=1)
         a = self.dropout(a)
         for _ in range(self.loops):
             a = self.left_graph_net(a, x.edge_index.long())
