@@ -58,7 +58,7 @@ class JCINet(pl.LightningModule):
 
     def forward(self, x):
         a = self.embedding(x.x)
-        a = torch.cat([a, torch.rand(a.size()[0], self.random_tail)], dim=1)
+        a = torch.cat([a, torch.rand(a.size()[0], self.random_tail).to(self.device)], dim=1)
         a = self.dropout(a)
         for _ in range(self.loops):
             a = self.left_graph_net(a, x.edge_index.long())
