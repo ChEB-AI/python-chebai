@@ -5,7 +5,7 @@ from sklearn.metrics import f1_score
 import torch.nn.functional as F
 import pytorch_lightning as pl
 from pytorch_lightning import loggers as pl_loggers
-from pytorch_lightning.callbacks import ModelCheckpoint
+from pytorch_lightning.callbacks import ModelCheckpoint, EarlyStopping
 from pytorch_lightning.metrics import F1
 import torch.nn.functional as F
 from torch_geometric import nn as tgnn
@@ -91,8 +91,11 @@ def run_graph(batch_size):
         monitor='val_loss',
         mode='min'
     )
+    es = EarlyStopping(monitor='val_loss', patience=10, min_delta=0.00,
+       verbose=False,
+    )
 
-    trainer = pl.Trainer(logger=tb_logger, callbacks=[checkpoint_callback], max_epochs=100, replace_sampler_ddp=False, **trainer_kwargs)
+    trainer = pl.Trainer(logger=tb_logger, callbacks=[checkpoint_callback, es], replace_sampler_ddp=False, **trainer_kwargs)
     trainer.fit(net, train_data, val_dataloaders=val_data)
 
 
