@@ -386,7 +386,7 @@ class JCIExtendedGraphData(JCIExtendedData):
     def to_data(self, df: pd.DataFrame):
         for row in df.values:
             d = self.process_smiles(row[2])
-            if d is not None:
+            if d is not None and d.num_nodes > 1:
                 d.y = torch.tensor(row[3:].astype(bool)).unsqueeze(0)
                 yield d
 
