@@ -376,6 +376,10 @@ class JCIExtendedGraphData(JCIExtendedData):
         super().setup_processed()
         torch.save(self.cache, os.path.join(self.processed_dir, f"embeddings.pt"))
 
+    @property
+    def processed_file_names(self):
+        return super().processed_file_names+["embeddings.pt"]
+
     def collate(self, list_of_tuples):
         return self.collater(list_of_tuples)
 
