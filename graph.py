@@ -9,6 +9,7 @@ from pytorch_lightning.callbacks import ModelCheckpoint, EarlyStopping
 from pytorch_lightning.metrics import F1
 import torch.nn.functional as F
 from torch_geometric import nn as tgnn
+from torch_scatter import scatter_mean
 from torch_geometric.data import DataLoader
 from data import JCIExtendedGraphData
 import logging
@@ -20,21 +21,18 @@ class JCINet(pl.LightningModule):
 
     def __init__(self, in_length, hidden_length, num_classes, loops=10):
         super().__init__()
-        self.loops=loops
         self.embedding = torch.nn.Embedding(800, in_length)
-        self.random_tail = 10
-        in_length += self.random_tail
-        self.node_net = nn.Sequential(nn.Linear(in_length,hidden_length), nn.ReLU())
 
-        self.left_graph_net = tgnn.GATConv(in_length, in_length, dropout=0.1)
-        self.attention = nn.Linear(hidden_length, 1)
-        self.global_attention = tgnn.GlobalAttention(self.attention)
-        self.output_net = nn.Sequential(nn.Linear(hidden_length,hidden_length), nn.Linear(hidden_length, num_classes))
+        self.conv1 = tgnn.GraphConv(in_length, in_length)
+        self.conv2 = tgnn.GraphConv(in_length, in_length)
+        self.conv3 = tgnn.GraphConv(in_length, hidden_length)
+
+        self.output_net = nn.Sequential(nn.Linear(hidden_length,hidden_length), nn.ELU(), nn.Linear(hidden_length,hidden_length), nn.ELU(), nn.Linear(hidden_length, num_classes))
+
         self.f1 = F1(num_classes, threshold=0.5)
         self.loss = nn.BCEWithLogitsLoss()
         self.f1 = F1(500, threshold=0.5)
         self.dropout = nn.Dropout(0.1)
-
 
     def _execute(self, batch, batch_idx):
         pred = self(batch)
@@ -58,13 +56,13 @@ class JCINet(pl.LightningModule):
 
     def forward(self, x):
         a = self.embedding(x.x)
-        a = torch.cat([a, torch.rand(a.size()[0], self.random_tail).to(self.device)], dim=1)
         a = self.dropout(a)
-        for _ in range(self.loops):
-            a = self.left_graph_net(a, x.edge_index.long())
-        a = self.dropout(self.node_net(a))
-        at = self.global_attention(a, x.x_batch)
-        return self.output_net(at)
+        a = F.elu(self.conv1(a, x.edge_index.long()))
+        a = F.elu(self.conv2(a, x.edge_index.long()))
+        a = F.elu(self.conv3(a, x.edge_index.long()))
+        a = self.dropout(a)
+        a = scatter_mean(a, x.batch, dim=0)
+        return self.output_net(a)
 
     def configure_optimizers(self):
         optimizer = torch.optim.Adam(self.parameters(), lr=1e-4)
