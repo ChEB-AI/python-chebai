@@ -254,13 +254,17 @@ class JCISmilesData(torch.utils.data.Dataset):
 
 
 class JCIExtendedData(pl.LightningDataModule):
-    ROOT = os.path.join("data", "JCI_extended")
+    ROOT = "JCI_extended"
+    PATH = ["smiles"]
+    RAW_PATH = []
 
     def setup(self, **kwargs):
         if any(not os.path.isfile(os.path.join(self.processed_dir, f)) for f in self.processed_file_names):
-            print("Extract data from CHEBI")
-            g = self.extract_class_hierarchy()
-            self.save(g, *self.get_splits(g))
+            print("Transform splits")
+            os.makedirs(self.processed_dir)
+            for k in ["test", "train", "validation"]:
+                print("transform", k)
+                torch.save(list(self.to_data(pickle.load(open(os.path.join(self.raw_dir, f"{k}.pkl"), "rb")))), os.path.join(self.processed_dir, f"{k}.pt"))
 
     def extract_class_hierarchy(self):
         elements = [term_callback(clause) for clause in
@@ -286,21 +290,23 @@ class JCIExtendedData(pl.LightningDataModule):
         return train_split, test_split, validation_split
 
     def save(self, g, train_split, test_split, validation_split):
-
         smiles = nx.get_node_attributes(g, "smiles")
+        names = nx.get_node_attributes(g, "name")
         print("build labels")
         for k, nodes in dict(train=train_split, test=test_split, validation=validation_split).items():
             print("Process", k)
-            data = ((node ,[((n in g.predecessors(node)) or (n == node)) for n in JCI_500_COLUMNS_INT ]) for node in nodes if smiles.get(node))
-            data = ((self.process_smiles(smiles[node]), torch.tensor(y)) for (node, y) in data if any(y))
-            data = filter(lambda d: d[0] is not None and d[0].num_edges>0, data)
-            torch.save(list(self.to_data(data)), os.path.join(self.processed_dir, f"{k}.pt"))
+            data = pd.DataFrame(dict(id=nodes))
+            data["name"] = data["id"].apply(lambda node: names.get(node))
+            data["SMILES"] = data["id"].apply(lambda node: smiles.get(node))
+            data = data[~data["SMILES"].isnull()]
+            for n in JCI_500_COLUMNS_INT:
+                data[n] = data["id"].apply(lambda node: ((n in g.predecessors(node)) or (n == node)))
+            data = data[data.iloc[:,3:].any(1)]
+            pickle.dump(data, open(os.path.join(self.raw_dir, f"{k}.pkl"), "wb"))
 
-    def to_data(self, values):
-        return values
-
-    def process_smiles(self, smiles):
-        return torch.tensor([ord(s) for s in smiles])
+    def to_data(self, df: pd.DataFrame):
+        for row in df.values:
+            yield row[1], row[3:]
 
     def dataloader(self, kind, **kwargs):
         return DataLoader(torch.load(os.path.join(self.processed_dir, f"{kind}.pt")),
@@ -319,9 +325,9 @@ class JCIExtendedData(pl.LightningDataModule):
         return JCISmilesData(*zip(*list_of_tuples))
 
     def __init__(self, batch_size=1, **kwargs):
-        root = self.ROOT
-        self.processed_dir = os.path.join(root,"processed")
-        self.raw_dir = os.path.join(root, "raw")
+        root = os.path.join("data", self.ROOT)
+        self.processed_dir = os.path.join(root,"processed", *self.PATH)
+        self.raw_dir = os.path.join(root, "raw", *self.RAW_PATH)
         self.train_split=0.85
         self.batch_size = batch_size
 
@@ -333,13 +339,20 @@ class JCIExtendedData(pl.LightningDataModule):
 
     @property
     def raw_file_names(self):
-        return ["chebi.obo"]
+        return ["test.pkl", "train.pkl", "validation.pkl"]
 
     def prepare_data(self, *args, **kwargs):
-        if not os.path.isfile(os.path.join(self.raw_dir, "chebi.obo")):
-            url = 'http://purl.obolibrary.org/obo/chebi.obo'
-            r = requests.get(url, allow_redirects=True)
-            open(os.path.join(self.raw_dir, "chebi.obo"), 'wb').write(r.content)
+        if any(not os.path.isfile(os.path.join(self.raw_dir, f)) for f in self.raw_file_names):
+            os.makedirs(self.raw_dir)
+            print("Missing raw data. Go fetch...")
+            if not os.path.isfile(os.path.join(self.raw_dir, "chebi.obo")):
+                print("Load ChEBI ontology")
+                url = 'http://purl.obolibrary.org/obo/chebi.obo'
+                r = requests.get(url, allow_redirects=True)
+                open(os.path.join(self.raw_dir, "chebi.obo"), 'wb').write(
+                    r.content)
+            g = self.extract_class_hierarchy()
+            self.save(g, *self.get_splits(g))
 
     def transfer_batch_to_device(self, batch, device):
         x, y = batch
@@ -349,7 +362,7 @@ class JCIExtendedData(pl.LightningDataModule):
 
 
 class JCIExtendedGraphData(JCIExtendedData):
-    ROOT = os.path.join("data", "JCI_extended_graph")
+    PATH = ["graph"]
 
     def __init__(self, batch_size, **kwargs):
         super().__init__(batch_size, **kwargs)
@@ -363,10 +376,12 @@ class JCIExtendedGraphData(JCIExtendedData):
     def collate(self, list_of_tuples):
         return self.collater(list_of_tuples)
 
-    def to_data(self, values):
-        for d, l in values:
-            d.y = l.unsqueeze(0)
-            yield d
+    def to_data(self, df: pd.DataFrame):
+        for row in df.values:
+            d = self.process_smiles(row[2])
+            if d is not None:
+                d.y = torch.tensor(row[3:].astype(bool)).unsqueeze(0)
+                yield d
 
     def process_smiles(self, smiles):
         try:
