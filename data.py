@@ -261,7 +261,7 @@ class JCIExtendedData(pl.LightningDataModule):
     def setup(self, **kwargs):
         if any(not os.path.isfile(os.path.join(self.processed_dir, f)) for f in self.processed_file_names):
             print("Transform splits")
-            os.makedirs(self.processed_dir)
+            os.makedirs(self.processed_dir, exist_ok=True)
             for k in ["test", "train", "validation"]:
                 print("transform", k)
                 torch.save(list(self.to_data(pickle.load(open(os.path.join(self.raw_dir, f"{k}.pkl"), "rb")))), os.path.join(self.processed_dir, f"{k}.pt"))
@@ -343,7 +343,7 @@ class JCIExtendedData(pl.LightningDataModule):
 
     def prepare_data(self, *args, **kwargs):
         if any(not os.path.isfile(os.path.join(self.raw_dir, f)) for f in self.raw_file_names):
-            os.makedirs(self.raw_dir)
+            os.makedirs(self.raw_dir, exist_ok=True)
             print("Missing raw data. Go fetch...")
             if not os.path.isfile(os.path.join(self.raw_dir, "chebi.obo")):
                 print("Load ChEBI ontology")
