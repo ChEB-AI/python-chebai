@@ -65,7 +65,7 @@ class JCINet(pl.LightningModule):
         return self.output_net(a)
 
     def configure_optimizers(self):
-        optimizer = torch.optim.Adam(self.parameters(), lr=1e-4)
+        optimizer = torch.optim.Adam(self.parameters())
         return optimizer
 
 def run_graph(batch_size):
@@ -78,7 +78,7 @@ def run_graph(batch_size):
         trainer_kwargs = dict(gpus=-1, accelerator="ddp")
     else:
         trainer_kwargs = dict(gpus=0)
-    net = JCINet(100, 50, 500)
+    net = JCINet(100, 100, 500)
     tb_logger = pl_loggers.CSVLogger('logs/')
     checkpoint_callback = ModelCheckpoint(
         dirpath=os.path.join(tb_logger.log_dir, "checkpoints"),
