@@ -260,11 +260,14 @@ class JCIExtendedData(pl.LightningDataModule):
 
     def setup(self, **kwargs):
         if any(not os.path.isfile(os.path.join(self.processed_dir, f)) for f in self.processed_file_names):
-            print("Transform splits")
-            os.makedirs(self.processed_dir, exist_ok=True)
-            for k in ["test", "train", "validation"]:
-                print("transform", k)
-                torch.save(list(self.to_data(pickle.load(open(os.path.join(self.raw_dir, f"{k}.pkl"), "rb")))), os.path.join(self.processed_dir, f"{k}.pt"))
+            self.setup_processed()
+
+    def setup_processed(self):
+        print("Transform splits")
+        os.makedirs(self.processed_dir, exist_ok=True)
+        for k in ["test", "train", "validation"]:
+            print("transform", k)
+            torch.save(list(self.to_data(pickle.load(open(os.path.join(self.raw_dir, f"{k}.pkl"), "rb")))), os.path.join(self.processed_dir, f"{k}.pt"))
 
     def extract_class_hierarchy(self):
         elements = [term_callback(clause) for clause in
@@ -369,8 +372,8 @@ class JCIExtendedGraphData(JCIExtendedData):
         self.collater = Collater(follow_batch=["x", "edge_index", "label"])
         self.cache = []
 
-    def save(self, g, train_split, test_split, validation_split):
-        super().save(g, train_split, test_split, validation_split)
+    def setup_processed(self):
+        super().setup_processed()
         torch.save(self.cache, os.path.join(self.processed_dir, f"embeddings.pt"))
 
     def collate(self, list_of_tuples):
