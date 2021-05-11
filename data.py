@@ -15,6 +15,8 @@ import pytorch_lightning as pl
 from torch.utils.data import DataLoader, Dataset
 from torch.utils.data.dataset import T_co
 from torch_geometric.data import InMemoryDataset
+from k_gnn import TwoMalkin
+from k_gnn.dataloader import collate
 import pandas as pd
 
 from torch_geometric.utils.convert import from_networkx
@@ -290,7 +292,7 @@ class JCIExtendedData(pl.LightningDataModule):
         test_split, validation_split = train_test_split(test_split,
                                                         train_size=self.train_split,
                                                         shuffle=True)
-        return train_split, test_split, validation_split
+        return train_split[:10], test_split[:2], validation_split[:2]
 
     def save(self, g, train_split, test_split, validation_split):
         smiles = nx.get_node_attributes(g, "smiles")
@@ -409,6 +411,22 @@ class JCIExtendedGraphData(JCIExtendedData):
         nx.set_node_attributes(mol, d, "x")
         nx.set_edge_attributes(mol, {e:e for e in mol.edges}, "original" )
         return from_networkx(mol)
+
+
+class JCIExtendedGraphTwoData(JCIExtendedGraphData):
+    PATH = ["graph_k2"]
+
+    def to_data(self, df: pd.DataFrame):
+        for data in super().to_data(df):
+            if data.num_nodes >=6:
+                x = data.x
+                data.x = data.x.unsqueeze(0)
+                data = TwoMalkin()(data)
+                data.x = x
+                yield data
+
+    def collate(self, list_of_tuples):
+        return collate(list_of_tuples)
 
 class PartOfData(TGDataset):
 
