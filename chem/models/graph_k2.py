@@ -32,6 +32,8 @@ class JCIGraphK2Net(JCIBaseNet):
                                         nn.Linear(hidden_length, hidden_length), nn.ELU(),
                                         nn.Linear(hidden_length, num_classes))
 
+        self.dropout = nn.Dropout(0.1)
+
     def forward(self, x):
         a = self.embedding(x.x)
         a = self.dropout(a)
