@@ -26,7 +26,7 @@ class JCIBaseNet(pl.LightningModule):
         labels = batch.y.float()
         loss = self.loss(pred, labels)
         f1 = self.f1(target=labels.int(), preds=torch.sigmoid(pred))
-        mse = self.mse(labels, pred)
+        mse = self.mse(labels, torch.sigmoid(pred))
         return loss, f1, mse
 
     def training_step(self, *args, **kwargs):
@@ -78,6 +78,7 @@ class JCIBaseNet(pl.LightningModule):
             monitor='val_loss',
             mode='min'
         )
+        # Calculate weights per class
         weights = torch.sum(torch.cat([data.y for data in train_data]),dim=0)
         weights = (2*torch.max(weights)-weights)/torch.max(weights)
         net = cls(*model_args, weights=weights, **model_kwargs)
