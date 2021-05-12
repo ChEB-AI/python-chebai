@@ -93,7 +93,7 @@ def run_graph(batch_size):
        verbose=False,
     )
 
-    trainer = pl.Trainer(logger=tb_logger, callbacks=[checkpoint_callback, es], replace_sampler_ddp=False, **trainer_kwargs)
+    trainer = pl.Trainer(logger=tb_logger, min_epochs=100, callbacks=[checkpoint_callback, es], replace_sampler_ddp=False, **trainer_kwargs)
     trainer.fit(net, train_data, val_dataloaders=val_data)
 
 
