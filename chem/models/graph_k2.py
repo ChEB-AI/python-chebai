@@ -1,18 +1,10 @@
-import os
 from torch import nn
 import torch
-from sklearn.metrics import f1_score
-import torch.nn.functional as F
-import pytorch_lightning as pl
-from pytorch_lightning import loggers as pl_loggers
-from pytorch_lightning.callbacks import ModelCheckpoint, EarlyStopping
-from pytorch_lightning.metrics import F1
 import torch.nn.functional as F
 from torch_geometric import nn as tgnn
 from torch_scatter import scatter_mean
-from torch_geometric.data import DataLoader
 from k_gnn import avg_pool
-from data import JCIExtendedGraphData, JCIExtendedGraphTwoData
+from chem.data import JCIExtendedGraphTwoData
 
 import logging
 import sys

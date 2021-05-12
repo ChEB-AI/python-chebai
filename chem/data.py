@@ -216,7 +216,7 @@ class JCIData(torch.utils.data.Dataset):
         return x, y
 
     def __init__(self, batch_size, **kwargs):
-        root = os.path.join("data", "JCI")
+        root = os.path.join("../data", "JCI")
         self.processed_dir = os.path.join(root,"processed")
         self.raw_dir = os.path.join(root, "raw")
         self.batch_size = batch_size
@@ -330,7 +330,7 @@ class JCIExtendedData(pl.LightningDataModule):
         return JCISmilesData(*zip(*list_of_tuples))
 
     def __init__(self, batch_size=1, **kwargs):
-        root = os.path.join("data", self.ROOT)
+        root = os.path.join("../data", self.ROOT)
         self.processed_dir = os.path.join(root,"processed", *self.PATH)
         self.raw_dir = os.path.join(root, "raw", *self.RAW_PATH)
         self.train_split=0.85

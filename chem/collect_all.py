@@ -116,7 +116,7 @@ def train(train_loader, validation_loader):
     else:
         trainer_kwargs = dict(gpus=0)
     net = JCINet(100, 100, 500)
-    tb_logger = pl_loggers.CSVLogger('logs/')
+    tb_logger = pl_loggers.CSVLogger('../logs/')
     checkpoint_callback = ModelCheckpoint(
         dirpath=os.path.join(tb_logger.log_dir, "checkpoints"),
         filename="{epoch}-{step}-{val_loss:.7f}",

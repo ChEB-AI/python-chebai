@@ -230,7 +230,7 @@ def run_graphyk():
     else:
         trainer_kwargs = dict(gpus=0)
     net = GraphCYK(100, 500)
-    tb_logger = pl_loggers.CSVLogger('logs/')
+    tb_logger = pl_loggers.CSVLogger('../logs/')
     checkpoint_callback = ModelCheckpoint(
         dirpath=os.path.join(tb_logger.log_dir, "checkpoints"),
         filename="{epoch}-{step}-{val_loss:.7f}",
@@ -256,7 +256,7 @@ def run_cyk():
     else:
         trainer_kwargs = dict(gpus=0)
     net = ChemLSTM(100, 500)
-    tb_logger = pl_loggers.CSVLogger('logs/')
+    tb_logger = pl_loggers.CSVLogger('../logs/')
     checkpoint_callback = ModelCheckpoint(
         dirpath=os.path.join(tb_logger.log_dir, "checkpoints"),
         filename="{epoch}-{step}-{val_loss:.7f}",

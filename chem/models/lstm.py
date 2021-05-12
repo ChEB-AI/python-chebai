@@ -1,15 +1,5 @@
-import os
 from torch import nn
-import torch
-from sklearn.metrics import f1_score
-import torch.nn.functional as F
-import pytorch_lightning as pl
-from pytorch_lightning import loggers as pl_loggers
-from pytorch_lightning.callbacks import ModelCheckpoint
-from pytorch_lightning.metrics import F1
-from pytorch_lightning.metrics import MeanSquaredError
-from torch.nn.utils.rnn import pad_sequence
-from data import JCIExtendedData, JCIData
+from chem.data import JCIExtendedData
 import logging
 import sys
 from base import JCIBaseNet

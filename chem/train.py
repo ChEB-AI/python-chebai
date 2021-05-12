@@ -94,7 +94,7 @@ def execute_network(model, loss_fn, optimizer, train_data, validation_data, epoc
             print(name)
 
     columns_name=['epoch', 'train_running_loss', 'train_running_f1', 'eval_running_loss', 'eval_running_f1']
-    with open(r'loss_f1_training_validation.csv', 'w') as f:
+    with open(r'../loss_f1_training_validation.csv', 'w') as f:
         writer = csv.writer(f)
         writer.writerow(columns_name)
 
@@ -107,7 +107,7 @@ def execute_network(model, loss_fn, optimizer, train_data, validation_data, epoc
             f'Epoch {epoch}: loss={train_running_loss:.5f}, f1={train_running_f1:.5f}, val_loss={eval_running_loss:.5f}, val_f1={eval_running_f1:.5f}'.format(
                 epoch, train_running_f1))
         fields=[epoch, train_running_loss, train_running_f1, eval_running_loss, eval_running_f1]
-        with open(r'loss_f1_training_validation.csv', 'a') as f:
+        with open(r'../loss_f1_training_validation.csv', 'a') as f:
             writer = csv.writer(f)
             writer.writerow(fields)
 
@@ -148,9 +148,9 @@ def load_data():
             train_dataset, train_actual_labels, validation_dataset, validation_actual_labels = pickle.load(f)
     else:
         print('reading data from files!')
-        train_infile = open('data/JCI_graph/raw/train.pkl', 'rb')
-        test_infile = open('data/JCI_graph/raw/test.pkl', 'rb')
-        validation_infile = open('data/JCI_graph/raw/validation.pkl', 'rb')
+        train_infile = open('../data/JCI_graph/raw/train.pkl', 'rb')
+        test_infile = open('../data/JCI_graph/raw/test.pkl', 'rb')
+        validation_infile = open('../data/JCI_graph/raw/validation.pkl', 'rb')
 
         #test_data = prepare_data(test_infile)
 
@@ -210,7 +210,7 @@ if __name__ == "__main__":
 
     model = ChEBIRecNN()
 
-    tb_logger = pl_loggers.CSVLogger('logs/')
+    tb_logger = pl_loggers.CSVLogger('../logs/')
     trainer = pl.Trainer(logger=tb_logger, accelerator=accelerator, max_epochs=NUM_EPOCHS, **trainer_kwargs)
     trainer.fit(model, train_data, val_dataloaders=validation_data)
 
