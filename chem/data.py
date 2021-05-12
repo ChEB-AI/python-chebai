@@ -347,6 +347,7 @@ class JCIExtendedData(pl.LightningDataModule):
         return ["test.pkl", "train.pkl", "validation.pkl"]
 
     def prepare_data(self, *args, **kwargs):
+        print("Check for raw data in", self.raw_dir)
         if any(not os.path.isfile(os.path.join(self.raw_dir, f)) for f in self.raw_file_names):
             os.makedirs(self.raw_dir, exist_ok=True)
             print("Missing raw data. Go fetch...")
