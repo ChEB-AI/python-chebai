@@ -82,6 +82,7 @@ class JCIBaseNet(pl.LightningModule):
 
         # Calculate weights per class
         weights = torch.sum(torch.cat([data.y for data in train_data]),dim=0)
+        weights = torch.sqrt(weights)
         weights = 1+torch.max(weights)-weights
         mw = torch.mean(weights.float())
         weights = weights/mw
