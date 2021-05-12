@@ -16,8 +16,8 @@ logging.getLogger('pysmiles').setLevel(logging.CRITICAL)
 
 class JCIGraphK2Net(JCIBaseNet):
 
-    def __init__(self, in_length, hidden_length, num_classes, weights=None):
-        super().__init__(num_classes, weights)
+    def __init__(self, in_length, hidden_length, num_classes, weights=None, **kwargs):
+        super().__init__(num_classes, weights, **kwargs)
         self.embedding = torch.nn.Embedding(800, in_length)
 
         self.conv1_1 = tgnn.GraphConv(in_length, in_length)

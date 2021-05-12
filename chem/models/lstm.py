@@ -8,8 +8,8 @@ logging.getLogger('pysmiles').setLevel(logging.CRITICAL)
 
 class ChemLSTM(JCIBaseNet):
 
-    def __init__(self, in_d, out_d, num_classes, weights):
-        super().__init__(num_classes, weights)
+    def __init__(self, in_d, out_d, num_classes, weights, **kwargs):
+        super().__init__(num_classes, weights, **kwargs)
         self.lstm = nn.LSTM(100, 300, batch_first=True)
         self.embedding = nn.Embedding(800, 100)
         self.output = nn.Sequential(nn.Linear(300, 1000), nn.ReLU(), nn.Dropout(0.2), nn.Linear(1000, num_classes))
