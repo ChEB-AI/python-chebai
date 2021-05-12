@@ -71,11 +71,14 @@ class JCIBaseNet(pl.LightningModule):
         train_data = data.train_dataloader()
         val_data = data.val_dataloader()
 
+        lr = 1e-4
+
         if weighted:
             weights = model_kwargs.get("weights")
             if weights is None:
-                weights = torch.sum(torch.cat([data.y for data in train_data]), dim=0).float()
+                weights = 1 + torch.sum(torch.cat([data.y for data in train_data]), dim=0).float()
                 weights = 1/weights
+                lr /= torch.mean(weights).item()
                 name += "__weighted"
             model_kwargs["weights"] = weights
         else:
@@ -102,7 +105,7 @@ class JCIBaseNet(pl.LightningModule):
 
         # Calculate weights per class
 
-        net = cls(*model_args, lr=1e-4, **model_kwargs)
+        net = cls(*model_args, lr=lr, **model_kwargs)
         es = EarlyStopping(monitor='val_loss', patience=10, min_delta=0.00,
            verbose=False,
         )
