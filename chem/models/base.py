@@ -77,8 +77,7 @@ class JCIBaseNet(pl.LightningModule):
             weights = model_kwargs.get("weights")
             if weights is None:
                 weights = 1 + torch.sum(torch.cat([data.y for data in train_data]), dim=0).float()
-                weights = 1/weights
-                lr = lr / (torch.max(weights)-torch.min(weights)).item()
+                weights = torch.mean(weights)/weights
                 name += "__weighted"
             model_kwargs["weights"] = weights
         else:
