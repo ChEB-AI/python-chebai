@@ -79,7 +79,7 @@ class JCIBaseNet(pl.LightningModule):
             mode='min'
         )
         weights = torch.sum(torch.cat([data.y for data in train_data]),dim=0)
-        weights = (2*torch.max(weights)-weights)
+        weights = (2*torch.max(weights)-weights)/torch.max(weights)
         net = cls(*model_args, weights=weights, **model_kwargs)
         es = EarlyStopping(monitor='val_loss', patience=10, min_delta=0.00,
            verbose=False,
