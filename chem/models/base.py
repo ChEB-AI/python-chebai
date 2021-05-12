@@ -82,8 +82,10 @@ class JCIBaseNet(pl.LightningModule):
 
         # Calculate weights per class
         weights = torch.sum(torch.cat([data.y for data in train_data]),dim=0)
-        weights = (2*torch.max(weights)-weights)/torch.max(weights)
-        net = cls(*model_args, weights=weights, lr=1e-4/torch.mean(weights), **model_kwargs)
+        weights = 1+torch.max(weights)-weights
+        mw = torch.mean(weights.float())
+        weights = weights/mw
+        net = cls(*model_args, weights=weights, lr=1e-4, **model_kwargs)
         es = EarlyStopping(monitor='val_loss', patience=10, min_delta=0.00,
            verbose=False,
         )
