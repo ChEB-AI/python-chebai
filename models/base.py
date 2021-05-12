@@ -54,7 +54,7 @@ class JCIBaseNet(pl.LightningModule):
         return optimizer
 
     @classmethod
-    def run(cls, data, model_args: list = None, model_kwargs: dict = None):
+    def run(cls, data, name, model_args: list = None, model_kwargs: dict = None):
         if model_args is None:
             model_args = []
         if model_kwargs is None:
@@ -68,7 +68,7 @@ class JCIBaseNet(pl.LightningModule):
         else:
             trainer_kwargs = dict(gpus=0)
 
-        tb_logger = pl_loggers.CSVLogger('logs/', name="graph_k2")
+        tb_logger = pl_loggers.CSVLogger('logs/', name=name)
         checkpoint_callback = ModelCheckpoint(
             dirpath=os.path.join(tb_logger.log_dir, "checkpoints"),
             filename="{epoch}-{step}-{val_loss:.7f}",

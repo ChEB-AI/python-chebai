@@ -45,5 +45,5 @@ class JCIGraphNet(JCIBaseNet):
 
 if __name__ == "__main__":
     data = JCIExtendedGraphData(int(sys.argv[1]))
-    JCIGraphNet.run(data, model_args=[100, 100, 500])
+    JCIGraphNet.run(data, "graph", model_args=[100, 100, 500])
 
