@@ -15,11 +15,12 @@ logging.getLogger('pysmiles').setLevel(logging.CRITICAL)
 
 class JCIBaseNet(pl.LightningModule):
 
-    def __init__(self, num_classes, weights, threshold=0.3):
+    def __init__(self, num_classes, weights, threshold=0.3, lr=1e-4):
         super().__init__()
         self.loss = nn.BCEWithLogitsLoss(weight=weights)
         self.f1 = F1(num_classes, threshold=threshold)
         self.mse = MeanSquaredError()
+        self.lr = lr
 
     def _execute(self, batch, batch_idx):
         pred = self(batch)
@@ -50,7 +51,7 @@ class JCIBaseNet(pl.LightningModule):
         raise NotImplementedError
 
     def configure_optimizers(self):
-        optimizer = torch.optim.Adam(self.parameters())
+        optimizer = torch.optim.Adam(self.parameters(), lr=self.lr)
         return optimizer
 
     @classmethod
@@ -78,10 +79,11 @@ class JCIBaseNet(pl.LightningModule):
             monitor='val_loss',
             mode='min'
         )
+
         # Calculate weights per class
         weights = torch.sum(torch.cat([data.y for data in train_data]),dim=0)
         weights = (2*torch.max(weights)-weights)/torch.max(weights)
-        net = cls(*model_args, weights=weights, **model_kwargs)
+        net = cls(*model_args, weights=weights, lr=1e-4/torch.mean(weights), **model_kwargs)
         es = EarlyStopping(monitor='val_loss', patience=10, min_delta=0.00,
            verbose=False,
         )
