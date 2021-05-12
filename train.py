@@ -148,9 +148,9 @@ def load_data():
             train_dataset, train_actual_labels, validation_dataset, validation_actual_labels = pickle.load(f)
     else:
         print('reading data from files!')
-        train_infile = open('./data/train.pkl','rb')
-        test_infile = open('./data/test.pkl','rb')
-        validation_infile = open('./data/validation.pkl','rb')
+        train_infile = open('data/JCI_graph/raw/train.pkl', 'rb')
+        test_infile = open('data/JCI_graph/raw/test.pkl', 'rb')
+        validation_infile = open('data/JCI_graph/raw/validation.pkl', 'rb')
 
         #test_data = prepare_data(test_infile)
 

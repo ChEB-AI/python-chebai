@@ -23,7 +23,7 @@ logging.getLogger('pysmiles').setLevel(logging.CRITICAL)
 
 class JCINet(pl.LightningModule):
 
-    def __init__(self, in_length, hidden_length, num_classes, loops=10):
+    def __init__(self, in_length, hidden_length, num_classes, weights=None):
         super().__init__()
         self.embedding = torch.nn.Embedding(800, in_length)
 
@@ -40,7 +40,7 @@ class JCINet(pl.LightningModule):
                                         nn.Linear(hidden_length, num_classes))
 
         self.f1 = F1(num_classes, threshold=0.5)
-        self.loss = nn.BCEWithLogitsLoss()
+        self.loss = nn.BCEWithLogitsLoss(weight=weights)
         self.f1 = F1(500, threshold=0.5)
         self.dropout = nn.Dropout(0.1)
 
@@ -98,7 +98,7 @@ def run_graph(batch_size):
         trainer_kwargs = dict(gpus=-1, accelerator="ddp")
     else:
         trainer_kwargs = dict(gpus=0)
-    net = JCINet(100, 100, 500)
+
     tb_logger = pl_loggers.CSVLogger('logs/', name="graph_k2")
     checkpoint_callback = ModelCheckpoint(
         dirpath=os.path.join(tb_logger.log_dir, "checkpoints"),
@@ -109,6 +109,8 @@ def run_graph(batch_size):
         monitor='val_loss',
         mode='min'
     )
+    weights = torch.sum(torch.cat([data.y for data in train_data]),dim=0)
+    net = JCINet(100, 100, 500, weights=weights)
     es = EarlyStopping(monitor='val_loss', patience=10, min_delta=0.00,
        verbose=False,
     )
