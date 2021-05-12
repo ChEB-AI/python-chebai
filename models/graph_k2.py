@@ -40,11 +40,6 @@ class JCIGraphK2Net(JCIBaseNet):
                                         nn.Linear(hidden_length, hidden_length), nn.ELU(),
                                         nn.Linear(hidden_length, num_classes))
 
-        self.f1 = F1(num_classes, threshold=0.5)
-        self.loss = nn.BCEWithLogitsLoss(weight=weights)
-        self.f1 = F1(500, threshold=0.5)
-        self.dropout = nn.Dropout(0.1)
-
     def forward(self, x):
         a = self.embedding(x.x)
         a = self.dropout(a)

@@ -15,10 +15,10 @@ logging.getLogger('pysmiles').setLevel(logging.CRITICAL)
 
 class JCIBaseNet(pl.LightningModule):
 
-    def __init__(self, num_classes, weights):
+    def __init__(self, num_classes, weights, threshold=0.3):
         super().__init__()
         self.loss = nn.BCEWithLogitsLoss(weight=weights)
-        self.f1 = F1(num_classes, threshold=0.5)
+        self.f1 = F1(num_classes, threshold=threshold)
         self.mse = MeanSquaredError()
 
     def _execute(self, batch, batch_idx):

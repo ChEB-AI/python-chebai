@@ -23,9 +23,6 @@ class ChemLSTM(JCIBaseNet):
         self.lstm = nn.LSTM(100, 300, batch_first=True)
         self.embedding = nn.Embedding(800, 100)
         self.output = nn.Sequential(nn.Linear(300, 1000), nn.ReLU(), nn.Dropout(0.2), nn.Linear(1000, num_classes))
-        self.loss = nn.BCEWithLogitsLoss()
-        self.f1 = F1(num_classes, threshold=0.5, average="micro")
-        self.mse = MeanSquaredError()
 
     def forward(self, x):
         x = self.embedding(x)
