@@ -23,4 +23,5 @@ class ChemLSTM(JCIBaseNet):
 
 if __name__ == "__main__":
     data = JCIExtendedData(batch_size=int(sys.argv[1]))
-    ChemLSTM.run(data, "lstm", model_args=[100, 500, 500])
+    for weighted in [True, False]:
+        ChemLSTM.run(data, "lstm", model_args=[100, 500, 500], weighted=weighted)

@@ -15,12 +15,17 @@ logging.getLogger('pysmiles').setLevel(logging.CRITICAL)
 
 class JCIBaseNet(pl.LightningModule):
 
-    def __init__(self, num_classes, weights, threshold=0.3, lr=1e-4):
+    def __init__(self, num_classes, weights=None, threshold=0.3, lr=1e-4):
         super().__init__()
-        self.loss = nn.BCEWithLogitsLoss(weight=weights)
+        if weights is not None:
+            self.loss = nn.BCEWithLogitsLoss(pos_weight=weights)
+        else:
+            self.loss = nn.BCEWithLogitsLoss()
         self.f1 = F1(num_classes, threshold=threshold)
         self.mse = MeanSquaredError()
         self.lr = lr
+
+        self.save_hyperparameters()
 
     def _execute(self, batch, batch_idx):
         pred = self(batch)
@@ -55,21 +60,39 @@ class JCIBaseNet(pl.LightningModule):
         return optimizer
 
     @classmethod
-    def run(cls, data, name, model_args: list = None, model_kwargs: dict = None):
+    def run(cls, data, name, model_args: list = None, model_kwargs: dict = None, weighted=False):
         if model_args is None:
             model_args = []
         if model_kwargs is None:
             model_kwargs = {}
         data.prepare_data()
         data.setup()
+        name += "__" + "_".join((data.ROOT,))
         train_data = data.train_dataloader()
         val_data = data.val_dataloader()
+
+        if weighted:
+            weights = model_kwargs.get("weights")
+            if weights is None:
+                weights = torch.sum(torch.cat([data.y for data in train_data]), dim=0)
+                weights = torch.sqrt(weights)
+                weights = 1 + torch.max(weights) - weights
+                mw = torch.mean(weights.float())
+                weights = weights / mw
+                name += "__weighted"
+            model_kwargs["weights"] = weights
+        else:
+            try:
+                model_kwargs.pop("weights")
+            except KeyError:
+                pass
+
         if torch.cuda.is_available():
             trainer_kwargs = dict(gpus=-1, accelerator="ddp")
         else:
             trainer_kwargs = dict(gpus=0)
 
-        tb_logger = pl_loggers.CSVLogger('logs/', name=name)
+        tb_logger = pl_loggers.TensorBoardLogger('logs/', name=name)
         checkpoint_callback = ModelCheckpoint(
             dirpath=os.path.join(tb_logger.log_dir, "checkpoints"),
             filename="{epoch}-{step}-{val_loss:.7f}",
@@ -81,12 +104,8 @@ class JCIBaseNet(pl.LightningModule):
         )
 
         # Calculate weights per class
-        weights = torch.sum(torch.cat([data.y for data in train_data]),dim=0)
-        weights = torch.sqrt(weights)
-        weights = 1+torch.max(weights)-weights
-        mw = torch.mean(weights.float())
-        weights = weights/mw
-        net = cls(*model_args, weights=weights, lr=1e-4, **model_kwargs)
+
+        net = cls(*model_args, lr=1e-4, **model_kwargs)
         es = EarlyStopping(monitor='val_loss', patience=10, min_delta=0.00,
            verbose=False,
         )

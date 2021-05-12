@@ -58,4 +58,5 @@ class JCIGraphK2Net(JCIBaseNet):
 if __name__ == "__main__":
     batch_size = int(sys.argv[1])
     data = JCIExtendedGraphTwoData(batch_size=batch_size)
-    JCIGraphK2Net.run(data, "graph_k2", model_args=[100, 100, 500])
+    for weighted in [True, False]:
+        JCIGraphK2Net.run(data, "graph_k2", model_args=[100, 100, 500], weighted=weighted)

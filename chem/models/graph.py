@@ -14,8 +14,8 @@ logging.getLogger('pysmiles').setLevel(logging.CRITICAL)
 
 class JCIGraphNet(JCIBaseNet):
 
-    def __init__(self, in_length, hidden_length, num_classes, weights, **kwargs):
-        super().__init__(num_classes, weights, **kwargs)
+    def __init__(self, in_length, hidden_length, num_classes, **kwargs):
+        super().__init__(num_classes, **kwargs)
         self.embedding = torch.nn.Embedding(800, in_length)
 
         self.conv1 = tgnn.GraphConv(in_length, in_length)
@@ -25,6 +25,7 @@ class JCIGraphNet(JCIBaseNet):
         self.output_net = nn.Sequential(nn.Linear(hidden_length,hidden_length), nn.ELU(), nn.Linear(hidden_length,hidden_length), nn.ELU(), nn.Linear(hidden_length, num_classes))
 
         self.dropout = nn.Dropout(0.1)
+
 
     def forward(self, x):
         a = self.embedding(x.x)
@@ -39,5 +40,6 @@ class JCIGraphNet(JCIBaseNet):
 
 if __name__ == "__main__":
     data = JCIExtendedGraphData(int(sys.argv[1]))
-    JCIGraphNet.run(data, "graph", model_args=[100, 100, 500])
+    for weighted in [True, False]:
+        JCIGraphNet.run(data, "graph", model_args=[100, 100, 500], weighted=weighted)
 
