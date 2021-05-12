@@ -371,7 +371,7 @@ class JCIExtendedGraphData(JCIExtendedData):
 
     def __init__(self, batch_size, **kwargs):
         super().__init__(batch_size, **kwargs)
-        self.collater = Collater(follow_batch=["x", "edge_index", "label"], exclude_keys=[])
+        self.collater = Collater(follow_batch=["x", "edge_index", "label"])
         self.cache = []
 
     def setup_processed(self):
