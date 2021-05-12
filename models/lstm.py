@@ -12,10 +12,11 @@ from torch.nn.utils.rnn import pad_sequence
 from data import JCIExtendedData, JCIData
 import logging
 import sys
+from base import JCIBaseNet
 
 logging.getLogger('pysmiles').setLevel(logging.CRITICAL)
 
-class ChemLSTM(pl.LightningModule):
+class ChemLSTM(JCIBaseNet):
 
     def __init__(self, in_d, out_d, num_classes, weights):
         super().__init__(num_classes, weights)
