@@ -1,27 +1,23 @@
 from torch import nn
-from chem.data import JCIExtendedData
+from chem.data import JCIExtendedData, JCIData
 import logging
 import sys
-from base import JCIBaseNet
+from chem.models.base import JCIBaseNet
 
 logging.getLogger('pysmiles').setLevel(logging.CRITICAL)
+
 
 class ChemLSTM(JCIBaseNet):
 
     def __init__(self, in_d, out_d, num_classes, weights, **kwargs):
         super().__init__(num_classes, weights, **kwargs)
-        self.lstm = nn.LSTM(100, 300, batch_first=True)
+        self.lstm = nn.LSTM(in_d, out_d, batch_first=True)
         self.embedding = nn.Embedding(800, 100)
-        self.output = nn.Sequential(nn.Linear(300, 1000), nn.ReLU(), nn.Dropout(0.2), nn.Linear(1000, num_classes))
+        self.output = nn.Sequential(nn.Linear(out_d, in_d), nn.ReLU(), nn.Dropout(0.2), nn.Linear(in_d, num_classes))
 
-    def forward(self, x):
+    def forward(self, data):
+        x = data.x
         x = self.embedding(x)
         x = self.lstm(x)[1][0]
         x = self.output(x)
         return x.squeeze(0)
-
-
-if __name__ == "__main__":
-    data = JCIExtendedData(batch_size=int(sys.argv[1]))
-    for weighted in [True, False]:
-        ChemLSTM.run(data, "lstm", model_args=[100, 500, 500], weighted=weighted)

@@ -3,7 +3,7 @@ import torch
 import torch.nn.functional as F
 from torch_geometric import nn as tgnn
 from torch_scatter import scatter_mean
-from chem.data import JCIExtendedGraphData
+from chem.data import JCIExtendedGraphData, JCIGraphData
 import logging
 import sys
 
@@ -37,9 +37,4 @@ class JCIGraphNet(JCIBaseNet):
         a = scatter_mean(a, x.batch, dim=0)
         return self.output_net(a)
 
-
-if __name__ == "__main__":
-    data = JCIExtendedGraphData(int(sys.argv[1]))
-    for weighted in [True, False]:
-        JCIGraphNet.run(data, "graph", model_args=[100, 100, 500], weighted=weighted)
 
