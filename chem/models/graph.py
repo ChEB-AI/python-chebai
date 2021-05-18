@@ -7,12 +7,13 @@ from chem.data import JCIExtendedGraphData, JCIGraphData
 import logging
 import sys
 
-from base import JCIBaseNet
+from chem.models.base import JCIBaseNet
 
 logging.getLogger('pysmiles').setLevel(logging.CRITICAL)
 
 
 class JCIGraphNet(JCIBaseNet):
+    NAME = "GNN"
 
     def __init__(self, in_length, hidden_length, num_classes, **kwargs):
         super().__init__(num_classes, **kwargs)

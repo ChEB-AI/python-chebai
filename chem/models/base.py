@@ -14,6 +14,7 @@ logging.getLogger('pysmiles').setLevel(logging.CRITICAL)
 
 
 class JCIBaseNet(pl.LightningModule):
+    NAME = None
 
     def __init__(self, num_classes, weights=None, threshold=0.3, lr=1e-3):
         super().__init__()

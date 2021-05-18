@@ -1,17 +1,17 @@
 from chem.models import graph, graph_k2, lstm
 from chem.data import JCIGraphData, JCIExtendedGraphData, JCIData, JCIExtendedData
+import sys
 
-
-def main():
+def main(batch_size):
     exps = [
-        (graph.JCIGraphNet,[100, 100, 500], (JCIGraphData, JCIExtendedGraphData)),
-        (lstm.ChemLSTM,  [100, 500, 500], (JCIGraphData, JCIExtendedGraphData)),
+        (graph.JCIGraphNet, [100, 100, 500], (JCIGraphData, JCIExtendedGraphData)),
+        (lstm.ChemLSTM,  [100, 500, 500], (JCIData, JCIExtendedData)),
         (graph_k2.JCIGraphK2Net, [100, 100, 500], (JCIGraphData, JCIExtendedGraphData))
     ]
     for net_cls, model_args, datasets in exps:
         for dataset in datasets:
             for weighted in [True, False]:
-                net_cls.run(dataset, model_args=model_args, weighted=weighted)
+                net_cls.run(dataset(batch_size), net_cls.NAME, model_args=model_args, weighted=weighted)
 
 if __name__ == "__main__":
-    main()
+    main(int(sys.argv[1]))

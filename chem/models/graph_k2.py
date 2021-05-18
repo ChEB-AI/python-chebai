@@ -9,12 +9,13 @@ from chem.data import JCIExtendedGraphTwoData
 import logging
 import sys
 
-from base import JCIBaseNet
+from chem.models.base import JCIBaseNet
 
 logging.getLogger('pysmiles').setLevel(logging.CRITICAL)
 
 
 class JCIGraphK2Net(JCIBaseNet):
+    NAME = "GNN_K2"
 
     def __init__(self, in_length, hidden_length, num_classes, weights=None, **kwargs):
         super().__init__(num_classes, weights, **kwargs)

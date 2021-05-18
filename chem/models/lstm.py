@@ -8,6 +8,7 @@ logging.getLogger('pysmiles').setLevel(logging.CRITICAL)
 
 
 class ChemLSTM(JCIBaseNet):
+    NAME = "LSTM"
 
     def __init__(self, in_d, out_d, num_classes, weights, **kwargs):
         super().__init__(num_classes, weights, **kwargs)
