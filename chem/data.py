@@ -174,6 +174,12 @@ class OrdDataset(XYBaseDataModule):
                                                             self.LABEL_INDEX:].astype(
                 bool)
 
+    def transfer_batch_to_device(self, batch, device):
+        x, y = batch
+        x[0].to(device)
+        y.to(device)
+        return batch
+
 
 class JCIData(JCIBase, OrdDataset):
     PATH = ["smiles_ord"]
