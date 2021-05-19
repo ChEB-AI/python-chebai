@@ -72,7 +72,7 @@ class JCIBaseNet(pl.LightningModule):
         train_data = data.train_dataloader()
         val_data = data.val_dataloader()
 
-        lr = 1e-3
+        lr = 5e-4
 
         if weighted:
             weights = model_kwargs.get("weights")
