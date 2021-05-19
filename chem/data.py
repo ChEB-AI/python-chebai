@@ -163,22 +163,17 @@ class JCIBase(XYBaseDataModule):
 class OrdDataset(XYBaseDataModule):
     def collate(self, list_of_tuples):
         x, y = zip(*list_of_tuples)
-        return XYData((pad_sequence([torch.tensor(a) for a in x],
-                                    batch_first=True), list(map(len, x))),
+        return XYData(pad_sequence([torch.tensor(a) for a in x],
+                                    batch_first=True),
                       pad_sequence([torch.tensor(a) for a in y],
-                                   batch_first=True))
+                                   batch_first=True),
+                      additional_fields=dict(lens=list(map(len, x))))
 
     def to_data(self, df: pd.DataFrame):
         for row in df.values:
             yield [ord(s) for s in row[self.SMILES_INDEX]], row[
                                                             self.LABEL_INDEX:].astype(
                 bool)
-
-    def transfer_batch_to_device(self, batch, device):
-        x, y = batch
-        x[0].to(device)
-        y.to(device)
-        return batch
 
 
 class JCIData(JCIBase, OrdDataset):
@@ -265,6 +260,7 @@ class JCIExtendedBase(XYBaseDataModule):
 class JCIExtendedData(JCIExtendedBase, OrdDataset):
     PATH = ["smiles_ord"]
 
+
 class XYData(torch.utils.data.Dataset):
 
     def __getitem__(self, index) -> T_co:
@@ -273,8 +269,11 @@ class XYData(torch.utils.data.Dataset):
     def __len__(self):
         return len(self.x)
 
-    def __init__(self, x, y, **kwargs):
+    def __init__(self, x, y, additional_fields=None, **kwargs):
         super().__init__(**kwargs)
+        if additional_fields:
+            for key, value in additional_fields.items():
+                setattr(self, key, value)
         self.x = x
         self.y = y
 

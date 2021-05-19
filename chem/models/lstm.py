@@ -18,7 +18,8 @@ class ChemLSTM(JCIBaseNet):
         self.output = nn.Sequential(nn.Linear(out_d, in_d), nn.ReLU(), nn.Dropout(0.2), nn.Linear(in_d, num_classes))
 
     def forward(self, data):
-        x, x_lens = data.x
+        x = data.x
+        x_lens = data.lens
         x = self.embedding(x)
         x = pack_padded_sequence(x, x_lens, batch_first=True, enforce_sorted=False)
         x = self.lstm(x)[1][0]
