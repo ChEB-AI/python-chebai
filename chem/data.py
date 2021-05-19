@@ -160,17 +160,25 @@ class JCIBase(XYBaseDataModule):
             torch.save(list(self.to_data(pickle.load(open(os.path.join(self.raw_dir, f"{k}.pkl"), "rb")))), os.path.join(self.processed_dir, f"{k}.pt"))
 
 
-class JCIData(JCIBase):
-
-    PATH = ["smiles_ord"]
-
+class OrdDataset(XYBaseDataModule):
     def collate(self, list_of_tuples):
         x, y = zip(*list_of_tuples)
-        return XYData(pad_sequence([torch.tensor(a) for a in x], batch_first=True), pad_sequence([torch.tensor(a) for a in y], batch_first=True))
+        return XYData((pad_sequence([torch.tensor(a) for a in x],
+                                    batch_first=True), list(map(len, x))),
+                      pad_sequence([torch.tensor(a) for a in y],
+                                   batch_first=True))
 
     def to_data(self, df: pd.DataFrame):
         for row in df.values:
-            yield [ord(s) for s in row[self.SMILES_INDEX]], row[self.LABEL_INDEX:].astype(bool)
+            yield [ord(s) for s in row[self.SMILES_INDEX]], row[
+                                                            self.LABEL_INDEX:].astype(
+                bool)
+
+
+class JCIData(JCIBase, OrdDataset):
+    PATH = ["smiles_ord"]
+
+
 
 
 class JCIExtendedBase(XYBaseDataModule):
@@ -248,18 +256,8 @@ class JCIExtendedBase(XYBaseDataModule):
             self.save(g, *self.get_splits(g))
 
 
-class JCIExtendedData(JCIExtendedBase):
-    PATH = ["smiles"]
-
-    def collate(self, list_of_tuples):
-        x, y = zip(*list_of_tuples)
-        return XYData(pad_sequence([torch.tensor(a) for a in x], batch_first=True),
-                      pad_sequence([torch.tensor(a) for a in y], batch_first=True))
-
-    def to_data(self, df: pd.DataFrame):
-        for row in df.values:
-            yield [ord(s) for s in row[self.SMILES_INDEX]], row[self.LABEL_INDEX:].astype(bool)
-
+class JCIExtendedData(JCIExtendedBase, OrdDataset):
+    PATH = ["smiles_ord"]
 
 class XYData(torch.utils.data.Dataset):
 

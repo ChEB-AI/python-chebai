@@ -4,8 +4,8 @@ import sys
 
 def main(batch_size):
     exps = [
+        (lstm.ChemLSTM, [100, 500, 500], (JCIExtendedData, JCIData)),
         (graph.JCIGraphNet, [100, 100, 500], (JCIGraphData, JCIExtendedGraphData)),
-        (lstm.ChemLSTM,  [100, 500, 500], (JCIData, JCIExtendedData)),
         (graph_k2.JCIGraphK2Net, [100, 100, 500], (JCIGraphData, JCIExtendedGraphData))
     ]
     for net_cls, model_args, datasets in exps:

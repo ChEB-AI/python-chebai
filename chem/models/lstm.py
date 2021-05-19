@@ -1,4 +1,5 @@
 from torch import nn
+from torch.nn.utils.rnn import pack_padded_sequence, pad_packed_sequence
 from chem.data import JCIExtendedData, JCIData
 import logging
 import sys
@@ -17,8 +18,10 @@ class ChemLSTM(JCIBaseNet):
         self.output = nn.Sequential(nn.Linear(out_d, in_d), nn.ReLU(), nn.Dropout(0.2), nn.Linear(in_d, num_classes))
 
     def forward(self, data):
-        x = data.x
+        x, x_lens = data.x
         x = self.embedding(x)
+        x = pack_padded_sequence(x, x_lens, batch_first=True, enforce_sorted=False)
         x = self.lstm(x)[1][0]
+        # = pad_packed_sequence(x, batch_first=True)[0]
         x = self.output(x)
         return x.squeeze(0)
