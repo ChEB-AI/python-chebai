@@ -110,5 +110,5 @@ class JCIBaseNet(pl.LightningModule):
            verbose=False,
         )
 
-        trainer = pl.Trainer(logger=tb_logger, min_epochs=100, callbacks=[checkpoint_callback], replace_sampler_ddp=False, **trainer_kwargs)
+        trainer = pl.Trainer(logger=tb_logger, max_epochs=100, callbacks=[checkpoint_callback], replace_sampler_ddp=False, **trainer_kwargs)
         trainer.fit(net, train_data, val_dataloaders=val_data)
