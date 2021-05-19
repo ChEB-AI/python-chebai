@@ -20,6 +20,7 @@ import random
 from itertools import chain
 import glob
 import pytorch_lightning as pl
+from pytorch_lightning.utilities.apply_func import TransferableDataType
 from torch.utils.data import DataLoader, Dataset
 from torch.utils.data.dataset import T_co
 from torch.nn.utils.rnn import pad_sequence
@@ -107,12 +108,6 @@ class XYBaseDataModule(pl.LightningDataModule):
     def setup_processed(self):
         raise NotImplementedError
 
-    def transfer_batch_to_device(self, batch, device):
-        x, y = batch
-        x.to(device)
-        y.to(device)
-        return batch
-
     @property
     def processed_file_names(self):
         raise NotImplementedError
@@ -138,14 +133,6 @@ class JCIBase(XYBaseDataModule):
     @property
     def raw_file_names(self):
         return ["test.pkl", "train.pkl", "validation.pkl"]
-
-    def process(self):
-        for f in ["test", "train", "validation"]:
-            structure = pickle.load(open(os.path.join(self.raw_dir,f"{f}.pkl"), "rb"))
-            x = [torch.tensor([ord(s) for s in smile]) for smile in structure.iloc[:,1].values]
-            labels = [list(row) for row in structure.iloc[:,2:].values]
-            data = XYData(x, torch.tensor(labels))
-            torch.save(data, os.path.join(self.processed_dir,f"{f}.pt"))
 
     def prepare_data(self, *args, **kwargs):
         print("Check for raw data in", self.raw_dir)
@@ -178,8 +165,6 @@ class OrdDataset(XYBaseDataModule):
 
 class JCIData(JCIBase, OrdDataset):
     PATH = ["smiles_ord"]
-
-
 
 
 class JCIExtendedBase(XYBaseDataModule):
@@ -261,7 +246,7 @@ class JCIExtendedData(JCIExtendedBase, OrdDataset):
     PATH = ["smiles_ord"]
 
 
-class XYData(torch.utils.data.Dataset):
+class XYData(torch.utils.data.Dataset, TransferableDataType):
 
     def __getitem__(self, index) -> T_co:
         return self.x[index], self.y[index]
@@ -276,6 +261,11 @@ class XYData(torch.utils.data.Dataset):
                 setattr(self, key, value)
         self.x = x
         self.y = y
+
+        self.additional_fields = list(additional_fields.keys())
+
+    def to(self, device):
+        return XYData(self.x.to(device), self.y.to(device), additional_fields={k: getattr(self, k) for k in self.additional_fields})
 
 
 class GraphDataset(XYBaseDataModule):
