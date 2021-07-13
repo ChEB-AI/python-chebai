@@ -1,4 +1,4 @@
-from chem.models import graph, graph_k2, lstm, graphyk
+from chem.models import graph, graph_k2, lstm
 from chem.data import JCIGraphData, JCIExtendedGraphData, JCIData, JCIExtendedData, JCIMolData
 import sys
 
