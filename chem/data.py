@@ -24,6 +24,7 @@ from pytorch_lightning.utilities.apply_func import TransferableDataType
 from torch.utils.data import DataLoader, Dataset
 from torch.utils.data.dataset import T_co
 from torch.nn.utils.rnn import pad_sequence
+from torch import Tensor
 from torch_geometric.data import InMemoryDataset
 from k_gnn import TwoMalkin
 from k_gnn.dataloader import collate
@@ -163,8 +164,36 @@ class OrdDataset(XYBaseDataModule):
                 bool)
 
 
+class MolDataset(XYBaseDataModule):
+    def __init__(self, batch_size, **kwargs):
+        super().__init__(batch_size, **kwargs)
+        self.cache = []
+
+    def collate(self, list_of_tuples):
+        x, y = zip(*list_of_tuples)
+        return XYData(x, y)
+
+    def setup_processed(self):
+        super().setup_processed()
+        torch.save(self.cache,
+                   os.path.join(self.processed_dir, f"embeddings.pt"))
+
+    def to_data(self, df: pd.DataFrame):
+        for row in df.values[:10]:
+            yield get_encoded_mol(row[self.SMILES_INDEX], self.cache), row[
+                                                            self.LABEL_INDEX:].astype(
+                bool)
+
+
 class JCIData(JCIBase, OrdDataset):
     PATH = ["smiles_ord"]
+
+
+class JCIMolData(JCIBase, MolDataset):
+    PATH = ["mol"]
+
+    def to(self, device):
+        return XYData(self.x.to(device), self.y.to(device), additional_fields={k: getattr(self, k) for k in self.additional_fields})
 
 
 class JCIExtendedBase(XYBaseDataModule):
@@ -262,10 +291,12 @@ class XYData(torch.utils.data.Dataset, TransferableDataType):
         self.x = x
         self.y = y
 
-        self.additional_fields = list(additional_fields.keys())
+        self.additional_fields = list(additional_fields.keys()) if additional_fields else []
 
     def to(self, device):
-        return XYData(self.x.to(device), self.y.to(device), additional_fields={k: getattr(self, k) for k in self.additional_fields})
+        x = self.x if not isinstance(self.x, Tensor) else self.x.to(device)
+        y = self.y if not isinstance(self.y, Tensor) else self.y.to(device)
+        return XYData(x, y, additional_fields={k: getattr(self, k) for k in self.additional_fields})
 
 
 class GraphDataset(XYBaseDataModule):
@@ -286,7 +317,10 @@ class GraphDataset(XYBaseDataModule):
             return None
         d = {}
         for node in mol.nodes:
-            m = mol.nodes[node]
+            try:
+                m = mol.nodes[node]["element"]
+            except KeyError:
+                m = "*"
             try:
                 x = self.cache.index(m)
             except ValueError:
@@ -525,6 +559,30 @@ def mol_to_data(smiles):
             del mol.nodes[node][attr]
     nx.set_node_attributes(mol, d, "x")
     return from_networkx(mol)
+
+
+def get_encoded_mol(smiles, cache):
+    try:
+        mol = ps.read_smiles(smiles)
+    except ValueError:
+        return None
+    d = {}
+    for node in mol.nodes:
+        try:
+            m = mol.nodes[node]["element"]
+        except KeyError:
+            m = "*"
+        try:
+            x = cache.index(m)
+        except ValueError:
+            x = len(cache)
+            cache.append(m)
+        d[node] = x
+        for attr in list(mol.nodes[node].keys()):
+            del mol.nodes[node][attr]
+    nx.set_node_attributes(mol, d, "x")
+    return mol
+
 
 atom_index =(
             "\*",
