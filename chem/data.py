@@ -325,7 +325,7 @@ class GraphDataset(XYBaseDataModule):
                 x = self.cache.index(m)
             except ValueError:
                 x = len(self.cache)
-                self.cache.append(m.copy())
+                self.cache.append(m)
             d[node] = x
             for attr in list(mol.nodes[node].keys()):
                 del mol.nodes[node][attr]
