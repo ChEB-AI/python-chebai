@@ -11,7 +11,6 @@ import torch.nn.functional as F
 import pytorch_lightning as pl
 from pytorch_lightning import loggers as pl_loggers
 from pytorch_lightning.callbacks import ModelCheckpoint
-from data import JCIPureData, JCISmilesData, JCIExtendedData
 from torch_geometric.nn import GraphConv
 from torch_geometric.utils import from_networkx
 from torch_geometric.data.dataloader import Collater
@@ -122,42 +121,7 @@ class GraphCYK(pl.LightningModule):
 
     def step(self, graph):
         final_result = 0
-        c = Collater(follow_batch=["x", "edge_index", "label"])
-        for execution_tree in self.get_all_subgraphs(graph):
-            g = nx.DiGraph()
-            data = {}
-            root = None
-            for (tree, parent_hash,  hsh) in execution_tree:
-                if tree:
-                    g.add_node(hsh, nodes=tree)
-                if parent_hash:
-                    g.add_edge(parent_hash, hsh)
-                else:
-                    assert root is None, f"Multiple roots found: {root}, {hsh}"
-                    root = hsh
 
-            inv_levels = nx.single_source_shortest_path_length(g, root)
-            levels = [[] for i in set(inv_levels.values())]
-            for x, i in inv_levels.items():
-                levels[i].append(x)
-
-            for tid in levels[0]:
-                tree_nodes = g.nodes[tid]["nodes"]
-                n = list(tree_nodes)[0]
-                data[tid] = self.embedding(torch.tensor(graph.nodes[n]["x"]))
-
-            for tree_ids in levels[1:]:
-                for tid in tree_ids:
-                    tree_node = g.nodes[tid]
-                    sg = nx.subgraph(graph, tree_node["nodes"])
-                    z = from_networkx(sg)
-                    x = sum(self.subgraph_net(x=self.embedding(z.x), edge_index=z.edge_index))
-                    for pred in g.predecessors(tid):
-                        d = data.get(pred)
-                        if d is not None:
-                            x += d
-                    data[tid] = x
-            final_result += data[root]
         return final_result
 
     def weight_merge(self, x):

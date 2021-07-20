@@ -149,6 +149,8 @@ class JCIBase(XYBaseDataModule):
 
 
 class OrdDataset(XYBaseDataModule):
+    PATH = ["smiles_ord"]
+
     def collate(self, list_of_tuples):
         x, y = zip(*list_of_tuples)
         return XYData(pad_sequence([torch.tensor(a) for a in x],
@@ -165,13 +167,15 @@ class OrdDataset(XYBaseDataModule):
 
 
 class MolDataset(XYBaseDataModule):
+    PATH = ["mol"]
+
     def __init__(self, batch_size, **kwargs):
         super().__init__(batch_size, **kwargs)
         self.cache = []
 
     def collate(self, list_of_tuples):
         x, y = zip(*list_of_tuples)
-        return XYData(x, y)
+        return XYData(x, torch.stack(y))
 
     def setup_processed(self):
         super().setup_processed()
@@ -180,17 +184,16 @@ class MolDataset(XYBaseDataModule):
 
     def to_data(self, df: pd.DataFrame):
         for row in df.values[:10]:
-            yield get_encoded_mol(row[self.SMILES_INDEX], self.cache), row[
+            yield get_encoded_mol(row[self.SMILES_INDEX], self.cache), torch.tensor(row[
                                                             self.LABEL_INDEX:].astype(
-                bool)
+                bool))
 
 
 class JCIData(JCIBase, OrdDataset):
-    PATH = ["smiles_ord"]
+    pass
 
 
 class JCIMolData(JCIBase, MolDataset):
-    PATH = ["mol"]
 
     def to(self, device):
         return XYData(self.x.to(device), self.y.to(device), additional_fields={k: getattr(self, k) for k in self.additional_fields})
@@ -231,7 +234,7 @@ class JCIExtendedBase(XYBaseDataModule):
         test_split, validation_split = train_test_split(test_split,
                                                         train_size=self.train_split,
                                                         shuffle=True)
-        return train_split[:10], test_split[:2], validation_split[:2]
+        return train_split, test_split, validation_split
 
     def save(self, g, train_split, test_split, validation_split):
         smiles = nx.get_node_attributes(g, "smiles")
@@ -272,7 +275,7 @@ class JCIExtendedBase(XYBaseDataModule):
 
 
 class JCIExtendedData(JCIExtendedBase, OrdDataset):
-    PATH = ["smiles_ord"]
+    pass
 
 
 class XYData(torch.utils.data.Dataset, TransferableDataType):
@@ -300,6 +303,7 @@ class XYData(torch.utils.data.Dataset, TransferableDataType):
 
 
 class GraphDataset(XYBaseDataModule):
+    PATH = ["graph"]
 
     def __init__(self, batch_size, **kwargs):
         super().__init__(batch_size, **kwargs)
@@ -337,7 +341,7 @@ class GraphDataset(XYBaseDataModule):
         return self.collater(list_of_tuples)
 
     def to_data(self, df: pd.DataFrame):
-        for row in df.values:
+        for row in df.values[:10]:
             d = self.process_smiles(row[self.SMILES_INDEX])
             if d is not None and d.num_nodes > 1:
                 d.y = torch.tensor(row[self.LABEL_INDEX:].astype(bool)).unsqueeze(0)
@@ -345,16 +349,14 @@ class GraphDataset(XYBaseDataModule):
 
 
 class JCIGraphData(JCIBase, GraphDataset):
-
-    PATH = ["graph"]
+    pass
 
 
 class JCIExtendedGraphData(JCIExtendedBase, GraphDataset):
+    pass
 
-    PATH = ["graph"]
 
-
-class JCIExtendedGraphTwoData(JCIExtendedGraphData):
+class GraphTwoDataset(GraphDataset):
     PATH = ["graph_k2"]
 
     def to_data(self, df: pd.DataFrame):
@@ -368,6 +370,14 @@ class JCIExtendedGraphTwoData(JCIExtendedGraphData):
 
     def collate(self, list_of_tuples):
         return collate(list_of_tuples)
+
+
+class JCIExtendedGraphTwoData(JCIExtendedBase, GraphTwoDataset):
+    pass
+
+
+class JCIGraphTwoData(JCIBase, GraphTwoDataset):
+    pass
 
 
 class PartOfData(TGDataset):
@@ -413,7 +423,7 @@ class PartOfData(TGDataset):
         print("pass parts")
         self.pass_parts(g, 23367, set())
         print("Load data")
-        children = frozenset(list(nx.single_source_shortest_path(g, 23367).keys())[:100])
+        children = frozenset(list(nx.single_source_shortest_path(g, 23367).keys()))
         parts = frozenset({p for c in children for p in g.nodes[c]["has_part"]})
 
         print("Create molecules")
@@ -422,7 +432,7 @@ class PartOfData(TGDataset):
         print("Filter invalid structures")
         children = [p for p in children if g.nodes[p]["enc"]]
         random.shuffle(children)
-        children, children_test_only = train_test_split(children[:100], test_size=self.part_split)
+        children, children_test_only = train_test_split(children, test_size=self.part_split)
 
         parts = [p for p in parts if g.nodes[p]["enc"]]
         random.shuffle(parts)
@@ -577,7 +587,7 @@ def get_encoded_mol(smiles, cache):
         except ValueError:
             x = len(cache)
             cache.append(m)
-        d[node] = x
+        d[node] = torch.tensor(x)
         for attr in list(mol.nodes[node].keys()):
             del mol.nodes[node][attr]
     nx.set_node_attributes(mol, d, "x")

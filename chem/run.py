@@ -1,12 +1,14 @@
-from chem.models import graph, graph_k2, lstm
-from chem.data import JCIGraphData, JCIExtendedGraphData, JCIData, JCIExtendedData, JCIMolData
+from chem.models import graph, graph_k2, lstm, graphyk
+from chem import data
 import sys
 
 def main(batch_size):
     exps = [
-        #(lstm.ChemLSTM, [100, 500, 500], (JCIExtendedData, JCIData)),
-        (graph.JCIGraphNet, [100, 100, 500], (JCIGraphData, JCIExtendedGraphData)),
-        (graph_k2.JCIGraphK2Net, [100, 100, 500], (JCIGraphData, JCIExtendedGraphData))
+        (lstm.ChemLSTM, [100, 500, 500], (data.JCIExtendedData, data.JCIData)),
+        (graph.JCIGraphNet, [100, 100, 500], (data.JCIGraphData, data.JCIExtendedGraphData)),
+        (graph.JCIGraphAttentionNet, [100, 100, 500], (data.JCIGraphData, data.JCIExtendedGraphData)),
+        (graph_k2.JCIGraphK2Net, [100, 100, 500], (data.JCIGraphTwoData, data.JCIExtendedGraphTwoData))
+
     ]
     for net_cls, model_args, datasets in exps:
         for dataset in datasets:
@@ -15,4 +17,3 @@ def main(batch_size):
 
 if __name__ == "__main__":
     main(int(sys.argv[1]))
-    #graphyk.ChemYK.run(JCIMolData(int(sys.argv[1])), graphyk.ChemYK.NAME, model_args=[100, 100, 500])
