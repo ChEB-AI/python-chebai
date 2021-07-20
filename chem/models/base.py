@@ -22,7 +22,7 @@ class JCIBaseNet(pl.LightningModule):
             self.loss = nn.BCEWithLogitsLoss(pos_weight=weights)
         else:
             self.loss = nn.BCEWithLogitsLoss()
-        self.f1 = F1(num_classes, threshold=threshold)
+        self.f1 = F1(threshold=threshold)
         self.mse = MeanSquaredError()
         self.lr = lr
 
@@ -77,7 +77,7 @@ class JCIBaseNet(pl.LightningModule):
         if weighted:
             weights = model_kwargs.get("weights")
             if weights is None:
-                weights = 1 + torch.sum(torch.cat([data.y for data in train_data]), dim=0).float()
+                weights = 1 + torch.sum(torch.cat([data.y for data in train_data]).float(), dim=0)
                 weights = torch.mean(weights)/weights
                 name += "__weighted"
             model_kwargs["weights"] = weights
