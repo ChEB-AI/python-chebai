@@ -183,7 +183,7 @@ class MolDataset(XYBaseDataModule):
                    os.path.join(self.processed_dir, f"embeddings.pt"))
 
     def to_data(self, df: pd.DataFrame):
-        for row in df.values[:10]:
+        for row in df.values:
             yield get_encoded_mol(row[self.SMILES_INDEX], self.cache), torch.tensor(row[
                                                             self.LABEL_INDEX:].astype(
                 bool))
@@ -341,7 +341,7 @@ class GraphDataset(XYBaseDataModule):
         return self.collater(list_of_tuples)
 
     def to_data(self, df: pd.DataFrame):
-        for row in df.values[:10]:
+        for row in df.values:
             d = self.process_smiles(row[self.SMILES_INDEX])
             if d is not None and d.num_nodes > 1:
                 d.y = torch.tensor(row[self.LABEL_INDEX:].astype(bool)).unsqueeze(0)
