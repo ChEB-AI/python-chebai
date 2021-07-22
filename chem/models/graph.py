@@ -41,32 +41,18 @@ class JCIGraphNet(JCIBaseNet):
 class JCIGraphAttentionNet(JCIBaseNet):
     NAME = "AGNN"
 
-    def __init__(self, in_length, hidden_length, num_classes, **kwargs):
+    def __init__(self, in_length, hidden_length, num_classes, query_len=30, key_len=30, value_len=30,**kwargs):
         super().__init__(num_classes, **kwargs)
-        self.iterations = 10
+        self.model = tgnn.AttentiveFP(in_length, in_length//2, num_classes, 1, 5, 5)
+        self.output_net = nn.Sequential(nn.Linear(hidden_length, hidden_length),
+                                        nn.ELU(),
+                                        nn.Linear(hidden_length, hidden_length),
+                                        nn.ELU(),
+                                        nn.Linear(hidden_length, num_classes))
         self.embedding = torch.nn.Embedding(800, in_length)
 
-        self.node_net = torch.nn.Linear(in_length, in_length)
-        self.merge_net = torch.nn.Linear(in_length, in_length)
-        self.attention = torch.nn.MultiheadAttention(in_length, 10)
-
-        self.output_net = nn.Sequential(nn.Linear(hidden_length, hidden_length), nn.ELU(), nn.Linear(hidden_length,hidden_length), nn.ELU(), nn.Linear(hidden_length, num_classes))
-
-        self.dropout = nn.Dropout(0.1)
-
-
     def forward(self, batch):
-        a = self.embedding(batch.x)
-        a = self.node_net(a)
-        a = self.dropout(a)
-        for _ in range(self.iterations):
-            a = self.merge_net(a)
-            c = torch.sparse_coo_tensor(batch.edge_index,
-                                    torch.ones_like(batch.edge_index[0])).float().to_dense()
-            b = a + torch.matmul(c, a)
-            attn_output, attn_output_weights = self.attention(b.unsqueeze(0), b.unsqueeze(0), b.unsqueeze(0))
-            a = (b + attn_output).squeeze(0)
-        a = scatter_mean(a, batch.batch, dim=0)
-        return self.output_net(a)
+        a = self.model(self.embedding(batch.x), batch.edge_index, torch.zeros((batch.edge_index.shape[-1],1)), batch.batch)
+        return a #self.output_net(a)
 
 

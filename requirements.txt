@@ -1,17 +1,12 @@
 certifi
-chardet
-conda
-decorator
 idna
 joblib
 networkx
 numpy
 pandas
-pycosat
 python-dateutil
 pytz
 requests
-ruamel.yaml
 scikit-learn
 scipy
 six
@@ -20,3 +15,4 @@ torch
 typing-extensions
 urllib3
 pytorch_lightning
+https://github.com/chrsmrrs/k-gnn.git

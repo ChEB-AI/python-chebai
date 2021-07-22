@@ -307,7 +307,7 @@ class GraphDataset(XYBaseDataModule):
 
     def __init__(self, batch_size, **kwargs):
         super().__init__(batch_size, **kwargs)
-        self.collater = Collater(follow_batch=["x", "edge_index", "label"])
+        self.collater = Collater(["x", "edge_index", "label"], [])
         self.cache = []
 
     def setup_processed(self):
