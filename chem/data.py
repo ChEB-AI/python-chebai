@@ -26,8 +26,6 @@ from torch.utils.data.dataset import T_co
 from torch.nn.utils.rnn import pad_sequence
 from torch import Tensor
 from torch_geometric.data import InMemoryDataset
-from k_gnn import TwoMalkin
-from k_gnn.dataloader import collate
 import pandas as pd
 
 from torch_geometric.utils.convert import from_networkx
@@ -364,21 +362,26 @@ class JCIGraphData(JCIBase, GraphDataset):
 class JCIExtendedGraphData(JCIExtendedBase, GraphDataset):
     pass
 
+try:
+    from k_gnn import TwoMalkin
+except ModuleNotFoundError:
+    pass
+else:
+    from k_gnn.dataloader import collate
+    class GraphTwoDataset(GraphDataset):
+        PATH = ["graph_k2"]
 
-class GraphTwoDataset(GraphDataset):
-    PATH = ["graph_k2"]
+        def to_data(self, df: pd.DataFrame):
+            for data in super().to_data(df):
+                if data.num_nodes >=6:
+                    x = data.x
+                    data.x = data.x.unsqueeze(0)
+                    data = TwoMalkin()(data)
+                    data.x = x
+                    yield data
 
-    def to_data(self, df: pd.DataFrame):
-        for data in super().to_data(df):
-            if data.num_nodes >=6:
-                x = data.x
-                data.x = data.x.unsqueeze(0)
-                data = TwoMalkin()(data)
-                data.x = x
-                yield data
-
-    def collate(self, list_of_tuples):
-        return collate(list_of_tuples)
+        def collate(self, list_of_tuples):
+            return collate(list_of_tuples)
 
 
 class JCIExtendedGraphTwoData(JCIExtendedBase, GraphTwoDataset):
