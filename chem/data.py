@@ -307,34 +307,43 @@ class GraphDataset(XYBaseDataModule):
 
     def __init__(self, batch_size, **kwargs):
         super().__init__(batch_size, **kwargs)
-        self.collater = Collater(["x", "edge_index", "label"], [])
+        self.collater = Collater(follow_batch=["x", "edge_attr", "edge_index", "label"], exclude_keys=[])
         self.cache = []
 
     def setup_processed(self):
         super().setup_processed()
         torch.save(self.cache, os.path.join(self.processed_dir, f"embeddings.pt"))
 
+
     def process_smiles(self, smiles):
-        try:
-            mol = ps.read_smiles(smiles)
-        except ValueError:
-            return None
-        d = {}
-        for node in mol.nodes:
-            try:
-                m = mol.nodes[node]["element"]
-            except KeyError:
-                m = "*"
+
+        def cache(m):
             try:
                 x = self.cache.index(m)
             except ValueError:
                 x = len(self.cache)
                 self.cache.append(m)
-            d[node] = x
+            return x
+        try:
+            mol = ps.read_smiles(smiles)
+        except ValueError:
+            return None
+        d = {}
+        de = {}
+        for node in mol.nodes:
+            try:
+                m = mol.nodes[node]["element"]
+            except KeyError:
+                m = "*"
+            d[node] = cache(m)
             for attr in list(mol.nodes[node].keys()):
                 del mol.nodes[node][attr]
+        for edge in mol.edges:
+            de[edge] = mol.edges[edge]["order"]
+            #for attr in list(mol.edges[edge].keys()):
+            #    del mol.edges[edge][attr]
         nx.set_node_attributes(mol, d, "x")
-        nx.set_edge_attributes(mol, {e:e for e in mol.edges}, "original" )
+        nx.set_edge_attributes(mol, de, "edge_attr")
         return from_networkx(mol)
 
     def collate(self, list_of_tuples):

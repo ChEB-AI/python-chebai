@@ -22,7 +22,7 @@ class JCIBaseNet(pl.LightningModule):
             self.loss = nn.BCEWithLogitsLoss(pos_weight=weights)
         else:
             self.loss = nn.BCEWithLogitsLoss()
-        self.f1 = F1(threshold=threshold)
+        self.f1 = F1(threshold=threshold, num_classes=num_classes)
         self.mse = MeanSquaredError()
         self.lr = lr
 
