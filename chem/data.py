@@ -295,9 +295,9 @@ class XYData(torch.utils.data.Dataset, TransferableDataType):
         self.additional_fields = list(additional_fields.keys()) if additional_fields else []
 
     def to(self, device):
-        x = self.x if not isinstance(self.x, Tensor) else self.x.to(device)
-        y = self.y if not isinstance(self.y, Tensor) else self.y.to(device)
-        return XYData(x, y, additional_fields={k: getattr(self, k) for k in self.additional_fields})
+        x = self.x.to(device)
+        y = self.y.to(device)
+        return XYData(x, y, additional_fields={k: (v if isinstance(v := getattr(self, k), Tensor) else v) for k in self.additional_fields} )
 
 
 class GraphDataset(XYBaseDataModule):
