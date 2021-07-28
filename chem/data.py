@@ -384,12 +384,11 @@ else:
             return collate(list_of_tuples)
 
 
-class JCIExtendedGraphTwoData(JCIExtendedBase, GraphTwoDataset):
-    pass
+    class JCIExtendedGraphTwoData(JCIExtendedBase, GraphTwoDataset):
+        pass
 
-
-class JCIGraphTwoData(JCIBase, GraphTwoDataset):
-    pass
+    class JCIGraphTwoData(JCIBase, GraphTwoDataset):
+        pass
 
 
 class PartOfData(TGDataset):
