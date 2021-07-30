@@ -43,9 +43,11 @@ class JCIGraphAttentionNet(JCIBaseNet):
 
     def __init__(self, in_length, hidden_length, num_classes, **kwargs):
         super().__init__(num_classes, **kwargs)
-        self.conv1 = tgnn.GATConv(in_length, in_length, 5, concat=False, dropout=0.1)
-        self.conv2 = tgnn.GATConv(in_length, in_length, 5, concat=False)
-        self.conv3 = tgnn.GATConv(in_length, hidden_length, 5, concat=False)
+        self.conv1 = tgnn.GATConv(in_length, in_length, 5, concat=False, dropout=0.1, add_self_loops=True)
+        self.conv2 = tgnn.GATConv(in_length, in_length, 5, concat=False, add_self_loops=True)
+        self.conv3 = tgnn.GATConv(in_length, in_length, 5, concat=False, add_self_loops=True)
+        self.conv4 = tgnn.GATConv(in_length, in_length, 5, concat=False, add_self_loops=True)
+        self.conv5 = tgnn.GATConv(in_length, hidden_length, 5, concat=False, add_self_loops=True)
         self.output_net = nn.Sequential(nn.Dropout(0.1),
                                         nn.Linear(hidden_length, hidden_length),
                                         nn.LeakyReLU(),
@@ -57,9 +59,11 @@ class JCIGraphAttentionNet(JCIBaseNet):
 
     def forward(self, batch):
         a = self.embedding(batch.x)
-        a = F.elu(self.conv1(a, batch.edge_index.long()))
-        a = F.elu(self.conv2(a, batch.edge_index.long()))
-        a = F.elu(self.conv3(a, batch.edge_index.long()))
+        a = F.leaky_relu(self.conv1(a, batch.edge_index.long()))
+        a = F.leaky_relu(self.conv2(a, batch.edge_index.long()))
+        a = F.leaky_relu(self.conv3(a, batch.edge_index.long()))
+        a = F.leaky_relu(self.conv4(a, batch.edge_index.long()))
+        a = F.leaky_relu(self.conv5(a, batch.edge_index.long()))
         a = scatter_add(a, batch.batch, dim=0)
         a = self.output_net(a)
         return a
