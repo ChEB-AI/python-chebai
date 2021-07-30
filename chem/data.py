@@ -33,6 +33,8 @@ from torch_geometric.data import Dataset as TGDataset, Data
 from torch_geometric.data.dataloader import Collater
 import multiprocessing as mp
 
+DATA_LIMIT = -1
+
 class PrePairData(Data):
     def __init__(self, l=None, r=None, label=None):
         super(PrePairData, self).__init__()
@@ -158,7 +160,7 @@ class OrdDataset(XYBaseDataModule):
                       additional_fields=dict(lens=list(map(len, x))))
 
     def to_data(self, df: pd.DataFrame):
-        for row in df.values:
+        for row in df.values[:DATA_LIMIT]:
             yield [ord(s) for s in row[self.SMILES_INDEX]], row[
                                                             self.LABEL_INDEX:].astype(
                 bool)
@@ -181,7 +183,7 @@ class MolDataset(XYBaseDataModule):
                    os.path.join(self.processed_dir, f"embeddings.pt"))
 
     def to_data(self, df: pd.DataFrame):
-        for row in df.values:
+        for row in df.values[:DATA_LIMIT]:
             yield get_encoded_mol(row[self.SMILES_INDEX], self.cache), torch.tensor(row[
                                                             self.LABEL_INDEX:].astype(
                 bool))
@@ -338,8 +340,8 @@ class GraphDataset(XYBaseDataModule):
                 del mol.nodes[node][attr]
         for edge in mol.edges:
             de[edge] = mol.edges[edge]["order"]
-            #for attr in list(mol.edges[edge].keys()):
-            #    del mol.edges[edge][attr]
+            for attr in list(mol.edges[edge].keys()):
+                del mol.edges[edge][attr]
         nx.set_node_attributes(mol, d, "x")
         nx.set_edge_attributes(mol, de, "edge_attr")
         return from_networkx(mol)
@@ -348,7 +350,7 @@ class GraphDataset(XYBaseDataModule):
         return self.collater(list_of_tuples)
 
     def to_data(self, df: pd.DataFrame):
-        for row in df.values:
+        for row in df.values[:DATA_LIMIT]:
             d = self.process_smiles(row[self.SMILES_INDEX])
             if d is not None and d.num_nodes > 1:
                 d.y = torch.tensor(row[self.LABEL_INDEX:].astype(bool)).unsqueeze(0)
@@ -372,7 +374,7 @@ else:
         PATH = ["graph_k2"]
 
         def to_data(self, df: pd.DataFrame):
-            for data in super().to_data(df):
+            for data in super().to_data(df)[:DATA_LIMIT]:
                 if data.num_nodes >=6:
                     x = data.x
                     data.x = data.x.unsqueeze(0)
