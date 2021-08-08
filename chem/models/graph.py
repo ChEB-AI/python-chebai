@@ -43,6 +43,9 @@ class JCIGraphAttentionNet(JCIBaseNet):
 
     def __init__(self, in_length, hidden_length, num_classes, **kwargs):
         super().__init__(num_classes, **kwargs)
+        self.embedding = torch.nn.Embedding(800, in_length)
+        self.edge_embedding = torch.nn.Embedding(4, in_length)
+        in_length = in_length+10
         self.conv1 = tgnn.GATConv(in_length, in_length, 5, concat=False, dropout=0.1, add_self_loops=True)
         self.conv2 = tgnn.GATConv(in_length, in_length, 5, concat=False, add_self_loops=True)
         self.conv3 = tgnn.GATConv(in_length, in_length, 5, concat=False, add_self_loops=True)
@@ -54,11 +57,10 @@ class JCIGraphAttentionNet(JCIBaseNet):
                                         nn.Linear(hidden_length, hidden_length),
                                         nn.LeakyReLU(),
                                         nn.Linear(hidden_length, num_classes))
-        self.embedding = torch.nn.Embedding(800, in_length)
-        self.edge_embedding = torch.nn.Embedding(4, in_length)
 
     def forward(self, batch):
         a = self.embedding(batch.x)
+        a = torch.cat([a, torch.rand((*a.shape[:-1], 10))], dim=1)
         a = F.leaky_relu(self.conv1(a, batch.edge_index.long()))
         a = F.leaky_relu(self.conv2(a, batch.edge_index.long()))
         a = F.leaky_relu(self.conv3(a, batch.edge_index.long()))
