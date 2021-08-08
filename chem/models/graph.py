@@ -51,7 +51,7 @@ class JCIGraphAttentionNet(JCIBaseNet):
         self.conv3 = tgnn.GATConv(in_length, in_length, 5, concat=False, add_self_loops=True)
         self.conv4 = tgnn.GATConv(in_length, in_length, 5, concat=False, add_self_loops=True)
         self.conv5 = tgnn.GATConv(in_length, in_length, 5, concat=False, add_self_loops=True)
-        self.output_net = nn.Sequential(nn.Linear(3*in_length, hidden_length),
+        self.output_net = nn.Sequential(nn.Linear(in_length, hidden_length),
                                         nn.LeakyReLU(),
                                         nn.Linear(hidden_length, hidden_length),
                                         nn.LeakyReLU(),
@@ -62,13 +62,13 @@ class JCIGraphAttentionNet(JCIBaseNet):
         a = self.embedding(batch.x)
         a = self.dropout(a)
         a = torch.cat([a, torch.rand((*a.shape[:-1], 10)).to(self.device)], dim=1)
-        a = a+F.leaky_relu(self.conv1(a, batch.edge_index.long()))
-        a = a+F.leaky_relu(self.conv2(a, batch.edge_index.long()))
-        a = a+F.leaky_relu(self.conv3(a, batch.edge_index.long()))
-        a = a+F.leaky_relu(self.conv4(a, batch.edge_index.long()))
-        a = a+F.leaky_relu(self.conv5(a, batch.edge_index.long()))
+        a = F.leaky_relu(self.conv1(a, batch.edge_index.long()))
+        a = F.leaky_relu(self.conv2(a, batch.edge_index.long()))
+        a = F.leaky_relu(self.conv3(a, batch.edge_index.long()))
+        a = F.leaky_relu(self.conv4(a, batch.edge_index.long()))
+        a = F.leaky_relu(self.conv5(a, batch.edge_index.long()))
         a = self.dropout(a)
-        a = torch.cat((scatter_add(a, batch.batch, dim=0), scatter_mean(a, batch.batch, dim=0), scatter_max(a, batch.batch, dim=0)[0]),dim=1)
+        a = scatter_mean(a, batch.batch, dim=0)
         a = self.output_net(a)
         return a
 
