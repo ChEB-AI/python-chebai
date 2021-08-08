@@ -60,7 +60,7 @@ class JCIGraphAttentionNet(JCIBaseNet):
 
     def forward(self, batch):
         a = self.embedding(batch.x)
-        a = torch.cat([a, torch.rand((*a.shape[:-1], 10))], dim=1)
+        a = torch.cat([a, torch.rand((*a.shape[:-1], 10)).to(self.device)], dim=1)
         a = F.leaky_relu(self.conv1(a, batch.edge_index.long()))
         a = F.leaky_relu(self.conv2(a, batch.edge_index.long()))
         a = F.leaky_relu(self.conv3(a, batch.edge_index.long()))
