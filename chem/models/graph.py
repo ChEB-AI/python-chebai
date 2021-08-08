@@ -57,16 +57,18 @@ class JCIGraphAttentionNet(JCIBaseNet):
                                         nn.Linear(hidden_length, hidden_length),
                                         nn.LeakyReLU(),
                                         nn.Linear(hidden_length, num_classes))
+        self.dropout = nn.Dropout(0.1)
 
     def forward(self, batch):
         a = self.embedding(batch.x)
+        a = self.dropout(a)
         a = torch.cat([a, torch.rand((*a.shape[:-1], 10)).to(self.device)], dim=1)
         a = F.leaky_relu(self.conv1(a, batch.edge_index.long()))
         a = F.leaky_relu(self.conv2(a, batch.edge_index.long()))
         a = F.leaky_relu(self.conv3(a, batch.edge_index.long()))
         a = F.leaky_relu(self.conv4(a, batch.edge_index.long()))
         a = F.leaky_relu(self.conv5(a, batch.edge_index.long()))
-        a = scatter_max(a, batch.batch, dim=0)
+        a = scatter_max(a, batch.batch, dim=0)[0]
         a = self.output_net(a)
         return a
 
