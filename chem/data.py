@@ -33,7 +33,7 @@ from torch_geometric.data import Dataset as TGDataset, Data
 from torch_geometric.data.dataloader import Collater
 import multiprocessing as mp
 
-DATA_LIMIT = -1
+DATA_LIMIT = 10
 
 class PrePairData(Data):
     def __init__(self, l=None, r=None, label=None):
