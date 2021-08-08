@@ -50,8 +50,8 @@ class JCIGraphAttentionNet(JCIBaseNet):
         self.conv2 = tgnn.GATConv(in_length, in_length, 5, concat=False, add_self_loops=True)
         self.conv3 = tgnn.GATConv(in_length, in_length, 5, concat=False, add_self_loops=True)
         self.conv4 = tgnn.GATConv(in_length, in_length, 5, concat=False, add_self_loops=True)
-        self.conv5 = tgnn.GATConv(in_length, hidden_length, 5, concat=False, add_self_loops=True)
-        self.output_net = nn.Sequential(nn.Linear(3*hidden_length, hidden_length),
+        self.conv5 = tgnn.GATConv(in_length, in_length, 5, concat=False, add_self_loops=True)
+        self.output_net = nn.Sequential(nn.Linear(3*in_length, hidden_length),
                                         nn.LeakyReLU(),
                                         nn.Linear(hidden_length, hidden_length),
                                         nn.LeakyReLU(),
