@@ -2,7 +2,7 @@ from torch import nn
 import torch
 import torch.nn.functional as F
 from torch_geometric import nn as tgnn
-from torch_scatter import scatter_mean, scatter_add
+from torch_scatter import scatter_mean, scatter_add, scatter_max
 from chem.data import JCIExtendedGraphData, JCIGraphData
 import logging
 import sys
@@ -66,7 +66,7 @@ class JCIGraphAttentionNet(JCIBaseNet):
         a = F.leaky_relu(self.conv3(a, batch.edge_index.long()))
         a = F.leaky_relu(self.conv4(a, batch.edge_index.long()))
         a = F.leaky_relu(self.conv5(a, batch.edge_index.long()))
-        a = scatter_add(a, batch.batch, dim=0)
+        a = scatter_max(a, batch.batch, dim=0)
         a = self.output_net(a)
         return a
 
