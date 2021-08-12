@@ -310,7 +310,7 @@ class XYMolData(XYData):
         l = []
         for g in self.x:
             graph = g.copy()
-            nx.set_node_attributes(graph, {k: v.to(device) for k, v in nx.get_node_attributes(graph, "x")}, "x")
+            nx.set_node_attributes(graph, {k: v.to(device) for k, v in nx.get_node_attributes(g, "x").items()}, "x")
             l.append(graph)
         return tuple(l)
 

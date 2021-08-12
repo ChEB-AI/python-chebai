@@ -39,8 +39,10 @@ class Recursive(JCIBaseNet):
             graph = row[0]
             c = nx.center(graph)[0]
             d = nx.single_source_shortest_path(graph, c)
-            digraph = nx.DiGraph((a,b) if d[a] < d[b] else (b,a) for (a,b) in graph.edges)
-
+            if graph.edges:
+                digraph = nx.DiGraph((a,b) if d[a] < d[b] else (b,a) for (a,b) in graph.edges)
+            else:
+                digraph = nx.DiGraph(graph.nodes)
             child_results = {}
             x = None
             for node in nx.topological_sort(digraph):
