@@ -307,9 +307,12 @@ class XYData(torch.utils.data.Dataset, TransferableDataType):
 class XYMolData(XYData):
 
     def to_x(self, device):
-        graph = self.x.copy()
-        nx.set_node_attributes(graph, {k: v.to(device) for k, v in nx.get_node_attributes(graph, "x")}, "x")
-        return graph
+        l = []
+        for g in self.x:
+            graph = g.copy()
+            nx.set_node_attributes(graph, {k: v.to(device) for k, v in nx.get_node_attributes(graph, "x")}, "x")
+            l.append(graph)
+        return tuple(l)
 
 class GraphDataset(XYBaseDataModule):
     PATH = ["graph"]
