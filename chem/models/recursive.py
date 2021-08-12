@@ -40,9 +40,9 @@ class Recursive(JCIBaseNet):
             c = nx.center(graph)[0]
             d = nx.single_source_shortest_path(graph, c)
             if graph.edges:
-                digraph = nx.DiGraph((a,b) if d[a] < d[b] else (b,a) for (a,b) in graph.edges)
+                digraph = nx.DiGraph((a,b) if d[a] > d[b] else (b,a) for (a,b) in graph.edges)
             else:
-                digraph = nx.DiGraph(graph.nodes)
+                digraph = nx.DiGraph(graph)
             child_results = {}
             x = None
             for node in nx.topological_sort(digraph):
@@ -60,11 +60,11 @@ class Recursive(JCIBaseNet):
     @staticmethod
     def merge_childen(child_values):
         s = torch.stack(child_values)
-        return torch.sum(F.softmax(s) * s, dim=0)
+        return torch.sum(s, dim=0) # torch.sum(F.softmax(s, dim=0) * s, dim=0)
 
     def input(self,x, hidden):
-        r = F.softmax(self.input_weight(x) + self.input_hidden_weight(hidden))
-        z = F.softmax(self.cell_weight(x) + self.cell_hidden_weight(hidden))
+        r = F.sigmoid(self.input_weight(x) + self.input_hidden_weight(hidden))
+        z = F.sigmoid(self.cell_weight(x) + self.cell_hidden_weight(hidden))
         n = F.leaky_relu(self.output_weight(x) + self.output_hidden_weight(hidden) + r * self.state_reset(hidden))
         return (1-z) * n + z * hidden
 
