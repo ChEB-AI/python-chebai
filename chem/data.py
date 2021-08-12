@@ -165,7 +165,6 @@ class OrdDataset(XYBaseDataModule):
                                                             self.LABEL_INDEX:].astype(
                 bool)
 
-
 class MolDataset(XYBaseDataModule):
     PATH = ["mol"]
 
@@ -175,7 +174,7 @@ class MolDataset(XYBaseDataModule):
 
     def collate(self, list_of_tuples):
         x, y = zip(*list_of_tuples)
-        return XYData(x, torch.stack(y))
+        return XYMolData(x, torch.stack(y))
 
     def setup_processed(self):
         super().setup_processed()
@@ -194,9 +193,7 @@ class JCIData(JCIBase, OrdDataset):
 
 
 class JCIMolData(JCIBase, MolDataset):
-
-    def to(self, device):
-        return XYData(self.x.to(device), self.y.to(device), additional_fields={k: getattr(self, k) for k in self.additional_fields})
+    pass
 
 
 class JCIExtendedBase(XYBaseDataModule):
@@ -296,11 +293,23 @@ class XYData(torch.utils.data.Dataset, TransferableDataType):
 
         self.additional_fields = list(additional_fields.keys()) if additional_fields else []
 
+    def to_x(self, device):
+        return self.x.to(device)
+
+    def to_y(self, device):
+        return self.y.to(device)
+
     def to(self, device):
-        x = self.x.to(device)
-        y = self.y.to(device)
+        x = self.to_x(device)
+        y = self.to_y(device)
         return XYData(x, y, additional_fields={k: getattr(self, k) for k in self.additional_fields} )
 
+class XYMolData(XYData):
+
+    def to_x(self, device):
+        graph = self.x.copy()
+        nx.set_node_attributes(graph, {k: v.to(device) for k, v in nx.get_node_attributes(graph, "x")}, "x")
+        return graph
 
 class GraphDataset(XYBaseDataModule):
     PATH = ["graph"]
