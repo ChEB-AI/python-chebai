@@ -10,7 +10,7 @@ logging.getLogger('pysmiles').setLevel(logging.CRITICAL)
 
 
 class Recursive(JCIBaseNet):
-    NAME = "ChemYK"
+    NAME = "REC"
 
     def __init__(self, in_d, out_d, num_classes, **kwargs):
         super().__init__(num_classes, **kwargs)
