@@ -18,16 +18,25 @@ class Recursive(JCIBaseNet):
         self.internal_dimension = in_d
         self.embedding = nn.Embedding(800, 100)
 
-        self.input_weight = nn.Linear(in_d, in_d)
-        self.input_hidden_weight = nn.Linear(mem_len, in_d)
+        self.input_post = nn.Linear(in_d, in_d)
 
-        self.state_reset = nn.Linear(mem_len, in_d)
+        self.input_attention = nn.MultiheadAttention(in_d, 5)
+        self.hidden_attention = nn.MultiheadAttention(in_d, 5)
+        self.merge_attention = nn.MultiheadAttention(in_d, 5)
 
-        self.cell_weight = nn.Linear(in_d, in_d)
-        self.cell_hidden_weight = nn.Linear(mem_len, in_d)
+        self.hidden_post = nn.Linear(in_d, in_d)
 
-        self.output_weight = nn.Linear(in_d, in_d)
-        self.output_hidden_weight = nn.Linear(mem_len, in_d)
+        self.merge_post = nn.Linear(in_d, in_d)
+
+        self.post = nn.Linear(in_d, in_d)
+
+        self.children_attention = nn.MultiheadAttention(in_d, 5)
+
+        self.input_norm_1 = nn.LayerNorm(in_d)
+        self.input_norm_2 = nn.LayerNorm(in_d)
+        self.hidden_norm_1 = nn.LayerNorm(in_d)
+        self.merge_norm_1 = nn.LayerNorm(in_d)
+        self.merge_norm_2 = nn.LayerNorm(in_d)
 
         self.base = torch.nn.parameter.Parameter(torch.empty((in_d,)))
         self.base_memory = torch.nn.parameter.Parameter(torch.empty((mem_len,)))
@@ -47,25 +56,33 @@ class Recursive(JCIBaseNet):
             x = None
             for node in nx.topological_sort(digraph):
                 child_values = child_results.pop(node, [])
+                inp = self.embedding(graph.nodes[node]["x"])
                 if not child_values:
                     hidden_state = self.base_memory
                 else:
-                    hidden_state = self.merge_childen(child_values)
-                x = self.input(self.embedding(graph.nodes[node]["x"]), hidden_state)
+                    hidden_state = self.merge_childen(child_values, inp)
+                x = self.input(inp, hidden_state)
                 for s in digraph.successors(node):
                     child_results[s] = child_results.get(s, []) + [x]
             result.append(self.output(x))
         return torch.stack(result)
 
-    @staticmethod
-    def merge_childen(child_values):
-        s = torch.stack(child_values)
-        return torch.sum(s, dim=0) # torch.sum(F.softmax(s, dim=0) * s, dim=0)
+    def merge_childen(self, child_values, x):
+        stack = torch.stack(child_values).unsqueeze(0).transpose(1,0)
+        att = self.children_attention(x.expand(1, stack.shape[1], -1).transpose(1, 0), stack, stack)[0]
+        return torch.sum(att.squeeze(0), dim=0)
 
-    def input(self,x, hidden):
-        r = F.sigmoid(self.input_weight(x) + self.input_hidden_weight(hidden))
-        z = F.sigmoid(self.cell_weight(x) + self.cell_hidden_weight(hidden))
-        n = F.leaky_relu(self.output_weight(x) + self.output_hidden_weight(hidden) + r * self.state_reset(hidden))
-        return (1-z) * n + z * hidden
+    def input(self, x0, hidden):
 
+        x = x0.unsqueeze(0).unsqueeze(0)
+        a = self.input_norm_1(x + self.input_attention(x,x,x)[0])
+        a = self.input_norm_2(a + F.relu(self.input_post(a)))
 
+        h0 = hidden.unsqueeze(0).unsqueeze(0)
+        b = self.hidden_norm_1(h0 + self.input_attention(h0, h0, h0)[0])
+        #b = self.norm(b + self.hidden_post(b))
+
+        c = self.merge_norm_1(b + self.merge_attention(a, b, b)[0])
+        c = self.merge_norm_2(c + F.relu(self.merge_post(c)))
+
+        return self.post(c).squeeze(0).squeeze(0)
