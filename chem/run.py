@@ -1,4 +1,4 @@
-from chem.models import graph
+from chem.models import graph, recursive
 from chem import data
 import sys
 
@@ -6,7 +6,8 @@ def main(batch_size):
     exps = [
         #(models.lstm.ChemLSTM, [100, 500, 500], (data.JCIExtendedData, data.JCIData)),
         #(models.graph.JCIGraphNet, [100, 100, 500], (data.JCIGraphData, data.JCIExtendedGraphData)),
-        (graph.JCIGraphAttentionNet, [100, 100, 500], (data.JCIGraphData, data.JCIExtendedGraphData)),
+        #(graph.JCIGraphAttentionNet, [100, 100, 500], (data.JCIGraphData, data.JCIExtendedGraphData)),
+        (recursive.Recursive, [100, 100, 500], (data.JCIMolData,)),
         #(models.graph_k2.JCIGraphK2Net, [100, 100, 500], (data.JCIGraphTwoData, data.JCIExtendedGraphTwoData))
     ]
     for net_cls, model_args, datasets in exps:
