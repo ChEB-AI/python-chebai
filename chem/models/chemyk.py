@@ -30,7 +30,6 @@ class ChemYK(JCIBaseNet):
         h = [self.embedding(data.x)]
         max_width = h[0].shape[1]
         for width in range(2, max_width):
-            print(width)
             h.append(torch.stack([self.get_all_merges(h, left, width) for left in range(max_width - width)]).transpose(1,0))
         return self.output(h[-1]).squeeze(1)
 
