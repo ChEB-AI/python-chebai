@@ -36,9 +36,8 @@ class ChemYK(JCIBaseNet):
         #h[:, 0] = emb
         for width in range(1, max_width):
             l = h[:, :, :-width]
-            rs = [torch.diagonal(h[:, :, off:], dim1=1, dim2=2).transpose(1,2) for off in
-             range(1, max_width-(width-1))]
-            r = torch.stack(rs).permute(1,2,0,3).flip(1)
+            r = torch.stack(tuple(torch.diagonal(h[:, :, off:], dim1=1, dim2=2).transpose(1,2) for off in
+             range(1, max_width-(width-1)))).permute(1,2,0,3).flip(1)
             m0 = self.merge(l,r)
             m = pad(m0,(0,0,0,width))
             h = torch.cat((m, h), dim=1)
