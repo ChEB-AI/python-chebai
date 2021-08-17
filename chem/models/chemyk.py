@@ -32,29 +32,23 @@ class ChemYK(JCIBaseNet):
     def forward(self, data, *args, **kwargs):
         m = self.embedding(data.x)
         max_width = m.shape[1]
-        h = m.unsqueeze(1) #torch.zeros(emb.shape[0], max_width, *emb.shape[1:])
+        h = [m] #torch.zeros(emb.shape[0], max_width, *emb.shape[1:])
         #h[:, 0] = emb
         for width in range(1, max_width):
-            l = h[:, :, :-width]
-            r = torch.stack(tuple(torch.diagonal(h[:, :, off:], dim1=1, dim2=2).transpose(1,2) for off in
-             range(1, max_width-(width-1)))).permute(1,2,0,3).flip(1)
-            m0 = self.merge(l,r)
-            m = pad(m0,(0,0,0,width))
-            h = torch.cat((m, h), dim=1)
-        return self.output(m[:,0,0]).squeeze(1)
-
-    def get_all_merges(self, h, left, width):
-        "Returns all possible merges for the substring [left, left+width]"
-        # merge_point is the offset at which a specific split is done. Note that this splits the interval in a part of
-        # length `merge_point` and a part of length `width - merge_point`
-        s = torch.stack([self.merge(h[merge_point-1][:, left], h[width-merge_point-1][:, left+merge_point]) for merge_point in range(1,width)])
-        return self.attention(s).unsqueeze(1)
+            ls = [h[i][:, :(max_width-width)] for i in range(width)]
+            l = torch.stack(ls)
+            rs = [h[i][:,(width-i):] for i in range(0, width)]
+            r = torch.stack(rs).flip(0)
+            #torch.stack(tuple(torch.diagonal(h[:, :, off:], dim1=1, dim2=2).transpose(1,2) for off in range(1, max_width-(width-1)))).permute(1,2,0,3)
+            m = self.merge(l,r)
+            h.append(m)
+        return self.output(m[:,0]).squeeze(1)
 
     def merge(self, l, r):
         x = torch.stack([self.a_l(l), self.a_r(r)])
         beta = torch.softmax(x, 0)
-        return self.attention(torch.sum(beta*torch.stack([self.w_l(l), self.w_r(r)]), dim=0)).unsqueeze(1)
+        return self.attention(torch.sum(beta*torch.stack([self.w_l(l), self.w_r(r)]), dim=0))
 
     def attention(self, parts):
         at = torch.softmax(self.s(parts), 1)
-        return torch.sum(at*parts, dim=1)
+        return torch.sum(at*parts, dim=0)
