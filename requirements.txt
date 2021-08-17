@@ -15,4 +15,3 @@ torch
 typing-extensions
 urllib3
 pytorch_lightning
-https://github.com/chrsmrrs/k-gnn.git

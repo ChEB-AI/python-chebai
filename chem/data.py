@@ -16,6 +16,7 @@ from sklearn.model_selection import train_test_split
 import torch
 import requests
 import pysmiles as ps
+from pysmiles.read_smiles import _tokenize
 import random
 from itertools import chain
 import glob
@@ -148,6 +149,37 @@ class JCIBase(XYBaseDataModule):
             torch.save(list(self.to_data(pickle.load(open(os.path.join(self.raw_dir, f"{k}.pkl"), "rb")))), os.path.join(self.processed_dir, f"{k}.pt"))
 
 
+class ChemTokenDataset(XYBaseDataModule):
+    PATH = ["smiles_token"]
+
+    def collate(self, list_of_tuples):
+        x, y = zip(*list_of_tuples)
+        return XYData(pad_sequence([torch.tensor(a) for a in x],
+                                    batch_first=True),
+                      pad_sequence([torch.tensor(a) for a in y],
+                                   batch_first=True),
+                      additional_fields=dict(lens=list(map(len, x))))
+
+    def __init__(self, batch_size, **kwargs):
+        super().__init__(batch_size, **kwargs)
+        self.cache = []
+
+    def setup_processed(self):
+        super().setup_processed()
+        torch.save(self.cache,
+                   os.path.join(self.processed_dir, f"embeddings.pt"))
+
+    def to_data(self, df: pd.DataFrame):
+        for row in df.values[:DATA_LIMIT]:
+            l = []
+            for v in _tokenize(row[self.SMILES_INDEX]):
+                try:
+                    l.append(self.cache.index(v))
+                except ValueError:
+                    l.append(len(self.cache))
+                    self.cache.append(v)
+            yield l, row[self.LABEL_INDEX:].astype(bool)
+
 class OrdDataset(XYBaseDataModule):
     PATH = ["smiles_ord"]
 
@@ -164,6 +196,7 @@ class OrdDataset(XYBaseDataModule):
             yield [ord(s) for s in row[self.SMILES_INDEX]], row[
                                                             self.LABEL_INDEX:].astype(
                 bool)
+
 
 class MolDataset(XYBaseDataModule):
     PATH = ["mol"]
@@ -195,6 +228,8 @@ class JCIData(JCIBase, OrdDataset):
 class JCIMolData(JCIBase, MolDataset):
     pass
 
+class JCITokenData(JCIBase, ChemTokenDataset):
+    pass
 
 class JCIExtendedBase(XYBaseDataModule):
     ROOT = "JCI_extended"

@@ -7,7 +7,7 @@ def main(batch_size):
         #(models.lstm.ChemLSTM, [100, 500, 500], (data.JCIExtendedData, data.JCIData)),
         #(models.graph.JCIGraphNet, [100, 100, 500], (data.JCIGraphData, data.JCIExtendedGraphData)),
         #(graph.JCIGraphAttentionNet, [100, 100, 500], (data.JCIGraphData, data.JCIExtendedGraphData)),
-        (chemyk.ChemYK, [50, 50, 500], (data.JCIData,)),
+        (chemyk.ChemYK, [50, 50, 500], (data.JCITokenData,)),
         #(models.graph_k2.JCIGraphK2Net, [100, 100, 500], (data.JCIGraphTwoData, data.JCIExtendedGraphTwoData))
     ]
     for net_cls, model_args, datasets in exps:
