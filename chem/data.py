@@ -12,6 +12,12 @@ import fastobo
 import networkx as nx
 import pickle
 import os
+import datetime
+import gzip
+import shutil
+import tempfile
+from itertools import islice
+import pandas
 from sklearn.model_selection import train_test_split
 import torch
 import requests
@@ -28,13 +34,15 @@ from torch.nn.utils.rnn import pad_sequence
 from torch import Tensor
 from torch_geometric.data import InMemoryDataset
 import pandas as pd
+from prefixspan import PrefixSpan
 
 from torch_geometric.utils.convert import from_networkx
 from torch_geometric.data import Dataset as TGDataset, Data
 from torch_geometric.data.dataloader import Collater
 import multiprocessing as mp
 
-DATA_LIMIT = -1
+from transformers import BertTokenizer
+DATA_LIMIT = 100
 
 class PrePairData(Data):
     def __init__(self, l=None, r=None, label=None):
@@ -85,6 +93,8 @@ class XYBaseDataModule(pl.LightningDataModule):
         self.raw_dir = os.path.join(root, "raw", *self.RAW_PATH)
         self.train_split=0.85
         self.batch_size = batch_size
+        os.makedirs(self.raw_dir, exist_ok=True)
+        os.makedirs(self.processed_dir, exist_ok=True)
         super().__init__(root, **kwargs)
 
     @property
@@ -117,6 +127,59 @@ class XYBaseDataModule(pl.LightningDataModule):
     def to_data(self, df: pd.DataFrame):
         raise NotImplementedError
 
+class Replacer:
+    def __init__(self, alphabet):
+        self.alphabet = set(alphabet)
+
+    def replace(self, inp):
+        i = random.randint(0, len(inp)-1)
+        o = inp.copy()
+        r = random.choice(list(self.alphabet.difference([o[i]])))
+        o[i] = r
+        return o, [1 if j == i else 0 for j in range(len(inp))]
+
+class PubChemFull(XYBaseDataModule):
+    ROOT = "PUBCHEM"
+    SMILES_INDEX = 0
+    LABEL_INDEX = 1
+
+    def download(self):
+        url = f"https://ftp.ncbi.nlm.nih.gov/pubchem/Compound/Monthly/2021-10-01/Extras/CID-SMILES.gz"
+        print("Query", url)
+        r = requests.get(url, allow_redirects=True)
+        with tempfile.NamedTemporaryFile() as tf:
+            tf.write(r.content)
+            tf.seek(0)
+            with gzip.open(tf, 'rb') as f_in:
+                with open(os.path.join(self.raw_dir, 'smiles.txt'), 'wb') as f_out:
+                    shutil.copyfileobj(f_in, f_out)
+
+    def setup_processed(self):
+        print("Create splits")
+        r = Replacer(list(range(20)))
+        with open(os.path.join(self.raw_dir, self.raw_file_names[0]), "r") as f_in:
+            train = [r.replace(x[0]) for x in map(self.to_data, ((line.split(" ")[-1], None) for line in islice(f_in, 100)))]
+            train, test = train_test_split(train, train_size=self.train_split)
+            test, val = train_test_split(test, train_size=self.train_split)
+        torch.save(train, os.path.join(self.processed_dir, f"train.pt"))
+        torch.save(test, os.path.join(self.processed_dir, f"test.pt"))
+        torch.save(val, os.path.join(self.processed_dir, f"validation.pt"))
+
+    @property
+    def raw_file_names(self):
+        return ["smiles.txt"]
+
+    @property
+    def processed_file_names(self):
+        return ["test.pt", "train.pt", "validation.pt"]
+
+    def prepare_data(self, *args, **kwargs):
+        print("Check for raw data in", self.raw_dir)
+        if any(not os.path.isfile(os.path.join(self.raw_dir, f)) for f in
+               self.raw_file_names):
+            print("Downloading data. This may take some time...")
+            self.download()
+            print("Done")
 
 class JCIBase(XYBaseDataModule):
     ROOT = "JCI"
@@ -143,7 +206,6 @@ class JCIBase(XYBaseDataModule):
 
     def setup_processed(self):
         print("Transform splits")
-        os.makedirs(self.processed_dir, exist_ok=True)
         for k in ["test", "train", "validation"]:
             print("transform", k)
             torch.save(list(self.to_data(pickle.load(open(os.path.join(self.raw_dir, f"{k}.pkl"), "rb")))), os.path.join(self.processed_dir, f"{k}.pt"))
@@ -169,16 +231,18 @@ class ChemTokenDataset(XYBaseDataModule):
         torch.save(self.cache,
                    os.path.join(self.processed_dir, f"embeddings.pt"))
 
-    def to_data(self, df: pd.DataFrame):
-        for row in df.values[:DATA_LIMIT]:
-            l = []
-            for v in _tokenize(row[self.SMILES_INDEX]):
-                try:
-                    l.append(self.cache.index(v))
-                except ValueError:
-                    l.append(len(self.cache))
-                    self.cache.append(v)
-            yield l, row[self.LABEL_INDEX:].astype(bool)
+    def to_data(self, row):
+        l= []
+        for v in _tokenize(row[self.SMILES_INDEX]):
+            try:
+                l.append(self.cache.index(v))
+            except ValueError:
+                l.append(len(self.cache)+1)
+                self.cache.append(v)
+        return l, row[self.LABEL_INDEX:]
+
+    def bundle(self, sequence, frequents):
+        pass
 
 class OrdDataset(XYBaseDataModule):
     PATH = ["smiles_ord"]
@@ -220,6 +284,8 @@ class MolDataset(XYBaseDataModule):
                                                             self.LABEL_INDEX:].astype(
                 bool))
 
+class PubChemFullToken(PubChemFull, ChemTokenDataset):
+    pass
 
 class JCIData(JCIBase, OrdDataset):
     pass
@@ -229,6 +295,9 @@ class JCIMolData(JCIBase, MolDataset):
     pass
 
 class JCITokenData(JCIBase, ChemTokenDataset):
+    pass
+
+class PubChemTokens(PubChemFull, ChemTokenDataset):
     pass
 
 class JCIExtendedBase(XYBaseDataModule):

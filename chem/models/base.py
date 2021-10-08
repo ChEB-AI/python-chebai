@@ -22,7 +22,7 @@ class JCIBaseNet(pl.LightningModule):
             self.loss = nn.BCEWithLogitsLoss(pos_weight=weights)
         else:
             self.loss = nn.BCEWithLogitsLoss()
-        self.f1 = F1(threshold=threshold, num_classes=num_classes)
+        self.f1 = F1(threshold=threshold, multilabel=True)
         self.mse = MeanSquaredError()
         self.lr = lr
 
@@ -39,8 +39,8 @@ class JCIBaseNet(pl.LightningModule):
     def training_step(self, *args, **kwargs):
         loss, f1, mse = self._execute(*args, **kwargs)
         self.log('train_loss', loss.detach().item(), on_step=False, on_epoch=True, prog_bar=True, logger=True)
-        self.log('train_f1', f1.item(), on_step=False, on_epoch=True, prog_bar=True, logger=True)
-        self.log('train_mse', mse.item(), on_step=False, on_epoch=True,
+        self.log('train_f1', f1.detach().item(), on_step=False, on_epoch=True, prog_bar=True, logger=True)
+        self.log('train_mse', mse.detach().item(), on_step=False, on_epoch=True,
                  prog_bar=True, logger=True)
         return loss
 
@@ -48,8 +48,8 @@ class JCIBaseNet(pl.LightningModule):
         with torch.no_grad():
             loss, f1, mse = self._execute(*args, **kwargs)
             self.log('val_loss', loss.detach().item(), on_step=False, on_epoch=True, prog_bar=True, logger=True)
-            self.log('val_f1', f1.item(), on_step=False, on_epoch=True, prog_bar=True, logger=True)
-            self.log('val_mse', mse.item(), on_step=False, on_epoch=True,
+            self.log('val_f1', f1.detach().item(), on_step=False, on_epoch=True, prog_bar=True, logger=True)
+            self.log('val_mse', mse.detach().item(), on_step=False, on_epoch=True,
                      prog_bar=True, logger=True)
             return loss
 
@@ -110,5 +110,5 @@ class JCIBaseNet(pl.LightningModule):
            verbose=False,
         )
 
-        trainer = pl.Trainer(logger=tb_logger, max_epochs=300, callbacks=[checkpoint_callback], replace_sampler_ddp=False, **trainer_kwargs)
+        trainer = pl.Trainer(logger=tb_logger,max_epochs=300, callbacks=[checkpoint_callback], replace_sampler_ddp=False, **trainer_kwargs)
         trainer.fit(net, train_data, val_dataloaders=val_data)
