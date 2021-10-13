@@ -16,7 +16,7 @@ logging.getLogger('pysmiles').setLevel(logging.CRITICAL)
 class JCIBaseNet(pl.LightningModule):
     NAME = None
 
-    def __init__(self, num_classes, weights=None, threshold=0.5, lr=1e-3):
+    def __init__(self, num_classes, weights=None, threshold=0.5, lr=1e-4):
         super().__init__()
         if weights is not None:
             self.loss = nn.BCEWithLogitsLoss(pos_weight=weights)
@@ -72,7 +72,7 @@ class JCIBaseNet(pl.LightningModule):
         train_data = data.train_dataloader()
         val_data = data.val_dataloader()
 
-        lr = 5e-4
+        lr = 1e-4
 
         if weighted:
             weights = model_kwargs.get("weights")

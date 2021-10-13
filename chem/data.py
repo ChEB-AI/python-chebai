@@ -273,11 +273,6 @@ class MolDataset(XYBaseDataModule):
         x, y = zip(*list_of_tuples)
         return XYMolData(x, torch.stack(y))
 
-    def setup_processed(self):
-        super().setup_processed()
-        torch.save(self.cache,
-                   os.path.join(self.processed_dir, f"embeddings.pt"))
-
     def to_data(self, df: pd.DataFrame):
         for row in df.values[:DATA_LIMIT]:
             yield get_encoded_mol(row[self.SMILES_INDEX], self.cache), torch.tensor(row[
@@ -285,10 +280,21 @@ class MolDataset(XYBaseDataModule):
                 bool))
 
 class PubChemFullToken(PubChemFull, ChemTokenDataset):
-    pass
+
+    def setup_processed(self):
+        super().setup_processed()
+        print("Tokens: ", len(self.cache))
+        torch.save(self.cache,
+                   os.path.join(self.processed_dir, f"embeddings.pt"))
 
 class PubChemToxicToken(PubChemFull, ChemTokenDataset):
     ROOT = "PUBCHEM_toxic"
+
+    def setup_processed(self):
+        super().setup_processed()
+        print("Tokens: ", len(self.cache))
+        torch.save(self.cache,
+                   os.path.join(self.processed_dir, f"embeddings.pt"))
 
 class JCIData(JCIBase, OrdDataset):
     pass

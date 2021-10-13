@@ -21,7 +21,6 @@ class ElectraPre(JCIBaseNet):
             num_hidden_layers=6,
             type_vocab_size=1,)
         self.electra = ElectraForPreTraining(config)
-        self.output = nn.Sequential(nn.Linear(out_d, in_d), nn.ReLU(), nn.Dropout(0.2), nn.Linear(in_d, num_classes))
 
     def forward(self, data):
         x = data.x

@@ -20,3 +20,4 @@ torch-sparse
 torch-cluster
 torch-spline-conv
 torch-geometric>=1.9.0
+transformers
