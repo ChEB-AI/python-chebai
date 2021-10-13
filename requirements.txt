@@ -15,3 +15,8 @@ torch
 typing-extensions
 urllib3
 pytorch_lightning
+torch-scatter
+torch-sparse
+torch-cluster
+torch-spline-conv
+torch-geometric>=1.9.0

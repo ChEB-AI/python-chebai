@@ -38,7 +38,7 @@ from prefixspan import PrefixSpan
 
 from torch_geometric.utils.convert import from_networkx
 from torch_geometric.data import Dataset as TGDataset, Data
-from torch_geometric.data.dataloader import Collater
+from torch_geometric.loader.dataloader import Collater
 import multiprocessing as mp
 
 from transformers import BertTokenizer
