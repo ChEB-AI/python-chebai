@@ -7,19 +7,11 @@ from chem.models.base import JCIBaseNet
 
 logging.getLogger('pysmiles').setLevel(logging.CRITICAL)
 
-# TODO: Make params dynamic and load them from dataset
-VOCAB_SIZE = 1400
-MAX_LEN = 1800
-
 class ElectraPre(JCIBaseNet):
     NAME = "Electra"
-    def __init__(self, in_d, out_d, num_classes, **kwargs):
-        super().__init__(num_classes, **kwargs)
-        config = ElectraConfig(vocab_size=VOCAB_SIZE,
-            max_position_embeddings=MAX_LEN,
-            num_attention_heads=8,
-            num_hidden_layers=6,
-            type_vocab_size=1,)
+    def __init__(self, config=None, **kwargs):
+        super().__init__(**kwargs)
+        config = ElectraConfig(**config)
         self.electra = ElectraForPreTraining(config)
 
     def forward(self, data):

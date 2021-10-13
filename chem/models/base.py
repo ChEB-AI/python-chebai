@@ -7,6 +7,7 @@ from pytorch_lightning import loggers as pl_loggers
 from pytorch_lightning.callbacks import ModelCheckpoint, EarlyStopping
 from pytorch_lightning.metrics import F1
 from pytorch_lightning.metrics import MeanSquaredError
+from pytorch_lightning.tuner.tuning import Tuner
 import logging
 import sys
 
@@ -16,7 +17,7 @@ logging.getLogger('pysmiles').setLevel(logging.CRITICAL)
 class JCIBaseNet(pl.LightningModule):
     NAME = None
 
-    def __init__(self, num_classes, weights=None, threshold=0.5, lr=1e-4):
+    def __init__(self, weights=None, threshold=0.5, lr=1e-4):
         super().__init__()
         if weights is not None:
             self.loss = nn.BCEWithLogitsLoss(pos_weight=weights)
@@ -110,5 +111,5 @@ class JCIBaseNet(pl.LightningModule):
            verbose=False,
         )
 
-        trainer = pl.Trainer(logger=tb_logger,max_epochs=300, callbacks=[checkpoint_callback], replace_sampler_ddp=False, **trainer_kwargs)
+        trainer = pl.Trainer(logger=tb_logger,max_epochs=300, callbacks=[checkpoint_callback, es], replace_sampler_ddp=False, **trainer_kwargs)
         trainer.fit(net, train_data, val_dataloaders=val_data)
