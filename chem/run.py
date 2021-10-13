@@ -7,11 +7,16 @@ def main(batch_size):
         #(models.lstm.ChemLSTM, [100, 500, 500], (data.JCIExtendedData, data.JCIData)),
         #(models.graph.JCIGraphNet, [100, 100, 500], (data.JCIGraphData, data.JCIExtendedGraphData)),
         #(graph.JCIGraphAttentionNet, [100, 100, 500], (data.JCIGraphData, data.JCIExtendedGraphData)),
-        (electra.ElectraPre, dict(config=dict(vocab_size=1400,
-            max_position_embeddings=1800,
-            num_attention_heads=8,
-            num_hidden_layers=6,
-            type_vocab_size=1,)), (data.PubChemToxicToken,)),
+        (electra.ElectraPre,
+         dict(
+             lr=1e-4,
+             config=dict(
+                vocab_size=1400,
+                max_position_embeddings=1800,
+                num_attention_heads=8,
+                num_hidden_layers=6,
+                type_vocab_size=1)),
+         (data.PubChemToxicToken,)),
         #(models.graph_k2.JCIGraphK2Net, [100, 100, 500], (data.JCIGraphTwoData, data.JCIExtendedGraphTwoData))
     ]
     for net_cls, model_kwargs, datasets in exps:

@@ -73,8 +73,6 @@ class JCIBaseNet(pl.LightningModule):
         train_data = data.train_dataloader()
         val_data = data.val_dataloader()
 
-        lr = 1e-4
-
         if weighted:
             weights = model_kwargs.get("weights")
             if weights is None:
@@ -106,7 +104,7 @@ class JCIBaseNet(pl.LightningModule):
 
         # Calculate weights per class
 
-        net = cls(*model_args, lr=lr, **model_kwargs)
+        net = cls(*model_args, **model_kwargs)
         es = EarlyStopping(monitor='val_loss', patience=10, min_delta=0.00,
            verbose=False,
         )
