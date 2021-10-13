@@ -158,7 +158,7 @@ class PubChemFull(XYBaseDataModule):
         print("Create splits")
         r = Replacer(list(range(20)))
         with open(os.path.join(self.raw_dir, self.raw_file_names[0]), "r") as f_in:
-            train = [r.replace(x[0]) for x in map(self.to_data, ((line.split(" ")[-1], None) for line in islice(f_in, 100)))]
+            train = [r.replace(x[0]) for x in map(self.to_data, ((line.split(" ")[-1], None) for line in f_in))]
             train, test = train_test_split(train, train_size=self.train_split)
             test, val = train_test_split(test, train_size=self.train_split)
         torch.save(train, os.path.join(self.processed_dir, f"train.pt"))
@@ -286,6 +286,9 @@ class MolDataset(XYBaseDataModule):
 
 class PubChemFullToken(PubChemFull, ChemTokenDataset):
     pass
+
+class PubChemToxicToken(PubChemFull, ChemTokenDataset):
+    ROOT = "PUBCHEM_toxic"
 
 class JCIData(JCIBase, OrdDataset):
     pass
