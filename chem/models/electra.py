@@ -1,8 +1,9 @@
-from transformers import ElectraConfig, ElectraForPreTraining
+import logging
 
 from torch import nn
 from torch.nn.utils.rnn import pack_padded_sequence, pad_packed_sequence
-import logging
+from transformers import ElectraConfig, ElectraForPreTraining
+
 from chem.models.base import JCIBaseNet
 
 logging.getLogger("pysmiles").setLevel(logging.CRITICAL)

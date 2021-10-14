@@ -1,6 +1,7 @@
-from chem.models import graph, recursive, chemyk, electra
-from chem.data import datasets as ds
 import sys
+
+from chem.data import datasets as ds
+from chem.models import chemyk, electra, graph, recursive
 
 
 def main(batch_size):

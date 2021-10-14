@@ -1,21 +1,19 @@
+import logging
 import os
 import sys
-from sklearn.metrics import f1_score
-import torch
-from torch import nn
 
-import pytorch_lightning as pl
+from pytorch_lightning import loggers as pl_loggers
 from pytorch_lightning.callbacks import ModelCheckpoint
 from pytorch_lightning.metrics import F1
-from pytorch_lightning import loggers as pl_loggers
-
-import torch.nn.functional as F
+from sklearn.metrics import f1_score
+from torch import nn
 from torch_geometric import nn as tgnn
 from torch_geometric.data import DataLoader
+import pytorch_lightning as pl
+import torch
+import torch.nn.functional as F
 
 from data import ClassificationData, JCIClassificationData
-
-import logging
 
 logging.getLogger("pysmiles").setLevel(logging.CRITICAL)
 

@@ -1,15 +1,15 @@
-import os
-from torch import nn
-import torch
-from sklearn.metrics import f1_score
-import pytorch_lightning as pl
-from pytorch_lightning import loggers as pl_loggers
-from pytorch_lightning.callbacks import ModelCheckpoint, EarlyStopping
-from pytorch_lightning.metrics import F1
-from pytorch_lightning.metrics import MeanSquaredError
-from pytorch_lightning.tuner.tuning import Tuner
 import logging
+import os
 import sys
+
+from pytorch_lightning import loggers as pl_loggers
+from pytorch_lightning.callbacks import EarlyStopping, ModelCheckpoint
+from pytorch_lightning.metrics import F1, MeanSquaredError
+from pytorch_lightning.tuner.tuning import Tuner
+from sklearn.metrics import f1_score
+from torch import nn
+import pytorch_lightning as pl
+import torch
 
 logging.getLogger("pysmiles").setLevel(logging.CRITICAL)
 

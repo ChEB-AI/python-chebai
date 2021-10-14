@@ -1,12 +1,12 @@
+from typing import Iterable
+
+from molecule import Molecule
+from pytorch_lightning.metrics import F1
+import networkx as nx
+import pytorch_lightning as pl
 import torch
 import torch.nn as nn
-
-from typing import Iterable
-import networkx as nx
 import torch.nn.functional as F
-from molecule import Molecule
-import pytorch_lightning as pl
-from pytorch_lightning.metrics import F1
 
 
 class ChEBIRecNN(pl.LightningModule):

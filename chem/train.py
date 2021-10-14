@@ -1,20 +1,18 @@
-import pickle
-import pandas as pd
-import numpy as np
-from sklearn.metrics import f1_score
-import pandas as pd
-
-from molecule import Molecule
-from model import ChEBIRecNN
-import torch.nn as nn
-from torch.utils import data
-import torch
 import csv
-import os
-
-import pytorch_lightning as pl
-from pytorch_lightning import loggers as pl_loggers
 import multiprocessing as mp
+import os
+import pickle
+
+from model import ChEBIRecNN
+from molecule import Molecule
+from pytorch_lightning import loggers as pl_loggers
+from sklearn.metrics import f1_score
+from torch.utils import data
+import numpy as np
+import pandas as pd
+import pytorch_lightning as pl
+import torch
+import torch.nn as nn
 
 BATCH_SIZE = 100
 NUM_EPOCHS = 100

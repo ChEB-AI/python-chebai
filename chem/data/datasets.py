@@ -5,33 +5,32 @@ __all__ = [
     "JCIExtendedGraphData",
 ]
 
-from typing import Union, List
-
-import fastobo
-import networkx as nx
-import pickle
-import os
+from collections import Counter
+from itertools import chain
+from typing import List, Union
+import glob
 import gzip
+import multiprocessing as mp
+import os
+import pickle
+import random
 import shutil
 import tempfile
-from collections import Counter
+
 from sklearn.model_selection import train_test_split
-import torch
-import requests
-import pysmiles as ps
-import random
-from itertools import chain
-import glob
-import pytorch_lightning as pl
 from torch.utils.data import DataLoader
-import pandas as pd
-
-from torch_geometric.utils.convert import from_networkx
 from torch_geometric.data import Dataset as TGDataset
-import multiprocessing as mp
-from chem.data import reader as dr
+from torch_geometric.utils.convert import from_networkx
+import fastobo
+import networkx as nx
+import pandas as pd
+import pysmiles as ps
+import pytorch_lightning as pl
+import requests
+import torch
 
-from chem.data.structures import PrePairData, PairData
+from chem.data import reader as dr
+from chem.data.structures import PairData, PrePairData
 
 DATA_LIMIT = 100
 

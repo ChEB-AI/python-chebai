@@ -1,10 +1,11 @@
+import logging
+
+from torch import exp, nn, tensor
 import networkx as nx
 import torch
-from torch import nn, exp, tensor
 import torch.nn.functional as F
-import logging
-from chem.models.base import JCIBaseNet
 
+from chem.models.base import JCIBaseNet
 
 logging.getLogger("pysmiles").setLevel(logging.CRITICAL)
 

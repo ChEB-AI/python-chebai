@@ -1,14 +1,14 @@
-from torch import nn
-import torch
-import torch.nn.functional as F
-from torch_geometric import nn as tgnn
-from torch_scatter import scatter_mean
-from k_gnn import avg_pool
-from chem.data import JCIExtendedGraphTwoData
-
 import logging
 import sys
 
+from k_gnn import avg_pool
+from torch import nn
+from torch_geometric import nn as tgnn
+from torch_scatter import scatter_mean
+import torch
+import torch.nn.functional as F
+
+from chem.data import JCIExtendedGraphTwoData
 from chem.models.base import JCIBaseNet
 
 logging.getLogger("pysmiles").setLevel(logging.CRITICAL)

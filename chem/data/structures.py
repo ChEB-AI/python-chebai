@@ -1,8 +1,8 @@
-import networkx as nx
-import torch
 from pytorch_lightning.utilities.apply_func import TransferableDataType
 from torch.utils.data.dataset import T_co
 from torch_geometric.data import Data
+import networkx as nx
+import torch
 
 
 class PrePairData(Data):

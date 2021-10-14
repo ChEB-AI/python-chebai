@@ -1,7 +1,8 @@
+import os
+
 from pysmiles.read_smiles import _tokenize
 import pysmiles as ps
 import torch
-import os
 
 
 class DataReader:
