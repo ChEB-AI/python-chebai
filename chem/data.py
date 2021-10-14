@@ -160,13 +160,10 @@ class PubChemFull(XYBaseDataModule):
         print("Create splits")
         # Collect token distribution
         filename = os.path.join(self.raw_dir, self.raw_file_names[0])
-        with open(filename, "rb") as f:
-            num_lines = sum(1 for _ in f)
         print("Get data distribution")
-        data = []
-        with tqdm.tqdm(total=num_lines) as pbar:
-            with open(filename, "rb") as f:
-                data = [self.to_data((l.decode("utf-8").split(" ")[-1], None)) for l in f if pbar.update(1) is None]
+        with open(filename, "rb") as f:
+            with mp.Pool() as pool:
+                data = pool.imap(self.to_data, ((l.decode("utf-8").split(" ")[-1], None) for l in f))
             counter = Counter(y for x in data for y in x[0])
         with open(os.path.join(self.processed_dir, "dist.pkl"), "wb") as f:
             pickle.dump(counter, f)
