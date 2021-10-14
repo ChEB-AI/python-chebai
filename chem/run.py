@@ -1,12 +1,9 @@
 from chem.models import graph, recursive, chemyk, electra
-from chem import data
+from chem.data import datasets as ds
 import sys
 
 def main(batch_size):
     exps = [
-        #(models.lstm.ChemLSTM, [100, 500, 500], (data.JCIExtendedData, data.JCIData)),
-        #(models.graph.JCIGraphNet, [100, 100, 500], (data.JCIGraphData, data.JCIExtendedGraphData)),
-        #(graph.JCIGraphAttentionNet, [100, 100, 500], (data.JCIGraphData, data.JCIExtendedGraphData)),
         (electra.ElectraPre,
          dict(
              lr=1e-4,
@@ -16,8 +13,7 @@ def main(batch_size):
                 num_attention_heads=8,
                 num_hidden_layers=6,
                 type_vocab_size=1)),
-         (data.PubChemFullToken,)),
-        #(models.graph_k2.JCIGraphK2Net, [100, 100, 500], (data.JCIGraphTwoData, data.JCIExtendedGraphTwoData))
+         (ds.PubChemFullToken,)),
     ]
     for net_cls, model_kwargs, datasets in exps:
         for dataset in datasets:

@@ -3,7 +3,7 @@ import torch
 import torch.nn.functional as F
 from torch_geometric import nn as tgnn
 from torch_scatter import scatter_mean, scatter_add, scatter_max
-from chem.data import JCIExtendedGraphData, JCIGraphData
+from chem.data.datasets import JCIExtendedGraphData, JCIGraphData
 import logging
 import sys
 

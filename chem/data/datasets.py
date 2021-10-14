@@ -5,76 +5,35 @@ __all__ = [
     "JCIExtendedGraphData",
 ]
 
-from abc import ABC
-from typing import Iterator, Any, Union, List, Optional
+from typing import Union, List
 
 import fastobo
 import networkx as nx
 import pickle
 import os
-import datetime
 import gzip
 import shutil
 import tempfile
-from itertools import islice
 from collections import Counter
-import pandas
 from sklearn.model_selection import train_test_split
-import tqdm
 import torch
 import requests
 import pysmiles as ps
-from pysmiles.read_smiles import _tokenize
 import random
 from itertools import chain
 import glob
 import pytorch_lightning as pl
-from pytorch_lightning.utilities.apply_func import TransferableDataType
-from torch.utils.data import DataLoader, Dataset
-from torch.utils.data.dataset import T_co
-from torch.nn.utils.rnn import pad_sequence
-from torch import Tensor
-from torch_geometric.data import InMemoryDataset
+from torch.utils.data import DataLoader
 import pandas as pd
-from prefixspan import PrefixSpan
 
 from torch_geometric.utils.convert import from_networkx
-from torch_geometric.data import Dataset as TGDataset, Data
-from torch_geometric.loader.dataloader import Collater
+from torch_geometric.data import Dataset as TGDataset
 import multiprocessing as mp
+from chem.data import reader as dr
 
-from transformers import BertTokenizer
+from chem.data.structures import PrePairData, PairData
+
 DATA_LIMIT = 100
-
-class PrePairData(Data):
-    def __init__(self, l=None, r=None, label=None):
-        super(PrePairData, self).__init__()
-        self.l = l
-        self.r = r
-        self.label = label
-
-
-class PairData(Data):
-    def __init__(self, ppd: PrePairData, graph):
-        super(PairData, self).__init__()
-
-        s = graph.nodes[ppd.l]["enc"]
-        self.edge_index_s = s.edge_index
-        self.x_s = s.x
-
-        t = graph.nodes[ppd.r]["enc"]
-        self.edge_index_t = t.edge_index
-        self.x_t = t.x
-
-        self.label = ppd.label
-
-    def __inc__(self, key, value):
-        if key == 'edge_index_s':
-            return self.x_s.size(0)
-        if key == 'edge_index_t':
-            return self.x_t.size(0)
-        else:
-            return super().__inc__(key, value)
 
 
 def extract_largest_index(path, kind):
@@ -82,26 +41,21 @@ def extract_largest_index(path, kind):
 
 
 class XYBaseDataModule(pl.LightningDataModule):
+    READER = dr.DataReader
 
-    ROOT = None
-    PATH = []
-    RAW_PATH = []
-    SMILES_INDEX = None
-    LABEL_INDEX = None
-
-    def __init__(self, batch_size=1, **kwargs):
-        root = os.path.join("data", self.ROOT)
-        self.processed_dir = os.path.join(root,"processed", *self.PATH)
-        self.raw_dir = os.path.join(root, "raw", *self.RAW_PATH)
-        self.train_split=0.85
+    def __init__(self, batch_size=1, tran_split=0.85, **kwargs):
+        self.processed_dir = os.path.join("data", self._name, "processed", self.READER.name())
+        self.raw_dir = os.path.join("data", self._name, "raw")
+        self.train_split = tran_split
         self.batch_size = batch_size
+        self.reader = self.READER()
         os.makedirs(self.raw_dir, exist_ok=True)
         os.makedirs(self.processed_dir, exist_ok=True)
-        super().__init__(root, **kwargs)
+        super().__init__(**kwargs)
 
     @property
-    def num_classes(self):
-        return 500
+    def _name(self):
+        raise NotImplementedError
 
     def dataloader(self, kind, **kwargs):
         return DataLoader(torch.load(os.path.join(self.processed_dir, f"{kind}.pt")), collate_fn=self.collate, batch_size=self.batch_size, **kwargs)
@@ -126,8 +80,6 @@ class XYBaseDataModule(pl.LightningDataModule):
     def processed_file_names(self):
         raise NotImplementedError
 
-    def to_data(self, df: pd.DataFrame):
-        raise NotImplementedError
 
 class Replacer:
     def __init__(self, alphabet):
@@ -140,10 +92,14 @@ class Replacer:
         o[i] = r
         return o, [1 if j == i else 0 for j in range(len(inp))]
 
+
 class PubChemFull(XYBaseDataModule):
-    ROOT = "PUBCHEM"
     SMILES_INDEX = 0
     LABEL_INDEX = 1
+
+    @property
+    def _name(self):
+        return "Pubchem"
 
     def download(self):
         url = f"https://ftp.ncbi.nlm.nih.gov/pubchem/Compound/Monthly/2021-10-01/Extras/CID-SMILES.gz"
@@ -163,7 +119,7 @@ class PubChemFull(XYBaseDataModule):
         print("Get data distribution")
         with open(filename, "r") as f:
             with mp.Pool() as pool:
-                data = list(pool.imap(self.to_data, ((l.split(" ")[-1], None) for l in f)))
+                data = list(pool.imap(self.reader.to_data, f))
             counter = Counter(y for x in data for y in x[0])
         with open(os.path.join(self.processed_dir, "dist.pkl"), "wb") as f:
             pickle.dump(counter, f)
@@ -192,12 +148,14 @@ class PubChemFull(XYBaseDataModule):
             self.download()
             print("Done")
 
+
 class JCIBase(XYBaseDataModule):
-    ROOT = "JCI"
-    RAW_PATH = []
     LABEL_INDEX = 2
     SMILES_INDEX = 1
 
+    @property
+    def _name(self):
+        return "JCI"
 
     @property
     def processed_file_names(self):
@@ -219,112 +177,36 @@ class JCIBase(XYBaseDataModule):
         print("Transform splits")
         for k in ["test", "train", "validation"]:
             print("transform", k)
-            torch.save(list(self.to_data(pickle.load(open(os.path.join(self.raw_dir, f"{k}.pkl"), "rb")))), os.path.join(self.processed_dir, f"{k}.pt"))
+            torch.save(list(self.reader.to_data(pickle.load(open(os.path.join(self.raw_dir, f"{k}.pkl"), "rb")))), os.path.join(self.processed_dir, f"{k}.pt"))
 
 
-class ChemTokenDataset(XYBaseDataModule):
-    PATH = ["smiles_token"]
-
-    def collate(self, list_of_tuples):
-        x, y = zip(*list_of_tuples)
-        return XYData(pad_sequence([torch.tensor(a) for a in x],
-                                    batch_first=True),
-                      pad_sequence([torch.tensor(a) for a in y],
-                                   batch_first=True),
-                      additional_fields=dict(lens=list(map(len, x))))
-
-    def __init__(self, batch_size, **kwargs):
-        super().__init__(batch_size, **kwargs)
-        self.cache = []
-
-    def setup_processed(self):
-        super().setup_processed()
-        torch.save(self.cache,
-                   os.path.join(self.processed_dir, f"embeddings.pt"))
-
-    def to_data(self, row):
-        l= []
-        for v in _tokenize(row[self.SMILES_INDEX]):
-            try:
-                l.append(self.cache.index(v))
-            except ValueError:
-                l.append(len(self.cache)+1)
-                self.cache.append(v)
-        return l, row[self.LABEL_INDEX:]
-
-    def bundle(self, sequence, frequents):
-        pass
-
-class OrdDataset(XYBaseDataModule):
-    PATH = ["smiles_ord"]
-
-    def collate(self, list_of_tuples):
-        x, y = zip(*list_of_tuples)
-        return XYData(pad_sequence([torch.tensor(a) for a in x],
-                                    batch_first=True),
-                      pad_sequence([torch.tensor(a) for a in y],
-                                   batch_first=True),
-                      additional_fields=dict(lens=list(map(len, x))))
-
-    def to_data(self, df: pd.DataFrame):
-        for row in df.values[:DATA_LIMIT]:
-            yield [ord(s) for s in row[self.SMILES_INDEX]], row[
-                                                            self.LABEL_INDEX:].astype(
-                bool)
+class PubChemFullToken(PubChemFull):
+    READER = dr.ChemDataReader
 
 
-class MolDataset(XYBaseDataModule):
-    PATH = ["mol"]
-
-    def __init__(self, batch_size, **kwargs):
-        super().__init__(batch_size, **kwargs)
-        self.cache = []
-
-    def collate(self, list_of_tuples):
-        x, y = zip(*list_of_tuples)
-        return XYMolData(x, torch.stack(y))
-
-    def to_data(self, df: pd.DataFrame):
-        for row in df.values[:DATA_LIMIT]:
-            yield get_encoded_mol(row[self.SMILES_INDEX], self.cache), torch.tensor(row[
-                                                            self.LABEL_INDEX:].astype(
-                bool))
-
-class PubChemFullToken(PubChemFull, ChemTokenDataset):
-
-    def setup_processed(self):
-        super().setup_processed()
-        print("Tokens: ", len(self.cache))
-        torch.save(self.cache,
-                   os.path.join(self.processed_dir, f"embeddings.pt"))
-
-class PubChemToxicToken(PubChemFull, ChemTokenDataset):
-    ROOT = "PUBCHEM_toxic"
-
-    def setup_processed(self):
-        super().setup_processed()
-        print("Tokens: ", len(self.cache))
-        torch.save(self.cache,
-                   os.path.join(self.processed_dir, f"embeddings.pt"))
-
-class JCIData(JCIBase, OrdDataset):
-    pass
+class JCIData(JCIBase):
+    READER = dr.OrdReader
 
 
-class JCIMolData(JCIBase, MolDataset):
-    pass
+class JCIMolData(JCIBase):
+    READER = dr.MolDatareader
 
-class JCITokenData(JCIBase, ChemTokenDataset):
-    pass
 
-class PubChemTokens(PubChemFull, ChemTokenDataset):
-    pass
+class JCITokenData(JCIBase):
+    READER = dr.ChemDataReader
+
+
+class PubChemTokens(PubChemFull):
+    READER = dr.ChemDataReader
+
 
 class JCIExtendedBase(XYBaseDataModule):
-    ROOT = "JCI_extended"
-    RAW_PATH = []
     LABEL_INDEX = 3
     SMILES_INDEX = 2
+
+    @property
+    def _name(self):
+        return "JCI_extended"
 
     def setup_processed(self):
         print("Transform splits")
@@ -395,139 +277,16 @@ class JCIExtendedBase(XYBaseDataModule):
             self.save(g, *self.get_splits(g))
 
 
-class JCIExtendedData(JCIExtendedBase, OrdDataset):
-    pass
+class JCIExtendedData(JCIExtendedBase):
+    READER = dr.OrdReader
 
 
-class XYData(torch.utils.data.Dataset, TransferableDataType):
-
-    def __getitem__(self, index) -> T_co:
-        return self.x[index], self.y[index]
-
-    def __len__(self):
-        return len(self.x)
-
-    def __init__(self, x, y, additional_fields=None, **kwargs):
-        super().__init__(**kwargs)
-        if additional_fields:
-            for key, value in additional_fields.items():
-                setattr(self, key, value)
-        self.x = x
-        self.y = y
-
-        self.additional_fields = list(additional_fields.keys()) if additional_fields else []
-
-    def to_x(self, device):
-        return self.x.to(device)
-
-    def to_y(self, device):
-        return self.y.to(device)
-
-    def to(self, device):
-        x = self.to_x(device)
-        y = self.to_y(device)
-        return XYData(x, y, additional_fields={k: getattr(self, k) for k in self.additional_fields} )
-
-class XYMolData(XYData):
-
-    def to_x(self, device):
-        l = []
-        for g in self.x:
-            graph = g.copy()
-            nx.set_node_attributes(graph, {k: v.to(device) for k, v in nx.get_node_attributes(g, "x").items()}, "x")
-            l.append(graph)
-        return tuple(l)
-
-class GraphDataset(XYBaseDataModule):
-    PATH = ["graph"]
-
-    def __init__(self, batch_size, **kwargs):
-        super().__init__(batch_size, **kwargs)
-        self.collater = Collater(follow_batch=["x", "edge_attr", "edge_index", "label"], exclude_keys=[])
-        self.cache = []
-
-    def setup_processed(self):
-        super().setup_processed()
-        torch.save(self.cache, os.path.join(self.processed_dir, f"embeddings.pt"))
+class JCIGraphData(JCIBase):
+    READER = dr.GraphDataset
 
 
-    def process_smiles(self, smiles):
-
-        def cache(m):
-            try:
-                x = self.cache.index(m)
-            except ValueError:
-                x = len(self.cache)
-                self.cache.append(m)
-            return x
-        try:
-            mol = ps.read_smiles(smiles)
-        except ValueError:
-            return None
-        d = {}
-        de = {}
-        for node in mol.nodes:
-            try:
-                m = mol.nodes[node]["element"]
-            except KeyError:
-                m = "*"
-            d[node] = cache(m)
-            for attr in list(mol.nodes[node].keys()):
-                del mol.nodes[node][attr]
-        for edge in mol.edges:
-            de[edge] = mol.edges[edge]["order"]
-            for attr in list(mol.edges[edge].keys()):
-                del mol.edges[edge][attr]
-        nx.set_node_attributes(mol, d, "x")
-        nx.set_edge_attributes(mol, de, "edge_attr")
-        return from_networkx(mol)
-
-    def collate(self, list_of_tuples):
-        return self.collater(list_of_tuples)
-
-    def to_data(self, df: pd.DataFrame):
-        for row in df.values[:DATA_LIMIT]:
-            d = self.process_smiles(row[self.SMILES_INDEX])
-            if d is not None and d.num_nodes > 1:
-                d.y = torch.tensor(row[self.LABEL_INDEX:].astype(bool)).unsqueeze(0)
-                yield d
-
-
-class JCIGraphData(JCIBase, GraphDataset):
-    pass
-
-
-class JCIExtendedGraphData(JCIExtendedBase, GraphDataset):
-    pass
-
-try:
-    from k_gnn import TwoMalkin
-except ModuleNotFoundError:
-    pass
-else:
-    from k_gnn.dataloader import collate
-    class GraphTwoDataset(GraphDataset):
-        PATH = ["graph_k2"]
-
-        def to_data(self, df: pd.DataFrame):
-            for data in super().to_data(df)[:DATA_LIMIT]:
-                if data.num_nodes >=6:
-                    x = data.x
-                    data.x = data.x.unsqueeze(0)
-                    data = TwoMalkin()(data)
-                    data.x = x
-                    yield data
-
-        def collate(self, list_of_tuples):
-            return collate(list_of_tuples)
-
-
-    class JCIExtendedGraphTwoData(JCIExtendedBase, GraphTwoDataset):
-        pass
-
-    class JCIGraphTwoData(JCIBase, GraphTwoDataset):
-        pass
-
+class JCIExtendedGraphData(JCIExtendedBase):
+    READER = dr.GraphDataset
 
 class PartOfData(TGDataset):
 
@@ -546,7 +305,6 @@ class PartOfData(TGDataset):
         self.batch_size = batch_size
         super().__init__(root, pre_transform=pre_transform, transform=self.transform, **kwargs)
         self.graph = pickle.load(open(os.path.join(self.processed_dir, self.processed_cache_names[0]), "rb"))
-
 
     def transform(self, ppds):
         return [PairData(ppd, self.graph) for ppd in ppds]
@@ -718,29 +476,6 @@ def mol_to_data(smiles):
             del mol.nodes[node][attr]
     nx.set_node_attributes(mol, d, "x")
     return from_networkx(mol)
-
-
-def get_encoded_mol(smiles, cache):
-    try:
-        mol = ps.read_smiles(smiles)
-    except ValueError:
-        return None
-    d = {}
-    for node in mol.nodes:
-        try:
-            m = mol.nodes[node]["element"]
-        except KeyError:
-            m = "*"
-        try:
-            x = cache.index(m)
-        except ValueError:
-            x = len(cache)
-            cache.append(m)
-        d[node] = torch.tensor(x)
-        for attr in list(mol.nodes[node].keys()):
-            del mol.nodes[node][attr]
-    nx.set_node_attributes(mol, d, "x")
-    return mol
 
 
 atom_index =(
