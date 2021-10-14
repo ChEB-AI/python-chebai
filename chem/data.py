@@ -161,9 +161,9 @@ class PubChemFull(XYBaseDataModule):
         # Collect token distribution
         filename = os.path.join(self.raw_dir, self.raw_file_names[0])
         print("Get data distribution")
-        with open(filename, "rb") as f:
+        with open(filename, "r") as f:
             with mp.Pool() as pool:
-                data = pool.imap(self.to_data, ((l.decode("utf-8").split(" ")[-1], None) for l in f))
+                data = pool.imap(self.to_data, ((l.split(" ")[-1], None) for l in f))
             counter = Counter(y for x in data for y in x[0])
         with open(os.path.join(self.processed_dir, "dist.pkl"), "wb") as f:
             pickle.dump(counter, f)
