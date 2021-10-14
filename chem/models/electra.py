@@ -5,10 +5,12 @@ from torch.nn.utils.rnn import pack_padded_sequence, pad_packed_sequence
 import logging
 from chem.models.base import JCIBaseNet
 
-logging.getLogger('pysmiles').setLevel(logging.CRITICAL)
+logging.getLogger("pysmiles").setLevel(logging.CRITICAL)
+
 
 class ElectraPre(JCIBaseNet):
     NAME = "Electra"
+
     def __init__(self, config=None, **kwargs):
         super().__init__(**kwargs)
         config = ElectraConfig(**config)

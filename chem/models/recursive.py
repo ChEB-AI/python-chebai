@@ -6,7 +6,7 @@ import logging
 from chem.models.base import JCIBaseNet
 
 
-logging.getLogger('pysmiles').setLevel(logging.CRITICAL)
+logging.getLogger("pysmiles").setLevel(logging.CRITICAL)
 
 
 class Recursive(JCIBaseNet):
@@ -40,7 +40,12 @@ class Recursive(JCIBaseNet):
 
         self.base = torch.nn.parameter.Parameter(torch.empty((in_d,)))
         self.base_memory = torch.nn.parameter.Parameter(torch.empty((mem_len,)))
-        self.output = nn.Sequential(nn.Linear(in_d, in_d), nn.ReLU(), nn.Dropout(0.2), nn.Linear(in_d, num_classes))
+        self.output = nn.Sequential(
+            nn.Linear(in_d, in_d),
+            nn.ReLU(),
+            nn.Dropout(0.2),
+            nn.Linear(in_d, num_classes),
+        )
 
     def forward(self, batch):
         result = []
@@ -49,7 +54,9 @@ class Recursive(JCIBaseNet):
             c = nx.center(graph)[0]
             d = nx.single_source_shortest_path(graph, c)
             if graph.edges:
-                digraph = nx.DiGraph((a,b) if d[a] > d[b] else (b,a) for (a,b) in graph.edges)
+                digraph = nx.DiGraph(
+                    (a, b) if d[a] > d[b] else (b, a) for (a, b) in graph.edges
+                )
             else:
                 digraph = nx.DiGraph(graph)
             child_results = {}
@@ -68,19 +75,21 @@ class Recursive(JCIBaseNet):
         return torch.stack(result)
 
     def merge_childen(self, child_values, x):
-        stack = torch.stack(child_values).unsqueeze(0).transpose(1,0)
-        att = self.children_attention(x.expand(1, stack.shape[1], -1).transpose(1, 0), stack, stack)[0]
+        stack = torch.stack(child_values).unsqueeze(0).transpose(1, 0)
+        att = self.children_attention(
+            x.expand(1, stack.shape[1], -1).transpose(1, 0), stack, stack
+        )[0]
         return torch.sum(att.squeeze(0), dim=0)
 
     def input(self, x0, hidden):
 
         x = x0.unsqueeze(0).unsqueeze(0)
-        a = self.input_norm_1(x + self.input_attention(x,x,x)[0])
+        a = self.input_norm_1(x + self.input_attention(x, x, x)[0])
         a = self.input_norm_2(a + F.relu(self.input_post(a)))
 
         h0 = hidden.unsqueeze(0).unsqueeze(0)
         b = self.hidden_norm_1(h0 + self.input_attention(h0, h0, h0)[0])
-        #b = self.norm(b + self.hidden_post(b))
+        # b = self.norm(b + self.hidden_post(b))
 
         c = self.merge_norm_1(b + self.merge_attention(a, b, b)[0])
         c = self.merge_norm_2(c + F.relu(self.merge_post(c)))

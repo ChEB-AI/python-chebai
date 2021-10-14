@@ -8,6 +8,7 @@ from molecule import Molecule
 import pytorch_lightning as pl
 from pytorch_lightning.metrics import F1
 
+
 class ChEBIRecNN(pl.LightningModule):
     def __init__(self):
         super(ChEBIRecNN, self).__init__()
@@ -22,10 +23,7 @@ class ChEBIRecNN(pl.LightningModule):
         self._f1 = F1(500, threshold=0.5)
         self._loss_fun = F.binary_cross_entropy_with_logits
 
-        self.metrics = {
-            "loss": self._loss_fun,
-            "f1": self._f1
-        }
+        self.metrics = {"loss": self._loss_fun, "f1": self._f1}
 
         self.c1 = nn.Linear(self.length, self.length)
         self.c2 = nn.Linear(self.length, self.length)
@@ -34,11 +32,31 @@ class ChEBIRecNN(pl.LightningModule):
         self.c5 = nn.Linear(self.length, self.length)
         self.c = {1: self.c1, 2: self.c2, 3: self.c3, 4: self.c4, 5: self.c5}
 
-        self.NN_single_node = nn.Sequential(nn.Linear(self.atom_enc, self.length), nn.ReLU(), nn.Linear(self.length, self.length))
-        self.merge = nn.Sequential(nn.Linear(2*self.length, self.length), nn.ReLU(), nn.Linear(self.length, self.length))
-        self.register_parameter("attention_weight", torch.nn.Parameter(torch.rand(self.length,1, requires_grad=True)))
-        self.register_parameter("dag_weight", torch.nn.Parameter(torch.rand(self.length,1, requires_grad=True)))
-        self.final = nn.Sequential(nn.Linear(self.length, self.length), nn.ReLU(), nn.Linear(self.length, self.length), nn.ReLU(), nn.Linear(self.length, self.num_of_classes))
+        self.NN_single_node = nn.Sequential(
+            nn.Linear(self.atom_enc, self.length),
+            nn.ReLU(),
+            nn.Linear(self.length, self.length),
+        )
+        self.merge = nn.Sequential(
+            nn.Linear(2 * self.length, self.length),
+            nn.ReLU(),
+            nn.Linear(self.length, self.length),
+        )
+        self.register_parameter(
+            "attention_weight",
+            torch.nn.Parameter(torch.rand(self.length, 1, requires_grad=True)),
+        )
+        self.register_parameter(
+            "dag_weight",
+            torch.nn.Parameter(torch.rand(self.length, 1, requires_grad=True)),
+        )
+        self.final = nn.Sequential(
+            nn.Linear(self.length, self.length),
+            nn.ReLU(),
+            nn.Linear(self.length, self.length),
+            nn.ReLU(),
+            nn.Linear(self.length, self.num_of_classes),
+        )
 
     def forward(self, molecules: Iterable[Molecule]):
         return torch.stack([self._proc_single_mol(molecule) for molecule in molecules])
@@ -60,7 +78,12 @@ class ChEBIRecNN(pl.LightningModule):
                     output = F.relu(self.merge(inp)) + inp_prev
                 for succ in dag.successors(node):
                     try:
-                        inputs[succ] = torch.cat((self.c[num_inputs[succ]](inputs[succ]), output.unsqueeze(0)))
+                        inputs[succ] = torch.cat(
+                            (
+                                self.c[num_inputs[succ]](inputs[succ]),
+                                output.unsqueeze(0),
+                            )
+                        )
                         num_inputs[succ] += 1
                     except KeyError:
                         inputs[succ] = output.unsqueeze(0)
@@ -87,22 +110,29 @@ class ChEBIRecNN(pl.LightningModule):
         return self._calculate_metrics(prediction, labels, prefix="val_")
 
     def process_atom(self, node, molecule):
-        return F.dropout(F.relu(self.NN_single_node(molecule.get_atom_features(node).to(self.device))), p=0.1)
+        return F.dropout(
+            F.relu(
+                self.NN_single_node(molecule.get_atom_features(node).to(self.device))
+            ),
+            p=0.1,
+        )
 
     def training_epoch_end(self, outputs) -> None:
         for metric in self.metrics:
-            avg = torch.stack([o[metric] for o in  outputs]).mean()
+            avg = torch.stack([o[metric] for o in outputs]).mean()
             self.log(metric, avg)
 
     def validation_epoch_end(self, outputs) -> None:
         if not self.trainer.running_sanity_check:
             for metric in self.metrics:
-                avg = torch.stack([o[metric] for o in  outputs]).mean()
+                avg = torch.stack([o[metric] for o in outputs]).mean()
                 self.log("val_" + metric, avg)
 
     @staticmethod
     def attention(weights, x):
-        return torch.sum(torch.mul(torch.softmax(torch.matmul(x, weights), dim=0),x), dim=0)
+        return torch.sum(
+            torch.mul(torch.softmax(torch.matmul(x, weights), dim=0), x), dim=0
+        )
 
     def configure_optimizers(self):
         optimizer = torch.optim.Adam(self.parameters(), lr=1e-3)

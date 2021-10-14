@@ -11,7 +11,7 @@ import sys
 
 from chem.models.base import JCIBaseNet
 
-logging.getLogger('pysmiles').setLevel(logging.CRITICAL)
+logging.getLogger("pysmiles").setLevel(logging.CRITICAL)
 
 
 class JCIGraphK2Net(JCIBaseNet):
@@ -29,9 +29,13 @@ class JCIGraphK2Net(JCIBaseNet):
         self.conv2_2 = tgnn.GraphConv(in_length, in_length)
         self.conv2_3 = tgnn.GraphConv(in_length, hidden_length)
 
-        self.output_net = nn.Sequential(nn.Linear(hidden_length*2, hidden_length), nn.ELU(),
-                                        nn.Linear(hidden_length, hidden_length), nn.ELU(),
-                                        nn.Linear(hidden_length, num_classes))
+        self.output_net = nn.Sequential(
+            nn.Linear(hidden_length * 2, hidden_length),
+            nn.ELU(),
+            nn.Linear(hidden_length, hidden_length),
+            nn.ELU(),
+            nn.Linear(hidden_length, num_classes),
+        )
 
         self.dropout = nn.Dropout(0.1)
 
@@ -54,4 +58,3 @@ class JCIGraphK2Net(JCIBaseNet):
 
         a = self.dropout(a)
         return self.output_net(a)
-

@@ -11,7 +11,7 @@ from pytorch_lightning.tuner.tuning import Tuner
 import logging
 import sys
 
-logging.getLogger('pysmiles').setLevel(logging.CRITICAL)
+logging.getLogger("pysmiles").setLevel(logging.CRITICAL)
 
 
 class JCIBaseNet(pl.LightningModule):
@@ -39,19 +39,59 @@ class JCIBaseNet(pl.LightningModule):
 
     def training_step(self, *args, **kwargs):
         loss, f1, mse = self._execute(*args, **kwargs)
-        self.log('train_loss', loss.detach().item(), on_step=False, on_epoch=True, prog_bar=True, logger=True)
-        self.log('train_f1', f1.detach().item(), on_step=False, on_epoch=True, prog_bar=True, logger=True)
-        self.log('train_mse', mse.detach().item(), on_step=False, on_epoch=True,
-                 prog_bar=True, logger=True)
+        self.log(
+            "train_loss",
+            loss.detach().item(),
+            on_step=False,
+            on_epoch=True,
+            prog_bar=True,
+            logger=True,
+        )
+        self.log(
+            "train_f1",
+            f1.detach().item(),
+            on_step=False,
+            on_epoch=True,
+            prog_bar=True,
+            logger=True,
+        )
+        self.log(
+            "train_mse",
+            mse.detach().item(),
+            on_step=False,
+            on_epoch=True,
+            prog_bar=True,
+            logger=True,
+        )
         return loss
 
     def validation_step(self, *args, **kwargs):
         with torch.no_grad():
             loss, f1, mse = self._execute(*args, **kwargs)
-            self.log('val_loss', loss.detach().item(), on_step=False, on_epoch=True, prog_bar=True, logger=True)
-            self.log('val_f1', f1.detach().item(), on_step=False, on_epoch=True, prog_bar=True, logger=True)
-            self.log('val_mse', mse.detach().item(), on_step=False, on_epoch=True,
-                     prog_bar=True, logger=True)
+            self.log(
+                "val_loss",
+                loss.detach().item(),
+                on_step=False,
+                on_epoch=True,
+                prog_bar=True,
+                logger=True,
+            )
+            self.log(
+                "val_f1",
+                f1.detach().item(),
+                on_step=False,
+                on_epoch=True,
+                prog_bar=True,
+                logger=True,
+            )
+            self.log(
+                "val_mse",
+                mse.detach().item(),
+                on_step=False,
+                on_epoch=True,
+                prog_bar=True,
+                logger=True,
+            )
             return loss
 
     def forward(self, x):
@@ -62,7 +102,14 @@ class JCIBaseNet(pl.LightningModule):
         return optimizer
 
     @classmethod
-    def run(cls, data, name, model_args: list = None, model_kwargs: dict = None, weighted=False):
+    def run(
+        cls,
+        data,
+        name,
+        model_args: list = None,
+        model_kwargs: dict = None,
+        weighted=False,
+    ):
         if model_args is None:
             model_args = []
         if model_kwargs is None:
@@ -76,8 +123,10 @@ class JCIBaseNet(pl.LightningModule):
         if weighted:
             weights = model_kwargs.get("weights")
             if weights is None:
-                weights = 1 + torch.sum(torch.cat([data.y for data in train_data]).float(), dim=0)
-                weights = torch.mean(weights)/weights
+                weights = 1 + torch.sum(
+                    torch.cat([data.y for data in train_data]).float(), dim=0
+                )
+                weights = torch.mean(weights) / weights
                 name += "__weighted"
             model_kwargs["weights"] = weights
         else:
@@ -91,15 +140,15 @@ class JCIBaseNet(pl.LightningModule):
         else:
             trainer_kwargs = dict(gpus=0)
 
-        tb_logger = pl_loggers.TensorBoardLogger('logs/', name=name)
+        tb_logger = pl_loggers.TensorBoardLogger("logs/", name=name)
         checkpoint_callback = ModelCheckpoint(
             dirpath=os.path.join(tb_logger.log_dir, "checkpoints"),
             filename="{epoch}-{step}-{val_loss:.7f}",
             save_top_k=5,
             save_last=True,
             verbose=True,
-            monitor='val_loss',
-            mode='min'
+            monitor="val_loss",
+            mode="min",
         )
 
         # Calculate weights per class
@@ -107,9 +156,18 @@ class JCIBaseNet(pl.LightningModule):
         net = cls(*model_args, **model_kwargs)
 
         # Early stopping seems to be bugged right now with ddp accelerator :(
-        es = EarlyStopping(monitor='val_loss', patience=10, min_delta=0.00,
-           verbose=False,
+        es = EarlyStopping(
+            monitor="val_loss",
+            patience=10,
+            min_delta=0.00,
+            verbose=False,
         )
 
-        trainer = pl.Trainer(logger=tb_logger,max_epochs=300, callbacks=[checkpoint_callback], replace_sampler_ddp=False, **trainer_kwargs)
+        trainer = pl.Trainer(
+            logger=tb_logger,
+            max_epochs=300,
+            callbacks=[checkpoint_callback],
+            replace_sampler_ddp=False,
+            **trainer_kwargs
+        )
         trainer.fit(net, train_data, val_dataloaders=val_data)

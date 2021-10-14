@@ -5,7 +5,6 @@ import os
 
 
 class DataReader:
-
     def _get_raw_data(self, row):
         return row[0]
 
@@ -23,11 +22,12 @@ class DataReader:
         return raw_label
 
     def to_data(self, row):
-        return self._read_data(self._get_raw_data(row)), self._read_label(self._get_raw_label(row))
+        return self._read_data(self._get_raw_data(row)), self._read_label(
+            self._get_raw_label(row)
+        )
 
 
 class ChemDataReader(DataReader):
-
     @classmethod
     def name(cls):
         return "smiles_token"
@@ -54,7 +54,6 @@ class ChemDataReader(DataReader):
 
 
 class OrdReader(DataReader):
-
     @classmethod
     def name(cls):
         return "ord"
@@ -64,7 +63,6 @@ class OrdReader(DataReader):
 
 
 class MolDatareader(DataReader):
-
     @classmethod
     def name(cls):
         return "mol"
@@ -73,10 +71,10 @@ class MolDatareader(DataReader):
         super().__init__(batch_size, **kwargs)
         self.cache = []
 
-
-
     def to_data(self, row):
-            return self.get_encoded_mol(row[self.SMILES_INDEX], self.cache),self._get_label(row)
+        return self.get_encoded_mol(
+            row[self.SMILES_INDEX], self.cache
+        ), self._get_label(row)
 
     def get_encoded_mol(self, smiles, cache):
         try:
@@ -102,18 +100,18 @@ class MolDatareader(DataReader):
 
 
 class GraphDataset(DataReader):
-
     @classmethod
     def name(cls):
         return "graph"
 
     def __init__(self, batch_size, **kwargs):
         super().__init__(batch_size, **kwargs)
-        self.collater = Collater(follow_batch=["x", "edge_attr", "edge_index", "label"], exclude_keys=[])
+        self.collater = Collater(
+            follow_batch=["x", "edge_attr", "edge_index", "label"], exclude_keys=[]
+        )
         self.cache = []
 
     def process_smiles(self, smiles):
-
         def cache(m):
             try:
                 x = self.cache.index(m)
@@ -121,6 +119,7 @@ class GraphDataset(DataReader):
                 x = len(self.cache)
                 self.cache.append(m)
             return x
+
         try:
             mol = ps.read_smiles(smiles)
         except ValueError:
@@ -150,7 +149,7 @@ class GraphDataset(DataReader):
         for row in df.values[:DATA_LIMIT]:
             d = self.process_smiles(row[self.SMILES_INDEX])
             if d is not None and d.num_nodes > 1:
-                d.y = torch.tensor(row[self.LABEL_INDEX:].astype(bool)).unsqueeze(0)
+                d.y = torch.tensor(row[self.LABEL_INDEX :].astype(bool)).unsqueeze(0)
                 yield d
 
 
@@ -160,15 +159,15 @@ except ModuleNotFoundError:
     pass
 else:
     from k_gnn.dataloader import collate
-    class GraphTwoDataset(GraphDataset):
 
+    class GraphTwoDataset(GraphDataset):
         @classmethod
         def name(cls):
             return "graph_k2"
 
         def to_data(self, df: pd.DataFrame):
             for data in super().to_data(df)[:DATA_LIMIT]:
-                if data.num_nodes >=6:
+                if data.num_nodes >= 6:
                     x = data.x
                     data.x = data.x.unsqueeze(0)
                     data = TwoMalkin()(data)
@@ -177,7 +176,6 @@ else:
 
         def collate(self, list_of_tuples):
             return collate(list_of_tuples)
-
 
     class JCIExtendedGraphTwoData(JCIExtendedBase, GraphTwoDataset):
         pass

@@ -9,7 +9,7 @@ import sys
 from chem.models.base import JCIBaseNet
 
 
-logging.getLogger('pysmiles').setLevel(logging.CRITICAL)
+logging.getLogger("pysmiles").setLevel(logging.CRITICAL)
 
 
 class ChemYK(JCIBaseNet):
@@ -26,16 +26,36 @@ class ChemYK(JCIBaseNet):
         self.softmax = nn.Softmax()
         self.attention_weight = nn.Linear(in_d, in_d)
         self.top_level_attention_weight = nn.Linear(in_d, in_d)
-        self.output = nn.Sequential(nn.Linear(in_d, in_d), nn.ReLU(), nn.Dropout(0.2), nn.Linear(in_d, num_classes))
+        self.output = nn.Sequential(
+            nn.Linear(in_d, in_d),
+            nn.ReLU(),
+            nn.Dropout(0.2),
+            nn.Linear(in_d, num_classes),
+        )
 
     def forward(self, batch, max_width=5):
         result = []
         for data in batch.x:
             # Calculate embeddings
-            clusters = [(frozenset({x, y}), self.merge([(self.embedding(data.nodes[x]["x"]), self.embedding(data.nodes[y]["x"]))])) for x,y in data.edges]
+            clusters = [
+                (
+                    frozenset({x, y}),
+                    self.merge(
+                        [
+                            (
+                                self.embedding(data.nodes[x]["x"]),
+                                self.embedding(data.nodes[y]["x"]),
+                            )
+                        ]
+                    ),
+                )
+                for x, y in data.edges
+            ]
             while len(clusters[0][0]) < max_width:
                 new_clusters = dict()
-                for (cluster_l, value_l), (cluster_r, value_r) in combinations(clusters, 2):
+                for (cluster_l, value_l), (cluster_r, value_r) in combinations(
+                    clusters, 2
+                ):
                     if len(cluster_l.union(cluster_r)) == len(cluster_l) + 1:
                         u = cluster_l.union(cluster_r)
                         new_clusters[u] = new_clusters.get(u, []) + [(value_l, value_r)]
@@ -46,21 +66,20 @@ class ChemYK(JCIBaseNet):
         return self.output(torch.stack(result))
 
     def merge(self, pairs):
-        return sum(self.fold(self._pair_merge(x,y)) for x, y in pairs)
+        return sum(self.fold(self._pair_merge(x, y)) for x, y in pairs)
 
-    def _pair_merge(self, x,y):
-        beta = self.softmax(torch.stack([self.left(x),self.right(y)]))
-        h2 = beta[0]*self.w_l(x) + beta[1]*self.w_r(y)
+    def _pair_merge(self, x, y):
+        beta = self.softmax(torch.stack([self.left(x), self.right(y)]))
+        h2 = beta[0] * self.w_l(x) + beta[1] * self.w_r(y)
         return self.ff_rep(h2) + h2
 
     def fold(self, h):
-        return exp(self.attention_weight(h))*h
+        return exp(self.attention_weight(h)) * h
 
     def top_level_merge(self, clusters):
-        t = torch.stack([c for (_,c) in clusters])
+        t = torch.stack([c for (_, c) in clusters])
         sm = self.softmax(self.top_level_attention_weight(t))
-        return torch.sum(t*sm, dim=0)
-
+        return torch.sum(t * sm, dim=0)
 
 
 def graphyk(graph: nx.Graph):

@@ -28,16 +28,15 @@ class PairData(Data):
         self.label = ppd.label
 
     def __inc__(self, key, value):
-        if key == 'edge_index_s':
+        if key == "edge_index_s":
             return self.x_s.size(0)
-        if key == 'edge_index_t':
+        if key == "edge_index_t":
             return self.x_t.size(0)
         else:
             return super().__inc__(key, value)
 
 
 class XYData(torch.utils.data.Dataset, TransferableDataType):
-
     def __getitem__(self, index) -> T_co:
         return self.x[index], self.y[index]
 
@@ -52,7 +51,9 @@ class XYData(torch.utils.data.Dataset, TransferableDataType):
         self.x = x
         self.y = y
 
-        self.additional_fields = list(additional_fields.keys()) if additional_fields else []
+        self.additional_fields = (
+            list(additional_fields.keys()) if additional_fields else []
+        )
 
     def to_x(self, device):
         return self.x.to(device)
@@ -63,15 +64,22 @@ class XYData(torch.utils.data.Dataset, TransferableDataType):
     def to(self, device):
         x = self.to_x(device)
         y = self.to_y(device)
-        return XYData(x, y, additional_fields={k: getattr(self, k) for k in self.additional_fields} )
+        return XYData(
+            x,
+            y,
+            additional_fields={k: getattr(self, k) for k in self.additional_fields},
+        )
 
 
 class XYMolData(XYData):
-
     def to_x(self, device):
         l = []
         for g in self.x:
             graph = g.copy()
-            nx.set_node_attributes(graph, {k: v.to(device) for k, v in nx.get_node_attributes(g, "x").items()}, "x")
+            nx.set_node_attributes(
+                graph,
+                {k: v.to(device) for k, v in nx.get_node_attributes(g, "x").items()},
+                "x",
+            )
             l.append(graph)
         return tuple(l)

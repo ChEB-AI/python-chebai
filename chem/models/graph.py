@@ -9,7 +9,7 @@ import sys
 
 from chem.models.base import JCIBaseNet
 
-logging.getLogger('pysmiles').setLevel(logging.CRITICAL)
+logging.getLogger("pysmiles").setLevel(logging.CRITICAL)
 
 
 class JCIGraphNet(JCIBaseNet):
@@ -23,10 +23,15 @@ class JCIGraphNet(JCIBaseNet):
         self.conv2 = tgnn.GraphConv(in_length, in_length)
         self.conv3 = tgnn.GraphConv(in_length, hidden_length)
 
-        self.output_net = nn.Sequential(nn.Linear(hidden_length,hidden_length), nn.ELU(), nn.Linear(hidden_length,hidden_length), nn.ELU(), nn.Linear(hidden_length, num_classes))
+        self.output_net = nn.Sequential(
+            nn.Linear(hidden_length, hidden_length),
+            nn.ELU(),
+            nn.Linear(hidden_length, hidden_length),
+            nn.ELU(),
+            nn.Linear(hidden_length, num_classes),
+        )
 
         self.dropout = nn.Dropout(0.1)
-
 
     def forward(self, x):
         a = self.embedding(x.x)
@@ -38,6 +43,7 @@ class JCIGraphNet(JCIBaseNet):
         a = scatter_add(a, x.batch, dim=0)
         return self.output_net(a)
 
+
 class JCIGraphAttentionNet(JCIBaseNet):
     NAME = "AGNN"
 
@@ -45,17 +51,29 @@ class JCIGraphAttentionNet(JCIBaseNet):
         super().__init__(num_classes, **kwargs)
         self.embedding = torch.nn.Embedding(800, in_length)
         self.edge_embedding = torch.nn.Embedding(4, in_length)
-        in_length = in_length+10
-        self.conv1 = tgnn.GATConv(in_length, in_length, 5, concat=False, dropout=0.1, add_self_loops=True)
-        self.conv2 = tgnn.GATConv(in_length, in_length, 5, concat=False, add_self_loops=True)
-        self.conv3 = tgnn.GATConv(in_length, in_length, 5, concat=False, add_self_loops=True)
-        self.conv4 = tgnn.GATConv(in_length, in_length, 5, concat=False, add_self_loops=True)
-        self.conv5 = tgnn.GATConv(in_length, in_length, 5, concat=False, add_self_loops=True)
-        self.output_net = nn.Sequential(nn.Linear(in_length, hidden_length),
-                                        nn.LeakyReLU(),
-                                        nn.Linear(hidden_length, hidden_length),
-                                        nn.LeakyReLU(),
-                                        nn.Linear(hidden_length, num_classes))
+        in_length = in_length + 10
+        self.conv1 = tgnn.GATConv(
+            in_length, in_length, 5, concat=False, dropout=0.1, add_self_loops=True
+        )
+        self.conv2 = tgnn.GATConv(
+            in_length, in_length, 5, concat=False, add_self_loops=True
+        )
+        self.conv3 = tgnn.GATConv(
+            in_length, in_length, 5, concat=False, add_self_loops=True
+        )
+        self.conv4 = tgnn.GATConv(
+            in_length, in_length, 5, concat=False, add_self_loops=True
+        )
+        self.conv5 = tgnn.GATConv(
+            in_length, in_length, 5, concat=False, add_self_loops=True
+        )
+        self.output_net = nn.Sequential(
+            nn.Linear(in_length, hidden_length),
+            nn.LeakyReLU(),
+            nn.Linear(hidden_length, hidden_length),
+            nn.LeakyReLU(),
+            nn.Linear(hidden_length, num_classes),
+        )
         self.dropout = nn.Dropout(0.1)
 
     def forward(self, batch):
@@ -71,5 +89,3 @@ class JCIGraphAttentionNet(JCIBaseNet):
         a = scatter_mean(a, batch.batch, dim=0)
         a = self.output_net(a)
         return a
-
-
