@@ -17,8 +17,10 @@ import gzip
 import shutil
 import tempfile
 from itertools import islice
+from collections import Counter
 import pandas
 from sklearn.model_selection import train_test_split
+import tqdm
 import torch
 import requests
 import pysmiles as ps
@@ -156,10 +158,20 @@ class PubChemFull(XYBaseDataModule):
 
     def setup_processed(self):
         print("Create splits")
-        r = Replacer(list(range(20)))
-        with open(os.path.join(self.raw_dir, self.raw_file_names[0]), "r") as f_in:
-            train = [r.replace(x[0]) for x in map(self.to_data, ((line.split(" ")[-1], None) for line in f_in))]
-            train, test = train_test_split(train, train_size=self.train_split)
+        # Collect token distribution
+        filename = os.path.join(self.raw_dir, self.raw_file_names[0])
+        with open(filename, "rb") as f:
+            num_lines = sum(1 for _ in f)
+        print("Get data distribution")
+        data = []
+        with tqdm.tqdm(total=num_lines) as pbar:
+            with open(filename, "rb") as f:
+                data = [self.to_data((l.decode("utf-8").split(" ")[-1], None)) for l in f if pbar.update(1) is None]
+            counter = Counter(y for x in data for y in x[0])
+        print("Flip tokens w.r.t. distribution")
+        with open(filename, "rb") as f_in:
+            train, test = train_test_split(data, train_size=self.train_split)
+            del data
             test, val = train_test_split(test, train_size=self.train_split)
         torch.save(train, os.path.join(self.processed_dir, f"train.pt"))
         torch.save(test, os.path.join(self.processed_dir, f"test.pt"))
