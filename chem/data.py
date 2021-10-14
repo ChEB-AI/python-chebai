@@ -163,7 +163,7 @@ class PubChemFull(XYBaseDataModule):
         print("Get data distribution")
         with open(filename, "r") as f:
             with mp.Pool() as pool:
-                data = pool.imap(self.to_data, ((l.split(" ")[-1], None) for l in f))
+                data = list(pool.imap(self.to_data, ((l.split(" ")[-1], None) for l in f)))
             counter = Counter(y for x in data for y in x[0])
         with open(os.path.join(self.processed_dir, "dist.pkl"), "wb") as f:
             pickle.dump(counter, f)
