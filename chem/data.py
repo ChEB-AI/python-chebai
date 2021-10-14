@@ -168,6 +168,8 @@ class PubChemFull(XYBaseDataModule):
             with open(filename, "rb") as f:
                 data = [self.to_data((l.decode("utf-8").split(" ")[-1], None)) for l in f if pbar.update(1) is None]
             counter = Counter(y for x in data for y in x[0])
+        with open(os.path.join(self.processed_dir, "dist.pkl"), "wb") as f:
+            pickle.dump(counter, f)
         print("Flip tokens w.r.t. distribution")
         with open(filename, "rb") as f_in:
             train, test = train_test_split(data, train_size=self.train_split)

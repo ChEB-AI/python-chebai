@@ -16,7 +16,7 @@ def main(batch_size):
                 num_attention_heads=8,
                 num_hidden_layers=6,
                 type_vocab_size=1)),
-         (data.PubChemToxicToken,)),
+         (data.PubChemFullToken,)),
         #(models.graph_k2.JCIGraphK2Net, [100, 100, 500], (data.JCIGraphTwoData, data.JCIExtendedGraphTwoData))
     ]
     for net_cls, model_kwargs, datasets in exps:
