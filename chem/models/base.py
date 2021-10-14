@@ -105,9 +105,11 @@ class JCIBaseNet(pl.LightningModule):
         # Calculate weights per class
 
         net = cls(*model_args, **model_kwargs)
+
+        # Early stopping seems to be bugged right now with ddp accelerator :(
         es = EarlyStopping(monitor='val_loss', patience=10, min_delta=0.00,
            verbose=False,
         )
 
-        trainer = pl.Trainer(logger=tb_logger,max_epochs=300, callbacks=[checkpoint_callback, es], replace_sampler_ddp=False, **trainer_kwargs)
+        trainer = pl.Trainer(logger=tb_logger,max_epochs=300, callbacks=[checkpoint_callback], replace_sampler_ddp=False, **trainer_kwargs)
         trainer.fit(net, train_data, val_dataloaders=val_data)
