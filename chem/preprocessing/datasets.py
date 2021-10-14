@@ -28,6 +28,7 @@ import pysmiles as ps
 import pytorch_lightning as pl
 import requests
 import torch
+import numpy as np
 
 from chem.data import reader as dr
 from chem.data.structures import PairData, PrePairData
@@ -48,7 +49,7 @@ def extract_largest_index(path, kind):
 class XYBaseDataModule(pl.LightningDataModule):
     READER = dr.DataReader
 
-    def __init__(self, batch_size=1, tran_split=0.85, **kwargs):
+    def __init__(self, batch_size=1, tran_split=0.85, labeler=None, data_limit=None, **kwargs):
         self.processed_dir = os.path.join(
             "data", self._name, "processed", self.READER.name()
         )
@@ -56,6 +57,11 @@ class XYBaseDataModule(pl.LightningDataModule):
         self.train_split = tran_split
         self.batch_size = batch_size
         self.reader = self.READER()
+        if labeler is None:
+            labeler = dr.DefaultLabeler()
+        self.labeler = labeler
+        self.data_limit = data_limit
+
         os.makedirs(self.raw_dir, exist_ok=True)
         os.makedirs(self.processed_dir, exist_ok=True)
         super().__init__(**kwargs)
@@ -65,8 +71,17 @@ class XYBaseDataModule(pl.LightningDataModule):
         raise NotImplementedError
 
     def dataloader(self, kind, **kwargs):
+
+        dataset = torch.load(os.path.join(self.processed_dir, f"{kind}.pt"))
+
+        if self.data_limit is not None:
+            indices = np.arange(len(dataset))
+            dataset, _ = train_test_split(indices,
+                                           train_size=self.data_limit,
+                                           stratify=dataset.targets)
+
         return DataLoader(
-            torch.load(os.path.join(self.processed_dir, f"{kind}.pt")),
+            dataset,
             collate_fn=self.collate,
             batch_size=self.batch_size,
             **kwargs,
@@ -94,18 +109,6 @@ class XYBaseDataModule(pl.LightningDataModule):
     @property
     def processed_file_names(self):
         raise NotImplementedError
-
-
-class Replacer:
-    def __init__(self, alphabet):
-        self.alphabet = set(alphabet)
-
-    def replace(self, inp):
-        i = random.randint(0, len(inp) - 1)
-        o = inp.copy()
-        r = random.choice(list(self.alphabet.difference([o[i]])))
-        o[i] = r
-        return o, [1 if j == i else 0 for j in range(len(inp))]
 
 
 class PubChemFull(XYBaseDataModule):

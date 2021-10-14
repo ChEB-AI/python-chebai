@@ -1,9 +1,11 @@
 import os
+import random
+
+from collections import Counter
 
 from pysmiles.read_smiles import _tokenize
 import pysmiles as ps
 import torch
-
 
 class DataReader:
     def _get_raw_data(self, row):
@@ -26,6 +28,22 @@ class DataReader:
         return self._read_data(self._get_raw_data(row)), self._read_label(
             self._get_raw_label(row)
         )
+
+
+class DefaultLabeler:
+    def __call__(self, data):
+        return data[1]
+
+
+class ReplacementLabeler:
+    def __call__(self, data):
+        x, _ = data
+        alphabet = set(x)
+        i = random.randint(0, len(x) - 1)
+        o = x.copy()
+        r = random.choice(list(alphabet.difference([o[i]])))
+        o[i] = r
+        return o, [1 if j == i else 0 for j in range(len(x))]
 
 
 class ChemDataReader(DataReader):
