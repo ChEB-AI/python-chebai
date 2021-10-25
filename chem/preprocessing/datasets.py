@@ -217,6 +217,23 @@ class PubChem(XYBaseDataModule):
             print("Done")
 
 
+class SWJPreChem(PubChem):
+    @property
+    def _name(self):
+        return f"SWJpre"
+
+    def download(self):
+        raise Exception("Required raw files not found")
+
+    @property
+    def identifier(self):
+        return (self.reader.name(),)
+
+    @property
+    def raw_dir(self):
+        return os.path.join("data", self._name, "raw")
+
+
 class JCIBase(XYBaseDataModule):
     LABEL_INDEX = 2
     SMILES_INDEX = 1
@@ -259,6 +276,10 @@ class JCIBase(XYBaseDataModule):
 
 
 class PubChemFullToken(PubChem):
+    READER = dr.ChemDataReader
+
+
+class SWJPreChemToken(SWJPreChem):
     READER = dr.ChemDataReader
 
 

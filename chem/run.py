@@ -18,7 +18,7 @@ def main(batch_size):
                     type_vocab_size=1,
                 ),
             ),
-            (ds.PubChemFullToken,),
+            (ds.SWJPreChemToken,),
         ),
     ]
     for net_cls, model_kwargs, datasets in exps:
