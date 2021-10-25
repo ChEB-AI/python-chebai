@@ -65,6 +65,10 @@ class XYBaseDataModule(pl.LightningDataModule):
         return (self.reader.name(),)
 
     @property
+    def full_identifier(self):
+        return (self._name, *self.identifier)
+
+    @property
     def processed_dir(self):
         return os.path.join("data", self._name, "processed", *self.identifier)
 

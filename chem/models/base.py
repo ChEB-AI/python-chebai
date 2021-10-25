@@ -116,7 +116,7 @@ class JCIBaseNet(pl.LightningModule):
             model_kwargs = {}
         data.prepare_data()
         data.setup()
-        name += "__" + "_".join(data.identifier)
+        name += "__" + "_".join(data.full_identifier)
         train_data = data.train_dataloader()
         val_data = data.val_dataloader()
 
