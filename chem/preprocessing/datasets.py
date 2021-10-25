@@ -28,10 +28,11 @@ import pysmiles as ps
 import pytorch_lightning as pl
 import requests
 import torch
+import tqdm
 import numpy as np
 
-from chem.data import reader as dr
-from chem.data.structures import PairData, PrePairData
+from chem.preprocessing import reader as dr
+from chem.preprocessing.structures import PairData, PrePairData
 
 DATA_LIMIT = 100
 
@@ -49,22 +50,29 @@ def extract_largest_index(path, kind):
 class XYBaseDataModule(pl.LightningDataModule):
     READER = dr.DataReader
 
-    def __init__(self, batch_size=1, tran_split=0.85, labeler=None, data_limit=None, **kwargs):
-        self.processed_dir = os.path.join(
-            "data", self._name, "processed", self.READER.name()
-        )
-        self.raw_dir = os.path.join("data", self._name, "raw")
+    def __init__(self, batch_size=1, tran_split=0.85, reader_kwargs=None,**kwargs):
+        if reader_kwargs is None:
+            reader_kwargs = dict()
+        self.reader = self.READER(**reader_kwargs)
         self.train_split = tran_split
         self.batch_size = batch_size
-        self.reader = self.READER()
-        if labeler is None:
-            labeler = dr.DefaultLabeler()
-        self.labeler = labeler
-        self.data_limit = data_limit
-
         os.makedirs(self.raw_dir, exist_ok=True)
         os.makedirs(self.processed_dir, exist_ok=True)
         super().__init__(**kwargs)
+
+    @property
+    def identifier(self):
+        return self.reader.name(),
+
+    @property
+    def processed_dir(self):
+        return os.path.join(
+            "data", self._name, "processed", *self.identifier
+        )
+
+    @property
+    def raw_dir(self):
+        return os.path.join("data", self._name, "raw")
 
     @property
     def _name(self):
@@ -74,15 +82,9 @@ class XYBaseDataModule(pl.LightningDataModule):
 
         dataset = torch.load(os.path.join(self.processed_dir, f"{kind}.pt"))
 
-        if self.data_limit is not None:
-            indices = np.arange(len(dataset))
-            dataset, _ = train_test_split(indices,
-                                           train_size=self.data_limit,
-                                           stratify=dataset.targets)
-
         return DataLoader(
             dataset,
-            collate_fn=self.collate,
+            collate_fn=self.reader.collater,
             batch_size=self.batch_size,
             **kwargs,
         )
@@ -111,41 +113,74 @@ class XYBaseDataModule(pl.LightningDataModule):
         raise NotImplementedError
 
 
-class PubChemFull(XYBaseDataModule):
+class PubChem(XYBaseDataModule):
     SMILES_INDEX = 0
     LABEL_INDEX = 1
+    FULL = 0
+
+    def __init__(self, *args, k=100000, **kwargs):
+        self._k = k
+        super(PubChem, self).__init__(*args, **kwargs)
 
     @property
     def _name(self):
-        return "Pubchem"
+        return f"Pubchem"
+
+    @property
+    def identifier(self):
+        return self.reader.name(), self.split_label
+
+    @property
+    def split_label(self):
+        if self._k:
+            return str(self._k)
+        else:
+            return "full"
+
+    @property
+    def raw_dir(self):
+        return os.path.join("data", self._name, "raw", self.split_label)
 
     def download(self):
         url = f"https://ftp.ncbi.nlm.nih.gov/pubchem/Compound/Monthly/2021-10-01/Extras/CID-SMILES.gz"
-        print("Query", url)
-        r = requests.get(url, allow_redirects=True)
-        with tempfile.NamedTemporaryFile() as tf:
-            tf.write(r.content)
-            tf.seek(0)
-            with gzip.open(tf, "rb") as f_in:
-                with open(os.path.join(self.raw_dir, "smiles.txt"), "wb") as f_out:
-                    shutil.copyfileobj(f_in, f_out)
+
+        if self._k == PubChem.FULL:
+            if not os.path.isfile(os.path.join(self.raw_dir, "smiles.txt")):
+                print("Download from", url)
+                r = requests.get(url, allow_redirects=True)
+                with tempfile.NamedTemporaryFile() as tf:
+                    tf.write(r.content)
+                    print("Unpacking...")
+                    tf.seek(0)
+                    with gzip.open(tf, "rb") as f_in:
+                        with open(os.path.join(self.raw_dir, "smiles.txt"), "wb") as f_out:
+                            shutil.copyfileobj(f_in, f_out)
+        else:
+            full_dataset = self.__class__(k=PubChem.FULL)
+            full_dataset.download()
+            with open(os.path.join(full_dataset.raw_dir, "smiles.txt"), "r") as f_in:
+                lines = sum(1 for _ in f_in)
+                selected = frozenset(random.sample(list(range(lines)), k=self._k))
+                f_in.seek(0)
+                selected_lines = list(filter(lambda x: x[0] in selected, enumerate(tqdm.tqdm(f_in, total=lines))))
+            with open(os.path.join(self.raw_dir, "smiles.txt"), "w") as f_out:
+                f_out.writelines([l for i,l in selected_lines])
 
     def setup_processed(self):
-        print("Create splits")
+
         # Collect token distribution
         filename = os.path.join(self.raw_dir, self.raw_file_names[0])
         print("Get data distribution")
         with open(filename, "r") as f:
+            lines = sum(1 for _ in f)
+            f.seek(0)
+            print(f"Processing {lines} lines...")
             with mp.Pool() as pool:
-                data = list(pool.imap(self.reader.to_data, f))
-            counter = Counter(y for x in data for y in x[0])
-        with open(os.path.join(self.processed_dir, "dist.pkl"), "wb") as f:
-            pickle.dump(counter, f)
-        print("Flip tokens w.r.t. distribution")
-        with open(filename, "rb") as f_in:
-            train, test = train_test_split(data, train_size=self.train_split)
-            del data
-            test, val = train_test_split(test, train_size=self.train_split)
+                data = tuple(pool.imap_unordered(self.reader.to_data, tqdm.tqdm(f, total=lines), chunksize=1000))
+        print("Create splits")
+        train, test = train_test_split(data, train_size=self.train_split)
+        del data
+        test, val = train_test_split(test, train_size=self.train_split)
         torch.save(train, os.path.join(self.processed_dir, f"train.pt"))
         torch.save(test, os.path.join(self.processed_dir, f"test.pt"))
         torch.save(val, os.path.join(self.processed_dir, f"validation.pt"))
@@ -210,7 +245,7 @@ class JCIBase(XYBaseDataModule):
             )
 
 
-class PubChemFullToken(PubChemFull):
+class PubChemFullToken(PubChem):
     READER = dr.ChemDataReader
 
 
@@ -226,7 +261,7 @@ class JCITokenData(JCIBase):
     READER = dr.ChemDataReader
 
 
-class PubChemTokens(PubChemFull):
+class PubChemTokens(PubChem):
     READER = dr.ChemDataReader
 
 
@@ -583,6 +618,18 @@ def mol_to_data(smiles):
             del mol.nodes[node][attr]
     nx.set_node_attributes(mol, d, "x")
     return from_networkx(mol)
+
+try:
+    from k_gnn import TwoMalkin
+except ModuleNotFoundError:
+    pass
+else:
+    class JCIExtendedGraphTwoData(JCIExtendedBase):
+        READER = dr.GraphTwoDataset
+
+    class JCIGraphTwoData(JCIBase):
+        READER = dr.GraphTwoDataset
+
 
 
 atom_index = (
