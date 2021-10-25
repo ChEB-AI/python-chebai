@@ -50,7 +50,7 @@ def extract_largest_index(path, kind):
 class XYBaseDataModule(pl.LightningDataModule):
     READER = dr.DataReader
 
-    def __init__(self, batch_size=1, tran_split=0.85, reader_kwargs=None,**kwargs):
+    def __init__(self, batch_size=1, tran_split=0.85, reader_kwargs=None, **kwargs):
         if reader_kwargs is None:
             reader_kwargs = dict()
         self.reader = self.READER(**reader_kwargs)
@@ -62,13 +62,11 @@ class XYBaseDataModule(pl.LightningDataModule):
 
     @property
     def identifier(self):
-        return self.reader.name(),
+        return (self.reader.name(),)
 
     @property
     def processed_dir(self):
-        return os.path.join(
-            "data", self._name, "processed", *self.identifier
-        )
+        return os.path.join("data", self._name, "processed", *self.identifier)
 
     @property
     def raw_dir(self):
@@ -153,7 +151,9 @@ class PubChem(XYBaseDataModule):
                     print("Unpacking...")
                     tf.seek(0)
                     with gzip.open(tf, "rb") as f_in:
-                        with open(os.path.join(self.raw_dir, "smiles.txt"), "wb") as f_out:
+                        with open(
+                            os.path.join(self.raw_dir, "smiles.txt"), "wb"
+                        ) as f_out:
                             shutil.copyfileobj(f_in, f_out)
         else:
             full_dataset = self.__class__(k=PubChem.FULL)
@@ -162,9 +162,14 @@ class PubChem(XYBaseDataModule):
                 lines = sum(1 for _ in f_in)
                 selected = frozenset(random.sample(list(range(lines)), k=self._k))
                 f_in.seek(0)
-                selected_lines = list(filter(lambda x: x[0] in selected, enumerate(tqdm.tqdm(f_in, total=lines))))
+                selected_lines = list(
+                    filter(
+                        lambda x: x[0] in selected,
+                        enumerate(tqdm.tqdm(f_in, total=lines)),
+                    )
+                )
             with open(os.path.join(self.raw_dir, "smiles.txt"), "w") as f_out:
-                f_out.writelines([l for i,l in selected_lines])
+                f_out.writelines([l for i, l in selected_lines])
 
     def setup_processed(self):
 
@@ -176,7 +181,11 @@ class PubChem(XYBaseDataModule):
             f.seek(0)
             print(f"Processing {lines} lines...")
             with mp.Pool() as pool:
-                data = tuple(pool.imap_unordered(self.reader.to_data, tqdm.tqdm(f, total=lines), chunksize=1000))
+                data = tuple(
+                    pool.imap_unordered(
+                        self.reader.to_data, tqdm.tqdm(f, total=lines), chunksize=1000
+                    )
+                )
         print("Create splits")
         train, test = train_test_split(data, train_size=self.train_split)
         del data
@@ -619,17 +628,18 @@ def mol_to_data(smiles):
     nx.set_node_attributes(mol, d, "x")
     return from_networkx(mol)
 
+
 try:
     from k_gnn import TwoMalkin
 except ModuleNotFoundError:
     pass
 else:
+
     class JCIExtendedGraphTwoData(JCIExtendedBase):
         READER = dr.GraphTwoDataset
 
     class JCIGraphTwoData(JCIBase):
         READER = dr.GraphTwoDataset
-
 
 
 atom_index = (

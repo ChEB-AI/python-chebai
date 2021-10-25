@@ -61,7 +61,7 @@ class ChemDataReader(DataReader):
         counter = Counter(stream).elements()
         for t in stream:
             l = 0
-            if not all(x==t for x in stream) and random.random() < self._p:
+            if not all(x == t for x in stream) and random.random() < self._p:
                 l = 1
                 t0 = t
                 while t0 == t:
@@ -75,9 +75,9 @@ class ChemDataReader(DataReader):
         l = []
         for v in _tokenize(row.split("\t")[-1]):
             try:
-                l.append(self.cache.index(v)+1)
+                l.append(self.cache.index(v) + 1)
             except ValueError:
-                l.append(len(self.cache)+1)
+                l.append(len(self.cache) + 1)
                 self.cache.append(v)
         return l
 

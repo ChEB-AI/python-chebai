@@ -20,8 +20,8 @@ class DefaultCollater(Collater):
 class RaggedCollater(Collater):
     def __call__(self, data):
         x, y = zip(*data)
-        return XYData(pad_sequence([torch.tensor(a) for a in x],
-                                   batch_first=True),
-                      pad_sequence([torch.tensor(a) for a in y],
-                                   batch_first=True),
-                      additional_fields=dict(lens=list(map(len, x))))
+        return XYData(
+            pad_sequence([torch.tensor(a) for a in x], batch_first=True),
+            pad_sequence([torch.tensor(a) for a in y], batch_first=True),
+            additional_fields=dict(lens=list(map(len, x))),
+        )
