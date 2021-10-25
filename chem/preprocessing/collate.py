@@ -1,6 +1,7 @@
-from chem.preprocessing.structures import XYData
-import torch
 from torch.nn.utils.rnn import pad_sequence
+import torch
+
+from chem.preprocessing.structures import XYData
 
 
 class Collater:

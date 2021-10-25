@@ -23,13 +23,13 @@ from torch_geometric.data import Dataset as TGDataset
 from torch_geometric.utils.convert import from_networkx
 import fastobo
 import networkx as nx
+import numpy as np
 import pandas as pd
 import pysmiles as ps
 import pytorch_lightning as pl
 import requests
 import torch
 import tqdm
-import numpy as np
 
 from chem.preprocessing import reader as dr
 from chem.preprocessing.structures import PairData, PrePairData

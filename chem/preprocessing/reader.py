@@ -1,12 +1,11 @@
+from collections import Counter
 import os
 import random
 
-from collections import Counter
-
 from pysmiles.read_smiles import _tokenize
+import pandas as pd
 import pysmiles as ps
 import torch
-import pandas as pd
 
 from chem.preprocessing.collate import DefaultCollater, RaggedCollater
 

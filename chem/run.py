@@ -1,7 +1,7 @@
 import sys
 
-from chem.preprocessing import datasets as ds
 from chem.models import chemyk, electra, graph, recursive
+from chem.preprocessing import datasets as ds
 
 
 def main(batch_size):
