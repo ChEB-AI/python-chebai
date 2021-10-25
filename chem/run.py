@@ -1,6 +1,6 @@
 import sys
 
-from chem.data import datasets as ds
+from chem.preprocessing import datasets as ds
 from chem.models import chemyk, electra, graph, recursive
 
 
