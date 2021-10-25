@@ -6,15 +6,25 @@ from collections import Counter
 from pysmiles.read_smiles import _tokenize
 import pysmiles as ps
 import torch
+import pandas as pd
+
+from chem.preprocessing.collate import DefaultCollater, RaggedCollater
+
 
 class DataReader:
+    COLLATER = DefaultCollater
+
+    def __init__(self, collator_kwargs=None, **kwargs):
+        if collator_kwargs is None:
+            collator_kwargs = dict()
+        self.collater = self.COLLATER(**collator_kwargs)
+
     def _get_raw_data(self, row):
         return row[0]
 
     def _get_raw_label(self, row):
         return row[1]
 
-    @classmethod
     def name(cls):
         raise NotImplementedError
 
@@ -24,55 +34,57 @@ class DataReader:
     def _read_label(self, raw_label):
         return raw_label
 
+    def _read_components(self, row):
+        return self._get_raw_data(row), self._get_raw_label(row)
+
     def to_data(self, row):
-        return self._read_data(self._get_raw_data(row)), self._read_label(
-            self._get_raw_label(row)
-        )
-
-
-class DefaultLabeler:
-    def __call__(self, data):
-        return data[1]
-
-
-class ReplacementLabeler:
-    def __call__(self, data):
-        x, _ = data
-        alphabet = set(x)
-        i = random.randint(0, len(x) - 1)
-        o = x.copy()
-        r = random.choice(list(alphabet.difference([o[i]])))
-        o[i] = r
-        return o, [1 if j == i else 0 for j in range(len(x))]
+        x, y = self._read_components(row)
+        return self._read_data(x), self._read_label(y)
 
 
 class ChemDataReader(DataReader):
+    COLLATER = RaggedCollater
+
     @classmethod
     def name(cls):
         return "smiles_token"
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, p=0.2, **kwargs):
         super().__init__(*args, **kwargs)
         self.cache = []
+        self._p = 0.2
 
-    def _get_raw_label(self, row):
-        return None
+    def _read_components(self, row):
+        data = []
+        labels = []
+        stream = self._get_raw_data(row)
+        counter = Counter(stream).elements()
+        for t in stream:
+            l = 0
+            if not all(x==t for x in stream) and random.random() < self._p:
+                l = 1
+                t0 = t
+                while t0 == t:
+                    t0 = random.choice(stream)
+                t = t0
+            data.append(t)
+            labels.append(l)
+        return data, labels
 
     def _get_raw_data(self, row):
-        return row
-
-    def _read_data(self, raw_data):
         l = []
-        for v in _tokenize(raw_data):
+        for v in _tokenize(row.split("\t")[-1]):
             try:
-                l.append(self.cache.index(v))
+                l.append(self.cache.index(v)+1)
             except ValueError:
-                l.append(len(self.cache) + 1)
+                l.append(len(self.cache)+1)
                 self.cache.append(v)
         return l
 
 
 class OrdReader(DataReader):
+    COLLATER = RaggedCollater
+
     @classmethod
     def name(cls):
         return "ord"
@@ -195,9 +207,3 @@ else:
 
         def collate(self, list_of_tuples):
             return collate(list_of_tuples)
-
-    class JCIExtendedGraphTwoData(JCIExtendedBase, GraphTwoDataset):
-        pass
-
-    class JCIGraphTwoData(JCIBase, GraphTwoDataset):
-        pass
