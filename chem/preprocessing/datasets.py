@@ -145,7 +145,6 @@ class PubChem(XYBaseDataModule):
 
     def download(self):
         url = f"https://ftp.ncbi.nlm.nih.gov/pubchem/Compound/Monthly/2021-10-01/Extras/CID-SMILES.gz"
-
         if self._k == PubChem.FULL:
             if not os.path.isfile(os.path.join(self.raw_dir, "smiles.txt")):
                 print("Download from", url)
@@ -266,16 +265,21 @@ class JCIBase(XYBaseDataModule):
         for k in ["test", "train", "validation"]:
             print("transform", k)
             torch.save(
-                list(
-                    self.reader.to_data(
-                        pickle.load(open(os.path.join(self.raw_dir, f"{k}.pkl"), "rb"))
-                    )
-                ),
+                [
+                    self.reader.to_data(row)
+                    for row in pickle.load(
+                        open(os.path.join(self.raw_dir, f"{k}.pkl"), "rb")
+                    ).values
+                ],
                 os.path.join(self.processed_dir, f"{k}.pt"),
             )
 
 
-class PubChemFullToken(PubChem):
+class PubchemUnlabelled(PubChem):
+    READER = dr.ChemDataUnlabeledReader
+
+
+class SWJChemToken(SWJPreChem):
     READER = dr.ChemDataReader
 
 

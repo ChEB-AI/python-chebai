@@ -17,15 +17,16 @@ logging.getLogger("pysmiles").setLevel(logging.CRITICAL)
 class JCIBaseNet(pl.LightningModule):
     NAME = None
 
-    def __init__(self, weights=None, threshold=0.5, lr=1e-4):
+    def __init__(self, **kwargs):
         super().__init__()
+        weights = kwargs.get("weights", None)
         if weights is not None:
             self.loss = nn.BCEWithLogitsLoss(pos_weight=weights)
         else:
             self.loss = nn.BCEWithLogitsLoss()
-        self.f1 = F1(threshold=threshold, multilabel=True)
+        self.f1 = F1(threshold=kwargs.get("threshold", 0.5), multilabel=True)
         self.mse = MeanSquaredError()
-        self.lr = lr
+        self.lr = kwargs.get("lr", 1e-4)
 
         self.save_hyperparameters()
 
@@ -165,7 +166,7 @@ class JCIBaseNet(pl.LightningModule):
 
         trainer = pl.Trainer(
             logger=tb_logger,
-            max_epochs=100,
+            max_epochs=model_kwargs.get("epochs", 100),
             callbacks=[checkpoint_callback],
             replace_sampler_ddp=False,
             **trainer_kwargs
