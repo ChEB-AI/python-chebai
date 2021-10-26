@@ -34,8 +34,6 @@ import tqdm
 from chebai.preprocessing import reader as dr
 from chebai.preprocessing.structures import PairData, PrePairData
 
-DATA_LIMIT = 100
-
 
 def extract_largest_index(path, kind):
     return (
@@ -313,18 +311,23 @@ class JCIExtendedBase(XYBaseDataModule):
         for k in ["test", "train", "validation"]:
             print("transform", k)
             torch.save(
-                list(
-                    self.to_data(
-                        pickle.load(open(os.path.join(self.raw_dir, f"{k}.pkl"), "rb"))
+                [
+                    self.reader.to_data(row)
+                    for row in pickle.load(
+                        open(os.path.join(self.raw_dir, f"{k}.pkl"), "rb")
                     )
-                ),
+                    .drop(["name"], axis=1)
+                    .values
+                ],
                 os.path.join(self.processed_dir, f"{k}.pt"),
             )
 
     def extract_class_hierarchy(self):
+        with open(os.path.join(self.raw_dir, "chebi.obo")) as chebi:
+            chebi = "\n".join(l for l in chebi if not l.startswith("xref:"))
         elements = [
             term_callback(clause)
-            for clause in fastobo.load(os.path.join(self.raw_dir, "chebi.obo"))
+            for clause in fastobo.loads(chebi)
             if clause and ":" in str(clause.id)
         ]
         g = nx.DiGraph()
@@ -383,7 +386,7 @@ class JCIExtendedBase(XYBaseDataModule):
             print("Missing raw data. Go fetch...")
             if not os.path.isfile(os.path.join(self.raw_dir, "chebi.obo")):
                 print("Load ChEBI ontology")
-                url = "http://purl.obolibrary.org/obo/chebi.obo"
+                url = "http://purl.obolibrary.org/obo/chebi/200/chebi.obo"
                 r = requests.get(url, allow_redirects=True)
                 open(os.path.join(self.raw_dir, "chebi.obo"), "wb").write(r.content)
             g = self.extract_class_hierarchy()
@@ -392,6 +395,10 @@ class JCIExtendedBase(XYBaseDataModule):
 
 class JCIExtendedData(JCIExtendedBase):
     READER = dr.OrdReader
+
+
+class JCIExtendedTokenData(JCIExtendedBase):
+    READER = dr.ChemDataReader
 
 
 class JCIGraphData(JCIBase):
