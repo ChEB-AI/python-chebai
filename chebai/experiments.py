@@ -1,9 +1,9 @@
 from abc import ABC, abstractmethod
 from typing import Dict, List
 
-from chem import preprocessing as prep
-from chem.models import base, electra
-from chem.preprocessing import datasets
+from chebai import preprocessing as prep
+from chebai.models import base, electra
+from chebai.preprocessing import datasets
 
 EXPERIMENTS = dict()
 
