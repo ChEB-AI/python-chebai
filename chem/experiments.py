@@ -15,14 +15,13 @@ class Experiment(ABC):
         self.batch_size = batch_size
 
     def __init_subclass__(cls, **kwargs):
-        assert cls.identifier, "No identifier set"
+        assert cls.identifier(), "No identifier set"
         assert (
-            cls.identifier not in EXPERIMENTS
-        ), f"Identifier {cls.identifier} is not unique."
-        EXPERIMENTS[cls.identifier] = cls
+            cls.identifier() not in EXPERIMENTS
+        ), f"Identifier {cls.identifier()} is not unique."
+        EXPERIMENTS[cls.identifier()] = cls
 
     @classmethod
-    @property
     def identifier(cls) -> str:
         raise NotImplementedError
 
@@ -49,7 +48,6 @@ class ElectraPreOnSWJ(Experiment):
     MODEL = electra.ElectraPre
 
     @classmethod
-    @property
     def identifier(cls) -> str:
         return "ElectraPre+SWJ"
 
@@ -76,7 +74,6 @@ class ElectraOnJCI(Experiment):
     MODEL = electra.Electra
 
     @classmethod
-    @property
     def identifier(cls) -> str:
         return "Electra+JCI"
 
