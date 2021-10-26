@@ -19,7 +19,7 @@ def main(batch_size):
                 ),
                 epochs=2,
             ),
-            (ds.PubchemUnlabelled,),
+            (ds.SWJUnlabeledChemToken,),
             dict(k=100),
         ),
         (

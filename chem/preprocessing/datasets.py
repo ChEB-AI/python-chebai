@@ -279,12 +279,8 @@ class PubchemUnlabelled(PubChem):
     READER = dr.ChemDataUnlabeledReader
 
 
-class SWJChemToken(SWJPreChem):
-    READER = dr.ChemDataReader
-
-
-class SWJPreChemToken(SWJPreChem):
-    READER = dr.ChemDataReader
+class SWJUnlabeledChemToken(SWJPreChem):
+    READER = dr.ChemDataUnlabeledReader
 
 
 class JCIData(JCIBase):
