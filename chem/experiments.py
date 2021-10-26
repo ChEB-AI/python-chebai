@@ -62,7 +62,7 @@ class ElectraPreOnSWJ(Experiment):
                 num_hidden_layers=6,
                 type_vocab_size=1,
             ),
-            epochs=2,
+            epochs=100,
         )
 
     @property
