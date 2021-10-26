@@ -1,6 +1,6 @@
 import sys
 
-from chem import experiments
+from chebai import experiments
 
 
 def main():

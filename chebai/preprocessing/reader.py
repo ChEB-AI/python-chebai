@@ -8,7 +8,7 @@ import pandas as pd
 import pysmiles as ps
 import torch
 
-from chem.preprocessing.collate import DefaultCollater, RaggedCollater
+from chebai.preprocessing.collate import DefaultCollater, RaggedCollater
 
 
 class DataReader:
@@ -51,7 +51,7 @@ class ChemDataUnlabeledReader(DataReader):
 
     def __init__(self, *args, p=0.2, **kwargs):
         super().__init__(*args, **kwargs)
-        with open("chem/preprocessing/bin/tokens.pkl", "rb") as pk:
+        with open("chebai/preprocessing/bin/tokens.pkl", "rb") as pk:
             self.cache = pickle.load(pk)
         self._p = 0.2
 
@@ -84,7 +84,7 @@ class ChemDataReader(DataReader):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        with open("chem/preprocessing/bin/tokens.pkl", "rb") as pk:
+        with open("chebai/preprocessing/bin/tokens.pkl", "rb") as pk:
             self.cache = pickle.load(pk)
 
     def _read_data(self, raw_data):

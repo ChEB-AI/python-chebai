@@ -7,7 +7,7 @@ from torch_scatter import scatter_add, scatter_max, scatter_mean
 import torch
 import torch.nn.functional as F
 
-from chem.models.base import JCIBaseNet
+from chebai.models.base import JCIBaseNet
 
 logging.getLogger("pysmiles").setLevel(logging.CRITICAL)
 

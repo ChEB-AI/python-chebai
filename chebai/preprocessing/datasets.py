@@ -31,8 +31,8 @@ import requests
 import torch
 import tqdm
 
-from chem.preprocessing import reader as dr
-from chem.preprocessing.structures import PairData, PrePairData
+from chebai.preprocessing import reader as dr
+from chebai.preprocessing.structures import PairData, PrePairData
 
 DATA_LIMIT = 100
 

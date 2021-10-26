@@ -9,7 +9,7 @@ from torch.nn.functional import pad
 import networkx as nx
 import torch
 
-from chem.models.base import JCIBaseNet
+from chebai.models.base import JCIBaseNet
 
 logging.getLogger("pysmiles").setLevel(logging.CRITICAL)
 

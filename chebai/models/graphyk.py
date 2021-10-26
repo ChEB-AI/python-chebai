@@ -7,7 +7,7 @@ from torch.nn.utils.rnn import pack_padded_sequence, pad_packed_sequence
 import networkx as nx
 import torch
 
-from chem.models.base import JCIBaseNet
+from chebai.models.base import JCIBaseNet
 
 logging.getLogger("pysmiles").setLevel(logging.CRITICAL)
 

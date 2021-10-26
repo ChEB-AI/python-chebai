@@ -4,7 +4,7 @@ import sys
 from torch import nn
 from torch.nn.utils.rnn import pack_padded_sequence, pad_packed_sequence
 
-from chem.models.base import JCIBaseNet
+from chebai.models.base import JCIBaseNet
 
 logging.getLogger("pysmiles").setLevel(logging.CRITICAL)
 
