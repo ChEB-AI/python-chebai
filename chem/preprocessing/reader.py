@@ -1,5 +1,6 @@
 from collections import Counter
 import os
+import pickle
 import random
 
 from pysmiles.read_smiles import _tokenize
@@ -41,23 +42,23 @@ class DataReader:
         return self._read_data(x), self._read_label(y)
 
 
-class ChemDataReader(DataReader):
+class ChemDataUnlabeledReader(DataReader):
     COLLATER = RaggedCollater
 
     @classmethod
     def name(cls):
-        return "smiles_token"
+        return "smiles_token_unlabeled"
 
     def __init__(self, *args, p=0.2, **kwargs):
         super().__init__(*args, **kwargs)
-        self.cache = []
+        with open("chem/preprocessing/bin/tokens.pkl", "rb") as pk:
+            self.cache = pickle.load(pk)
         self._p = 0.2
 
     def _read_components(self, row):
         data = []
         labels = []
         stream = self._get_raw_data(row)
-        counter = Counter(stream).elements()
         for t in stream:
             l = 0
             if not all(x == t for x in stream) and random.random() < self._p:
@@ -71,14 +72,29 @@ class ChemDataReader(DataReader):
         return data, labels
 
     def _get_raw_data(self, row):
-        l = []
-        for v in _tokenize(row.split("\t")[-1]):
-            try:
-                l.append(self.cache.index(v) + 1)
-            except ValueError:
-                l.append(len(self.cache) + 1)
-                self.cache.append(v)
-        return l
+        return [self.cache.index(v) + 1 for v in _tokenize(row.split("\t")[-1])]
+
+
+class ChemDataReader(DataReader):
+    COLLATER = RaggedCollater
+
+    @classmethod
+    def name(cls):
+        return "smiles_token"
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        with open("chem/preprocessing/bin/tokens.pkl", "rb") as pk:
+            self.cache = pickle.load(pk)
+
+    def _read_data(self, raw_data):
+        return [self.cache.index(v) + 1 for v in _tokenize(raw_data)]
+
+    def _get_raw_data(self, row):
+        return row[1]
+
+    def _get_raw_label(self, row):
+        return row[2:].astype(bool)
 
 
 class OrdReader(DataReader):
