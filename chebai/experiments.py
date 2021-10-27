@@ -99,3 +99,15 @@ class ElectraOnJCI(Experiment):
     @property
     def datasets(self) -> List[datasets.XYBaseDataModule]:
         return [datasets.JCITokenData(self.batch_size)]
+
+
+class ElectraOnJCIExt(ElectraOnJCI):
+    MODEL = electra.Electra
+
+    @classmethod
+    def identifier(cls) -> str:
+        return "Electra+JCIExt"
+
+    @property
+    def datasets(self) -> List[datasets.XYBaseDataModule]:
+        return [datasets.JCIExtendedTokenData(self.batch_size)]
