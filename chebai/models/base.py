@@ -178,6 +178,7 @@ class JCIBaseNet(pl.LightningModule):
     @classmethod
     def pred(cls, dataset: XYBaseDataModule, checkpoint_path, data_path):
         model = cls.load_from_checkpoint(checkpoint_path)
-        for i, (smiles, labels) in enumerate(dataset._load_tuples(data_path)):
-            d = dataset.reader.collater([dataset.reader.to_data((smiles, labels))])
-            yield smiles, labels, model.predict_step(d, i)
+        with torch.no_grad:
+            for i, (smiles, labels) in enumerate(dataset._load_tuples(data_path)):
+                d = dataset.reader.collater([dataset.reader.to_data((smiles, labels))])
+                yield smiles, labels, model.predict_step(d, i)
