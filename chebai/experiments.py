@@ -1,5 +1,6 @@
 from abc import ABC, abstractmethod
 from typing import Dict, List
+import json
 
 from chebai import preprocessing as prep
 from chebai.models import base, electra, graph
@@ -10,9 +11,6 @@ EXPERIMENTS = dict()
 
 class Experiment(ABC):
     MODEL = base.JCIBaseNet
-
-    def __init__(self, batch_size, *args):
-        self.batch_size = batch_size
 
     def __init_subclass__(cls, **kwargs):
         assert cls.identifier(), "No identifier set"
@@ -25,23 +23,34 @@ class Experiment(ABC):
     def identifier(cls) -> str:
         raise NotImplementedError
 
-    @property
     @abstractmethod
-    def model_kwargs(self) -> Dict:
+    def model_kwargs(self, **kwargs) -> Dict:
         raise NotImplementedError
 
-    @property
     @abstractmethod
-    def datasets(self) -> List[datasets.XYBaseDataModule]:
+    def datasets(self, batch_size) -> List[datasets.XYBaseDataModule]:
         raise NotImplementedError
 
-    def execute(self):
-        for dataset in self.datasets:
+    def train(self, batch_size, **kwargs):
+        for dataset in self.datasets(batch_size):
             self.MODEL.run(
                 dataset,
                 self.MODEL.NAME,
-                model_kwargs=self.model_kwargs,
+                model_kwargs=self.model_kwargs(**kwargs),
             )
+
+    def predict(self, ckpt_path, data_path):
+        for dataset in self.datasets(1):
+            with open(f"/tmp/{dataset.name}.json", "w") as fout:
+                json.dump(
+                    [
+                        dict(smiles=smiles, labels=label, prediction=pred)
+                        for smiles, label, pred in self.MODEL.pred(
+                            dataset, ckpt_path, data_path
+                        )
+                    ],
+                    fout,
+                )
 
 
 class ElectraPreOnSWJ(Experiment):
@@ -65,9 +74,8 @@ class ElectraPreOnSWJ(Experiment):
             epochs=100,
         )
 
-    @property
-    def datasets(self) -> List[datasets.XYBaseDataModule]:
-        return [datasets.SWJUnlabeledChemToken(self.batch_size, k=100)]
+    def datasets(self, batch_size) -> List[datasets.XYBaseDataModule]:
+        return [datasets.SWJUnlabeledChemToken(batch_size, k=100)]
 
 
 class ElectraOnJCI(Experiment):
@@ -77,15 +85,14 @@ class ElectraOnJCI(Experiment):
     def identifier(cls) -> str:
         return "Electra+JCI"
 
-    def __init__(self, batch_size, checkpoint_path, *args):
-        super().__init__(batch_size, *args)
-        self.checkpoint_path = checkpoint_path
+    def __init__(self, *args):
+        super().__init__(*args)
 
     @property
-    def model_kwargs(self) -> Dict:
+    def model_kwargs(self, checkpoint_path=None, **kwargs) -> Dict:
         return dict(
             lr=1e-4,
-            pretrained_checkpoint=self.checkpoint_path,
+            pretrained_checkpoint=checkpoint_path,
             config=dict(
                 vocab_size=1400,
                 max_position_embeddings=1800,
@@ -96,9 +103,8 @@ class ElectraOnJCI(Experiment):
             epochs=20,
         )
 
-    @property
-    def datasets(self) -> List[datasets.XYBaseDataModule]:
-        return [datasets.JCITokenData(self.batch_size)]
+    def datasets(self, batch_size) -> List[datasets.XYBaseDataModule]:
+        return [datasets.JCITokenData(batch_size)]
 
 
 class ElectraOnJCIExt(ElectraOnJCI):
@@ -108,9 +114,8 @@ class ElectraOnJCIExt(ElectraOnJCI):
     def identifier(cls) -> str:
         return "Electra+JCIExt"
 
-    @property
-    def datasets(self) -> List[datasets.XYBaseDataModule]:
-        return [datasets.JCIExtendedTokenData(self.batch_size)]
+    def datasets(self, batch_size) -> List[datasets.XYBaseDataModule]:
+        return [datasets.JCIExtendedTokenData(batch_size)]
 
 
 class GATOnSWJ(Experiment):
@@ -129,6 +134,5 @@ class GATOnSWJ(Experiment):
             epochs=20,
         )
 
-    @property
-    def datasets(self) -> List[datasets.XYBaseDataModule]:
-        return [datasets.JCIGraphData(self.batch_size)]
+    def datasets(self, batch_size) -> List[datasets.XYBaseDataModule]:
+        return [datasets.JCIGraphData(batch_size)]

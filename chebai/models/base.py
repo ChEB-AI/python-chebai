@@ -11,6 +11,8 @@ from torch import nn
 import pytorch_lightning as pl
 import torch
 
+from chebai.preprocessing.datasets import XYBaseDataModule
+
 logging.getLogger("pysmiles").setLevel(logging.CRITICAL)
 
 
@@ -172,3 +174,10 @@ class JCIBaseNet(pl.LightningModule):
             **trainer_kwargs
         )
         trainer.fit(net, train_data, val_dataloaders=val_data)
+
+    @classmethod
+    def pred(cls, dataset: XYBaseDataModule, checkpoint_path, data_path):
+        model = cls.load_from_checkpoint(checkpoint_path)
+        for i, (smiles, labels) in enumerate(dataset._load_tuples(data_path)):
+            d = dataset.reader.collater([dataset.reader.to_data((smiles, labels))])
+            yield smiles, labels, model.predict_step(d, i)
