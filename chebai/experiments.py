@@ -61,7 +61,6 @@ class ElectraPreOnSWJ(Experiment):
     def identifier(cls) -> str:
         return "ElectraPre+SWJ"
 
-    @property
     def model_kwargs(self, *args) -> Dict:
         return dict(
             lr=1e-4,
@@ -86,7 +85,6 @@ class ElectraOnJCI(Experiment):
     def identifier(cls) -> str:
         return "Electra+JCI"
 
-    @property
     def model_kwargs(self, *args) -> Dict:
         checkpoint_path = args[0]
         return dict(
@@ -124,7 +122,6 @@ class GATOnSWJ(Experiment):
     def identifier(cls) -> str:
         return "GAT+JCIExt"
 
-    @property
     def model_kwargs(self, *args) -> Dict:
         return dict(
             lr=1e-4,
