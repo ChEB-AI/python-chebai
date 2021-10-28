@@ -179,7 +179,7 @@ class JCIBaseNet(pl.LightningModule):
     @classmethod
     def pred(cls, dataset: XYBaseDataModule, checkpoint_path, data_path):
         model = cls.load_from_checkpoint(checkpoint_path)
-        with torch.no_grad:
+        with torch.no_grad():
             lines = dataset._get_data_size(data_path)
             for i, (smiles, labels) in enumerate(
                 tqdm.tqdm(dataset._load_tuples(data_path), total=lines)
