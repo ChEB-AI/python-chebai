@@ -86,9 +86,6 @@ class ElectraOnJCI(Experiment):
     def identifier(cls) -> str:
         return "Electra+JCI"
 
-    def __init__(self, *args):
-        super().__init__(*args)
-
     @property
     def model_kwargs(self, checkpoint_path=None, **kwargs) -> Dict:
         return dict(
