@@ -4,11 +4,17 @@ import pickle
 import random
 
 from pysmiles.read_smiles import _tokenize
+from torch_geometric.utils import from_networkx
+import networkx as nx
 import pandas as pd
 import pysmiles as ps
 import torch
 
-from chebai.preprocessing.collate import DefaultCollater, RaggedCollater
+from chebai.preprocessing.collate import (
+    DefaultCollater,
+    GraphCollater,
+    RaggedCollater,
+)
 
 
 class DataReader:
@@ -145,17 +151,17 @@ class MolDatareader(DataReader):
         return mol
 
 
-class GraphDataset(DataReader):
+class GraphReader(DataReader):
+    COLLATER = GraphCollater
+
     @classmethod
     def name(cls):
         return "graph"
 
-    def __init__(self, batch_size, **kwargs):
-        super().__init__(batch_size, **kwargs)
-        self.collater = Collater(
-            follow_batch=["x", "edge_attr", "edge_index", "label"], exclude_keys=[]
-        )
-        self.cache = []
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        with open("chebai/preprocessing/bin/tokens.pkl", "rb") as pk:
+            self.cache = pickle.load(pk)
 
     def process_smiles(self, smiles):
         def cache(m):
@@ -191,12 +197,11 @@ class GraphDataset(DataReader):
     def collate(self, list_of_tuples):
         return self.collater(list_of_tuples)
 
-    def to_data(self, df):
-        for row in df.values[:DATA_LIMIT]:
-            d = self.process_smiles(row[self.SMILES_INDEX])
-            if d is not None and d.num_nodes > 1:
-                d.y = torch.tensor(row[self.LABEL_INDEX :].astype(bool)).unsqueeze(0)
-                yield d
+    def to_data(self, row):
+        d = self.process_smiles(row[1])
+        if d is not None and d.num_nodes > 1:
+            d.y = torch.tensor(row[2:].astype(bool)).unsqueeze(0)
+            return d
 
 
 try:

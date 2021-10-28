@@ -402,11 +402,11 @@ class JCIExtendedTokenData(JCIExtendedBase):
 
 
 class JCIGraphData(JCIBase):
-    READER = dr.GraphDataset
+    READER = dr.GraphReader
 
 
 class JCIExtendedGraphData(JCIExtendedBase):
-    READER = dr.GraphDataset
+    READER = dr.GraphReader
 
 
 class PartOfData(TGDataset):
