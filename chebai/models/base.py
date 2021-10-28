@@ -185,4 +185,5 @@ class JCIBaseNet(pl.LightningModule):
                 tqdm.tqdm(dataset._load_tuples(data_path), total=lines)
             ):
                 d = dataset.reader.collater([dataset.reader.to_data((smiles, labels))])
-                yield smiles, labels, model.predict_step(d, i)
+                pred = torch.sigmoid(model.predict_step(d, i))
+                yield smiles, labels.tolist(), (pred.cpu().numpy().tolist())[0]
