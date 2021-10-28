@@ -1,4 +1,6 @@
 from torch.nn.utils.rnn import pad_sequence
+from torch_geometric.data import Data as GraphData
+from torch_geometric.data.collate import collate as graph_collate
 import torch
 
 from chebai.preprocessing.structures import XYData
@@ -25,4 +27,11 @@ class RaggedCollater(Collater):
             pad_sequence([torch.tensor(a) for a in x], batch_first=True),
             pad_sequence([torch.tensor(a) for a in y], batch_first=True),
             additional_fields=dict(lens=list(map(len, x))),
+        )
+
+
+class GraphCollater(Collater):
+    def __call__(self, data):
+        return graph_collate(
+            GraphData, data, follow_batch=["x", "edge_attr", "edge_index", "label"]
         )

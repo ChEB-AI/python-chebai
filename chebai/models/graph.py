@@ -47,8 +47,10 @@ class JCIGraphNet(JCIBaseNet):
 class JCIGraphAttentionNet(JCIBaseNet):
     NAME = "AGNN"
 
-    def __init__(self, in_length, hidden_length, num_classes, **kwargs):
-        super().__init__(num_classes, **kwargs)
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        in_length = kwargs.get("in_length")
+        hidden_length = kwargs.get("hidden_length")
         self.embedding = torch.nn.Embedding(800, in_length)
         self.edge_embedding = torch.nn.Embedding(4, in_length)
         in_length = in_length + 10
@@ -72,7 +74,7 @@ class JCIGraphAttentionNet(JCIBaseNet):
             nn.LeakyReLU(),
             nn.Linear(hidden_length, hidden_length),
             nn.LeakyReLU(),
-            nn.Linear(hidden_length, num_classes),
+            nn.Linear(hidden_length, 500),
         )
         self.dropout = nn.Dropout(0.1)
 

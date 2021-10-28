@@ -2,7 +2,7 @@ from abc import ABC, abstractmethod
 from typing import Dict, List
 
 from chebai import preprocessing as prep
-from chebai.models import base, electra
+from chebai.models import base, electra, graph
 from chebai.preprocessing import datasets
 
 EXPERIMENTS = dict()
@@ -111,3 +111,24 @@ class ElectraOnJCIExt(ElectraOnJCI):
     @property
     def datasets(self) -> List[datasets.XYBaseDataModule]:
         return [datasets.JCIExtendedTokenData(self.batch_size)]
+
+
+class GATOnSWJ(Experiment):
+    MODEL = graph.JCIGraphAttentionNet
+
+    @classmethod
+    def identifier(cls) -> str:
+        return "GAT+JCIExt"
+
+    @property
+    def model_kwargs(self) -> Dict:
+        return dict(
+            lr=1e-4,
+            in_length=50,
+            hidden_length=100,
+            epochs=20,
+        )
+
+    @property
+    def datasets(self) -> List[datasets.XYBaseDataModule]:
+        return [datasets.JCIGraphData(self.batch_size)]
