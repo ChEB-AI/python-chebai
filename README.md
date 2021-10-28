@@ -1,10 +1,10 @@
 # ChEBai
 
-Run predefined setup using 
+Run predefined training setup using 
 
 
 ```
-python chebai/run.py [BATCH_SIZE]
+python -m chebai train [BATCH_SIZE]
 ```
 
 Add your own settings by altering run.py
