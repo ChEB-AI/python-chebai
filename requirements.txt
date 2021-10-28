@@ -23,3 +23,4 @@ torch-geometric>=1.9.0
 transformers
 fastobo
 pysmiles
+click
