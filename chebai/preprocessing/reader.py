@@ -96,12 +96,6 @@ class ChemDataReader(DataReader):
     def _read_data(self, raw_data):
         return [self.cache.index(v) + 1 for v in _tokenize(raw_data)]
 
-    def _get_raw_data(self, row):
-        return row[1]
-
-    def _get_raw_label(self, row):
-        return row[2:].astype(bool)
-
 
 class OrdReader(DataReader):
     COLLATER = RaggedCollater

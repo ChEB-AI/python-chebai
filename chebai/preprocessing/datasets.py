@@ -89,6 +89,31 @@ class XYBaseDataModule(pl.LightningDataModule):
             **kwargs,
         )
 
+    @staticmethod
+    def _load_tuples(input_file_path):
+        with open(input_file_path, "r") as input_file:
+            for row in input_file:
+                smiles, labels = row.split("\t")
+                yield smiles, labels
+
+    @staticmethod
+    def _get_data_size(input_file_path):
+        with open(input_file_path, "r") as f:
+            return sum(1 for _ in f)
+
+    def _load_data_from_file(self, path):
+        lines = self._get_data_size(path)
+        print(f"Processing {lines} lines...")
+        with mp.Pool() as pool:
+            data = list(
+                pool.imap_unordered(
+                    self.reader.to_data,
+                    tqdm.tqdm(self._load_tuples(path), total=lines),
+                    chunksize=1000,
+                )
+            )
+        return data
+
     def train_dataloader(self, *args, **kwargs) -> DataLoader:
         return self.dataloader("train", shuffle=True, **kwargs)
 
@@ -173,20 +198,10 @@ class PubChem(XYBaseDataModule):
                 f_out.writelines([l for i, l in selected_lines])
 
     def setup_processed(self):
-
         # Collect token distribution
         filename = os.path.join(self.raw_dir, self.raw_file_names[0])
-        print("Get data distribution")
-        with open(filename, "r") as f:
-            lines = sum(1 for _ in f)
-            f.seek(0)
-            print(f"Processing {lines} lines...")
-            with mp.Pool() as pool:
-                data = tuple(
-                    pool.imap_unordered(
-                        self.reader.to_data, tqdm.tqdm(f, total=lines), chunksize=1000
-                    )
-                )
+        print("Load data from file", filename)
+        data = self._load_tuples(filename)
         print("Create splits")
         train, test = train_test_split(data, train_size=self.train_split)
         del data
@@ -258,17 +273,24 @@ class JCIBase(XYBaseDataModule):
         ):
             raise ValueError("Raw data is missing")
 
+    @staticmethod
+    def _load_tuples(input_file_path):
+        with open(input_file_path, "rb") as input_file:
+            for row in pickle.load(input_file).values:
+                yield row[1], row[2:].astype(bool)
+
+    @staticmethod
+    def _get_data_size(input_file_path):
+        with open(input_file_path, "rb") as f:
+            return len(pickle.load(f))
+
     def setup_processed(self):
         print("Transform splits")
+        os.makedirs(self.processed_dir, exist_ok=True)
         for k in ["test", "train", "validation"]:
             print("transform", k)
             torch.save(
-                [
-                    self.reader.to_data(row)
-                    for row in pickle.load(
-                        open(os.path.join(self.raw_dir, f"{k}.pkl"), "rb")
-                    ).values
-                ],
+                self._load_data_from_file(os.path.join(self.raw_dir, f"{k}.pkl")),
                 os.path.join(self.processed_dir, f"{k}.pt"),
             )
 
@@ -305,20 +327,24 @@ class JCIExtendedBase(XYBaseDataModule):
     def _name(self):
         return "JCI_extended"
 
+    @staticmethod
+    def _load_tuples(input_file_path):
+        with open(input_file_path, "rb") as input_file:
+            for row in pickle.load(input_file).values:
+                yield row[2], row[3:].astype(bool)
+
+    @staticmethod
+    def _get_data_size(input_file_path):
+        with open(input_file_path, "rb") as f:
+            return len(pickle.load(f))
+
     def setup_processed(self):
         print("Transform splits")
         os.makedirs(self.processed_dir, exist_ok=True)
         for k in ["test", "train", "validation"]:
             print("transform", k)
             torch.save(
-                [
-                    self.reader.to_data(row)
-                    for row in pickle.load(
-                        open(os.path.join(self.raw_dir, f"{k}.pkl"), "rb")
-                    )
-                    .drop(["name"], axis=1)
-                    .values
-                ],
+                self._load_data_from_file(os.path.join(self.raw_dir, f"{k}.pkl")),
                 os.path.join(self.processed_dir, f"{k}.pt"),
             )
 
