@@ -24,19 +24,19 @@ class Experiment(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def model_kwargs(self, **kwargs) -> Dict:
+    def model_kwargs(self, *args) -> Dict:
         raise NotImplementedError
 
     @abstractmethod
     def datasets(self, batch_size) -> List[datasets.XYBaseDataModule]:
         raise NotImplementedError
 
-    def train(self, batch_size, **kwargs):
+    def train(self, batch_size, *args):
         for dataset in self.datasets(batch_size):
             self.MODEL.run(
                 dataset,
                 self.MODEL.NAME,
-                model_kwargs=self.model_kwargs(**kwargs),
+                model_kwargs=self.model_kwargs(*args),
             )
 
     def predict(self, ckpt_path, data_path):
@@ -62,7 +62,7 @@ class ElectraPreOnSWJ(Experiment):
         return "ElectraPre+SWJ"
 
     @property
-    def model_kwargs(self) -> Dict:
+    def model_kwargs(self, *args) -> Dict:
         return dict(
             lr=1e-4,
             config=dict(
@@ -87,7 +87,8 @@ class ElectraOnJCI(Experiment):
         return "Electra+JCI"
 
     @property
-    def model_kwargs(self, checkpoint_path=None, **kwargs) -> Dict:
+    def model_kwargs(self, *args) -> Dict:
+        checkpoint_path = args[0]
         return dict(
             lr=1e-4,
             pretrained_checkpoint=checkpoint_path,
@@ -124,7 +125,7 @@ class GATOnSWJ(Experiment):
         return "GAT+JCIExt"
 
     @property
-    def model_kwargs(self) -> Dict:
+    def model_kwargs(self, *args) -> Dict:
         return dict(
             lr=1e-4,
             in_length=50,
