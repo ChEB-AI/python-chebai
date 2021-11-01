@@ -166,6 +166,13 @@ class PubChem(XYBaseDataModule):
     def raw_dir(self):
         return os.path.join("data", self._name, "raw", self.split_label)
 
+    @staticmethod
+    def _load_tuples(input_file_path):
+        with open(input_file_path, "r") as input_file:
+            for row in input_file:
+                _, smiles = row.split("\t")
+                yield smiles, None
+
     def download(self):
         url = f"https://ftp.ncbi.nlm.nih.gov/pubchem/Compound/Monthly/2021-10-01/Extras/CID-SMILES.gz"
         if self._k == PubChem.FULL:
@@ -201,7 +208,7 @@ class PubChem(XYBaseDataModule):
         # Collect token distribution
         filename = os.path.join(self.raw_dir, self.raw_file_names[0])
         print("Load data from file", filename)
-        data = self._load_tuples(filename)
+        data = self._load_data_from_file(filename)
         print("Create splits")
         train, test = train_test_split(data, train_size=self.train_split)
         del data
