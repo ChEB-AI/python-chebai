@@ -78,7 +78,7 @@ class ChemDataUnlabeledReader(DataReader):
         return data, labels
 
     def _get_raw_data(self, row):
-        return [self.cache.index(v) + 1 for v in _tokenize(row.split("\t")[-1])]
+        return [self.cache.index(v) + 1 for v in _tokenize(row[0])]
 
 
 class ChemDataReader(DataReader):
