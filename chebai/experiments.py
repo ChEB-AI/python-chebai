@@ -39,6 +39,14 @@ class Experiment(ABC):
                 model_kwargs=self.model_kwargs(*args),
             )
 
+    def test(self, batch_size, ckpt_path, *args):
+        for dataset in self.datasets(batch_size):
+            self.MODEL.test(
+                dataset,
+                self.MODEL.NAME,
+                ckpt_path,
+            )
+
     def predict(self, ckpt_path, data_path):
         for dataset in self.datasets(1):
             with open(f"/tmp/{'_'.join(dataset.full_identifier)}.json", "w") as fout:
@@ -76,6 +84,33 @@ class ElectraPreOnSWJ(Experiment):
 
     def datasets(self, batch_size) -> List[datasets.XYBaseDataModule]:
         return [datasets.SWJUnlabeledChemToken(batch_size, k=100)]
+
+
+class ElectraSWJ(Experiment):
+    MODEL = electra.Electra
+
+    @classmethod
+    def identifier(cls) -> str:
+        return "Electra+SWJ"
+
+    def model_kwargs(self, *args) -> Dict:
+        return dict(
+            lr=1e-4,
+            config=dict(
+                vocab_size=1400,
+                max_position_embeddings=1800,
+                num_attention_heads=8,
+                num_hidden_layers=6,
+                type_vocab_size=1,
+            ),
+            epochs=100,
+        )
+
+    def datasets(self, batch_size) -> List[datasets.XYBaseDataModule]:
+        return [datasets.SWJUnlabeledChemToken(batch_size, k=100)]
+
+    def train(self, batch_size, *args):
+        raise Exception("This expermient is prediction only")
 
 
 class ElectraOnJCI(Experiment):

@@ -98,12 +98,59 @@ class JCIBaseNet(pl.LightningModule):
             )
             return loss
 
+    def test_step(self, *args, **kwargs):
+        with torch.no_grad():
+            loss, f1, mse = self._execute(*args, **kwargs)
+            self.log(
+                "test_loss",
+                loss.detach().item(),
+                on_step=False,
+                on_epoch=True,
+                prog_bar=True,
+                logger=True,
+            )
+            self.log(
+                "test_f1",
+                f1.detach().item(),
+                on_step=False,
+                on_epoch=True,
+                prog_bar=True,
+                logger=True,
+            )
+            self.log(
+                "test_mse",
+                mse.detach().item(),
+                on_step=False,
+                on_epoch=True,
+                prog_bar=True,
+                logger=True,
+            )
+            return loss
+
     def forward(self, x):
         raise NotImplementedError
 
     def configure_optimizers(self):
         optimizer = torch.optim.Adam(self.parameters(), lr=self.lr)
         return optimizer
+
+    @classmethod
+    def test(cls, data, name, checkpoint_path):
+        data.prepare_data()
+        data.setup()
+        name += "__" + "_".join(data.full_identifier)
+        test_data = data.test_dataloader()
+
+        # Calculate weights per class
+
+        model = cls.load_from_checkpoint(checkpoint_path)
+
+        trainer = pl.Trainer(
+            replace_sampler_ddp=False,
+        )
+
+        test = trainer.test(model, test_data)
+        print(test)
 
     @classmethod
     def run(
@@ -186,4 +233,6 @@ class JCIBaseNet(pl.LightningModule):
             ):
                 d = dataset.reader.collater([dataset.reader.to_data((smiles, labels))])
                 pred = torch.sigmoid(model.predict_step(d, i))
-                yield smiles, labels.tolist(), (pred.cpu().numpy().tolist())[0]
+                yield smiles, labels.tolist() if labels is not None else None, (
+                    pred.cpu().numpy().tolist()
+                )[0]

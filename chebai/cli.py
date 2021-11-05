@@ -26,6 +26,23 @@ def train(experiment, batch_size, args):
 
 @click.command()
 @click.argument("experiment")
+@click.argument("batch_size", type=click.INT)
+@click.argument("ckpt_path")
+@click.argument("args", nargs=-1)
+def test(experiment, batch_size, ckpt_path, args):
+    """Run experiment identified by EXPERIMENT in batches of size BATCH_SIZE."""
+    try:
+        ex = experiments.EXPERIMENTS[experiment]()
+    except KeyError:
+        raise Exception(
+            "Experiment ID not found. The following are available:"
+            + ", ".join(experiments.EXPERIMENTS.keys())
+        )
+    ex.test(batch_size, ckpt_path, *args)
+
+
+@click.command()
+@click.argument("experiment")
 @click.argument("ckpt_path")
 @click.argument("data_path")
 def predict(experiment, ckpt_path, data_path):
@@ -42,3 +59,4 @@ def predict(experiment, ckpt_path, data_path):
 
 cli.add_command(train)
 cli.add_command(predict)
+cli.add_command(test)
