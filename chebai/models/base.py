@@ -1,3 +1,4 @@
+import itertools
 import logging
 import os
 import sys
@@ -224,15 +225,24 @@ class JCIBaseNet(pl.LightningModule):
         trainer.fit(net, train_data, val_dataloaders=val_data)
 
     @classmethod
-    def pred(cls, dataset: XYBaseDataModule, checkpoint_path, data_path):
+    def pred(cls, dataset: XYBaseDataModule, checkpoint_path, data_path, batch_size=10):
         model = cls.load_from_checkpoint(checkpoint_path)
         with torch.no_grad():
             lines = dataset._get_data_size(data_path)
+            iterator = dataset._load_tuples(data_path)
             for i, (smiles, labels) in enumerate(
-                tqdm.tqdm(dataset._load_tuples(data_path), total=lines)
+                tqdm.tqdm(iterator, total=1 + (lines // batch_size))
             ):
-                d = dataset.reader.collater([dataset.reader.to_data((smiles, labels))])
+                chunk = list(
+                    itertools.chain(
+                        [(smiles, labels)], itertools.islice(iterator, batch_size - 1)
+                    )
+                )
+                d = dataset.reader.collater(
+                    [dataset.reader.to_data(row) for row in chunk]
+                )
                 pred = torch.sigmoid(model.predict_step(d, i))
-                yield smiles, labels.tolist() if labels is not None else None, (
-                    pred.cpu().numpy().tolist()
-                )[0]
+                for ((smiles, labels), predicted) in zip(chunk, pred):
+                    yield smiles, labels.tolist() if labels is not None else None, (
+                        predicted.cpu().numpy().tolist()
+                    )
