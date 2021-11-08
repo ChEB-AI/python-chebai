@@ -37,12 +37,17 @@ class Electra(JCIBaseNet):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.config = ElectraConfig(**kwargs["config"])
-        elpre = ElectraPre.load_from_checkpoint(kwargs["pretrained_checkpoint"])
-        with TemporaryDirectory() as td:
-            elpre.electra.save_pretrained(td)
-            self.electra = ElectraModel.from_pretrained(td, config=self.config)
 
-        in_d = elpre.config.hidden_size
+        if "pretrained_checkpoint" in kwargs:
+            elpre = ElectraPre.load_from_checkpoint(kwargs["pretrained_checkpoint"])
+            with TemporaryDirectory() as td:
+                elpre.electra.save_pretrained(td)
+                self.electra = ElectraModel.from_pretrained(td, config=self.config)
+                in_d = elpre.config.hidden_size
+        else:
+            self.electra = ElectraModel(config=self.config)
+            in_d = self.config.hidden_size
+
         self.output = nn.Sequential(
             nn.Linear(in_d, in_d),
             nn.ReLU(),
