@@ -49,7 +49,7 @@ class Experiment(ABC):
 
     def predict(self, ckpt_path, data_path):
         for dataset in self.datasets(1):
-            with open(f"/tmp/{'_'.join(dataset.full_identifier)}.json", "w") as fout:
+            with open(f"{'_'.join(dataset.full_identifier)}.json", "w") as fout:
                 json.dump(
                     [
                         dict(smiles=smiles, labels=label, prediction=pred)
