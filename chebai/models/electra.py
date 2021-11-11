@@ -36,7 +36,7 @@ class Electra(JCIBaseNet):
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        self.config = ElectraConfig(**kwargs["config"])
+        self.config = ElectraConfig(**kwargs["config"], output_attentions=True)
 
         if "pretrained_checkpoint" in kwargs:
             elpre = ElectraPre.load_from_checkpoint(kwargs["pretrained_checkpoint"])
@@ -48,18 +48,7 @@ class Electra(JCIBaseNet):
             self.electra = ElectraModel(config=self.config)
             in_d = self.config.hidden_size
 
-        self.output = nn.Sequential(
-            nn.Linear(in_d, in_d),
-            nn.ReLU(),
-            nn.Linear(in_d, in_d),
-            nn.ReLU(),
-            nn.Linear(in_d, in_d),
-            nn.ReLU(),
-            nn.Dropout(0.2),
-            nn.Linear(in_d, 500),
-        )
-
     def forward(self, data):
         electra = self.electra(data.x)
         d = torch.sum(electra.last_hidden_state, dim=1)
-        return self.output(d)
+        return d
