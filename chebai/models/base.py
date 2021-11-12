@@ -204,6 +204,7 @@ class JCIBaseNet(pl.LightningModule):
             dirpath=os.path.join(tb_logger.log_dir, "periodic_checkpoints"),
             filename="{epoch}-{val_f1:.7f}",
             every_n_epochs=5,
+            save_top_k=-1,
             save_last=True,
             verbose=True,
         )
