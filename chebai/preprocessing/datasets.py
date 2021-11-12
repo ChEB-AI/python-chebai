@@ -5,7 +5,7 @@ __all__ = [
     "JCIExtendedGraphData",
 ]
 
-from collections import Counter
+from collections import Counter, OrderedDict
 from itertools import chain
 from typing import List, Union
 import glob
@@ -388,7 +388,7 @@ class JCIExtendedBase(XYBaseDataModule):
 
         print("build labels")
         for k, nodes in dict(
-            train=train_split, test=test_split, validation=validation_split
+            validation=validation_split, test=test_split, train=train_split
         ).items():
             print("Process", k)
             molecules, smiles_list = zip(
@@ -398,7 +398,7 @@ class JCIExtendedBase(XYBaseDataModule):
                     if smiles
                 )
             )
-            data = dict(id=molecules)
+            data = OrderedDict(id=molecules)
             data["name"] = [names.get(node) for node in molecules]
             data["SMILES"] = smiles_list
             for n in JCI_500_COLUMNS_INT:
@@ -1348,4 +1348,4 @@ JCI_500_COLUMNS = [
     "CHEBI:35436",
 ]
 
-JCI_500_COLUMNS_INT = sorted([int(n.split(":")[-1]) for n in JCI_500_COLUMNS])
+JCI_500_COLUMNS_INT = [int(n.split(":")[-1]) for n in JCI_500_COLUMNS]
