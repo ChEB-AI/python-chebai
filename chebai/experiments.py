@@ -162,7 +162,7 @@ class GATOnSWJ(Experiment):
             lr=1e-4,
             in_length=50,
             hidden_length=100,
-            epochs=20,
+            epochs=100,
         )
 
     def datasets(self, batch_size) -> List[datasets.XYBaseDataModule]:
