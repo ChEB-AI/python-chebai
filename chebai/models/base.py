@@ -198,7 +198,7 @@ class JCIBaseNet(pl.LightningModule):
             filename="{epoch}-{val_f1:.7f}",
             save_top_k=5,
             monitor="val_f1",
-            mode="min",
+            mode="max",
         )
         checkpoint_callback = ModelCheckpoint(
             dirpath=os.path.join(tb_logger.log_dir, "periodic_checkpoints"),
