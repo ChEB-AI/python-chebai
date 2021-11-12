@@ -233,6 +233,10 @@ class JCIBaseNet(pl.LightningModule):
     @classmethod
     def pred(cls, dataset: XYBaseDataModule, checkpoint_path, data_path, batch_size=10):
         model = cls.load_from_checkpoint(checkpoint_path)
+
+        if torch.cuda.is_available():
+            model.to("cuda:0")
+
         with torch.no_grad():
             lines = dataset._get_data_size(data_path)
             iterator = dataset._load_tuples(data_path)
@@ -247,7 +251,12 @@ class JCIBaseNet(pl.LightningModule):
                 d = dataset.reader.collater(
                     [dataset.reader.to_data(row) for row in chunk]
                 )
-                pred = torch.sigmoid(model.predict_step(d, i))
+
+                pred = (
+                    torch.sigmoid(model.predict_step(d.to(model.device), i))
+                    .detach()
+                    .cpu()
+                )
                 for ((smiles, labels), predicted) in zip(chunk, pred):
                     yield smiles, labels.tolist() if labels is not None else None, (
                         predicted.cpu().numpy().tolist()
