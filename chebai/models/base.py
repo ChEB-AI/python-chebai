@@ -193,14 +193,19 @@ class JCIBaseNet(pl.LightningModule):
             trainer_kwargs = dict(gpus=0)
 
         tb_logger = pl_loggers.TensorBoardLogger("logs/", name=name)
-        checkpoint_callback = ModelCheckpoint(
-            dirpath=os.path.join(tb_logger.log_dir, "checkpoints"),
-            filename="{epoch}-{step}-{val_loss:.7f}",
+        best_checkpoint_callback = ModelCheckpoint(
+            dirpath=os.path.join(tb_logger.log_dir, "best_checkpoints"),
+            filename="{epoch}-{val_f1:.7f}",
             save_top_k=5,
+            monitor="val_f1",
+            mode="min",
+        )
+        checkpoint_callback = ModelCheckpoint(
+            dirpath=os.path.join(tb_logger.log_dir, "periodic_checkpoints"),
+            filename="{epoch}-{val_f1:.7f}",
+            every_n_epochs=5,
             save_last=True,
             verbose=True,
-            monitor="val_loss",
-            mode="min",
         )
 
         # Calculate weights per class
@@ -209,7 +214,7 @@ class JCIBaseNet(pl.LightningModule):
 
         # Early stopping seems to be bugged right now with ddp accelerator :(
         es = EarlyStopping(
-            monitor="val_loss",
+            monitor="val_f1",
             patience=10,
             min_delta=0.00,
             verbose=False,
@@ -218,7 +223,7 @@ class JCIBaseNet(pl.LightningModule):
         trainer = pl.Trainer(
             logger=tb_logger,
             max_epochs=model_kwargs.get("epochs", 100),
-            callbacks=[checkpoint_callback],
+            callbacks=[best_checkpoint_callback, checkpoint_callback, es],
             replace_sampler_ddp=False,
             **trainer_kwargs
         )
