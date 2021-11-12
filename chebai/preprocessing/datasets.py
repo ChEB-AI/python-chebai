@@ -385,19 +385,29 @@ class JCIExtendedBase(XYBaseDataModule):
     def save(self, g, train_split, test_split, validation_split):
         smiles = nx.get_node_attributes(g, "smiles")
         names = nx.get_node_attributes(g, "name")
+
         print("build labels")
         for k, nodes in dict(
             train=train_split, test=test_split, validation=validation_split
         ).items():
             print("Process", k)
-            data = pd.DataFrame(dict(id=nodes))
-            data["name"] = data["id"].apply(lambda node: names.get(node))
-            data["SMILES"] = data["id"].apply(lambda node: smiles.get(node))
-            data = data[~data["SMILES"].isnull()]
-            for n in JCI_500_COLUMNS_INT:
-                data[n] = data["id"].apply(
-                    lambda node: ((n in g.predecessors(node)) or (n == node))
+            molecules, smiles_list = zip(
+                *(
+                    (n, smiles)
+                    for n, smiles in ((n, smiles.get(n)) for n in nodes)
+                    if smiles
                 )
+            )
+            data = dict(id=molecules)
+            data["name"] = [names.get(node) for node in molecules]
+            data["SMILES"] = smiles_list
+            for n in JCI_500_COLUMNS_INT:
+                data[n] = [
+                    ((n in g.predecessors(node)) or (n == node)) for node in molecules
+                ]
+
+            data = pd.DataFrame(data)
+            data = data[~data["SMILES"].isnull()]
             data = data[data.iloc[:, 3:].any(1)]
             pickle.dump(data, open(os.path.join(self.raw_dir, f"{k}.pkl"), "wb"))
 
