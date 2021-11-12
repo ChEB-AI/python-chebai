@@ -48,7 +48,18 @@ class Electra(JCIBaseNet):
             self.electra = ElectraModel(config=self.config)
             in_d = self.config.hidden_size
 
+        self.output = nn.Sequential(
+            nn.Linear(in_d, in_d),
+            nn.ReLU(),
+            nn.Linear(in_d, in_d),
+            nn.ReLU(),
+            nn.Linear(in_d, in_d),
+            nn.ReLU(),
+            nn.Dropout(0.2),
+            nn.Linear(in_d, 500),
+        )
+
     def forward(self, data):
         electra = self.electra(data.x)
         d = torch.sum(electra.last_hidden_state, dim=1)
-        return d
+        return self.output(d)
