@@ -215,15 +215,12 @@ class JCIBaseNet(pl.LightningModule):
 
         # Early stopping seems to be bugged right now with ddp accelerator :(
         es = EarlyStopping(
-            monitor="val_f1",
-            patience=10,
-            min_delta=0.00,
-            verbose=False,
+            monitor="val_f1", patience=10, min_delta=0.00, verbose=False, mode="max"
         )
 
         trainer = pl.Trainer(
             logger=tb_logger,
-            max_epochs=model_kwargs.get("epochs", 100),
+            min_epochs=model_kwargs.get("epochs", 100),
             callbacks=[best_checkpoint_callback, checkpoint_callback],
             replace_sampler_ddp=False,
             **trainer_kwargs
