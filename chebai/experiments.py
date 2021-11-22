@@ -1,7 +1,9 @@
 from abc import ABC, abstractmethod
 from typing import Dict, List
 import json
+import os.path
 
+from chebai import MODULE_PATH
 from chebai import preprocessing as prep
 from chebai.models import base, electra, graph
 from chebai.preprocessing import datasets
@@ -111,7 +113,7 @@ class ElectraPreBPEOnSWJ(Experiment):
             datasets.SWJUnlabeledBPE(
                 batch_size,
                 reader_kwargs=dict(
-                    data_path="/home/glauer/Development/ChEBI_RvNN/chebai/preprocessing/bin/BPE_SWJ"
+                    data_path=os.path.join(MODULE_PATH, "preprocessing/bin/BPE_SWJ")
                 ),
                 k=100,
             )
