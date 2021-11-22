@@ -1,10 +1,14 @@
+from abc import ABC
 from collections import Counter
+from tempfile import TemporaryDirectory
 import os
 import pickle
 import random
 
 from pysmiles.read_smiles import _tokenize
+from tokenizers.implementations import ByteLevelBPETokenizer
 from torch_geometric.utils import from_networkx
+from transformers import RobertaTokenizerFast
 import networkx as nx
 import pandas as pd
 import pysmiles as ps
@@ -48,18 +52,10 @@ class DataReader:
         return self._read_data(x), self._read_label(y)
 
 
-class ChemDataUnlabeledReader(DataReader):
-    COLLATER = RaggedCollater
-
-    @classmethod
-    def name(cls):
-        return "smiles_token_unlabeled"
-
+class UnlabeledReader(DataReader, ABC):
     def __init__(self, *args, p=0.2, **kwargs):
         super().__init__(*args, **kwargs)
-        with open("chebai/preprocessing/bin/tokens.pkl", "rb") as pk:
-            self.cache = pickle.load(pk)
-        self._p = 0.2
+        self._p = p
 
     def _read_components(self, row):
         data = []
@@ -77,6 +73,19 @@ class ChemDataUnlabeledReader(DataReader):
             labels.append(l)
         return data, labels
 
+
+class ChemDataUnlabeledReader(UnlabeledReader):
+    COLLATER = RaggedCollater
+
+    @classmethod
+    def name(cls):
+        return "smiles_token_unlabeled"
+
+    def __init__(self, *args, p=0.2, **kwargs):
+        super().__init__(*args, **kwargs)
+        with open("chebai/preprocessing/bin/tokens.pkl", "rb") as pk:
+            self.cache = pickle.load(pk)
+
     def _get_raw_data(self, row):
         return [self.cache.index(v) + 1 for v in _tokenize(row[0])]
 
@@ -90,11 +99,37 @@ class ChemDataReader(DataReader):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        with open("chebai/preprocessing/bin/tokens.pkl", "rb") as pk:
+        dirname = os.path.dirname(__file__)
+        with open(os.path.join(dirname, "bin", "tokens.pkl"), "rb") as pk:
             self.cache = pickle.load(pk)
 
     def _read_data(self, raw_data):
         return [self.cache.index(v) + 1 for v in _tokenize(raw_data)]
+
+
+class ChemBPEReader(DataReader):
+    COLLATER = RaggedCollater
+
+    @classmethod
+    def name(cls):
+        return "smiles_bpe"
+
+    def __init__(self, *args, data_path=None, max_len=1800, vsize=4000, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.tokenizer = RobertaTokenizerFast.from_pretrained(
+            data_path, max_len=max_len
+        )
+
+    def _read_data(self, raw_data):
+        return self.tokenizer(raw_data)
+
+
+class BPEUnlabeledReader(ChemBPEReader, UnlabeledReader):
+    COLLATER = RaggedCollater
+
+    @classmethod
+    def name(cls):
+        return "smiles_bpe_unlabeled"
 
 
 class OrdReader(DataReader):

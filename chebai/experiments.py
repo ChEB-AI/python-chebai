@@ -86,6 +86,38 @@ class ElectraPreOnSWJ(Experiment):
         return [datasets.SWJUnlabeledChemToken(batch_size, k=100)]
 
 
+class ElectraPreBPEOnSWJ(Experiment):
+    MODEL = electra.ElectraPre
+
+    @classmethod
+    def identifier(cls) -> str:
+        return "ElectraBPEPre+SWJ"
+
+    def model_kwargs(self, *args) -> Dict:
+        return dict(
+            lr=1e-4,
+            config=dict(
+                vocab_size=1400,
+                max_position_embeddings=1800,
+                num_attention_heads=8,
+                num_hidden_layers=6,
+                type_vocab_size=1,
+            ),
+            epochs=100,
+        )
+
+    def datasets(self, batch_size) -> List[datasets.XYBaseDataModule]:
+        return [
+            datasets.SWJUnlabeledBPE(
+                batch_size,
+                reader_kwargs=dict(
+                    data_path="/home/glauer/Development/ChEBI_RvNN/chebai/preprocessing/bin/BPE_SWJ"
+                ),
+                k=100,
+            )
+        ]
+
+
 class ElectraSWJ(Experiment):
     MODEL = electra.Electra
 

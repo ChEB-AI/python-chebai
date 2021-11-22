@@ -310,6 +310,10 @@ class SWJUnlabeledChemToken(SWJPreChem):
     READER = dr.ChemDataUnlabeledReader
 
 
+class SWJUnlabeledBPE(SWJPreChem):
+    READER = dr.BPEUnlabeledReader
+
+
 class JCIData(JCIBase):
     READER = dr.OrdReader
 
@@ -438,6 +442,10 @@ class JCIExtendedBase(XYBaseDataModule):
 
 class JCIExtendedData(JCIExtendedBase):
     READER = dr.OrdReader
+
+
+class JCIExtendedBPEData(JCIExtendedBase):
+    READER = dr.ChemBPEReader
 
 
 class JCIExtendedTokenData(JCIExtendedBase):
