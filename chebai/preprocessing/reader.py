@@ -8,7 +8,7 @@ import random
 from pysmiles.read_smiles import _tokenize
 from tokenizers.implementations import ByteLevelBPETokenizer
 from torch_geometric.utils import from_networkx
-from transformers import ElectraTokenizerFast
+from transformers import RobertaTokenizerFast
 import networkx as nx
 import pandas as pd
 import pysmiles as ps
@@ -120,7 +120,7 @@ class ChemBPEReader(DataReader):
 
     def __init__(self, *args, data_path=None, max_len=1800, vsize=4000, **kwargs):
         super().__init__(*args, **kwargs)
-        self.tokenizer = ElectraTokenizerFast.from_pretrained(
+        self.tokenizer = RobertaTokenizerFast.from_pretrained(
             data_path, max_len=max_len
         )
 
