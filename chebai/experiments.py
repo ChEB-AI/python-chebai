@@ -99,7 +99,7 @@ class ElectraPreBPEOnSWJ(Experiment):
         return dict(
             lr=1e-4,
             config=dict(
-                vocab_size=1400,
+                vocab_size=4000,
                 max_position_embeddings=1800,
                 num_attention_heads=8,
                 num_hidden_layers=6,
