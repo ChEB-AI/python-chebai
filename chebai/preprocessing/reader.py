@@ -8,7 +8,7 @@ import random
 from pysmiles.read_smiles import _tokenize
 from tokenizers.implementations import ByteLevelBPETokenizer
 from torch_geometric.utils import from_networkx
-from transformers import RobertaTokenizerFast
+from transformers import ElectraTokenizerFast
 import networkx as nx
 import pandas as pd
 import pysmiles as ps
@@ -60,13 +60,17 @@ class UnlabeledReader(DataReader, ABC):
     def _read_components(self, row):
         data = []
         labels = []
-        stream = self._get_raw_data(row)
-        for t in stream:
+        stream = list(self._get_raw_data(row))
+        vocabular = set(stream)
+        for t in list(stream):
             l = 0
-            if not all(x == t for x in stream) and random.random() < self._p:
+            if not all(x == t for x in vocabular) and random.random() < self._p:
                 l = 1
                 t0 = t
                 while t0 == t:
+                    # this takes the list of all tokens by desing
+                    # it ensures that the probability distribution is roughly
+                    # the same as in the original string.
                     t0 = random.choice(stream)
                 t = t0
             data.append(t)
@@ -116,7 +120,7 @@ class ChemBPEReader(DataReader):
 
     def __init__(self, *args, data_path=None, max_len=1800, vsize=4000, **kwargs):
         super().__init__(*args, **kwargs)
-        self.tokenizer = RobertaTokenizerFast.from_pretrained(
+        self.tokenizer = ElectraTokenizerFast.from_pretrained(
             data_path, max_len=max_len
         )
 
