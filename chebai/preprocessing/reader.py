@@ -124,8 +124,8 @@ class ChemBPEReader(DataReader):
             data_path, max_len=max_len
         )
 
-    def _read_data(self, raw_data):
-        return self.tokenizer("".join(raw_data))["input_ids"]
+    def _get_raw_data(self, row):
+        return self.tokenizer(row[0])["input_ids"]
 
 
 class BPEUnlabeledReader(ChemBPEReader, UnlabeledReader):
