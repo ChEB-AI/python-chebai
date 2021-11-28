@@ -120,6 +120,37 @@ class ElectraPreBPEOnSWJ(Experiment):
         ]
 
 
+class ElectraBPEOnJCIExt(Experiment):
+    MODEL = electra.Electra
+
+    @classmethod
+    def identifier(cls) -> str:
+        return "Electra+JCIExtBPE"
+
+    def model_kwargs(self, *args) -> Dict:
+        return dict(
+            lr=1e-4,
+            config=dict(
+                vocab_size=4000,
+                max_position_embeddings=1800,
+                num_attention_heads=8,
+                num_hidden_layers=6,
+                type_vocab_size=1,
+            ),
+            epochs=100,
+        )
+
+    def datasets(self, batch_size) -> List[datasets.XYBaseDataModule]:
+        return [
+            datasets.JCIExtendedBPEData(
+                batch_size,
+                reader_kwargs=dict(
+                    data_path=os.path.join(MODULE_PATH, "preprocessing/bin/BPE_SWJ")
+                ),
+            )
+        ]
+
+
 class ElectraSWJ(Experiment):
     MODEL = electra.Electra
 
