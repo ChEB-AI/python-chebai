@@ -221,7 +221,7 @@ class JCIBaseNet(pl.LightningModule):
         trainer = pl.Trainer(
             logger=tb_logger,
             min_epochs=model_kwargs.get("epochs", 100),
-            callbacks=[best_checkpoint_callback, checkpoint_callback],
+            callbacks=[best_checkpoint_callback, checkpoint_callback, es],
             replace_sampler_ddp=False,
             **trainer_kwargs
         )
