@@ -109,7 +109,7 @@ class ElectraPreOnJCIExt(Experiment):
         )
 
     def datasets(self, batch_size) -> List[datasets.XYBaseDataModule]:
-        return [datasets.JCIExtendedUnlabeled(batch_size, k=100)]
+        return [datasets.JCIExtendedUnlabeled(batch_size)]
 
 
 class ElectraPreBPEOnSWJ(Experiment):
