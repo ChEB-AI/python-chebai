@@ -112,6 +112,30 @@ class ElectraPreOnJCIExt(Experiment):
         return [datasets.JCIExtendedUnlabeled(batch_size)]
 
 
+class ElectraPreOnJCI(Experiment):
+    MODEL = electra.ElectraPre
+
+    @classmethod
+    def identifier(cls) -> str:
+        return "ElectraPre+JCIExt"
+
+    def model_kwargs(self, *args) -> Dict:
+        return dict(
+            lr=1e-4,
+            config=dict(
+                vocab_size=1400,
+                max_position_embeddings=1800,
+                num_attention_heads=8,
+                num_hidden_layers=6,
+                type_vocab_size=1,
+            ),
+            epochs=100,
+        )
+
+    def datasets(self, batch_size) -> List[datasets.XYBaseDataModule]:
+        return [datasets.JCIUnlabeled(batch_size)]
+
+
 class ElectraPreBPEOnSWJ(Experiment):
     MODEL = electra.ElectraPre
 
