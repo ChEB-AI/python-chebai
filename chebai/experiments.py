@@ -117,7 +117,7 @@ class ElectraPreOnJCI(Experiment):
 
     @classmethod
     def identifier(cls) -> str:
-        return "ElectraPre+JCIExt"
+        return "ElectraPre+JCI"
 
     def model_kwargs(self, *args) -> Dict:
         return dict(
