@@ -135,7 +135,7 @@ class ElectraPreOnJCI(Experiment):
         )
 
     def datasets(self, batch_size) -> List[datasets.XYBaseDataModule]:
-        return [datasets.JCIUnlabeled(batch_size)]
+        return [datasets.JCITokenData(batch_size)]
 
 
 class ElectraPreBPEOnSWJ(Experiment):
