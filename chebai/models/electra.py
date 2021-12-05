@@ -32,7 +32,7 @@ class ElectraPre(JCIBaseNet):
         vocab = vocab_w0[torch.nonzero(vocab_w0, as_tuple=False)].squeeze(-1)
         labels_rnd = torch.rand(batch.x.shape, device=self.device)
         subs = vocab[torch.randint(0, len(vocab), batch.x.shape, device=self.device)]
-        equals = torch.eq(batch.x, subs)
+        equals = torch.eq(batch.x, subs).int()
 
         # exclude those indices where the replacement yields the same token
         labels = (labels_rnd < self._p).int() * (1 - equals)
