@@ -30,7 +30,8 @@ class ElectraPre(JCIBaseNet):
     def _get_data_and_labels(self, batch, batch_idx):
         vocab_w0 = torch.cat(torch.unbind(batch.x))
         vocab = vocab_w0[torch.nonzero(vocab_w0, as_tuple=False)].squeeze(-1)
-        labels = torch.randint(0, 2, batch.x.shape, device=self.device)
+        labels_rnd = torch.rand(batch.x.shape, device=self.device)
+        labels = (labels_rnd < self._p).int()
         sub_idx = torch.randint(0, len(vocab), batch.x.shape, device=self.device)
         return ((batch.x * labels) + (vocab[sub_idx] * (1 - labels))), labels
 
