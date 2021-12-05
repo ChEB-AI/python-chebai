@@ -49,7 +49,10 @@ class ElectraPre(JCIBaseNet):
                 labels.append(l)
             batch_data.append(data)
             batch_labels.append(labels)
-        return torch.tensor(batch_data), torch.tensor(batch_labels)
+
+        return torch.tensor(batch_data).to(self.device), torch.tensor(batch_labels).to(
+            self.device
+        )
 
     def forward(self, data):
         x = data
