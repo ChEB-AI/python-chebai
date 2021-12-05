@@ -28,32 +28,10 @@ class ElectraPre(JCIBaseNet):
         self.electra = ElectraForPreTraining(self.config)
 
     def _get_data_and_labels(self, batch, batch_idx):
-        batch_labels = []
-        batch_data = []
-        for row in batch.x:
-            vocabular = set(row)
-            labels = []
-            data = []
-            if len(set(vocabular)) > 1:
-                data, labels = zip(
-                    *[
-                        (random.choice([u for u in row if u != t]), 1)
-                        if random.random() < self._p
-                        else (t, 0)
-                        for t in row
-                    ]
-                )
-                batch_data.append(data)
-                batch_labels.append(labels)
-            else:
-                batch_data.append(row)
-                batch_labels.append([0 for _ in range(len(row))])
-            batch_data.append(data)
-            batch_labels.append(labels)
-
-        return torch.tensor(batch_data).to(self.device), torch.tensor(batch_labels).to(
-            self.device
-        )
+        maxx = torch.max(batch.x)
+        labels = torch.randint(0, 2, batch.x.shape)
+        subs = torch.randint(1, maxx, batch.x.shape)
+        return (batch.x * labels) + (subs * (1 - labels)), labels
 
     def forward(self, data):
         x = data
