@@ -34,19 +34,20 @@ class ElectraPre(JCIBaseNet):
             vocabular = set(row)
             labels = []
             data = []
-            for t in list(row):
-                l = 0
-                if not all(x == t for x in vocabular) and random.random() < self._p:
-                    l = 1
-                    t0 = t
-                    while t0 == t:
-                        # this takes the list of all tokens by desing
-                        # it ensures that the probability distribution is roughly
-                        # the same as in the original string.
-                        t0 = random.choice(row)
-                    t = t0
-                data.append(t)
-                labels.append(l)
+            if len(set(vocabular)) > 1:
+                data, labels = zip(
+                    *[
+                        (random.choice([u for u in row if u != t]), 1)
+                        if random.random() < self._p
+                        else (t, 0)
+                        for t in row
+                    ]
+                )
+                batch_data.append(data)
+                batch_labels.append(labels)
+            else:
+                batch_data.append(row)
+                batch_labels.append([0 for _ in range(len(row))])
             batch_data.append(data)
             batch_labels.append(labels)
 
