@@ -29,11 +29,9 @@ class ElectraPre(JCIBaseNet):
 
     def _get_data_and_labels(self, batch, batch_idx):
         maxx = torch.max(batch.x)
-        labels = torch.randint(0, 2, batch.x.shape)
-        subs = torch.randint(1, maxx, batch.x.shape)
-        return ((batch.x * labels) + (subs * (1 - labels))).to(self.device), labels.to(
-            self.device
-        )
+        labels = torch.randint(0, 2, batch.x.shape, device=self.device)
+        subs = torch.randint(1, maxx, batch.x.shape, device=self.device)
+        return ((batch.x * labels) + (subs * (1 - labels))), labels
 
     def forward(self, data):
         x = data
