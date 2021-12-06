@@ -36,8 +36,9 @@ class ElectraPre(JCIBaseNet):
 
         # exclude those indices where the replacement yields the same token
         labels = (labels_rnd < self._p).int() * (1 - equals)
+        features = (batch.x * (1 - labels)) + (subs * labels)
 
-        return ((batch.x * labels) + (subs * (1 - labels))), labels
+        return features, labels
 
     def forward(self, data):
         x = data
