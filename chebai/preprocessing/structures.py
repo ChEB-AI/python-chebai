@@ -63,7 +63,10 @@ class XYData(torch.utils.data.Dataset, TransferableDataType):
 
     def to(self, device):
         x = self.to_x(device)
-        y = self.to_y(device)
+        if self.y is not None:
+            y = self.to_y(device)
+        else:
+            y = None
         return XYData(
             x,
             y,

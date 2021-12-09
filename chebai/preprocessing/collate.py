@@ -23,9 +23,13 @@ class DefaultCollater(Collater):
 class RaggedCollater(Collater):
     def __call__(self, data):
         x, y = zip(*data)
+        if not all(x is None for x in y):
+            y = pad_sequence([torch.tensor(a) for a in y], batch_first=True)
+        else:
+            y = None
         return XYData(
             pad_sequence([torch.tensor(a) for a in x], batch_first=True),
-            pad_sequence([torch.tensor(a) for a in y], batch_first=True),
+            y,
             additional_fields=dict(lens=list(map(len, x))),
         )
 
