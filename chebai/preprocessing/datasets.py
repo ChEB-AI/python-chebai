@@ -452,6 +452,14 @@ class JCIExtendedData(JCIExtendedBase):
     READER = dr.OrdReader
 
 
+class JCIUnlabeled(JCIBase):
+    READER = dr.ChemDataUnlabeledReader
+
+
+class JCIExtendedUnlabeled(JCIExtendedBase):
+    READER = dr.ChemDataUnlabeledReader
+
+
 class JCIExtendedBPEData(JCIExtendedBase):
     READER = dr.ChemBPEReader
 
