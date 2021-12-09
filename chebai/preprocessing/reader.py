@@ -24,7 +24,8 @@ from chebai.preprocessing.collate import (
 class DataReader:
     COLLATER = DefaultCollater
 
-    def __init__(self, collator_kwargs=None, **kwargs):
+    def __init__(self, collator_kwargs=None, unlabeled=False, **kwargs):
+        self._unlabeled = unlabeled
         if collator_kwargs is None:
             collator_kwargs = dict()
         self.collater = self.COLLATER(**collator_kwargs)
@@ -33,7 +34,10 @@ class DataReader:
         return row[0]
 
     def _get_raw_label(self, row):
-        return row[1]
+        if self._unlabeled:
+            return None
+        else:
+            return row[1]
 
     def name(cls):
         raise NotImplementedError
@@ -50,48 +54,6 @@ class DataReader:
     def to_data(self, row):
         x, y = self._read_components(row)
         return self._read_data(x), self._read_label(y)
-
-
-class UnlabeledReader(DataReader, ABC):
-    def __init__(self, *args, p=0.2, **kwargs):
-        super().__init__(*args, **kwargs)
-        self._p = p
-
-    def _read_components(self, row):
-        data = []
-        labels = []
-        stream = list(self._get_raw_data(row))
-        vocabular = set(stream)
-        for t in list(stream):
-            l = 0
-            if not all(x == t for x in vocabular) and random.random() < self._p:
-                l = 1
-                t0 = t
-                while t0 == t:
-                    # this takes the list of all tokens by desing
-                    # it ensures that the probability distribution is roughly
-                    # the same as in the original string.
-                    t0 = random.choice(stream)
-                t = t0
-            data.append(t)
-            labels.append(l)
-        return data, labels
-
-
-class ChemDataUnlabeledReader(UnlabeledReader):
-    COLLATER = RaggedCollater
-
-    @classmethod
-    def name(cls):
-        return "smiles_token_unlabeled"
-
-    def __init__(self, *args, p=0.2, **kwargs):
-        super().__init__(*args, **kwargs)
-        with open("chebai/preprocessing/bin/tokens.pkl", "rb") as pk:
-            self.cache = pickle.load(pk)
-
-    def _get_raw_data(self, row):
-        return [self.cache.index(v) + 1 for v in _tokenize(row[0])]
 
 
 class ChemDataReader(DataReader):
@@ -126,14 +88,6 @@ class ChemBPEReader(DataReader):
 
     def _get_raw_data(self, row):
         return self.tokenizer(row[0])["input_ids"]
-
-
-class BPEUnlabeledReader(ChemBPEReader, UnlabeledReader):
-    COLLATER = RaggedCollater
-
-    @classmethod
-    def name(cls):
-        return "smiles_bpe_unlabeled"
 
 
 class OrdReader(DataReader):

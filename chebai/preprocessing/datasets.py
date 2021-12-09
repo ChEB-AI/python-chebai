@@ -47,16 +47,17 @@ def extract_largest_index(path, kind):
 
 class XYBaseDataModule(pl.LightningDataModule):
     READER = dr.DataReader
+    UNLABELED = False
 
     def __init__(self, batch_size=1, tran_split=0.85, reader_kwargs=None, **kwargs):
+        super().__init__(**kwargs)
         if reader_kwargs is None:
             reader_kwargs = dict()
-        self.reader = self.READER(**reader_kwargs)
+        self.reader = self.READER(unlabeled=self.UNLABELED, **reader_kwargs)
         self.train_split = tran_split
         self.batch_size = batch_size
         os.makedirs(self.raw_dir, exist_ok=True)
         os.makedirs(self.processed_dir, exist_ok=True)
-        super().__init__(**kwargs)
 
     @property
     def identifier(self):
@@ -142,6 +143,7 @@ class PubChem(XYBaseDataModule):
     SMILES_INDEX = 0
     LABEL_INDEX = 1
     FULL = 0
+    UNLABELED = True
 
     def __init__(self, *args, k=100000, **kwargs):
         self._k = k
@@ -237,6 +239,8 @@ class PubChem(XYBaseDataModule):
 
 
 class SWJPreChem(PubChem):
+    UNLABELED = True
+
     @property
     def _name(self):
         return f"SWJpre"
@@ -302,16 +306,20 @@ class JCIBase(XYBaseDataModule):
             )
 
 
-class PubchemUnlabelled(PubChem):
-    READER = dr.ChemDataUnlabeledReader
+class PubchemChem(PubChem):
+    READER = dr.ChemDataReader
 
 
-class SWJUnlabeledChemToken(SWJPreChem):
-    READER = dr.ChemDataUnlabeledReader
+class PubchemBPE(PubChem):
+    READER = dr.ChemBPEReader
 
 
-class SWJUnlabeledBPE(SWJPreChem):
-    READER = dr.BPEUnlabeledReader
+class SWJChem(SWJPreChem):
+    READER = dr.ChemDataReader
+
+
+class SWJBPE(SWJPreChem):
+    READER = dr.ChemBPEReader
 
 
 class JCIData(JCIBase):
