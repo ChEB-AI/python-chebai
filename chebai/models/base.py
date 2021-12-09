@@ -35,12 +35,16 @@ class JCIBaseNet(pl.LightningModule):
         self.save_hyperparameters()
 
     def _execute(self, batch, batch_idx):
-        pred = self(batch)
-        labels = batch.y.float()
+        data, labels = self._get_data_and_labels(batch, batch_idx)
+        pred = self(data)
+        labels = labels.float()
         loss = self.loss(pred, labels)
         f1 = self.f1(target=labels.int(), preds=torch.sigmoid(pred))
         mse = self.mse(labels, torch.sigmoid(pred))
         return loss, f1, mse
+
+    def _get_data_and_labels(self, batch, batch_idx):
+        return batch.x, batch.y.float()
 
     def training_step(self, *args, **kwargs):
         loss, f1, mse = self._execute(*args, **kwargs)
@@ -221,7 +225,7 @@ class JCIBaseNet(pl.LightningModule):
         trainer = pl.Trainer(
             logger=tb_logger,
             min_epochs=model_kwargs.get("epochs", 100),
-            callbacks=[best_checkpoint_callback, checkpoint_callback],
+            callbacks=[best_checkpoint_callback, checkpoint_callback, es],
             replace_sampler_ddp=False,
             **trainer_kwargs
         )
