@@ -21,9 +21,9 @@ logging.getLogger("pysmiles").setLevel(logging.CRITICAL)
 class ElectraPre(JCIBaseNet):
     NAME = "ElectraPre"
 
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs, p=0.2)
-        self._p = 0.2
+    def __init__(self, p=0.2, **kwargs):
+        super().__init__(**kwargs)
+        self._p = p
         self.config = ElectraConfig(**kwargs["config"])
         self.electra = ElectraForPreTraining(self.config)
 
@@ -35,14 +35,13 @@ class ElectraPre(JCIBaseNet):
         equals = torch.eq(batch.x, subs).int()
 
         # exclude those indices where the replacement yields the same token
-        labels = (labels_rnd < self._p).int() * (1 - equals)
+        labels = ((labels_rnd < self._p) and (~equals)).int()
         features = (batch.x * (1 - labels)) + (subs * labels)
 
         return features, labels
 
     def forward(self, data):
-        x = data
-        x = self.electra(x)
+        x = self.electra(data)
         return x.logits
 
 
@@ -69,6 +68,5 @@ class Electra(JCIBaseNet):
             in_d = self.config.hidden_size
 
     def forward(self, data):
-        electra = self.electra(data.x)
-        d = torch.sum(electra.last_hidden_state, dim=1)
-        return self.output(d)
+        electra = self.electra(data)
+        return electra.logits
