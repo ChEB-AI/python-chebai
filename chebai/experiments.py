@@ -85,7 +85,7 @@ class ElectraPreOnSWJ(Experiment):
         )
 
     def datasets(self, batch_size) -> List[datasets.XYBaseDataModule]:
-        return [datasets.SWJUnlabeledChemToken(batch_size, k=100)]
+        return [datasets.SWJChem(batch_size, k=100)]
 
 
 class ElectraPreBPEOnSWJ(Experiment):
@@ -110,7 +110,7 @@ class ElectraPreBPEOnSWJ(Experiment):
 
     def datasets(self, batch_size) -> List[datasets.XYBaseDataModule]:
         return [
-            datasets.SWJUnlabeledBPE(
+            datasets.SWJBPE(
                 batch_size,
                 reader_kwargs=dict(
                     data_path=os.path.join(MODULE_PATH, "preprocessing/bin/BPE_SWJ")
@@ -141,7 +141,7 @@ class ElectraSWJ(Experiment):
         )
 
     def datasets(self, batch_size) -> List[datasets.XYBaseDataModule]:
-        return [datasets.SWJUnlabeledChemToken(batch_size, k=100)]
+        return [datasets.SWJChem(batch_size, k=100)]
 
     def train(self, batch_size, *args):
         raise Exception("This expermient is prediction only")
