@@ -56,7 +56,7 @@ class Electra(JCIBaseNet):
         self.config = ElectraConfig(**kwargs["config"], output_attentions=True)
 
         if pretrained_checkpoint:
-            elpre = ElectraPre.load_from_checkpoint(kwargs["pretrained_checkpoint"])
+            elpre = ElectraPre.load_from_checkpoint(pretrained_checkpoint)
             with TemporaryDirectory() as td:
                 elpre.electra.save_pretrained(td)
                 self.electra = ElectraForSequenceClassification.from_pretrained(
