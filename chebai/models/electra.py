@@ -35,7 +35,9 @@ class ElectraPre(JCIBaseNet):
         equals = torch.eq(batch.x, subs).int()
 
         # exclude those indices where the replacement yields the same token
-        labels = torch.logical_and((labels_rnd < self._p), ~equals).int()
+        labels = torch.logical_and(
+            (labels_rnd < self._p), torch.logical_not(equals)
+        ).int()
         features = (batch.x * (1 - labels)) + (subs * labels)
 
         return features, labels
