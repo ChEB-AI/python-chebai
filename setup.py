@@ -37,6 +37,8 @@ setup(
         "pysmiles",
         "click",
         "scikit-network",
+        "svgutils",
+        "matplotlib"
     ],
     extras_require={"dev": ["black", "isort", "pre-commit"]},
 )

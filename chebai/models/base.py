@@ -5,7 +5,7 @@ import sys
 
 from pytorch_lightning import loggers as pl_loggers
 from pytorch_lightning.callbacks import EarlyStopping, ModelCheckpoint
-from pytorch_lightning.metrics import F1, MeanSquaredError
+from torchmetrics import F1, MeanSquaredError
 from pytorch_lightning.tuner.tuning import Tuner
 from sklearn.metrics import f1_score
 from torch import nn
@@ -21,14 +21,15 @@ logging.getLogger("pysmiles").setLevel(logging.CRITICAL)
 class JCIBaseNet(pl.LightningModule):
     NAME = None
 
-    def __init__(self, **kwargs):
+    def __init__(self, out_dim=None, **kwargs):
         super().__init__()
+        self.out_dim = out_dim
         weights = kwargs.get("weights", None)
         if weights is not None:
             self.loss = nn.BCEWithLogitsLoss(pos_weight=weights)
         else:
             self.loss = nn.BCEWithLogitsLoss()
-        self.f1 = F1(threshold=kwargs.get("threshold", 0.5), multilabel=True)
+        self.f1 = F1(threshold=kwargs.get("threshold", 0.5))
         self.mse = MeanSquaredError()
         self.lr = kwargs.get("lr", 1e-4)
 
@@ -36,7 +37,7 @@ class JCIBaseNet(pl.LightningModule):
 
     def _execute(self, batch, batch_idx):
         data, labels = self._get_data_and_labels(batch, batch_idx)
-        pred = self(data)
+        pred = self(data)["logits"]
         labels = labels.float()
         loss = self.loss(pred, labels)
         f1 = self.f1(target=labels.int(), preds=torch.sigmoid(pred))
@@ -231,34 +232,9 @@ class JCIBaseNet(pl.LightningModule):
         )
         trainer.fit(net, train_data, val_dataloaders=val_data)
 
-    @classmethod
-    def pred(cls, dataset: XYBaseDataModule, checkpoint_path, data_path, batch_size=10):
-        model = cls.load_from_checkpoint(checkpoint_path)
-
-        if torch.cuda.is_available():
-            model.to("cuda:0")
-
-        with torch.no_grad():
-            lines = dataset._get_data_size(data_path)
-            iterator = dataset._load_tuples(data_path)
-            for i, (smiles, labels) in enumerate(
-                tqdm.tqdm(iterator, total=1 + (lines // batch_size))
-            ):
-                chunk = list(
-                    itertools.chain(
-                        [(smiles, labels)], itertools.islice(iterator, batch_size - 1)
-                    )
-                )
-                d = dataset.reader.collater(
-                    [dataset.reader.to_data(row) for row in chunk]
-                )
-
-                pred = (
-                    torch.sigmoid(model.predict_step(d.to(model.device), i))
-                    .detach()
-                    .cpu()
-                )
-                for ((smiles, labels), predicted) in zip(chunk, pred):
-                    yield smiles, labels.tolist() if labels is not None else None, (
-                        predicted.cpu().numpy().tolist()
-                    )
+    def pred(self, feature, batch_index=0):
+        return (
+            torch.sigmoid(self.predict_step(feature.to(self.device), batch_index))
+            .detach()
+            .cpu()
+        )
