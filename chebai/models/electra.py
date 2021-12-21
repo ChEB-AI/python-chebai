@@ -53,9 +53,9 @@ class Electra(JCIBaseNet):
     def __init__(self, **kwargs):
         # Remove this property in order to prevent it from being stored as a
         # hyper parameter
-        pretrained_checkpoint = kwargs.pop("pretrained_checkpoint") or None
+        pretrained_checkpoint = kwargs.pop("pretrained_checkpoint") if "pretrained_checkpoint" in kwargs else None
         super().__init__(**kwargs)
-        self.config = ElectraConfig(**kwargs["config"], output_attentions=True)
+        self.config = ElectraConfig(**kwargs["config"], output_attentions=True, num_labels=self.out_dim)
 
         if pretrained_checkpoint:
             elpre = ElectraPre.load_from_checkpoint(pretrained_checkpoint)
@@ -71,4 +71,4 @@ class Electra(JCIBaseNet):
 
     def forward(self, data):
         electra = self.electra(data)
-        return electra.logits
+        return dict(logits=electra.logits, attentions=electra.attentions)

@@ -24,8 +24,7 @@ from chebai.preprocessing.collate import (
 class DataReader:
     COLLATER = DefaultCollater
 
-    def __init__(self, collator_kwargs=None, unlabeled=False, **kwargs):
-        self._unlabeled = unlabeled
+    def __init__(self, collator_kwargs=None, **kwargs):
         if collator_kwargs is None:
             collator_kwargs = dict()
         self.collater = self.COLLATER(**collator_kwargs)
@@ -34,10 +33,7 @@ class DataReader:
         return row[0]
 
     def _get_raw_label(self, row):
-        if self._unlabeled:
-            return None
-        else:
-            return row[1]
+        return row[1]
 
     def name(cls):
         raise NotImplementedError

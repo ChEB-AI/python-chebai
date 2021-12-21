@@ -1,7 +1,9 @@
 import click
 
 from chebai import experiments
-
+from chebai.result.base import PROCESSORS, ResultFactory
+from chebai.result.prediction_json import JSONResultProcessor
+from chebai.result.molplot import AttentionOnMoleculesProcessor
 
 @click.group()
 def cli():
@@ -15,13 +17,13 @@ def cli():
 def train(experiment, batch_size, args):
     """Run experiment identified by EXPERIMENT in batches of size BATCH_SIZE."""
     try:
-        ex = experiments.EXPERIMENTS[experiment]()
+        ex = experiments.EXPERIMENTS[experiment](batch_size, )
     except KeyError:
         raise Exception(
             "Experiment ID not found. The following are available:"
             + ", ".join(experiments.EXPERIMENTS.keys())
         )
-    ex.train(batch_size, *args)
+    ex.train(*args)
 
 
 @click.command()
@@ -32,20 +34,21 @@ def train(experiment, batch_size, args):
 def test(experiment, batch_size, ckpt_path, args):
     """Run experiment identified by EXPERIMENT in batches of size BATCH_SIZE."""
     try:
-        ex = experiments.EXPERIMENTS[experiment]()
+        ex = experiments.EXPERIMENTS[experiment](batch_size, )
     except KeyError:
         raise Exception(
             "Experiment ID not found. The following are available:"
             + ", ".join(experiments.EXPERIMENTS.keys())
         )
-    ex.test(batch_size, ckpt_path, *args)
+    ex.test(ckpt_path, *args)
 
 
 @click.command()
 @click.argument("experiment")
 @click.argument("ckpt_path")
 @click.argument("data_path")
-def predict(experiment, ckpt_path, data_path):
+@click.option("--processors", "-p", default=["json"], multiple=True)
+def predict(experiment, ckpt_path, data_path, processors):
     """Run experiment identified by EXPERIMENT in batches of size BATCH_SIZE."""
     try:
         ex = experiments.EXPERIMENTS[experiment]()
@@ -54,7 +57,16 @@ def predict(experiment, ckpt_path, data_path):
             "Experiment ID not found. The following are available:"
             + ", ".join(experiments.EXPERIMENTS.keys())
         )
-    ex.predict(ckpt_path, data_path)
+
+    processor_list = []
+    for p in processors:
+        try:
+            processor_list.append(PROCESSORS[p]())
+        except KeyError:
+            raise Exception(
+                f"Processor {p} not found. Available processors are {', '.join(PROCESSORS.keys())}"
+            )
+    ex.predict(data_path, ckpt_path, processor_list)
 
 
 cli.add_command(train)

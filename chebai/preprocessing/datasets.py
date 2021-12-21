@@ -5,6 +5,7 @@ __all__ = [
     "JCIExtendedGraphData",
 ]
 
+from abc import ABC
 from collections import Counter, OrderedDict
 from itertools import chain
 from typing import List, Union
@@ -47,13 +48,12 @@ def extract_largest_index(path, kind):
 
 class XYBaseDataModule(pl.LightningDataModule):
     READER = dr.DataReader
-    UNLABELED = False
 
     def __init__(self, batch_size=1, tran_split=0.85, reader_kwargs=None, **kwargs):
         super().__init__(**kwargs)
         if reader_kwargs is None:
             reader_kwargs = dict()
-        self.reader = self.READER(unlabeled=self.UNLABELED, **reader_kwargs)
+        self.reader = self.READER(**reader_kwargs)
         self.train_split = tran_split
         self.batch_size = batch_size
         os.makedirs(self.raw_dir, exist_ok=True)
@@ -138,6 +138,14 @@ class XYBaseDataModule(pl.LightningDataModule):
     def processed_file_names(self):
         raise NotImplementedError
 
+    @property
+    def label_number(self):
+        """
+        Number of labels
+        :return:
+        Returns -1 for seq2seq encoding, otherwise the number of labels
+        """
+        raise NotImplementedError
 
 class PubChem(XYBaseDataModule):
     SMILES_INDEX = 0
@@ -305,25 +313,44 @@ class JCIBase(XYBaseDataModule):
                 os.path.join(self.processed_dir, f"{k}.pt"),
             )
 
+    @property
+    def label_number(self):
+        return 500
 
 class PubchemChem(PubChem):
     READER = dr.ChemDataReader
+
+    @property
+    def label_number(self):
+        return -1
 
 
 class PubchemBPE(PubChem):
     READER = dr.ChemBPEReader
 
+    @property
+    def label_number(self):
+        return -1
+
 
 class SWJChem(SWJPreChem):
     READER = dr.ChemDataReader
+
+    @property
+    def label_number(self):
+        return -1
 
 
 class SWJBPE(SWJPreChem):
     READER = dr.ChemBPEReader
 
+    @property
+    def label_number(self):
+        return -1
 
 class JCIData(JCIBase):
     READER = dr.OrdReader
+
 
 
 class JCIMolData(JCIBase):
@@ -338,13 +365,54 @@ class PubChemTokens(PubChem):
     READER = dr.ChemDataReader
 
 
-class JCIExtendedBase(XYBaseDataModule):
-    LABEL_INDEX = 3
-    SMILES_INDEX = 2
+class _ChEBIDataExtractor(XYBaseDataModule, ABC):
 
-    @property
-    def _name(self):
-        return "JCI_extended"
+    def select_classes(self, g, *args, **kwargs):
+        raise NotImplementedError
+
+    def extract_class_hierarchy(self):
+        with open(os.path.join(self.raw_dir, "chebi.obo")) as chebi:
+            chebi = "\n".join(l for l in chebi if not l.startswith("xref:"))
+        elements = [
+            term_callback(clause)
+            for clause in fastobo.loads(chebi)
+            if clause and ":" in str(clause.id)
+        ]
+        g = nx.DiGraph()
+        for n in elements:
+            g.add_node(n["id"], **n)
+        g.add_edges_from([(p, q["id"]) for q in elements for p in q["parents"]])
+        print("Compute transitive closure")
+        return nx.transitive_closure_dag(g)
+
+    def save(self, g, train_split, test_split, validation_split):
+        smiles = nx.get_node_attributes(g, "smiles")
+        names = nx.get_node_attributes(g, "name")
+
+        print("build labels")
+        for k, nodes in dict(
+            validation=validation_split, test=test_split, train=train_split
+        ).items():
+            print("Process", k)
+            molecules, smiles_list = zip(
+                *(
+                    (n, smiles)
+                    for n, smiles in ((n, smiles.get(n)) for n in nodes)
+                    if smiles
+                )
+            )
+            data = OrderedDict(id=molecules)
+            data["name"] = [names.get(node) for node in molecules]
+            data["SMILES"] = smiles_list
+            for n in self.select_classes(g):
+                data[n] = [
+                    ((n in g.predecessors(node)) or (n == node)) for node in molecules
+                ]
+
+            data = pd.DataFrame(data)
+            data = data[~data["SMILES"].isnull()]
+            data = data[data.iloc[:, 3:].any(1)]
+            pickle.dump(data, open(os.path.join(self.raw_dir, f"{k}.pkl"), "wb"))
 
     @staticmethod
     def _load_tuples(input_file_path):
@@ -367,24 +435,9 @@ class JCIExtendedBase(XYBaseDataModule):
                 os.path.join(self.processed_dir, f"{k}.pt"),
             )
 
-    def extract_class_hierarchy(self):
-        with open(os.path.join(self.raw_dir, "chebi.obo")) as chebi:
-            chebi = "\n".join(l for l in chebi if not l.startswith("xref:"))
-        elements = [
-            term_callback(clause)
-            for clause in fastobo.loads(chebi)
-            if clause and ":" in str(clause.id)
-        ]
-        g = nx.DiGraph()
-        for n in elements:
-            g.add_node(n["id"], **n)
-        g.add_edges_from([(p, q["id"]) for q in elements for p in q["parents"]])
-        print("Compute transitive closure")
-        return nx.transitive_closure_dag(g)
-
     def get_splits(self, g):
         fixed_nodes = list(g.nodes)
-        print("Split datasets")
+        print("Split dataset")
         random.shuffle(fixed_nodes)
         train_split, test_split = train_test_split(
             fixed_nodes, train_size=self.train_split, shuffle=True
@@ -393,35 +446,6 @@ class JCIExtendedBase(XYBaseDataModule):
             test_split, train_size=self.train_split, shuffle=True
         )
         return train_split, test_split, validation_split
-
-    def save(self, g, train_split, test_split, validation_split):
-        smiles = nx.get_node_attributes(g, "smiles")
-        names = nx.get_node_attributes(g, "name")
-
-        print("build labels")
-        for k, nodes in dict(
-            validation=validation_split, test=test_split, train=train_split
-        ).items():
-            print("Process", k)
-            molecules, smiles_list = zip(
-                *(
-                    (n, smiles)
-                    for n, smiles in ((n, smiles.get(n)) for n in nodes)
-                    if smiles
-                )
-            )
-            data = OrderedDict(id=molecules)
-            data["name"] = [names.get(node) for node in molecules]
-            data["SMILES"] = smiles_list
-            for n in JCI_500_COLUMNS_INT:
-                data[n] = [
-                    ((n in g.predecessors(node)) or (n == node)) for node in molecules
-                ]
-
-            data = pd.DataFrame(data)
-            data = data[~data["SMILES"].isnull()]
-            data = data[data.iloc[:, 3:].any(1)]
-            pickle.dump(data, open(os.path.join(self.raw_dir, f"{k}.pkl"), "wb"))
 
     @property
     def processed_file_names(self):
@@ -448,8 +472,41 @@ class JCIExtendedBase(XYBaseDataModule):
             self.save(g, *self.get_splits(g))
 
 
-class JCIExtendedData(JCIExtendedBase):
-    READER = dr.OrdReader
+class JCIExtendedBase(_ChEBIDataExtractor):
+    LABEL_INDEX = 3
+    SMILES_INDEX = 2
+
+    @property
+    def label_number(self):
+        return 500
+
+    @property
+    def _name(self):
+        return "JCI_extended"
+
+    def select_classes(self, g, *args, **kwargs):
+        return JCI_500_COLUMNS_INT
+
+
+class ChEBIOver100(_ChEBIDataExtractor):
+    LABEL_INDEX = 3
+    SMILES_INDEX = 2
+    READER = dr.ChemDataReader
+
+    @property
+    def label_number(self):
+        return 854
+
+    @property
+    def _name(self):
+        return "ChEBI100"
+
+    def select_classes(self, g, *args, **kwargs):
+        smiles = nx.get_node_attributes(g, "smiles")
+        nodes = list(sorted({node for node in g.nodes if sum(1 if smiles[s] is not None else 0 for s in g.successors(node)) >= 100}))
+        with open("/tmp/ChEBI100.txt", "wt") as fout:
+                fout.writelines(str(node)+"\n" for node in nodes)
+        return nodes
 
 
 class JCIExtendedBPEData(JCIExtendedBase):
