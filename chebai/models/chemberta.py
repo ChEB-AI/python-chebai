@@ -29,7 +29,10 @@ class ChembertaPre(JCIBaseNet):
         self.model = RobertaForMaskedLM(self.config)
 
     def _get_data_and_labels(self, batch, batch_idx):
-        masked = (torch.rand([batch.x.shape[0]]) * torch.tensor(batch.lens)).long()
+        masked = (
+            torch.rand([batch.x.shape[0]], device=self.device)
+            * torch.tensor(batch.lens)
+        ).long()
         labels = one_hot(
             torch.gather(batch.x, 1, masked.unsqueeze(-1)).squeeze(-1), 4000
         )
