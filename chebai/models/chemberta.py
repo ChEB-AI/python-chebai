@@ -31,10 +31,11 @@ class ChembertaPre(JCIBaseNet):
     def _get_data_and_labels(self, batch, batch_idx):
         masked = (
             torch.rand([batch.x.shape[0]], device=self.device)
-            * torch.tensor(batch.lens)
+            * torch.tensor(batch.lens, device=self.device)
         ).long()
         labels = one_hot(
-            torch.gather(batch.x, 1, masked.unsqueeze(-1)).squeeze(-1), 4000
+            torch.gather(batch.x, 1, masked.unsqueeze(-1)).squeeze(-1),
+            self.config.vocab_size,
         )
         features = 1 + batch.x
         features = features * (1 - one_hot(masked, batch.x.shape[-1]))

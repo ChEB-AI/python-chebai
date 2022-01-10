@@ -188,6 +188,30 @@ class ElectraBPEOnJCIExt(Experiment):
         )
 
 
+class ChembertaPreOnSWJ(Experiment):
+    MODEL = chemberta.ChembertaPre
+
+    @classmethod
+    def identifier(cls) -> str:
+        return "ChembertaPre+SWJ"
+
+    def model_kwargs(self, *args) -> Dict:
+        return dict(
+            lr=1e-4,
+            config=dict(
+                vocab_size=1400,
+                max_position_embeddings=1800,
+                num_attention_heads=8,
+                num_hidden_layers=6,
+                type_vocab_size=1,
+            ),
+            epochs=100,
+        )
+
+    def build_dataset(self, batch_size) -> datasets.XYBaseDataModule:
+        return datasets.SWJChem(batch_size, k=100)
+
+
 class ChembertaPreBPEOnSWJ(Experiment):
     MODEL = chemberta.ChembertaPre
 
