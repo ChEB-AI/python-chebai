@@ -1,13 +1,13 @@
 from abc import ABC, abstractmethod
-from typing import Dict, List, Iterable
+from typing import Dict, Iterable, List
 import json
 import os.path
 
 from chebai import MODULE_PATH
 from chebai import preprocessing as prep
-from chebai.models import base, electra, graph
+from chebai.models import base, chemberta, electra, graph
 from chebai.preprocessing import datasets
-from chebai.result.base import ResultProcessor, ResultFactory
+from chebai.result.base import ResultFactory, ResultProcessor
 
 EXPERIMENTS = dict()
 
@@ -151,12 +151,12 @@ class ElectraPreBPEOnSWJ(Experiment):
 
     def build_dataset(self, batch_size) -> datasets.XYBaseDataModule:
         return datasets.SWJBPE(
-                batch_size,
-                reader_kwargs=dict(
-                    data_path=os.path.join(MODULE_PATH, "preprocessing/bin/BPE_SWJ")
-                ),
-                k=100,
-            )
+            batch_size,
+            reader_kwargs=dict(
+                data_path=os.path.join(MODULE_PATH, "preprocessing/bin/BPE_SWJ")
+            ),
+            k=100,
+        )
 
 
 class ElectraBPEOnJCIExt(Experiment):
@@ -181,11 +181,42 @@ class ElectraBPEOnJCIExt(Experiment):
 
     def build_dataset(self, batch_size) -> datasets.XYBaseDataModule:
         return datasets.JCIExtendedBPEData(
-                batch_size,
-                reader_kwargs=dict(
-                    data_path=os.path.join(MODULE_PATH, "preprocessing/bin/BPE_SWJ")
-                ),
-            )
+            batch_size,
+            reader_kwargs=dict(
+                data_path=os.path.join(MODULE_PATH, "preprocessing/bin/BPE_SWJ")
+            ),
+        )
+
+
+class ChembertaPreBPEOnSWJ(Experiment):
+    MODEL = chemberta.ChembertaPre
+
+    @classmethod
+    def identifier(cls) -> str:
+        return "ChembertaPreBPE+SWJ"
+
+    def model_kwargs(self, *args) -> Dict:
+        return dict(
+            lr=1e-4,
+            tokenizer_path=os.path.join(MODULE_PATH, "preprocessing/bin/BPE_SWJ"),
+            config=dict(
+                vocab_size=4000,
+                max_position_embeddings=1800,
+                num_attention_heads=8,
+                num_hidden_layers=6,
+                type_vocab_size=1,
+            ),
+            epochs=100,
+        )
+
+    def build_dataset(self, batch_size) -> datasets.XYBaseDataModule:
+        return datasets.SWJBPE(
+            batch_size,
+            reader_kwargs=dict(
+                data_path=os.path.join(MODULE_PATH, "preprocessing/bin/BPE_SWJ")
+            ),
+            k=100,
+        )
 
 
 class ElectraSWJ(Experiment):
@@ -267,7 +298,6 @@ class ElectraOnChEBI100(Experiment):
 
     def build_dataset(self, batch_size) -> datasets.XYBaseDataModule:
         return datasets.ChEBIOver100(batch_size)
-
 
 
 class ElectraOnJCIExt(ElectraOnJCI):
