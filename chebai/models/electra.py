@@ -3,7 +3,7 @@ import logging
 import random
 
 from torch import nn
-from torch.nn.utils.rnn import pack_padded_sequence, pad_packed_sequence
+from torch.nn.utils.rnn import pack_padded_sequence, pad_packed_sequence, pad_sequence
 from transformers import (
     ElectraConfig,
     ElectraForMultipleChoice,
@@ -31,20 +31,21 @@ class ElectraPre(JCIBaseNet):
         vocab_w0 = torch.cat(torch.unbind(batch.x))
         vocab = vocab_w0[torch.nonzero(vocab_w0, as_tuple=False)].squeeze(-1)
         labels_rnd = torch.rand(batch.x.shape, device=self.device)
+        mask = pad_sequence([torch.ones(l, device=self.device) for l in batch.lens]).T
         subs = vocab[torch.randint(0, len(vocab), batch.x.shape, device=self.device)]
         equals = torch.eq(batch.x, subs).int()
 
         # exclude those indices where the replacement yields the same token
         labels = torch.logical_and(
-            (labels_rnd < self._p), torch.logical_not(equals)
+            (labels_rnd < self._p)*mask, torch.logical_not(equals)
         ).int()
         features = (batch.x * (1 - labels)) + (subs * labels)
 
-        return features, labels
+        return dict(features=features, labels=labels, model_kwargs=dict(attention_mask=mask))
 
-    def forward(self, data):
-        x = self.electra(data)
-        return x.logits
+    def forward(self, data, **kwargs):
+        x = self.electra(data, **kwargs)
+        return {"logits": x.logits}
 
 
 class Electra(JCIBaseNet):
