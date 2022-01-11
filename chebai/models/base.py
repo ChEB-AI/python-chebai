@@ -40,7 +40,7 @@ class JCIBaseNet(pl.LightningModule):
         pred = self(data)["logits"]
         labels = labels.float()
         loss = self.loss(pred, labels)
-        f1 = self.f1(target=labels.int(), preds=pred)
+        f1 = self.f1(target=labels.int(), preds=torch.sigmoid(pred))
         mse = self.mse(labels, torch.sigmoid(pred))
         return loss, f1, mse
 
