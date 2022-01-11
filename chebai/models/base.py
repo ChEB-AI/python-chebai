@@ -6,8 +6,6 @@ import sys
 from pytorch_lightning import loggers as pl_loggers
 from pytorch_lightning.callbacks import EarlyStopping, ModelCheckpoint
 from torchmetrics import F1, MeanSquaredError
-from pytorch_lightning.tuner.tuning import Tuner
-from sklearn.metrics import f1_score
 from torch import nn
 import pytorch_lightning as pl
 import torch
@@ -36,8 +34,9 @@ class JCIBaseNet(pl.LightningModule):
         self.save_hyperparameters()
 
     def _execute(self, batch, batch_idx):
-        data, labels = self._get_data_and_labels(batch, batch_idx)
-        pred = self(data)["logits"]
+        data = self._get_data_and_labels(batch, batch_idx)
+        labels = data["labels"]
+        pred = self(data["features"], **data.get("model_kwargs", dict()))["logits"]
         labels = labels.float()
         loss = self.loss(pred, labels)
         f1 = self.f1(target=labels.int(), preds=torch.sigmoid(pred))
@@ -45,7 +44,7 @@ class JCIBaseNet(pl.LightningModule):
         return loss, f1, mse
 
     def _get_data_and_labels(self, batch, batch_idx):
-        return batch.x, batch.y.float()
+        return dict(features=batch.x, labels=batch.y.float())
 
     def training_step(self, *args, **kwargs):
         loss, f1, mse = self._execute(*args, **kwargs)
