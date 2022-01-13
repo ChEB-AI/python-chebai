@@ -88,6 +88,6 @@ class Electra(JCIBaseNet):
             self.electra = ElectraForSequenceClassification(config=self.config)
             in_d = self.config.hidden_size
 
-    def forward(self, data):
-        electra = self.electra(data)
+    def forward(self, data, **kwargs):
+        electra = self.electra(data, **kwargs)
         return dict(logits=electra.logits, attentions=electra.attentions)
