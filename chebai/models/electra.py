@@ -3,7 +3,11 @@ import logging
 import random
 
 from torch import nn
-from torch.nn.utils.rnn import pack_padded_sequence, pad_packed_sequence, pad_sequence
+from torch.nn.utils.rnn import (
+    pack_padded_sequence,
+    pad_packed_sequence,
+    pad_sequence,
+)
 from transformers import (
     ElectraConfig,
     ElectraForMultipleChoice,
@@ -37,11 +41,13 @@ class ElectraPre(JCIBaseNet):
 
         # exclude those indices where the replacement yields the same token
         labels = torch.logical_and(
-            (labels_rnd < self._p)*mask, torch.logical_not(equals)
+            (labels_rnd < self._p) * mask, torch.logical_not(equals)
         ).int()
         features = (batch.x * (1 - labels)) + (subs * labels)
 
-        return dict(features=features, labels=labels, model_kwargs=dict(attention_mask=mask))
+        return dict(
+            features=features, labels=labels, model_kwargs=dict(attention_mask=mask)
+        )
 
     def forward(self, data, **kwargs):
         x = self.electra(data, **kwargs)
@@ -51,12 +57,24 @@ class ElectraPre(JCIBaseNet):
 class Electra(JCIBaseNet):
     NAME = "Electra"
 
+    def _get_data_and_labels(self, batch, batch_idx):
+        mask = pad_sequence([torch.ones(l, device=self.device) for l in batch.lens]).T
+        return dict(
+            features=batch.x, labels=batch.y, model_kwargs=dict(attention_mask=mask)
+        )
+
     def __init__(self, **kwargs):
         # Remove this property in order to prevent it from being stored as a
         # hyper parameter
-        pretrained_checkpoint = kwargs.pop("pretrained_checkpoint") if "pretrained_checkpoint" in kwargs else None
+        pretrained_checkpoint = (
+            kwargs.pop("pretrained_checkpoint")
+            if "pretrained_checkpoint" in kwargs
+            else None
+        )
         super().__init__(**kwargs)
-        self.config = ElectraConfig(**kwargs["config"], output_attentions=True, num_labels=self.out_dim)
+        if not "num_labels" in kwargs["config"]:
+            kwargs["config"]["num_labels"] = self.out_dim
+        self.config = ElectraConfig(**kwargs["config"], output_attentions=True)
 
         if pretrained_checkpoint:
             elpre = ElectraPre.load_from_checkpoint(pretrained_checkpoint)
