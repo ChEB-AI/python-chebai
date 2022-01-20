@@ -51,7 +51,7 @@ def test(experiment, batch_size, ckpt_path, args):
 def predict(experiment, ckpt_path, data_path, processors):
     """Run experiment identified by EXPERIMENT in batches of size BATCH_SIZE."""
     try:
-        ex = experiments.EXPERIMENTS[experiment]()
+        ex = experiments.EXPERIMENTS[experiment](1)
     except KeyError:
         raise Exception(
             "Experiment ID not found. The following are available:"
