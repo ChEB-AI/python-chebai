@@ -122,6 +122,6 @@ class ElectraLegacy(JCIBaseNet):
         )
 
     def forward(self, data):
-        electra = self.electra(data.x)
+        electra = self.electra(data)
         d = torch.sum(electra.last_hidden_state, dim=1)
         return dict(logits=self.output(d), attentions=electra.attentions)
