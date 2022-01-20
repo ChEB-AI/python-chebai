@@ -270,6 +270,14 @@ class ElectraSWJ(Experiment):
         raise Exception("This expermient is prediction only")
 
 
+class ElectraLegSWJ(ElectraSWJ):
+    MODEL = electra.ElectraLegacy
+
+    @classmethod
+    def identifier(cls) -> str:
+        return "ElectraLeg+SWJ"
+
+
 class ElectraOnJCI(Experiment):
     MODEL = electra.Electra
 
