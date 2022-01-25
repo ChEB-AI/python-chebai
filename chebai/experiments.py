@@ -343,6 +343,14 @@ class ElectraOnJCIExt(ElectraOnJCI):
         return datasets.JCIExtendedTokenData(batch_size)
 
 
+class ElectraLegJCI(ElectraOnJCI):
+    MODEL = electra.ElectraLegacy
+
+    @classmethod
+    def identifier(cls) -> str:
+        return "ElectraLeg+JCI"
+
+
 class GATOnSWJ(Experiment):
     MODEL = graph.JCIGraphAttentionNet
 
