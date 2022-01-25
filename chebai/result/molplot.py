@@ -386,7 +386,7 @@ class AttentionNetwork(ResultProcessor):
     def start(self):
         self.counter = 0
         for w in self.wanted_classes:
-            makedirs(f"/tmp/plots/{w}", exist_ok=True)
+            makedirs(f"plots/{w}", exist_ok=True)
 
     def process_prediction(self, proc_id, raw_features, raw_labels, features, labels, pred):
         if any(
@@ -418,7 +418,7 @@ class AttentionNetwork(ResultProcessor):
                                   str(l) for (l, is_member) in zip(JCI_500_COLUMNS_INT, predictions) if
                                   is_member),
                               fontdict=dict(fontsize=10))
-                    fig0.savefig(f"/tmp/plots/mol_{proc_id}.png", bbox_inches="tight",
+                    fig0.savefig(f"plots/mol_{proc_id}.png", bbox_inches="tight",
                         pad_inches=0,)
                     plt.close(fig0)
                     fig = plt.figure(figsize=(12*10, width//3))
@@ -444,7 +444,7 @@ class AttentionNetwork(ResultProcessor):
                             #sns.heatmap(attentions[i,j], linewidth=0.5, ax=ax, cmap=cm.Greens, square=True, vmin=0, vmax=1, xticklabels=tokens, yticklabels=tokens)
                     fig.subplots_adjust()
                     fig.savefig(
-                        f"/tmp/plots/att_{proc_id}.png",
+                        f"plots/att_{proc_id}.png",
                         #transparent=True,
                         bbox_inches="tight",
                         pad_inches=0,
