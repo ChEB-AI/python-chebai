@@ -14,12 +14,9 @@ from rdkit import Chem
 from rdkit.Chem.Draw import rdMolDraw2D, MolToMPL
 import networkx as nx
 import numpy as np
-import svgutils.compose as sc
+
 import torch
 
-import tikzplotlib
-
-import seaborn as sns
 from chebai.preprocessing.datasets import JCI_500_COLUMNS, JCI_500_COLUMNS_INT
 from chebai.result.base import ResultProcessor
 
