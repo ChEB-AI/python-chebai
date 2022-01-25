@@ -2,6 +2,7 @@ from os import makedirs
 from tempfile import NamedTemporaryFile
 import abc
 
+import pandas as pd
 from matplotlib import cm, colors
 from matplotlib import pyplot as plt
 from matplotlib import rc
@@ -10,12 +11,15 @@ from networkx.algorithms.isomorphism import GraphMatcher
 from pysmiles.read_smiles import *
 from pysmiles.read_smiles import _tokenize
 from rdkit import Chem
-from rdkit.Chem.Draw import rdMolDraw2D
+from rdkit.Chem.Draw import rdMolDraw2D, MolToMPL
 import networkx as nx
 import numpy as np
 import svgutils.compose as sc
 import torch
 
+import tikzplotlib
+
+import seaborn as sns
 from chebai.preprocessing.datasets import JCI_500_COLUMNS, JCI_500_COLUMNS_INT
 from chebai.result.base import ResultProcessor
 
@@ -370,6 +374,92 @@ class SingletonAttentionProcessor(AttentionMolPlot, ResultProcessor):
             except NoRDMolException:
                 pass
 
+
+class AttentionNetwork(ResultProcessor):
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.wanted_classes = (37141, 24873, 33555, 28874, 22693)
+        self.i = 0
+
+    @classmethod
+    def _identifier(cls):
+        return "platt_table"
+
+    def start(self):
+        self.counter = 0
+        for w in self.wanted_classes:
+            makedirs(f"/tmp/plots/{w}", exist_ok=True)
+
+    def process_prediction(self, proc_id, raw_features, raw_labels, features, labels, pred):
+        if any(
+                True
+                for (ident, match) in zip(JCI_500_COLUMNS_INT, labels)
+                if match and ident in self.wanted_classes
+        ):
+            atts = torch.stack(pred["attentions"]).squeeze(1).detach().numpy()
+            predictions = (
+                    torch.sigmoid(pred["logits"]).detach().numpy().squeeze(0) > 0.5
+            )
+            plt.rcParams.update({'font.size': 8})
+            try:
+                attentions = atts
+                tokens = [s for _,s in _tokenize(raw_features)]
+                cmap = cm.ScalarMappable(cmap=cm.Greens)
+
+                rows = int((attentions.shape[1]+2))
+                width = len(tokens)
+                height = 12
+                rdmol = Chem.MolFromSmiles(raw_features)
+                if rdmol is not None:
+                    fig0 = MolToMPL(rdmol, fitImage=True)
+                    fig0.text(0.1,
+                              0,
+                              "annotated:" + ", ".join(
+                                  str(l) for (l, is_member) in zip(JCI_500_COLUMNS_INT, labels) if
+                                  is_member) + "\n" + "predicted:" + ", ".join(
+                                  str(l) for (l, is_member) in zip(JCI_500_COLUMNS_INT, predictions) if
+                                  is_member),
+                              fontdict=dict(fontsize=10))
+                    fig0.savefig(f"/tmp/plots/mol_{proc_id}.png", bbox_inches="tight",
+                        pad_inches=0,)
+                    plt.close(fig0)
+                    fig = plt.figure(figsize=(12*10, width//3))
+                    l_tokens = {i: str(t) for i, t in enumerate(tokens)}
+                    r_tokens = {(len(tokens) + i): str(t) for i, t in enumerate(tokens)}
+                    labels = dict(list(l_tokens.items()) + list(r_tokens.items()))
+                    edges = [(l, r) for r in r_tokens.keys() for l in l_tokens.keys()]
+                    g = nx.Graph()
+                    g.add_nodes_from(l_tokens, bipartite=0)
+                    g.add_nodes_from(r_tokens, bipartite=1)
+                    g.add_edges_from(edges)
+                    pos = [(0,-i) for i in range(len(l_tokens))] + [(1,-i) for i in range(len(l_tokens))]
+                    axes = fig.subplots(1, 6*8+5, subplot_kw=dict(frameon=False))
+                    for layer in range(attentions.shape[0]):
+                        for head in range(attentions.shape[1]):
+                            index = 8*(layer) + head + layer
+                            ax = axes[index]
+                            ax.axis("off")
+                            at = np.concatenate([a for a in attentions[layer, head]])
+                            col = cmap.cmap(at)
+                            col[:,3] = at
+                            nx.draw_networkx(g, pos=pos, edge_color=col, ax=ax, labels=labels, node_color='none', node_size=8)
+                            #sns.heatmap(attentions[i,j], linewidth=0.5, ax=ax, cmap=cm.Greens, square=True, vmin=0, vmax=1, xticklabels=tokens, yticklabels=tokens)
+                    fig.subplots_adjust()
+                    fig.savefig(
+                        f"/tmp/plots/att_{proc_id}.png",
+                        #transparent=True,
+                        bbox_inches="tight",
+                        pad_inches=0,
+                    )
+
+                plt.close()
+            except StopIteration:
+                print("Could not match", raw_features)
+            except NoRDMolException:
+                pass
+            finally:
+                plt.close()
 
 class NoRDMolException(Exception):
     pass
