@@ -73,7 +73,7 @@ class ResultFactory(abc.ABC):
             proc.start()
         try:
             with mp.Pool() as pool:
-                res = pool.imap_unordered(
+                res = map(
                     self.call_procs, enumerate(self._generate_predictions(data_path))
                 )
             for r in res:
