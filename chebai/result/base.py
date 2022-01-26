@@ -55,9 +55,10 @@ class ResultFactory(abc.ABC):
             except:
                 print("Error processing the following row:", x)
             else:
-                yield *self._reader._read_components(
-                    processed_row
-                ), features, labels, self._model(torch.tensor(features).unsqueeze(0))
+                raw_features, raw_labels = self._reader._read_components(processed_row)
+                yield raw_features, raw_labels, features, labels, self._model(
+                    torch.tensor(features).unsqueeze(0)
+                )
 
     def call_procs(self, args):
         proc_id, proc_args = args
