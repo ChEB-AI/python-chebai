@@ -351,6 +351,14 @@ class ElectraLegJCI(ElectraOnJCI):
         return "ElectraLeg+JCI"
 
 
+class ElectraLegJCIExt(ElectraOnJCIExt):
+    MODEL = electra.ElectraLegacy
+
+    @classmethod
+    def identifier(cls) -> str:
+        return "ElectraLeg+JCIExt"
+
+
 class GATOnSWJ(Experiment):
     MODEL = graph.JCIGraphAttentionNet
 
