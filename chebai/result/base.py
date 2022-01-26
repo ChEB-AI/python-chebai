@@ -63,7 +63,10 @@ class ResultFactory(abc.ABC):
     def call_procs(self, args):
         proc_id, proc_args = args
         for proc in self._processors:
-            proc.process_prediction(proc_id, *proc_args)
+            try:
+                proc.process_prediction(proc_id, *proc_args)
+            except:
+                print("Could not process results for", proc_args[0])
 
     def execute(self, data_path):
         for proc in self._processors:
