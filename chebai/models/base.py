@@ -5,10 +5,12 @@ import sys
 
 from pytorch_lightning import loggers as pl_loggers
 from pytorch_lightning.callbacks import EarlyStopping, ModelCheckpoint
-from torchmetrics import F1, MeanSquaredError
 from torch import nn
+from torchmetrics import F1, MeanSquaredError
+from torchmetrics import functional as tmf
 import pytorch_lightning as pl
 import torch
+import torchmetrics
 import tqdm
 
 from chebai.preprocessing.datasets import XYBaseDataModule
@@ -27,27 +29,39 @@ class JCIBaseNet(pl.LightningModule):
             self.loss = nn.BCEWithLogitsLoss(pos_weight=weights)
         else:
             self.loss = nn.BCEWithLogitsLoss()
-        self.f1 = F1(threshold=kwargs.get("threshold", 0.5))
+        thres = kwargs.get("threshold", 0.5)
+        self.f1 = F1(threshold=thres)
         self.mse = MeanSquaredError()
         self.lr = kwargs.get("lr", 1e-4)
 
-        self.save_hyperparameters()
+        for metric in ["F1", "Precision", "Recall"]:
+            for agg in ["micro", "samples", "macro", "weighted"]:
+                setattr(
+                    self,
+                    metric + agg,
+                    getattr(torchmetrics, metric)(
+                        threshold=thres, average=agg, num_classes=500
+                    ),
+                )
 
     def _execute(self, batch, batch_idx):
         data = self._get_data_and_labels(batch, batch_idx)
         labels = data["labels"]
         pred = self(data["features"], **data.get("model_kwargs", dict()))["logits"]
         labels = labels.float()
+        return pred, labels
+
+    def _get_data_and_labels(self, batch, batch_idx):
+        return dict(features=batch.x, labels=batch.y.float())
+
+    def calculate_metrics(self, pred, labels):
         loss = self.loss(pred, labels)
         f1 = self.f1(target=labels.int(), preds=torch.sigmoid(pred))
         mse = self.mse(labels, torch.sigmoid(pred))
         return loss, f1, mse
 
-    def _get_data_and_labels(self, batch, batch_idx):
-        return dict(features=batch.x, labels=batch.y.float())
-
     def training_step(self, *args, **kwargs):
-        loss, f1, mse = self._execute(*args, **kwargs)
+        loss, f1, mse = self.calculate_metrics(*self._execute(*args, **kwargs))
         self.log(
             "train_loss",
             loss.detach().item(),
@@ -76,7 +90,7 @@ class JCIBaseNet(pl.LightningModule):
 
     def validation_step(self, *args, **kwargs):
         with torch.no_grad():
-            loss, f1, mse = self._execute(*args, **kwargs)
+            loss, f1, mse = self.calculate_metrics(*self._execute(*args, **kwargs))
             self.log(
                 "val_loss",
                 loss.detach().item(),
@@ -105,32 +119,21 @@ class JCIBaseNet(pl.LightningModule):
 
     def test_step(self, *args, **kwargs):
         with torch.no_grad():
-            loss, f1, mse = self._execute(*args, **kwargs)
-            self.log(
-                "test_loss",
-                loss.detach().item(),
-                on_step=False,
-                on_epoch=True,
-                prog_bar=True,
-                logger=True,
-            )
-            self.log(
-                "test_f1",
-                f1.detach().item(),
-                on_step=False,
-                on_epoch=True,
-                prog_bar=True,
-                logger=True,
-            )
-            self.log(
-                "test_mse",
-                mse.detach().item(),
-                on_step=False,
-                on_epoch=True,
-                prog_bar=True,
-                logger=True,
-            )
-            return loss
+            pred, labels = self._execute(*args, **kwargs)
+            l = labels.int()
+            p = torch.sigmoid(pred)
+            for name in ["F1", "Precision", "Recall"]:
+                for agg in ["micro", "samples", "macro", "weighted"]:
+                    metric = getattr(self, name + agg)
+                    self.log(
+                        name + "_" + agg,
+                        metric(preds=p, target=l),
+                        on_step=False,
+                        on_epoch=True,
+                        prog_bar=True,
+                        logger=True,
+                    )
+            return self.loss(p, l.float())
 
     def forward(self, x):
         raise NotImplementedError
