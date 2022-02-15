@@ -5,7 +5,7 @@ import sys
 
 from pytorch_lightning import loggers as pl_loggers
 from pytorch_lightning.callbacks import EarlyStopping, ModelCheckpoint
-from pytorch_lightning.metrics import F1, MeanSquaredError
+from torchmetrics import F1, MeanSquaredError
 from pytorch_lightning.tuner.tuning import Tuner
 from sklearn.metrics import f1_score
 from torch import nn
