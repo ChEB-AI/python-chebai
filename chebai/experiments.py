@@ -132,7 +132,7 @@ class ElectraOnJCI(Experiment):
                 num_hidden_layers=6,
                 type_vocab_size=1,
             ),
-            epochs=20,
+            epochs=100,
         )
 
     def datasets(self, batch_size) -> List[datasets.XYBaseDataModule]:
