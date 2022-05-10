@@ -106,13 +106,16 @@ class XYBaseDataModule(pl.LightningDataModule):
         lines = self._get_data_size(path)
         print(f"Processing {lines} lines...")
         with mp.Pool() as pool:
-            data = list(
-                pool.imap_unordered(
+            data = [
+                x
+                for x in pool.imap_unordered(
                     self.reader.to_data,
                     tqdm.tqdm(self._load_tuples(path), total=lines),
                     chunksize=1000,
                 )
-            )
+                if x[0] is not None
+            ]
+
         return data
 
     def train_dataloader(self, *args, **kwargs) -> DataLoader:
@@ -146,6 +149,7 @@ class XYBaseDataModule(pl.LightningDataModule):
         Returns -1 for seq2seq encoding, otherwise the number of labels
         """
         raise NotImplementedError
+
 
 class PubChem(XYBaseDataModule):
     SMILES_INDEX = 0
@@ -265,6 +269,10 @@ class SWJPreChem(PubChem):
         return os.path.join("data", self._name, "raw")
 
 
+class SWJSelfies(SWJPreChem):
+    READER = dr.SelfiesReader
+
+
 class JCIBase(XYBaseDataModule):
     LABEL_INDEX = 2
     SMILES_INDEX = 1
@@ -317,6 +325,7 @@ class JCIBase(XYBaseDataModule):
     def label_number(self):
         return 500
 
+
 class PubchemChem(PubChem):
     READER = dr.ChemDataReader
 
@@ -348,9 +357,13 @@ class SWJBPE(SWJPreChem):
     def label_number(self):
         return -1
 
+
 class JCIData(JCIBase):
     READER = dr.OrdReader
 
+
+class JCISelfies(JCIBase):
+    READER = dr.SelfiesReader
 
 
 class JCIMolData(JCIBase):
@@ -366,7 +379,6 @@ class PubChemTokens(PubChem):
 
 
 class _ChEBIDataExtractor(XYBaseDataModule, ABC):
-
     def select_classes(self, g, *args, **kwargs):
         raise NotImplementedError
 
@@ -503,9 +515,20 @@ class ChEBIOver100(_ChEBIDataExtractor):
 
     def select_classes(self, g, *args, **kwargs):
         smiles = nx.get_node_attributes(g, "smiles")
-        nodes = list(sorted({node for node in g.nodes if sum(1 if smiles[s] is not None else 0 for s in g.successors(node)) >= 100}))
+        nodes = list(
+            sorted(
+                {
+                    node
+                    for node in g.nodes
+                    if sum(
+                        1 if smiles[s] is not None else 0 for s in g.successors(node)
+                    )
+                    >= 100
+                }
+            )
+        )
         with open("/tmp/ChEBI100.txt", "wt") as fout:
-                fout.writelines(str(node)+"\n" for node in nodes)
+            fout.writelines(str(node) + "\n" for node in nodes)
         return nodes
 
 
@@ -523,6 +546,10 @@ class JCIGraphData(JCIBase):
 
 class JCIExtendedGraphData(JCIExtendedBase):
     READER = dr.GraphReader
+
+
+class JCIExtSelfies(JCIExtendedBase):
+    READER = dr.SelfiesReader
 
 
 class PartOfData(TGDataset):

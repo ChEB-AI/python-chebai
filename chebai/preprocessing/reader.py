@@ -12,6 +12,7 @@ from transformers import RobertaTokenizerFast
 import networkx as nx
 import pandas as pd
 import pysmiles as ps
+import selfies as sf
 import torch
 
 from chebai.preprocessing.collate import (
@@ -84,6 +85,28 @@ class ChemBPEReader(DataReader):
 
     def _get_raw_data(self, row):
         return self.tokenizer(row[0])["input_ids"]
+
+
+class SelfiesReader(DataReader):
+    COLLATER = RaggedCollater
+
+    def __init__(self, *args, data_path=None, max_len=1800, vsize=4000, **kwargs):
+        super().__init__(*args, **kwargs)
+        with open("chebai/preprocessing/bin/selfies.txt", "rt") as pk:
+            self.cache = [l.strip() for l in pk]
+
+    @classmethod
+    def name(cls):
+        return "selfies"
+
+    def _get_raw_data(self, row):
+        try:
+            splits = sf.split_selfies(sf.encoder(row[0].strip(), strict=True))
+        except Exception as e:
+            print(e)
+            return
+        else:
+            return [self.cache.index(x) for x in splits]
 
 
 class OrdReader(DataReader):
