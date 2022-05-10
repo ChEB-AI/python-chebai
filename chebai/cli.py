@@ -2,8 +2,9 @@ import click
 
 from chebai import experiments
 from chebai.result.base import PROCESSORS, ResultFactory
-from chebai.result.prediction_json import JSONResultProcessor
 from chebai.result.molplot import AttentionOnMoleculesProcessor
+from chebai.result.prediction_json import JSONResultProcessor
+
 
 @click.group()
 def cli():
@@ -17,7 +18,9 @@ def cli():
 def train(experiment, batch_size, args):
     """Run experiment identified by EXPERIMENT in batches of size BATCH_SIZE."""
     try:
-        ex = experiments.EXPERIMENTS[experiment](batch_size, )
+        ex = experiments.EXPERIMENTS[experiment](
+            batch_size,
+        )
     except KeyError:
         raise Exception(
             "Experiment ID not found. The following are available:"
@@ -34,7 +37,9 @@ def train(experiment, batch_size, args):
 def test(experiment, batch_size, ckpt_path, args):
     """Run experiment identified by EXPERIMENT in batches of size BATCH_SIZE."""
     try:
-        ex = experiments.EXPERIMENTS[experiment](batch_size, )
+        ex = experiments.EXPERIMENTS[experiment](
+            batch_size,
+        )
     except KeyError:
         raise Exception(
             "Experiment ID not found. The following are available:"
