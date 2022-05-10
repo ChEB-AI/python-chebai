@@ -10,9 +10,9 @@ from torch.nn.utils.rnn import (
 )
 from transformers import (
     ElectraConfig,
-    ElectraModel,
     ElectraForPreTraining,
     ElectraForSequenceClassification,
+    ElectraModel,
     PretrainedConfig,
 )
 import torch
@@ -72,7 +72,7 @@ class Electra(JCIBaseNet):
             else None
         )
         super().__init__(**kwargs)
-        if not "num_labels" in kwargs["config"]:
+        if not "num_labels" in kwargs["config"] and self.out_dim is not None:
             kwargs["config"]["num_labels"] = self.out_dim
         self.config = ElectraConfig(**kwargs["config"], output_attentions=True)
 
