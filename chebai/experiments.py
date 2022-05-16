@@ -343,15 +343,26 @@ class ElectraOnJCIExt(ElectraOnJCI):
         return datasets.JCIExtendedTokenData(batch_size)
 
 
-class ElectraPreOnJCIExtSmiles(ElectraPreOnSWJ):
+class ElectraPreOnSWJSelfies(ElectraPreOnSWJ):
     MODEL = electra.ElectraPre
 
     @classmethod
     def identifier(cls) -> str:
-        return "Electra+JCIExtSmiles"
+        return "ElectraPre+SWJSelfies"
 
     def build_dataset(self, batch_size) -> datasets.XYBaseDataModule:
         return datasets.SWJSelfies(batch_size)
+
+
+class ElectraOnJCIExtSelfies(ElectraPreOnSWJ):
+    MODEL = electra.Electra
+
+    @classmethod
+    def identifier(cls) -> str:
+        return "Electra+JCIExtSelfies"
+
+    def build_dataset(self, batch_size) -> datasets.XYBaseDataModule:
+        return datasets.JCIExtSelfies(batch_size)
 
 
 class ElectraLegJCI(ElectraOnJCI):
