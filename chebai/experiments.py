@@ -354,7 +354,7 @@ class ElectraPreOnSWJSelfies(ElectraPreOnSWJ):
         return datasets.SWJSelfies(batch_size)
 
 
-class ElectraOnJCIExtSelfies(ElectraPreOnSWJ):
+class ElectraOnJCIExtSelfies(ElectraOnJCIExt):
     MODEL = electra.Electra
 
     @classmethod
