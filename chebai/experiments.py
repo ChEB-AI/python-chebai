@@ -2,6 +2,8 @@ from abc import ABC, abstractmethod
 from typing import Dict, List
 import json
 
+import torch.nn
+
 from chebai import preprocessing as prep
 from chebai.models import base, electra, graph
 from chebai.preprocessing import datasets
@@ -18,6 +20,9 @@ class Experiment(ABC):
             cls.identifier() not in EXPERIMENTS
         ), f"Identifier {cls.identifier()} is not unique."
         EXPERIMENTS[cls.identifier()] = cls
+
+    def __init__(self, group):
+        self.group = group
 
     @classmethod
     def identifier(cls) -> str:
@@ -36,7 +41,7 @@ class Experiment(ABC):
             self.MODEL.run(
                 dataset,
                 self.MODEL.NAME,
-                model_kwargs=self.model_kwargs(*args),
+                model_kwargs=self.model_kwargs(*args)
             )
 
     def test(self, batch_size, ckpt_path, *args):
@@ -73,11 +78,21 @@ class ElectraPreOnSWJ(Experiment):
         return dict(
             lr=1e-4,
             config=dict(
-                vocab_size=1400,
-                max_position_embeddings=1800,
-                num_attention_heads=8,
-                num_hidden_layers=6,
-                type_vocab_size=1,
+                generator=dict(
+                    vocab_size=1400,
+                    hidden_size=510,
+                    max_position_embeddings=1800,
+                    num_attention_heads=3,
+                    num_hidden_layers=2,
+                    type_vocab_size=1),
+                discriminator=dict(
+                    vocab_size=1400,
+                    hidden_size=512,
+                    max_position_embeddings=1800,
+                    num_attention_heads=8,
+                    num_hidden_layers=6,
+                    type_vocab_size=1),
+
             ),
             epochs=100,
         )

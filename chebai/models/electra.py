@@ -5,6 +5,7 @@ from torch import nn
 from torch.nn.utils.rnn import pack_padded_sequence, pad_packed_sequence
 from transformers import (
     ElectraConfig,
+    ElectraForMaskedLM,
     ElectraForMultipleChoice,
     ElectraForPreTraining,
     ElectraModel,
@@ -22,14 +23,27 @@ class ElectraPre(JCIBaseNet):
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        self.config = ElectraConfig(**kwargs["config"])
-        self.electra = ElectraForPreTraining(self.config)
+        config = kwargs["config"]
+        self.generator_config = ElectraConfig(**config["generator"])
+        self.generator = ElectraModel(self.generator_config)
+        self.generator_head = torch.nn.Linear(510, 128)
+        self.discriminator_config = ElectraConfig(**config["discriminator"])
+        self.discriminator = ElectraForPreTraining(self.discriminator_config)
+        self.replace_p = 0.1
 
     def forward(self, data):
         x = data.x
-        x = self.electra(x)
-        return x.logits
+        self.batch_size = x.shape[0]
+        embs = self.generator.embeddings(x)
+        gen_out = self.generator_head(self.generator(inputs_embeds=embs).last_hidden_state)
+        with torch.no_grad():
+            replace = torch.rand(x.shape) < self.replace_p
+            disc_input = replace.unsqueeze(-1)*gen_out + (~replace.unsqueeze(-1))*embs
+        disc_out = self.discriminator(inputs_embeds=disc_input)
+        return disc_out.logits, replace.float()
 
+    def _get_prediction_and_labels(self, batch, output):
+        return output[0], output[1]
 
 class Electra(JCIBaseNet):
     NAME = "Electra"
