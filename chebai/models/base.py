@@ -22,13 +22,13 @@ logging.getLogger("pysmiles").setLevel(logging.CRITICAL)
 class JCIBaseNet(pl.LightningModule):
     NAME = None
 
-    def __init__(self, **kwargs):
+    def __init__(self, loss_cls, **kwargs):
         super().__init__()
         weights = kwargs.get("weights", None)
         if weights is not None:
-            self.loss = nn.BCEWithLogitsLoss(pos_weight=weights)
+            self.loss = loss_cls(pos_weight=weights)
         else:
-            self.loss = nn.BCEWithLogitsLoss()
+            self.loss = loss_cls()
         self.f1 = F1(threshold=kwargs.get("threshold", 0.5))
         self.mse = MeanSquaredError()
         self.lr = kwargs.get("lr", 1e-4)
@@ -41,7 +41,7 @@ class JCIBaseNet(pl.LightningModule):
     def _execute(self, batch, batch_idx):
         model_output = self(batch)
         pred, labels = self._get_prediction_and_labels(batch, model_output)
-        loss = self.loss(pred, labels)
+        loss = self.loss(model_output, labels)
         f1 = self.f1(target=labels.int(), preds=torch.sigmoid(pred))
         mse = self.mse(labels, torch.sigmoid(pred))
         return loss, f1, mse
@@ -225,7 +225,7 @@ class JCIBaseNet(pl.LightningModule):
 
         # Calculate weights per class
 
-        net = cls(*model_args, **model_kwargs, loss_cls=loss)
+        net = cls(*model_args, loss_cls=loss, **model_kwargs)
 
         # Early stopping seems to be bugged right now with ddp accelerator :(
         es = EarlyStopping(

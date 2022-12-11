@@ -13,6 +13,7 @@ EXPERIMENTS = dict()
 
 class Experiment(ABC):
     MODEL = base.JCIBaseNet
+    LOSS = torch.nn.BCELoss
 
     def __init_subclass__(cls, **kwargs):
         assert cls.identifier(), "No identifier set"
@@ -41,6 +42,7 @@ class Experiment(ABC):
             self.MODEL.run(
                 dataset,
                 self.MODEL.NAME,
+                loss=self.LOSS,
                 model_kwargs=self.model_kwargs(*args)
             )
 
@@ -69,6 +71,7 @@ class Experiment(ABC):
 
 class ElectraPreOnSWJ(Experiment):
     MODEL = electra.ElectraPre
+    LOSS = electra.ElectraPreLoss
 
     @classmethod
     def identifier(cls) -> str:
