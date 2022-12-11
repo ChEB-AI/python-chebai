@@ -62,11 +62,30 @@ class ChemDataUnlabeledReader(DataReader):
         self._p = 0.2
 
     def _read_components(self, row):
+        return row, None
+
+    def _get_raw_data(self, row):
+        return [self.cache.index(v) + 1 for v in _tokenize(row[0])]
+
+class ChemDataMLMReader(DataReader):
+    COLLATER = RaggedCollater
+
+    @classmethod
+    def name(cls):
+        return "smiles_token_mlm"
+
+    def __init__(self, *args, p=0.2, **kwargs):
+        super().__init__(*args, **kwargs)
+        with open("chebai/preprocessing/bin/tokens.pkl", "rb") as pk:
+            self.cache = pickle.load(pk)
+
+    def _read_components(self, row):
         data = []
         labels = []
         stream = self._get_raw_data(row)
         for t in stream:
             l = 0
+            torch.random.ch
             if not all(x == t for x in stream) and random.random() < self._p:
                 l = 1
                 t0 = t
@@ -79,7 +98,6 @@ class ChemDataUnlabeledReader(DataReader):
 
     def _get_raw_data(self, row):
         return [self.cache.index(v) + 1 for v in _tokenize(row[0])]
-
 
 class ChemDataReader(DataReader):
     COLLATER = RaggedCollater

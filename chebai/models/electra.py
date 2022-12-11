@@ -1,3 +1,4 @@
+import random
 from tempfile import TemporaryDirectory
 import logging
 
@@ -25,26 +26,49 @@ class ElectraPre(JCIBaseNet):
         super().__init__(**kwargs)
         config = kwargs["config"]
         self.generator_config = ElectraConfig(**config["generator"])
-        self.generator = ElectraModel(self.generator_config)
+        self.generator = ElectraForMaskedLM(self.generator_config)
         self.generator_head = torch.nn.Linear(510, 128)
         self.discriminator_config = ElectraConfig(**config["discriminator"])
         self.discriminator = ElectraForPreTraining(self.discriminator_config)
         self.replace_p = 0.1
 
     def forward(self, data):
-        x = data.x
-        self.batch_size = x.shape[0]
-        embs = self.generator.embeddings(x)
-        gen_out = self.generator_head(self.generator(inputs_embeds=embs).last_hidden_state)
+        self.batch_size = data.x.shape[0]
+        x = torch.clone(data.x)
+        gen_tar = []
+        dis_tar = []
+        for i in range(x.shape[0]):
+            j = random.randint(0, x.shape[1]-1)
+            t = x[i,j]
+            x[i,j] = 0
+            gen_tar.append(t)
+            dis_tar.append(j)
+        gen_out = torch.max(torch.sum(self.generator(x).logits,dim=1), dim=-1)[1]
         with torch.no_grad():
-            replace = torch.rand(x.shape) < self.replace_p
-            disc_input = replace.unsqueeze(-1)*gen_out + (~replace.unsqueeze(-1))*embs
-            replaced_by_different = torch.any(torch.ne(disc_input, embs), dim=-1)
-        disc_out = self.discriminator(inputs_embeds=disc_input)
-        return disc_out.logits, replaced_by_different.float()
+            xc = x.clone()
+            for i in range(x.shape[0]):
+                xc[i,dis_tar[i]] = gen_out[i]
+            replaced_by_different = torch.ne(x, xc)
+        disc_out = self.discriminator(xc)
+        return (self.generator.electra.embeddings(gen_out.unsqueeze(-1)), disc_out.logits), (self.generator.electra.embeddings(torch.tensor(gen_tar).unsqueeze(-1)), replaced_by_different.float())
 
     def _get_prediction_and_labels(self, batch, output):
-        return output[0], output[1]
+        return output[0][1], output[1][1]
+
+
+class ElectraPreLoss:
+
+    def __init__(self):
+        self.mse = torch.nn.MSELoss()
+        self.bce = torch.nn.BCEWithLogitsLoss()
+
+    def __call__(self, target, _):
+        t, p = target
+        gen_pred, disc_pred = t
+        gen_tar, disc_tar = p
+
+        return self.mse(gen_tar, gen_pred) + self.bce(disc_tar, disc_pred)
+
 
 class Electra(JCIBaseNet):
     NAME = "Electra"
