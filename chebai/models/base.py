@@ -5,10 +5,11 @@ import sys
 
 from pytorch_lightning import loggers as pl_loggers
 from pytorch_lightning.callbacks import EarlyStopping, ModelCheckpoint
-from torchmetrics import F1, MeanSquaredError
 from pytorch_lightning.tuner.tuning import Tuner
 from sklearn.metrics import f1_score
 from torch import nn
+from torchmetrics import F1Score as F1
+from torchmetrics import MeanSquaredError
 import pytorch_lightning as pl
 import torch
 import tqdm
@@ -34,9 +35,12 @@ class JCIBaseNet(pl.LightningModule):
 
         self.save_hyperparameters()
 
+    def _get_prediction_and_labels(self, batch, output):
+        return output, batch.y.float()
+
     def _execute(self, batch, batch_idx):
-        pred = self(batch)
-        labels = batch.y.float()
+        model_output = self(batch)
+        pred, labels = self._get_prediction_and_labels(batch, model_output)
         loss = self.loss(pred, labels)
         f1 = self.f1(target=labels.int(), preds=torch.sigmoid(pred))
         mse = self.mse(labels, torch.sigmoid(pred))
@@ -51,6 +55,7 @@ class JCIBaseNet(pl.LightningModule):
             on_epoch=True,
             prog_bar=True,
             logger=True,
+            batch_size=self.batch_size,
         )
         self.log(
             "train_f1",
@@ -59,6 +64,7 @@ class JCIBaseNet(pl.LightningModule):
             on_epoch=True,
             prog_bar=True,
             logger=True,
+            batch_size=self.batch_size,
         )
         self.log(
             "train_mse",
@@ -67,6 +73,7 @@ class JCIBaseNet(pl.LightningModule):
             on_epoch=True,
             prog_bar=True,
             logger=True,
+            batch_size=self.batch_size,
         )
         return loss
 
@@ -80,6 +87,7 @@ class JCIBaseNet(pl.LightningModule):
                 on_epoch=True,
                 prog_bar=True,
                 logger=True,
+                batch_size=self.batch_size,
             )
             self.log(
                 "val_f1",
@@ -88,6 +96,7 @@ class JCIBaseNet(pl.LightningModule):
                 on_epoch=True,
                 prog_bar=True,
                 logger=True,
+                batch_size=self.batch_size,
             )
             self.log(
                 "val_mse",
@@ -96,6 +105,7 @@ class JCIBaseNet(pl.LightningModule):
                 on_epoch=True,
                 prog_bar=True,
                 logger=True,
+                batch_size=self.batch_size,
             )
             return loss
 
@@ -109,6 +119,7 @@ class JCIBaseNet(pl.LightningModule):
                 on_epoch=True,
                 prog_bar=True,
                 logger=True,
+                batch_size=self.batch_size,
             )
             self.log(
                 "test_f1",
@@ -117,6 +128,7 @@ class JCIBaseNet(pl.LightningModule):
                 on_epoch=True,
                 prog_bar=True,
                 logger=True,
+                batch_size=self.batch_size,
             )
             self.log(
                 "test_mse",
@@ -125,6 +137,7 @@ class JCIBaseNet(pl.LightningModule):
                 on_epoch=True,
                 prog_bar=True,
                 logger=True,
+                batch_size=self.batch_size,
             )
             return loss
 
@@ -160,6 +173,7 @@ class JCIBaseNet(pl.LightningModule):
         name,
         model_args: list = None,
         model_kwargs: dict = None,
+        loss=torch.nn.BCELoss,
         weighted=False,
     ):
         if model_args is None:
@@ -211,7 +225,7 @@ class JCIBaseNet(pl.LightningModule):
 
         # Calculate weights per class
 
-        net = cls(*model_args, **model_kwargs)
+        net = cls(*model_args, **model_kwargs, loss_cls=loss)
 
         # Early stopping seems to be bugged right now with ddp accelerator :(
         es = EarlyStopping(
