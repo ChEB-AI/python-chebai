@@ -39,8 +39,9 @@ class ElectraPre(JCIBaseNet):
         with torch.no_grad():
             replace = torch.rand(x.shape) < self.replace_p
             disc_input = replace.unsqueeze(-1)*gen_out + (~replace.unsqueeze(-1))*embs
+            replaced_by_different = torch.any(torch.ne(disc_input, embs), dim=-1)
         disc_out = self.discriminator(inputs_embeds=disc_input)
-        return disc_out.logits, replace.float()
+        return disc_out.logits, replaced_by_different.float()
 
     def _get_prediction_and_labels(self, batch, output):
         return output[0], output[1]
