@@ -18,6 +18,7 @@ from transformers import (
     ElectraModel,
     PretrainedConfig,
 )
+from chebai.preprocessing.reader import MASK_TOKEN_INDEX
 import torch
 
 from chebai.models.base import JCIBaseNet
@@ -39,20 +40,19 @@ class ElectraPre(JCIBaseNet):
         self.replace_p = 0.1
 
     def _get_data_and_labels(self, batch, batch_idx):
-        return dict(features=batch.x, labels=None, lens=torch.tensor(batch.lens))
+
+        return dict(features=batch.x, labels=None, mask=batch.mask)
 
     def forward(self, data):
         x = torch.clone(data["features"])
         self.batch_size = x.shape[0]
         gen_tar = []
         dis_tar = []
-        lens = data["lens"]
-        max_len = x.shape[1]
-        mask = torch.arange(max_len).expand(len(lens), max_len) < lens.unsqueeze(1)
-        for i, l in enumerate(lens):
-            j = random.randint(0, l)
+        mask = data["mask"]
+        for i, l in enumerate(mask):
+            j = random.randint(0, sum(l)-1)
             t = x[i,j].item()
-            x[i,j] = 0
+            x[i,j] = MASK_TOKEN_INDEX
             gen_tar.append(t)
             dis_tar.append(j)
         gen_out = torch.max(torch.sum(self.generator(x, attention_mask=mask).logits,dim=1), dim=-1)[1]
