@@ -5,8 +5,11 @@ import sys
 
 from pytorch_lightning import loggers as pl_loggers
 from pytorch_lightning.callbacks import EarlyStopping, ModelCheckpoint
+from pytorch_lightning.tuner.tuning import Tuner
+from sklearn.metrics import f1_score
 from torch import nn
-from torchmetrics import F1, MeanSquaredError
+from torchmetrics import MeanSquaredError
+from torchmetrics import F1Score, MeanSquaredError
 from torchmetrics import functional as tmf
 import pytorch_lightning as pl
 import torch
@@ -21,16 +24,15 @@ logging.getLogger("pysmiles").setLevel(logging.CRITICAL)
 class JCIBaseNet(pl.LightningModule):
     NAME = None
 
-    def __init__(self, out_dim=None, **kwargs):
+    def __init__(self, loss_cls, out_dim=None, **kwargs):
         super().__init__()
         self.out_dim = out_dim
         weights = kwargs.get("weights", None)
         if weights is not None:
-            self.loss = nn.BCEWithLogitsLoss(pos_weight=weights)
+            self.loss = loss_cls(pos_weight=weights)
         else:
-            self.loss = nn.BCEWithLogitsLoss()
-        thres = kwargs.get("threshold", 0.5)
-        self.f1 = F1(threshold=thres)
+            self.loss = loss_cls()
+        self.f1 = F1Score(threshold=kwargs.get("threshold", 0.5))
         self.mse = MeanSquaredError()
         self.lr = kwargs.get("lr", 1e-4)
 
@@ -44,17 +46,21 @@ class JCIBaseNet(pl.LightningModule):
                     ),
                 )
 
-    def _execute(self, batch, batch_idx):
-        data = self._get_data_and_labels(batch, batch_idx)
-        labels = data["labels"]
-        pred = self(data["features"], **data.get("model_kwargs", dict()))["logits"]
-        labels = labels.float()
-        return pred, labels
+    def _get_prediction_and_labels(self, data, labels, output):
+        return output, labels
 
     def _get_data_and_labels(self, batch, batch_idx):
         return dict(features=batch.x, labels=batch.y.float())
 
-    def calculate_metrics(self, pred, labels):
+    def _execute(self, batch, batch_idx):
+        data = self._get_data_and_labels(batch, batch_idx)
+        labels = data["labels"]
+        model_output = self(data["features"], **data.get("model_kwargs", dict()))
+        return data, labels, model_output
+
+    def calculate_metrics(self, data, labels, model_output):
+        pred, labels = self._get_prediction_and_labels(data, labels,
+                                                       model_output)
         loss = self.loss(pred, labels)
         f1 = self.f1(target=labels.int(), preds=torch.sigmoid(pred))
         mse = self.mse(labels, torch.sigmoid(pred))
@@ -69,6 +75,7 @@ class JCIBaseNet(pl.LightningModule):
             on_epoch=True,
             prog_bar=True,
             logger=True,
+            batch_size=self.batch_size,
         )
         self.log(
             "train_f1",
@@ -77,6 +84,7 @@ class JCIBaseNet(pl.LightningModule):
             on_epoch=True,
             prog_bar=True,
             logger=True,
+            batch_size=self.batch_size,
         )
         self.log(
             "train_mse",
@@ -85,6 +93,7 @@ class JCIBaseNet(pl.LightningModule):
             on_epoch=True,
             prog_bar=True,
             logger=True,
+            batch_size=self.batch_size,
         )
         return loss
 
@@ -98,6 +107,7 @@ class JCIBaseNet(pl.LightningModule):
                 on_epoch=True,
                 prog_bar=True,
                 logger=True,
+                batch_size=self.batch_size,
             )
             self.log(
                 "val_f1",
@@ -106,6 +116,7 @@ class JCIBaseNet(pl.LightningModule):
                 on_epoch=True,
                 prog_bar=True,
                 logger=True,
+                batch_size=self.batch_size,
             )
             self.log(
                 "val_mse",
@@ -114,12 +125,13 @@ class JCIBaseNet(pl.LightningModule):
                 on_epoch=True,
                 prog_bar=True,
                 logger=True,
+                batch_size=self.batch_size,
             )
             return loss
 
     def test_step(self, *args, **kwargs):
         with torch.no_grad():
-            pred, labels = self._execute(*args, **kwargs)
+            data, pred, labels = self._execute(*args, **kwargs)
             l = labels.int()
             p = torch.sigmoid(pred)
             for name in ["F1", "Precision", "Recall"]:
@@ -167,6 +179,7 @@ class JCIBaseNet(pl.LightningModule):
         name,
         model_args: list = None,
         model_kwargs: dict = None,
+        loss=torch.nn.BCELoss,
         weighted=False,
     ):
         if model_args is None:
@@ -218,7 +231,7 @@ class JCIBaseNet(pl.LightningModule):
 
         # Calculate weights per class
 
-        net = cls(*model_args, **model_kwargs)
+        net = cls(*model_args, loss_cls=loss, **model_kwargs)
 
         # Early stopping seems to be bugged right now with ddp accelerator :(
         es = EarlyStopping(
