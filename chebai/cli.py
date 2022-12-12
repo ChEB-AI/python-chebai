@@ -27,7 +27,7 @@ def train(experiment, batch_size, group, args):
             "Experiment ID not found. The following are available:"
             + ", ".join(experiments.EXPERIMENTS.keys())
         )
-    ex.train(*args)
+    ex.train(batch_size, *args)
 
 
 @click.command()

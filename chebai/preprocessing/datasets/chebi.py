@@ -6,7 +6,9 @@ __all__ = [
     "JCITokenData",
     "JCIExtendedGraphData",
     "ChEBIOver100",
-    "JCIGraphData"
+    "JCIGraphData",
+    "JCI_500_COLUMNS",
+    "JCI_500_COLUMNS_INT"
 ]
 
 from abc import ABC

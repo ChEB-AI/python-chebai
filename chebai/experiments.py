@@ -42,13 +42,12 @@ class Experiment(ABC):
         raise NotImplementedError
 
     def train(self, batch_size, *args):
-        for dataset in self.datasets(batch_size):
-            self.MODEL.run(
-                self.dataset,
-                self.MODEL.NAME,
-                loss=self.LOSS,
-                model_kwargs=self.model_kwargs(*args)
-            )
+        self.MODEL.run(
+            self.dataset,
+            self.MODEL.NAME,
+            loss=self.LOSS,
+            model_kwargs=self.model_kwargs(*args)
+        )
 
     def test(self, ckpt_path, *args):
         self.MODEL.test(

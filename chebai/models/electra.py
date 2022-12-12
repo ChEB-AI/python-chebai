@@ -38,9 +38,12 @@ class ElectraPre(JCIBaseNet):
         self.discriminator = ElectraForPreTraining(self.discriminator_config)
         self.replace_p = 0.1
 
+    def _get_data_and_labels(self, batch, batch_idx):
+        return dict(features=batch.x, labels=None)
+
     def forward(self, data):
-        self.batch_size = data.x.shape[0]
-        x = torch.clone(data.x)
+        self.batch_size = data.shape[0]
+        x = torch.clone(data)
         gen_tar = []
         dis_tar = []
         for i in range(x.shape[0]):
@@ -58,7 +61,7 @@ class ElectraPre(JCIBaseNet):
         disc_out = self.discriminator(xc)
         return (self.generator.electra.embeddings(gen_out.unsqueeze(-1)), disc_out.logits), (self.generator.electra.embeddings(torch.tensor(gen_tar, device=self.device).unsqueeze(-1)), replaced_by_different.float())
 
-    def _get_prediction_and_labels(self, batch, output):
+    def _get_prediction_and_labels(self, batch, labels, output):
         return output[0][1], output[1][1]
 
 
@@ -72,8 +75,9 @@ class ElectraPreLoss:
         t, p = target
         gen_pred, disc_pred = t
         gen_tar, disc_tar = p
-
-        return self.mse(gen_tar, gen_pred) + self.bce(disc_tar, disc_pred)
+        gen_loss = self.mse(target=gen_tar, input=gen_pred)
+        disc_loss = self.bce(target=disc_tar, input=disc_pred)
+        return gen_loss + disc_loss
 
 
 class Electra(JCIBaseNet):
