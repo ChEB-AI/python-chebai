@@ -50,7 +50,7 @@ class ElectraPre(JCIBaseNet):
                 xc[i,dis_tar[i]] = gen_out[i]
             replaced_by_different = torch.ne(x, xc)
         disc_out = self.discriminator(xc)
-        return (self.generator.electra.embeddings(gen_out.unsqueeze(-1)), disc_out.logits), (self.generator.electra.embeddings(torch.tensor(gen_tar).unsqueeze(-1)), replaced_by_different.float())
+        return (self.generator.electra.embeddings(gen_out.unsqueeze(-1)), disc_out.logits), (self.generator.electra.embeddings(torch.tensor(gen_tar, device=self.device).unsqueeze(-1)), replaced_by_different.float())
 
     def _get_prediction_and_labels(self, batch, output):
         return output[0][1], output[1][1]
