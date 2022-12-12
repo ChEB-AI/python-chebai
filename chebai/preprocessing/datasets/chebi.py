@@ -1,8 +1,12 @@
 __all__ = [
     "JCIData",
-    "JCIExtendedData",
-    "JCIGraphData",
+    "JCIExtendedTokenData",
+    "JCIExtendedBPEData",
+    "JCIExtSelfies",
+    "JCITokenData",
     "JCIExtendedGraphData",
+    "ChEBIOver100",
+    "JCIGraphData"
 ]
 
 from abc import ABC
@@ -33,244 +37,8 @@ import torch
 import tqdm
 
 from chebai.preprocessing import reader as dr
+from chebai.preprocessing.datasets.base import XYBaseDataModule
 from chebai.preprocessing.structures import PairData, PrePairData
-
-
-def extract_largest_index(path, kind):
-    return (
-        max(
-            int(n[len(path + kind) + 2 : -len(".pt")])
-            for n in glob.glob(os.path.join(path, f"{kind}.*.pt"))
-        )
-        + 1
-    )
-
-
-class XYBaseDataModule(pl.LightningDataModule):
-    READER = dr.DataReader
-
-    def __init__(self, batch_size=1, tran_split=0.85, reader_kwargs=None, **kwargs):
-        super().__init__(**kwargs)
-        if reader_kwargs is None:
-            reader_kwargs = dict()
-        self.reader = self.READER(**reader_kwargs)
-        self.train_split = tran_split
-        self.batch_size = batch_size
-        os.makedirs(self.raw_dir, exist_ok=True)
-        os.makedirs(self.processed_dir, exist_ok=True)
-
-    @property
-    def identifier(self):
-        return (self.reader.name(),)
-
-    @property
-    def full_identifier(self):
-        return (self._name, *self.identifier)
-
-    @property
-    def processed_dir(self):
-        return os.path.join("data", self._name, "processed", *self.identifier)
-
-    @property
-    def raw_dir(self):
-        return os.path.join("data", self._name, "raw")
-
-    @property
-    def _name(self):
-        raise NotImplementedError
-
-    def dataloader(self, kind, **kwargs):
-
-        dataset = torch.load(os.path.join(self.processed_dir, f"{kind}.pt"))
-
-        return DataLoader(
-            dataset,
-            collate_fn=self.reader.collater,
-            batch_size=self.batch_size,
-            **kwargs,
-        )
-
-    @staticmethod
-    def _load_tuples(input_file_path):
-        with open(input_file_path, "r") as input_file:
-            for row in input_file:
-                smiles, labels = row.split("\t")
-                yield smiles, labels
-
-    @staticmethod
-    def _get_data_size(input_file_path):
-        with open(input_file_path, "r") as f:
-            return sum(1 for _ in f)
-
-    def _load_data_from_file(self, path):
-        lines = self._get_data_size(path)
-        print(f"Processing {lines} lines...")
-        with mp.Pool() as pool:
-            data = [
-                x
-                for x in pool.imap_unordered(
-                    self.reader.to_data,
-                    tqdm.tqdm(self._load_tuples(path), total=lines),
-                    chunksize=1000,
-                )
-                if x[0] is not None
-            ]
-
-        return data
-
-    def train_dataloader(self, *args, **kwargs) -> DataLoader:
-        return self.dataloader("train", shuffle=True, **kwargs)
-
-    def val_dataloader(self, *args, **kwargs) -> Union[DataLoader, List[DataLoader]]:
-        return self.dataloader("validation", shuffle=False, **kwargs)
-
-    def test_dataloader(self, *args, **kwargs) -> Union[DataLoader, List[DataLoader]]:
-        return self.dataloader("test", shuffle=False, **kwargs)
-
-    def setup(self, **kwargs):
-        if any(
-            not os.path.isfile(os.path.join(self.processed_dir, f))
-            for f in self.processed_file_names
-        ):
-            self.setup_processed()
-
-    def setup_processed(self):
-        raise NotImplementedError
-
-    @property
-    def processed_file_names(self):
-        raise NotImplementedError
-
-    @property
-    def label_number(self):
-        """
-        Number of labels
-        :return:
-        Returns -1 for seq2seq encoding, otherwise the number of labels
-        """
-        raise NotImplementedError
-
-
-class PubChem(XYBaseDataModule):
-    SMILES_INDEX = 0
-    LABEL_INDEX = 1
-    FULL = 0
-    UNLABELED = True
-
-    def __init__(self, *args, k=100000, **kwargs):
-        self._k = k
-        super(PubChem, self).__init__(*args, **kwargs)
-
-    @property
-    def _name(self):
-        return f"Pubchem"
-
-    @property
-    def identifier(self):
-        return self.reader.name(), self.split_label
-
-    @property
-    def split_label(self):
-        if self._k:
-            return str(self._k)
-        else:
-            return "full"
-
-    @property
-    def raw_dir(self):
-        return os.path.join("data", self._name, "raw", self.split_label)
-
-    @staticmethod
-    def _load_tuples(input_file_path):
-        with open(input_file_path, "r") as input_file:
-            for row in input_file:
-                _, smiles = row.split("\t")
-                yield smiles, None
-
-    def download(self):
-        url = f"https://ftp.ncbi.nlm.nih.gov/pubchem/Compound/Monthly/2021-10-01/Extras/CID-SMILES.gz"
-        if self._k == PubChem.FULL:
-            if not os.path.isfile(os.path.join(self.raw_dir, "smiles.txt")):
-                print("Download from", url)
-                r = requests.get(url, allow_redirects=True)
-                with tempfile.NamedTemporaryFile() as tf:
-                    tf.write(r.content)
-                    print("Unpacking...")
-                    tf.seek(0)
-                    with gzip.open(tf, "rb") as f_in:
-                        with open(
-                            os.path.join(self.raw_dir, "smiles.txt"), "wb"
-                        ) as f_out:
-                            shutil.copyfileobj(f_in, f_out)
-        else:
-            full_dataset = self.__class__(k=PubChem.FULL)
-            full_dataset.download()
-            with open(os.path.join(full_dataset.raw_dir, "smiles.txt"), "r") as f_in:
-                lines = sum(1 for _ in f_in)
-                selected = frozenset(random.sample(list(range(lines)), k=self._k))
-                f_in.seek(0)
-                selected_lines = list(
-                    filter(
-                        lambda x: x[0] in selected,
-                        enumerate(tqdm.tqdm(f_in, total=lines)),
-                    )
-                )
-            with open(os.path.join(self.raw_dir, "smiles.txt"), "w") as f_out:
-                f_out.writelines([l for i, l in selected_lines])
-
-    def setup_processed(self):
-        # Collect token distribution
-        filename = os.path.join(self.raw_dir, self.raw_file_names[0])
-        print("Load data from file", filename)
-        data = self._load_data_from_file(filename)
-        print("Create splits")
-        train, test = train_test_split(data, train_size=self.train_split)
-        del data
-        test, val = train_test_split(test, train_size=self.train_split)
-        torch.save(train, os.path.join(self.processed_dir, f"train.pt"))
-        torch.save(test, os.path.join(self.processed_dir, f"test.pt"))
-        torch.save(val, os.path.join(self.processed_dir, f"validation.pt"))
-
-    @property
-    def raw_file_names(self):
-        return ["smiles.txt"]
-
-    @property
-    def processed_file_names(self):
-        return ["test.pt", "train.pt", "validation.pt"]
-
-    def prepare_data(self, *args, **kwargs):
-        print("Check for raw data in", self.raw_dir)
-        if any(
-            not os.path.isfile(os.path.join(self.raw_dir, f))
-            for f in self.raw_file_names
-        ):
-            print("Downloading data. This may take some time...")
-            self.download()
-            print("Done")
-
-
-class SWJPreChem(PubChem):
-    UNLABELED = True
-
-    @property
-    def _name(self):
-        return f"SWJpre"
-
-    def download(self):
-        raise Exception("Required raw files not found")
-
-    @property
-    def identifier(self):
-        return (self.reader.name(),)
-
-    @property
-    def raw_dir(self):
-        return os.path.join("data", self._name, "raw")
-
-
-class SWJSelfies(SWJPreChem):
-    READER = dr.SelfiesReader
 
 
 class JCIBase(XYBaseDataModule):
@@ -326,38 +94,6 @@ class JCIBase(XYBaseDataModule):
         return 500
 
 
-class PubchemChem(PubChem):
-    READER = dr.ChemDataReader
-
-    @property
-    def label_number(self):
-        return -1
-
-
-class PubchemBPE(PubChem):
-    READER = dr.ChemBPEReader
-
-    @property
-    def label_number(self):
-        return -1
-
-
-class SWJChem(SWJPreChem):
-    READER = dr.ChemDataReader
-
-    @property
-    def label_number(self):
-        return -1
-
-
-class SWJBPE(SWJPreChem):
-    READER = dr.ChemBPEReader
-
-    @property
-    def label_number(self):
-        return -1
-
-
 class JCIData(JCIBase):
     READER = dr.OrdReader
 
@@ -371,10 +107,6 @@ class JCIMolData(JCIBase):
 
 
 class JCITokenData(JCIBase):
-    READER = dr.ChemDataReader
-
-
-class PubChemTokens(PubChem):
     READER = dr.ChemDataReader
 
 
@@ -554,7 +286,7 @@ class JCIExtSelfies(JCIExtendedBase):
 
 class PartOfData(TGDataset):
     def len(self):
-        return extract_largest_index(self.processed_dir, self.kind)
+        return self.extract_largest_index(self.processed_dir, self.kind)
 
     def get(self, idx):
         return pickle.load(
@@ -740,6 +472,16 @@ class PartOfData(TGDataset):
             for r in self.extract_children(d, child, part_cache):
                 yield r
 
+    @staticmethod
+    def extract_largest_index(path, kind):
+        return (
+            max(
+                int(n[len(path + kind) + 2 : -len(".pt")])
+                for n in glob.glob(os.path.join(path, f"{kind}.*.pt"))
+            )
+            + 1
+        )
+
 
 def chebi_to_int(s):
     return int(s[s.index(":") + 1 :])
@@ -772,11 +514,6 @@ def term_callback(doc):
     }
 
 
-def get_mol_enc(x):
-    i, s = x
-    return i, mol_to_data(s) if s else None
-
-
 def mol_to_data(smiles):
     try:
         mol = ps.read_smiles(smiles)
@@ -804,17 +541,9 @@ def mol_to_data(smiles):
     return from_networkx(mol)
 
 
-try:
-    from k_gnn import TwoMalkin
-except ModuleNotFoundError:
-    pass
-else:
-
-    class JCIExtendedGraphTwoData(JCIExtendedBase):
-        READER = dr.GraphTwoDataset
-
-    class JCIGraphTwoData(JCIBase):
-        READER = dr.GraphTwoDataset
+def get_mol_enc(x):
+    i, s = x
+    return i, mol_to_data(s) if s else None
 
 
 atom_index = (
