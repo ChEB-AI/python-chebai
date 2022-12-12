@@ -39,26 +39,29 @@ class ElectraPre(JCIBaseNet):
         self.replace_p = 0.1
 
     def _get_data_and_labels(self, batch, batch_idx):
-        return dict(features=batch.x, labels=None)
+        return dict(features=batch.x, labels=None, lens=torch.tensor(batch.lens))
 
     def forward(self, data):
-        self.batch_size = data.shape[0]
-        x = torch.clone(data)
+        x = torch.clone(data["features"])
+        self.batch_size = x.shape[0]
         gen_tar = []
         dis_tar = []
-        for i in range(x.shape[0]):
-            j = random.randint(0, x.shape[1]-1)
-            t = x[i,j]
+        lens = data["lens"]
+        max_len = x.shape[1]
+        mask = torch.arange(max_len).expand(len(lens), max_len) < lens.unsqueeze(1)
+        for i, l in enumerate(lens):
+            j = random.randint(0, l)
+            t = x[i,j].item()
             x[i,j] = 0
             gen_tar.append(t)
             dis_tar.append(j)
-        gen_out = torch.max(torch.sum(self.generator(x).logits,dim=1), dim=-1)[1]
+        gen_out = torch.max(torch.sum(self.generator(x, attention_mask=mask).logits,dim=1), dim=-1)[1]
         with torch.no_grad():
             xc = x.clone()
             for i in range(x.shape[0]):
                 xc[i,dis_tar[i]] = gen_out[i]
             replaced_by_different = torch.ne(x, xc)
-        disc_out = self.discriminator(xc)
+        disc_out = self.discriminator(xc, attention_mask=mask)
         return (self.generator.electra.embeddings(gen_out.unsqueeze(-1)), disc_out.logits), (self.generator.electra.embeddings(torch.tensor(gen_tar, device=self.device).unsqueeze(-1)), replaced_by_different.float())
 
     def _get_prediction_and_labels(self, batch, labels, output):
