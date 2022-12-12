@@ -14,12 +14,13 @@ def cli():
 @click.command()
 @click.argument("experiment")
 @click.argument("batch_size", type=click.INT)
+@click.option("-g", "--group", default="default")
 @click.argument("args", nargs=-1)
-def train(experiment, batch_size, args):
+def train(experiment, batch_size, group, args):
     """Run experiment identified by EXPERIMENT in batches of size BATCH_SIZE."""
     try:
         ex = experiments.EXPERIMENTS[experiment](
-            batch_size,
+            batch_size, group
         )
     except KeyError:
         raise Exception(

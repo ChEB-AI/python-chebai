@@ -1,3 +1,4 @@
+import random
 from tempfile import TemporaryDirectory
 import logging
 import random
@@ -10,6 +11,8 @@ from torch.nn.utils.rnn import (
 )
 from transformers import (
     ElectraConfig,
+    ElectraForMaskedLM,
+    ElectraForMultipleChoice,
     ElectraForPreTraining,
     ElectraForSequenceClassification,
     ElectraModel,
@@ -27,31 +30,50 @@ class ElectraPre(JCIBaseNet):
 
     def __init__(self, p=0.2, **kwargs):
         super().__init__(**kwargs)
-        self._p = p
-        self.config = ElectraConfig(**kwargs["config"])
-        self.electra = ElectraForPreTraining(self.config)
+        config = kwargs["config"]
+        self.generator_config = ElectraConfig(**config["generator"])
+        self.generator = ElectraForMaskedLM(self.generator_config)
+        self.generator_head = torch.nn.Linear(510, 128)
+        self.discriminator_config = ElectraConfig(**config["discriminator"])
+        self.discriminator = ElectraForPreTraining(self.discriminator_config)
+        self.replace_p = 0.1
 
-    def _get_data_and_labels(self, batch, batch_idx):
-        vocab_w0 = torch.cat(torch.unbind(batch.x))
-        vocab = vocab_w0[torch.nonzero(vocab_w0, as_tuple=False)].squeeze(-1)
-        labels_rnd = torch.rand(batch.x.shape, device=self.device)
-        mask = pad_sequence([torch.ones(l, device=self.device) for l in batch.lens]).T
-        subs = vocab[torch.randint(0, len(vocab), batch.x.shape, device=self.device)]
-        equals = torch.eq(batch.x, subs).int()
+    def forward(self, data):
+        self.batch_size = data.x.shape[0]
+        x = torch.clone(data.x)
+        gen_tar = []
+        dis_tar = []
+        for i in range(x.shape[0]):
+            j = random.randint(0, x.shape[1]-1)
+            t = x[i,j]
+            x[i,j] = 0
+            gen_tar.append(t)
+            dis_tar.append(j)
+        gen_out = torch.max(torch.sum(self.generator(x).logits,dim=1), dim=-1)[1]
+        with torch.no_grad():
+            xc = x.clone()
+            for i in range(x.shape[0]):
+                xc[i,dis_tar[i]] = gen_out[i]
+            replaced_by_different = torch.ne(x, xc)
+        disc_out = self.discriminator(xc)
+        return (self.generator.electra.embeddings(gen_out.unsqueeze(-1)), disc_out.logits), (self.generator.electra.embeddings(torch.tensor(gen_tar, device=self.device).unsqueeze(-1)), replaced_by_different.float())
 
-        # exclude those indices where the replacement yields the same token
-        labels = torch.logical_and(
-            (labels_rnd < self._p) * mask, torch.logical_not(equals)
-        ).int()
-        features = (batch.x * (1 - labels)) + (subs * labels)
+    def _get_prediction_and_labels(self, batch, output):
+        return output[0][1], output[1][1]
 
-        return dict(
-            features=features, labels=labels, model_kwargs=dict(attention_mask=mask)
-        )
 
-    def forward(self, data, **kwargs):
-        x = self.electra(data, **kwargs)
-        return {"logits": x.logits}
+class ElectraPreLoss:
+
+    def __init__(self):
+        self.mse = torch.nn.MSELoss()
+        self.bce = torch.nn.BCEWithLogitsLoss()
+
+    def __call__(self, target, _):
+        t, p = target
+        gen_pred, disc_pred = t
+        gen_tar, disc_tar = p
+
+        return self.mse(gen_tar, gen_pred) + self.bce(disc_tar, disc_pred)
 
 
 class Electra(JCIBaseNet):

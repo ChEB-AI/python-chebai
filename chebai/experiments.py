@@ -4,6 +4,8 @@ import json
 import os.path
 
 from chebai import MODULE_PATH
+import torch.nn
+
 from chebai import preprocessing as prep
 from chebai.models import base, chemberta, electra, graph
 from chebai.preprocessing import datasets
@@ -14,6 +16,7 @@ EXPERIMENTS = dict()
 
 class Experiment(ABC):
     MODEL = base.JCIBaseNet
+    LOSS = torch.nn.BCELoss
 
     def __init_subclass__(cls, **kwargs):
         assert cls.identifier(), "No identifier set"
@@ -22,8 +25,9 @@ class Experiment(ABC):
         ), f"Identifier {cls.identifier()} is not unique."
         EXPERIMENTS[cls.identifier()] = cls
 
-    def __init__(self, batch_size, *args, **kwargs):
+    def __init__(self, batch_size, group, *args, **kwargs):
         self.dataset = self.build_dataset(batch_size)
+        self.group = group
 
     @classmethod
     def identifier(cls) -> str:
@@ -37,12 +41,14 @@ class Experiment(ABC):
     def build_dataset(self, batch_size) -> datasets.XYBaseDataModule:
         raise NotImplementedError
 
-    def train(self, *args):
-        self.MODEL.run(
-            self.dataset,
-            self.MODEL.NAME,
-            model_kwargs=self.model_kwargs(*args),
-        )
+    def train(self, batch_size, *args):
+        for dataset in self.datasets(batch_size):
+            self.MODEL.run(
+                self.dataset,
+                self.MODEL.NAME,
+                loss=self.LOSS,
+                model_kwargs=self.model_kwargs(*args)
+            )
 
     def test(self, ckpt_path, *args):
         self.MODEL.test(
@@ -59,6 +65,7 @@ class Experiment(ABC):
 
 class ElectraPreOnSWJ(Experiment):
     MODEL = electra.ElectraPre
+    LOSS = electra.ElectraPreLoss
 
     @classmethod
     def identifier(cls) -> str:
@@ -68,11 +75,21 @@ class ElectraPreOnSWJ(Experiment):
         return dict(
             lr=1e-4,
             config=dict(
-                vocab_size=1400,
-                max_position_embeddings=1800,
-                num_attention_heads=8,
-                num_hidden_layers=6,
-                type_vocab_size=1,
+                generator=dict(
+                    vocab_size=1400,
+                    hidden_size=510,
+                    max_position_embeddings=1800,
+                    num_attention_heads=3,
+                    num_hidden_layers=2,
+                    type_vocab_size=1),
+                discriminator=dict(
+                    vocab_size=1400,
+                    hidden_size=512,
+                    max_position_embeddings=1800,
+                    num_attention_heads=8,
+                    num_hidden_layers=6,
+                    type_vocab_size=1),
+
             ),
             epochs=100,
         )
