@@ -61,7 +61,7 @@ class JCIBaseNet(pl.LightningModule):
     def _execute(self, batch, batch_idx):
         data = self._get_data_and_labels(batch, batch_idx)
         labels = data["labels"]
-        model_output = self(data["features"], **data.get("model_kwargs", dict()))
+        model_output = self(data, **data.get("model_kwargs", dict()))
         return data, labels, model_output
 
     def calculate_metrics(self, data, labels, model_output):
@@ -70,7 +70,7 @@ class JCIBaseNet(pl.LightningModule):
         pred, labels = self._get_prediction_and_labels(data, labels,
                                                        model_output)
         f1 = self.f1(target=labels.int(), preds=torch.sigmoid(pred))
-        mse = self.mse(labels, torch.sigmoid(pred))
+        mse = self.mse(target=labels, preds=torch.sigmoid(pred))
         return loss, f1, mse
 
     def training_step(self, *args, **kwargs):
