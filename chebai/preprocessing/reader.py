@@ -21,6 +21,9 @@ from chebai.preprocessing.collate import (
     RaggedCollater,
 )
 
+EMBEDDING_OFFSET = 10
+PADDING_TOKEN_INDEX = 0
+MASK_TOKEN_INDEX = 1
 
 class DataReader:
     COLLATER = DefaultCollater
@@ -53,26 +56,6 @@ class DataReader:
         return self._read_data(x), self._read_label(y)
 
 
-class ChemDataUnlabeledReader(DataReader):
-    COLLATER = RaggedCollater
-
-    @classmethod
-    def name(cls):
-        return "smiles_token_unlabeled"
-
-    def __init__(self, *args, p=0.2, **kwargs):
-        super().__init__(*args, **kwargs)
-        with open("chebai/preprocessing/bin/tokens.pkl", "rb") as pk:
-            self.cache = pickle.load(pk)
-        self._p = 0.2
-
-    def _read_components(self, row):
-        return row, None
-
-    def _get_raw_data(self, row):
-        return [self.cache.index(v) + 1 for v in _tokenize(row[0])]
-
-
 class ChemDataReader(DataReader):
     COLLATER = RaggedCollater
 
@@ -87,7 +70,18 @@ class ChemDataReader(DataReader):
             self.cache = pickle.load(pk)
 
     def _read_data(self, raw_data):
-        return [self.cache.index(v) + 1 for v in _tokenize(raw_data)]
+        return [self.cache.index(v) + EMBEDDING_OFFSET for v in _tokenize(raw_data)]
+
+
+class ChemDataUnlabeledReader(ChemDataReader):
+    COLLATER = RaggedCollater
+
+    @classmethod
+    def name(cls):
+        return "smiles_token_unlabeled"
+
+    def _read_components(self, row):
+        return row[0], None
 
 
 class ChemBPEReader(DataReader):
@@ -126,7 +120,7 @@ class SelfiesReader(DataReader):
             print(e)
             return
         else:
-            return [self.cache.index(x) for x in splits]
+            return [self.cache.index(x) + EMBEDDING_OFFSET for x in splits]
 
 
 class OrdReader(DataReader):

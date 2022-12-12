@@ -161,7 +161,7 @@ class PubchemBPE(PubChem):
 
 
 class SWJChem(SWJPreChem):
-    READER = dr.ChemDataReader
+    READER = dr.ChemDataUnlabeledReader
 
     @property
     def label_number(self):

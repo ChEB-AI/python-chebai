@@ -27,10 +27,12 @@ class RaggedCollater(Collater):
             y = pad_sequence([torch.tensor(a) for a in y], batch_first=True)
         else:
             y = None
+        lens = torch.tensor(list(map(len, x)))
+        mask = torch.arange(max(lens))[None, :] < lens[:, None]
         return XYData(
             pad_sequence([torch.tensor(a) for a in x], batch_first=True),
             y,
-            additional_fields=dict(lens=list(map(len, x))),
+            additional_fields=dict(lens=lens, mask=mask),
         )
 
 
