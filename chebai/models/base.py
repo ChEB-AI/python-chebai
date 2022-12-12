@@ -26,23 +26,29 @@ class JCIBaseNet(pl.LightningModule):
 
     def __init__(self, loss_cls, out_dim=None, **kwargs):
         super().__init__()
+        if out_dim:
+            task = "multilabel"
+        else:
+            task = "binary"
         self.out_dim = out_dim
         weights = kwargs.get("weights", None)
         if weights is not None:
             self.loss = loss_cls(pos_weight=weights)
         else:
             self.loss = loss_cls()
-        self.f1 = F1Score(threshold=kwargs.get("threshold", 0.5))
+
+        self.f1 = F1Score(threshold=kwargs.get("threshold", 0.5), task=task, num_labels=self.out_dim)
         self.mse = MeanSquaredError()
         self.lr = kwargs.get("lr", 1e-4)
+        self.thres = 0.3
 
-        for metric in ["F1", "Precision", "Recall"]:
-            for agg in ["micro", "samples", "macro", "weighted"]:
+        for metric in ["F1Score", "Precision", "Recall"]:
+            for agg in ["micro", "macro", "weighted"]:
                 setattr(
                     self,
                     metric + agg,
                     getattr(torchmetrics, metric)(
-                        threshold=thres, average=agg, num_classes=500
+                        threshold=self.thres, average=agg, num_classes=self.out_dim, task=task, num_labels=self.out_dim
                     ),
                 )
 
@@ -59,9 +65,10 @@ class JCIBaseNet(pl.LightningModule):
         return data, labels, model_output
 
     def calculate_metrics(self, data, labels, model_output):
+
+        loss = self.loss(model_output, labels)
         pred, labels = self._get_prediction_and_labels(data, labels,
                                                        model_output)
-        loss = self.loss(pred, labels)
         f1 = self.f1(target=labels.int(), preds=torch.sigmoid(pred))
         mse = self.mse(labels, torch.sigmoid(pred))
         return loss, f1, mse
