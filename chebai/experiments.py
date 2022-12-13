@@ -409,9 +409,11 @@ class ElectraOnTox21(Experiment):
         return datasets.Tox21Chem(batch_size)
 
     def model_kwargs(self, *args) -> Dict:
+        checkpoint_path = args[0]
         return dict(
             lr=1e-4,
             out_dim=self.dataset.label_number,
+            pretrained_checkpoint=checkpoint_path,
             config=dict(
                 vocab_size=1400,
                 max_position_embeddings=1800,
