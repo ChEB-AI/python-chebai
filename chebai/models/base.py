@@ -23,6 +23,7 @@ logging.getLogger("pysmiles").setLevel(logging.CRITICAL)
 
 class JCIBaseNet(pl.LightningModule):
     NAME = None
+    LOSS = torch.nn.BCEWithLogitsLoss
 
     def __init__(self, loss_cls, out_dim=None, **kwargs):
         super().__init__()
