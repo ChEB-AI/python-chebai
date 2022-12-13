@@ -50,7 +50,7 @@ class ElectraPre(JCIBaseNet):
         dis_tar = []
         mask = data["mask"]
         for i, l in enumerate(mask):
-            tokens = list(set(x[i][l]))
+            tokens = list(set(x.item() for x in x[i][l]))
             token_to_replace = random.choice(tokens)
             candidates = x[i] == token_to_replace
             possible_indices = torch.arange(x.shape[1], device=self.device)[candidates]
