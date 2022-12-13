@@ -55,14 +55,16 @@ class ElectraPre(JCIBaseNet):
             x[i,j] = MASK_TOKEN_INDEX
             gen_tar.append(t)
             dis_tar.append(j)
-        gen_out = torch.max(torch.sum(self.generator(x, attention_mask=mask).logits,dim=1), dim=-1)[1]
+        raw_gen_out = torch.sum(self.generator(x, attention_mask=mask).logits,dim=1)
+        gen_best_guess = torch.max(raw_gen_out, dim=-1)[1]
+        gen_tar_one_hot = torch.eq(torch.arange(self.generator_config.vocab_size)[None, :], gen_best_guess[:, None])
         with torch.no_grad():
             xc = x.clone()
             for i in range(x.shape[0]):
-                xc[i,dis_tar[i]] = gen_out[i]
+                xc[i,dis_tar[i]] = gen_best_guess[i]
             replaced_by_different = torch.ne(x, xc)
         disc_out = self.discriminator(xc, attention_mask=mask)
-        return (self.generator.electra.embeddings(gen_out.unsqueeze(-1)), disc_out.logits), (self.generator.electra.embeddings(torch.tensor(gen_tar, device=self.device).unsqueeze(-1)), replaced_by_different.float())
+        return (raw_gen_out, disc_out.logits), (gen_tar_one_hot.float(), replaced_by_different.float())
 
     def _get_prediction_and_labels(self, batch, labels, output):
         return output[0][1], output[1][1]
@@ -71,14 +73,13 @@ class ElectraPre(JCIBaseNet):
 class ElectraPreLoss:
 
     def __init__(self):
-        self.mse = torch.nn.MSELoss()
         self.bce = torch.nn.BCEWithLogitsLoss()
 
     def __call__(self, target, _):
         t, p = target
         gen_pred, disc_pred = t
         gen_tar, disc_tar = p
-        gen_loss = self.mse(target=gen_tar, input=gen_pred)
+        gen_loss = self.bce(target=gen_tar, input=gen_pred)
         disc_loss = self.bce(target=disc_tar, input=disc_pred)
         return gen_loss + disc_loss
 
