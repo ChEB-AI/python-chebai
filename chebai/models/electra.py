@@ -29,7 +29,7 @@ logging.getLogger("pysmiles").setLevel(logging.CRITICAL)
 class ElectraPre(JCIBaseNet):
     NAME = "ElectraPre"
 
-    def __init__(self, p=0.2, **kwargs):
+    def __init__(self, **kwargs):
         super().__init__(**kwargs)
         config = kwargs["config"]
         self.generator_config = ElectraConfig(**config["generator"])
@@ -69,14 +69,16 @@ class ElectraPre(JCIBaseNet):
     def _get_prediction_and_labels(self, batch, labels, output):
         return output[0][1], output[1][1]
 
+    def _get_data_for_loss(self, model_output, labels):
+        return dict(input=model_output, target=None)
 
 class ElectraPreLoss:
 
     def __init__(self):
         self.bce = torch.nn.BCEWithLogitsLoss()
 
-    def __call__(self, target, _):
-        t, p = target
+    def __call__(self, target, input):
+        t, p = input
         gen_pred, disc_pred = t
         gen_tar, disc_tar = p
         gen_loss = self.bce(target=gen_tar, input=gen_pred)
