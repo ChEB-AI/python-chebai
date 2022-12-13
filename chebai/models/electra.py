@@ -66,7 +66,7 @@ class ElectraPre(JCIBaseNet):
             xc = x.clone()
             for i in range(x.shape[0]):
                 xc[i,dis_tar[i]] = gen_best_guess[i]
-            replaced_by_different = torch.ne(x, xc)
+            replaced_by_different = torch.ne(data["features"], xc)
         disc_out = self.discriminator(xc, attention_mask=mask)
         return (raw_gen_out, disc_out.logits), (gen_tar_one_hot.float(), replaced_by_different.float())
 
