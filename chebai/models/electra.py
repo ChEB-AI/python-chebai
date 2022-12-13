@@ -50,7 +50,11 @@ class ElectraPre(JCIBaseNet):
         dis_tar = []
         mask = data["mask"]
         for i, l in enumerate(mask):
-            j = random.randint(0, sum(l)-1)
+            tokens = list(set(x[i][l]))
+            token_to_replace = random.choice(tokens)
+            candidates = x[i] == token_to_replace
+            possible_indices = torch.arange(x.shape[1], device=self.device)[candidates]
+            j = random.choice(list(possible_indices))
             t = x[i,j].item()
             x[i,j] = MASK_TOKEN_INDEX
             gen_tar.append(t)
