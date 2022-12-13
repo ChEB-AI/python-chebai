@@ -25,7 +25,7 @@ class JCIBaseNet(pl.LightningModule):
     NAME = None
     LOSS = torch.nn.BCEWithLogitsLoss
 
-    def __init__(self, loss_cls, out_dim=None, **kwargs):
+    def __init__(self, loss_cls=None, out_dim=None, **kwargs):
         super().__init__()
         if out_dim:
             task = "multilabel"
@@ -33,6 +33,8 @@ class JCIBaseNet(pl.LightningModule):
             task = "binary"
         self.out_dim = out_dim
         weights = kwargs.get("weights", None)
+        if loss_cls is None:
+            loss_cls = torch.nn.BCEWithLogitsLoss
         if weights is not None:
             self.loss = loss_cls(pos_weight=weights)
         else:
