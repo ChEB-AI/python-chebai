@@ -69,16 +69,17 @@ class XYBaseDataModule(pl.LightningDataModule):
     def _load_data_from_file(self, path):
         lines = self._get_data_size(path)
         print(f"Processing {lines} lines...")
-        with mp.Pool() as pool:
-            data = [
-                x
-                for x in pool.imap_unordered(
-                    self.reader.to_data,
-                    tqdm.tqdm(self._load_tuples(path), total=lines),
-                    chunksize=1000,
-                )
-                if x[0] is not None
-            ]
+        #with mp.Pool() as pool:
+        data = [
+            x
+            #for x in pool.imap_unordered(
+            for x in map(
+                self.reader.to_data,
+                tqdm.tqdm(self._load_tuples(path), total=lines),
+                #chunksize=1000,
+            )
+            if x[0] is not None
+        ]
 
         return data
 

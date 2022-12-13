@@ -397,6 +397,30 @@ class ElectraLegJCIExt(ElectraOnJCIExt):
         return "ElectraLeg+JCIExt"
 
 
+class ElectraOnTox21(Experiment):
+    MODEL = electra.Electra
+
+    @classmethod
+    def identifier(cls) -> str:
+        return "Electra+Tox21"
+
+    def build_dataset(self, batch_size) -> datasets.XYBaseDataModule:
+        return datasets.Tox21Chem(batch_size)
+
+    def model_kwargs(self, *args) -> Dict:
+        return dict(
+            lr=1e-4,
+            out_dim=self.dataset.label_number,
+            config=dict(
+                vocab_size=1400,
+                max_position_embeddings=1800,
+                num_attention_heads=8,
+                num_hidden_layers=6,
+                type_vocab_size=1,
+            ),
+            epochs=100,
+        )
+
 class GATOnSWJ(Experiment):
     MODEL = graph.JCIGraphAttentionNet
 
