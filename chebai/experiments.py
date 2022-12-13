@@ -399,6 +399,7 @@ class ElectraLegJCIExt(ElectraOnJCIExt):
 
 class ElectraOnTox21(Experiment):
     MODEL = electra.Electra
+    LOSS = torch.nn.BCEWithLogitsLoss
 
     @classmethod
     def identifier(cls) -> str:
