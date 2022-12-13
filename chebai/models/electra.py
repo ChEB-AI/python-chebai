@@ -118,8 +118,15 @@ class Electra(JCIBaseNet):
             self.electra = ElectraForSequenceClassification(config=self.config)
             in_d = self.config.hidden_size
 
+    def _get_data_for_loss(self, model_output, labels):
+        return dict(input=model_output["logits"], target=labels.float())
+
+    def _get_prediction_and_labels(self, data, labels, model_output):
+        return model_output["logits"], labels.int()
+
     def forward(self, data, **kwargs):
-        electra = self.electra(data, **kwargs)
+        self.batch_size = data["features"].shape[0]
+        electra = self.electra(data["features"], **kwargs)
         return dict(logits=electra.logits, attentions=electra.attentions)
 
 

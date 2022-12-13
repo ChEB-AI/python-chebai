@@ -64,9 +64,13 @@ class JCIBaseNet(pl.LightningModule):
         model_output = self(data, **data.get("model_kwargs", dict()))
         return data, labels, model_output
 
+    def _get_data_for_loss(self, model_output, labels):
+        return dict(input=model_output, target=labels.float())
+
+
     def calculate_metrics(self, data, labels, model_output):
 
-        loss = self.loss(model_output, labels)
+        loss = self.loss(**self._get_data_for_loss(model_output, labels))
         pred, labels = self._get_prediction_and_labels(data, labels,
                                                        model_output)
         f1 = self.f1(target=labels.int(), preds=torch.sigmoid(pred))
