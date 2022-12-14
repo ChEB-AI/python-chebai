@@ -58,7 +58,7 @@ class ElectraPre(JCIBaseNet):
             x[i,j] = MASK_TOKEN_INDEX
             gen_tar.append(t)
             dis_tar.append(j)
-        raw_gen_out = torch.softmax(torch.mean(self.generator(x, attention_mask=mask).logits, dim=1),dim=-1)
+        raw_gen_out = torch.mean(self.generator(x, attention_mask=mask).logits, dim=1)
         gen_best_guess = raw_gen_out.argmax(dim=-1)
         gen_tar_one_hot = torch.eq(torch.arange(self.generator_config.vocab_size, device=self.device)[None, :], gen_best_guess[:, None])
         with torch.no_grad():
@@ -85,7 +85,8 @@ class ElectraPreLoss:
         gen_pred, disc_pred = t
         gen_tar, disc_tar = p
         gen_loss = self.bce(target=gen_tar, input=gen_pred)
-        disc_loss = self.bce(target=disc_tar, input=disc_pred)
+        with_differences = torch.any(disc_tar, dim=-1)
+        disc_loss = self.bce(target=disc_tar[with_differences], input=disc_pred[with_differences])
         return gen_loss + disc_loss
 
 
