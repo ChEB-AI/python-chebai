@@ -23,15 +23,19 @@ logging.getLogger("pysmiles").setLevel(logging.CRITICAL)
 
 class JCIBaseNet(pl.LightningModule):
     NAME = None
+    LOSS = torch.nn.BCEWithLogitsLoss
 
-    def __init__(self, loss_cls, out_dim=None, **kwargs):
+    def __init__(self, loss_cls=None, out_dim=None, **kwargs):
         super().__init__()
+        self.save_hyperparameters()
         if out_dim:
             task = "multilabel"
         else:
             task = "binary"
         self.out_dim = out_dim
         weights = kwargs.get("weights", None)
+        if loss_cls is None:
+            loss_cls = torch.nn.BCEWithLogitsLoss
         if weights is not None:
             self.loss = loss_cls(pos_weight=weights)
         else:
@@ -64,9 +68,13 @@ class JCIBaseNet(pl.LightningModule):
         model_output = self(data, **data.get("model_kwargs", dict()))
         return data, labels, model_output
 
+    def _get_data_for_loss(self, model_output, labels):
+        return dict(input=model_output, target=labels.float())
+
+
     def calculate_metrics(self, data, labels, model_output):
 
-        loss = self.loss(model_output, labels)
+        loss = self.loss(**self._get_data_for_loss(model_output, labels))
         pred, labels = self._get_prediction_and_labels(data, labels,
                                                        model_output)
         f1 = self.f1(target=labels.int(), preds=torch.sigmoid(pred))

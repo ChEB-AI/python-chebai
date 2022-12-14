@@ -25,16 +25,14 @@ from chebai.models.base import JCIBaseNet
 
 logging.getLogger("pysmiles").setLevel(logging.CRITICAL)
 
-
 class ElectraPre(JCIBaseNet):
     NAME = "ElectraPre"
 
-    def __init__(self, p=0.2, **kwargs):
+    def __init__(self, **kwargs):
         super().__init__(**kwargs)
         config = kwargs["config"]
         self.generator_config = ElectraConfig(**config["generator"])
         self.generator = ElectraForMaskedLM(self.generator_config)
-        self.generator_head = torch.nn.Linear(510, 128)
         self.discriminator_config = ElectraConfig(**config["discriminator"])
         self.discriminator = ElectraForPreTraining(self.discriminator_config)
         self.replace_p = 0.1
@@ -50,38 +48,50 @@ class ElectraPre(JCIBaseNet):
         dis_tar = []
         mask = data["mask"]
         for i, l in enumerate(mask):
-            j = random.randint(0, sum(l)-1)
+            tokens = list(set(x.item() for x in x[i][l]))
+            token_to_replace = random.choice(tokens)
+            candidates = x[i] == token_to_replace
+            possible_indices = torch.arange(x.shape[1], device=self.device)[candidates]
+            j = random.choice(list(possible_indices))
             t = x[i,j].item()
             x[i,j] = MASK_TOKEN_INDEX
             gen_tar.append(t)
             dis_tar.append(j)
-        raw_gen_out = torch.sum(self.generator(x, attention_mask=mask).logits,dim=1)
-        gen_best_guess = torch.max(raw_gen_out, dim=-1)[1]
+        raw_gen_out = torch.mean(self.generator(x, attention_mask=mask).logits, dim=1)
+        gen_best_guess = raw_gen_out.argmax(dim=-1)
         gen_tar_one_hot = torch.eq(torch.arange(self.generator_config.vocab_size, device=self.device)[None, :], gen_best_guess[:, None])
         with torch.no_grad():
-            xc = x.clone()
+            xc = data["features"].clone()
             for i in range(x.shape[0]):
                 xc[i,dis_tar[i]] = gen_best_guess[i]
-            replaced_by_different = torch.ne(x, xc)
-        disc_out = self.discriminator(xc, attention_mask=mask)
-        return (raw_gen_out, disc_out.logits), (gen_tar_one_hot.float(), replaced_by_different.float())
+            replaced_by_different = torch.ne(data["features"], xc)
+        replaced_any = torch.any(replaced_by_different, dim=-1)
+        disc_out = torch.softmax(self.discriminator(xc[replaced_any], attention_mask=mask[replaced_any]).logits, dim=-1)
+        return (torch.softmax(raw_gen_out, dim=-1), disc_out), (gen_tar_one_hot.float(), replaced_by_different[replaced_any].float())
 
     def _get_prediction_and_labels(self, batch, labels, output):
         replaced = torch.any(output[1][1],dim=-1)
         return output[0][1][replaced], output[1][1][replaced]
 
+    def _get_data_for_loss(self, model_output, labels):
+        return dict(input=model_output, target=None)
+
 
 class ElectraPreLoss:
-
     def __init__(self):
-        self.bce = torch.nn.BCEWithLogitsLoss()
+        self.bce_log = torch.nn.BCEWithLogitsLoss()
+        self.bce = torch.nn.BCELoss()
 
-    def __call__(self, target, _):
-        t, p = target
+    def __call__(self, target, input):
+        t, p = input
         gen_pred, disc_pred = t
         gen_tar, disc_tar = p
         gen_loss = self.bce(target=gen_tar, input=gen_pred)
-        disc_loss = self.bce(target=disc_tar, input=disc_pred)
+        with_differences = torch.any(disc_tar, dim=-1)
+        if torch.any(with_differences):
+            disc_loss = self.bce(target=disc_tar[with_differences], input=disc_pred[with_differences])
+        else:
+            disc_loss = 0
         return gen_loss + disc_loss
 
 
@@ -110,17 +120,22 @@ class Electra(JCIBaseNet):
         if pretrained_checkpoint:
             elpre = ElectraPre.load_from_checkpoint(pretrained_checkpoint)
             with TemporaryDirectory() as td:
-                elpre.electra.save_pretrained(td)
+                elpre.discriminator.save_pretrained(td)
                 self.electra = ElectraForSequenceClassification.from_pretrained(
                     td, config=self.config
                 )
-                in_d = elpre.config.hidden_size
         else:
             self.electra = ElectraForSequenceClassification(config=self.config)
-            in_d = self.config.hidden_size
+
+    def _get_data_for_loss(self, model_output, labels):
+        return dict(input=model_output["logits"], target=labels.float())
+
+    def _get_prediction_and_labels(self, data, labels, model_output):
+        return model_output["logits"], labels.int()
 
     def forward(self, data, **kwargs):
-        electra = self.electra(data, **kwargs)
+        self.batch_size = data["features"].shape[0]
+        electra = self.electra(data["features"], **kwargs)
         return dict(logits=electra.logits, attentions=electra.attentions)
 
 

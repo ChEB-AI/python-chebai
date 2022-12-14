@@ -16,7 +16,7 @@ EXPERIMENTS = dict()
 
 class Experiment(ABC):
     MODEL = base.JCIBaseNet
-    LOSS = torch.nn.BCELoss
+    LOSS = torch.nn.BCEWithLogitsLoss
 
     def __init_subclass__(cls, **kwargs):
         assert cls.identifier(), "No identifier set"
@@ -76,10 +76,10 @@ class ElectraPreOnSWJ(Experiment):
             config=dict(
                 generator=dict(
                     vocab_size=1400,
-                    hidden_size=510,
+                    hidden_size=512,
                     max_position_embeddings=1800,
-                    num_attention_heads=3,
-                    num_hidden_layers=2,
+                    num_attention_heads=8,
+                    num_hidden_layers=6,
                     type_vocab_size=1),
                 discriminator=dict(
                     vocab_size=1400,
@@ -310,6 +310,7 @@ class ElectraOnJCI(Experiment):
             config=dict(
                 vocab_size=1400,
                 max_position_embeddings=1800,
+                hidden_size=512,
                 num_attention_heads=8,
                 num_hidden_layers=6,
                 type_vocab_size=1,
@@ -399,6 +400,7 @@ class ElectraLegJCIExt(ElectraOnJCIExt):
 
 class ElectraOnTox21(Experiment):
     MODEL = electra.Electra
+    LOSS = torch.nn.BCEWithLogitsLoss
 
     @classmethod
     def identifier(cls) -> str:
@@ -408,11 +410,14 @@ class ElectraOnTox21(Experiment):
         return datasets.Tox21Chem(batch_size)
 
     def model_kwargs(self, *args) -> Dict:
+        checkpoint_path = args[0]
         return dict(
             lr=1e-4,
             out_dim=self.dataset.label_number,
+            pretrained_checkpoint=checkpoint_path,
             config=dict(
                 vocab_size=1400,
+                hidden_size=512,
                 max_position_embeddings=1800,
                 num_attention_heads=8,
                 num_hidden_layers=6,
