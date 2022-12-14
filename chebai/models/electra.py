@@ -66,7 +66,7 @@ class ElectraPre(JCIBaseNet):
             for i in range(x.shape[0]):
                 xc[i,dis_tar[i]] = gen_best_guess[i]
             replaced_by_different = torch.ne(data["features"], xc)
-        disc_out = self.discriminator(xc, attention_mask=mask).logits
+        disc_out = torch.softmax(self.discriminator(xc, attention_mask=mask).logits, dim=-1)
         return (raw_gen_out, disc_out), (gen_tar_one_hot.float(), replaced_by_different.float())
 
     def _get_prediction_and_labels(self, batch, labels, output):
@@ -78,13 +78,14 @@ class ElectraPre(JCIBaseNet):
 class ElectraPreLoss:
 
     def __init__(self):
-        self.bce = torch.nn.BCEWithLogitsLoss()
+        self.bce_log = torch.nn.BCEWithLogitsLoss()
+        self.bce = torch.nn.BCELoss()
 
     def __call__(self, target, input):
         t, p = input
         gen_pred, disc_pred = t
         gen_tar, disc_tar = p
-        gen_loss = self.bce(target=gen_tar, input=gen_pred)
+        gen_loss = self.bce_log(target=gen_tar, input=gen_pred)
         with_differences = torch.any(disc_tar, dim=-1)
         if torch.any(with_differences):
             disc_loss = self.bce(target=disc_tar[with_differences], input=disc_pred[with_differences])
