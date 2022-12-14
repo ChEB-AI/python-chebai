@@ -86,7 +86,10 @@ class ElectraPreLoss:
         gen_tar, disc_tar = p
         gen_loss = self.bce(target=gen_tar, input=gen_pred)
         with_differences = torch.any(disc_tar, dim=-1)
-        disc_loss = self.bce(target=disc_tar[with_differences], input=disc_pred[with_differences])
+        if torch.any(with_differences):
+            disc_loss = self.bce(target=disc_tar[with_differences], input=disc_pred[with_differences])
+        else:
+            disc_loss = 0
         return gen_loss + disc_loss
 
 
