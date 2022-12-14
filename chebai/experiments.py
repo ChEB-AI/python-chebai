@@ -416,6 +416,7 @@ class ElectraOnTox21(Experiment):
             pretrained_checkpoint=checkpoint_path,
             config=dict(
                 vocab_size=1400,
+                hidden_size=512,
                 max_position_embeddings=1800,
                 num_attention_heads=8,
                 num_hidden_layers=6,
