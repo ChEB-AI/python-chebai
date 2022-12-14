@@ -16,7 +16,7 @@ EXPERIMENTS = dict()
 
 class Experiment(ABC):
     MODEL = base.JCIBaseNet
-    LOSS = torch.nn.BCELoss
+    LOSS = torch.nn.BCEWithLogitsLoss
 
     def __init_subclass__(cls, **kwargs):
         assert cls.identifier(), "No identifier set"
@@ -310,6 +310,7 @@ class ElectraOnJCI(Experiment):
             config=dict(
                 vocab_size=1400,
                 max_position_embeddings=1800,
+                hidden_size=512,
                 num_attention_heads=8,
                 num_hidden_layers=6,
                 type_vocab_size=1,
