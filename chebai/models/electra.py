@@ -67,7 +67,8 @@ class ElectraPre(JCIBaseNet):
         return (raw_gen_out, disc_out.logits), (gen_tar_one_hot.float(), replaced_by_different.float())
 
     def _get_prediction_and_labels(self, batch, labels, output):
-        return output[0][1], output[1][1]
+        replaced = torch.any(output[1][1],dim=-1)
+        return output[0][1][replaced], output[1][1][replaced]
 
 
 class ElectraPreLoss:
