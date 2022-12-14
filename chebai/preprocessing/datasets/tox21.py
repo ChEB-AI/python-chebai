@@ -2,9 +2,11 @@ from chebai.preprocessing.datasets.chebi import JCIBase
 from chebai.preprocessing.datasets.base import XYBaseDataModule
 from tempfile import NamedTemporaryFile
 from urllib import request
+from sklearn.model_selection import train_test_split
 import gzip
 import os
 import csv
+import torch
 from chebai.preprocessing import reader as dr
 
 
@@ -18,7 +20,7 @@ class Tox21Base(XYBaseDataModule):
 
     @property
     def label_number(self):
-        return 8
+        return 12
 
     @property
     def raw_file_names(self):
@@ -39,10 +41,16 @@ class Tox21Base(XYBaseDataModule):
         print("Create splits")
         data = self._load_data_from_file(os.path.join(self.raw_dir, f"tox21.csv"))
         os.makedirs(self.processed_dir, exist_ok=True)
-        for k in ["test", "train", "validation"]:
+        train_split, test_split = train_test_split(
+            data, train_size=self.train_split, shuffle=True
+        )
+        test_split, validation_split = train_test_split(
+            test_split, train_size=self.train_split, shuffle=True
+        )
+        for k, s in [("test", test_split), ("train", train_split), ("validation", validation_split)]:
             print("transform", k)
             torch.save(
-                data,
+                s,
                 os.path.join(self.processed_dir, f"{k}.pt"),
             )
 
@@ -63,7 +71,7 @@ class Tox21Base(XYBaseDataModule):
             reader = csv.DictReader(input_file)
             for row in reader:
                 smiles = row["smiles"]
-                labels = [bool(int(l)) if l else None for l in (row[k] for k in self.HEADERS)]
+                labels = [bool(int(l)) if l else False for l in (row[k] for k in self.HEADERS)]
                 yield smiles, labels
 
 class Tox21Chem(Tox21Base):

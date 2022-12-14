@@ -66,11 +66,11 @@ class ChemDataReader(DataReader):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         dirname = os.path.dirname(__file__)
-        with open(os.path.join(dirname, "bin", "tokens.pkl"), "rb") as pk:
-            self.cache = pickle.load(pk)
+        with open(os.path.join(dirname, "bin", "tokens.txt"), "r") as pk:
+            self.cache = [x.strip() for x in pk]
 
     def _read_data(self, raw_data):
-        return [self.cache.index(v) + EMBEDDING_OFFSET for v in _tokenize(raw_data)]
+        return [self.cache.index(str(v[1])) + EMBEDDING_OFFSET for v in _tokenize(raw_data)]
 
 
 class ChemDataUnlabeledReader(ChemDataReader):
