@@ -25,7 +25,6 @@ from chebai.models.base import JCIBaseNet
 
 logging.getLogger("pysmiles").setLevel(logging.CRITICAL)
 
-
 class ElectraPre(JCIBaseNet):
     NAME = "ElectraPre"
 
@@ -68,7 +67,7 @@ class ElectraPre(JCIBaseNet):
             replaced_by_different = torch.ne(data["features"], xc)
         replaced_any = torch.any(replaced_by_different, dim=-1)
         disc_out = torch.softmax(self.discriminator(xc[replaced_any], attention_mask=mask[replaced_any]).logits, dim=-1)
-        return (raw_gen_out, disc_out), (gen_tar_one_hot.float(), replaced_by_different[replaced_any].float())
+        return (torch.softmax(raw_gen_out, dim=-1), disc_out), (gen_tar_one_hot.float(), replaced_by_different[replaced_any].float())
 
     def _get_prediction_and_labels(self, batch, labels, output):
         return output[0][1], output[1][1]
@@ -76,8 +75,8 @@ class ElectraPre(JCIBaseNet):
     def _get_data_for_loss(self, model_output, labels):
         return dict(input=model_output, target=None)
 
-class ElectraPreLoss:
 
+class ElectraPreLoss:
     def __init__(self):
         self.bce_log = torch.nn.BCEWithLogitsLoss()
         self.bce = torch.nn.BCELoss()
@@ -86,7 +85,7 @@ class ElectraPreLoss:
         t, p = input
         gen_pred, disc_pred = t
         gen_tar, disc_tar = p
-        gen_loss = self.bce_log(target=gen_tar, input=gen_pred)
+        gen_loss = self.bce(target=gen_tar, input=gen_pred)
         with_differences = torch.any(disc_tar, dim=-1)
         if torch.any(with_differences):
             disc_loss = self.bce(target=disc_tar[with_differences], input=disc_pred[with_differences])
