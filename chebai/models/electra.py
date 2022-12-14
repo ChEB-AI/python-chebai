@@ -62,7 +62,7 @@ class ElectraPre(JCIBaseNet):
         gen_best_guess = raw_gen_out.argmax(dim=-1)
         gen_tar_one_hot = torch.eq(torch.arange(self.generator_config.vocab_size, device=self.device)[None, :], gen_best_guess[:, None])
         with torch.no_grad():
-            xc = x.clone()
+            xc = data["features"].clone()
             for i in range(x.shape[0]):
                 xc[i,dis_tar[i]] = gen_best_guess[i]
             replaced_by_different = torch.ne(data["features"], xc)
