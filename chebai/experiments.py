@@ -25,9 +25,8 @@ class Experiment(ABC):
         ), f"Identifier {cls.identifier()} is not unique."
         EXPERIMENTS[cls.identifier()] = cls
 
-    def __init__(self, batch_size, group, *args, **kwargs):
+    def __init__(self, batch_size, *args, **kwargs):
         self.dataset = self.build_dataset(batch_size)
-        self.group = group
 
     @classmethod
     def identifier(cls) -> str:

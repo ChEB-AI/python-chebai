@@ -45,9 +45,10 @@ class JCIBaseNet(pl.LightningModule):
         self.mse = MeanSquaredError()
         self.lr = kwargs.get("lr", 1e-4)
         self.thres = 0.3
-
-        for metric in ["F1Score", "Precision", "Recall"]:
-            for agg in ["micro", "macro", "weighted"]:
+        self.metrics = ["F1Score", "Precision", "Recall", "AUROC"]
+        self.metric_aggs = ["micro", "macro", "weighted"]
+        for metric in self.metrics:
+            for agg in self.metric_aggs:
                 setattr(
                     self,
                     metric + agg,
@@ -146,11 +147,10 @@ class JCIBaseNet(pl.LightningModule):
 
     def test_step(self, *args, **kwargs):
         with torch.no_grad():
-            data, pred, labels = self._execute(*args, **kwargs)
-            l = labels.int()
-            p = torch.sigmoid(pred)
-            for name in ["F1", "Precision", "Recall"]:
-                for agg in ["micro", "samples", "macro", "weighted"]:
+            p, l = self._get_prediction_and_labels(*self._execute(*args, **kwargs))
+            p = torch.sigmoid(p)
+            for name in self.metrics:
+                for agg in self.metric_aggs:
                     metric = getattr(self, name + agg)
                     self.log(
                         name + "_" + agg,
@@ -159,6 +159,7 @@ class JCIBaseNet(pl.LightningModule):
                         on_epoch=True,
                         prog_bar=True,
                         logger=True,
+                        batch_size=p.shape[0]
                     )
             return self.loss(p, l.float())
 

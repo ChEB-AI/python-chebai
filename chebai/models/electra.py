@@ -105,7 +105,7 @@ class Electra(JCIBaseNet):
     def _get_data_and_labels(self, batch, batch_idx):
         mask = pad_sequence([torch.ones(l, device=self.device) for l in batch.lens]).T
         return dict(
-            features=batch.x, labels=batch.y, model_kwargs=dict(attention_mask=mask)
+            features=batch.x, labels=batch.y, model_kwargs=dict(attention_mask=mask), target_mask=batch.target_mask
         )
 
     @property
@@ -136,19 +136,20 @@ class Electra(JCIBaseNet):
             self.electra = ElectraForSequenceClassification(config=self.config)
 
     def _get_data_for_loss(self, model_output, labels):
-        return dict(input=model_output["logits"], target=labels.float())
+        return dict(input=model_output["logits"], target=(labels * model_output["target_mask"]).float())
 
     def _get_prediction_and_labels(self, data, labels, model_output):
-        return model_output["logits"], labels.int()
+        model_output["logits"][~model_output["target_mask"]] = -100
+        return model_output["logits"], (labels * model_output["target_mask"]).int()
 
     def forward(self, data, **kwargs):
         self.batch_size = data["features"].shape[0]
         inp = data["features"]
-        if self.training:
-            inp *= torch.rand(data["features"].shape, device=self.device) >= 0.1
+        #if self.training:
+        #    inp *= torch.rand(data["features"].shape, device=self.device) >= 0.1
 
         electra = self.electra(inp, **kwargs)
-        return dict(logits=electra.logits, attentions=electra.attentions)
+        return dict(logits=electra.logits, attentions=electra.attentions, target_mask=data["target_mask"])
 
 
 class ElectraLegacy(JCIBaseNet):
