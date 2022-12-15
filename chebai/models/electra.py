@@ -37,6 +37,10 @@ class ElectraPre(JCIBaseNet):
         self.discriminator = ElectraForPreTraining(self.discriminator_config)
         self.replace_p = 0.1
 
+    @property
+    def as_pretrained(self):
+        return self.discriminator
+
     def _get_data_and_labels(self, batch, batch_idx):
 
         return dict(features=batch.x, labels=None, mask=batch.mask)
@@ -104,6 +108,10 @@ class Electra(JCIBaseNet):
             features=batch.x, labels=batch.y, model_kwargs=dict(attention_mask=mask)
         )
 
+    @property
+    def as_pretrained(self):
+        return self.electra.electra
+
     def __init__(self, **kwargs):
         # Remove this property in order to prevent it from being stored as a
         # hyper parameter
@@ -118,9 +126,9 @@ class Electra(JCIBaseNet):
         self.config = ElectraConfig(**kwargs["config"], output_attentions=True)
 
         if pretrained_checkpoint:
-            elpre = ElectraPre.load_from_checkpoint(pretrained_checkpoint)
+            elpre = Electra.load_from_checkpoint(pretrained_checkpoint)
             with TemporaryDirectory() as td:
-                elpre.discriminator.save_pretrained(td)
+                elpre.as_pretrained.save_pretrained(td)
                 self.electra = ElectraForSequenceClassification.from_pretrained(
                     td, config=self.config
                 )
