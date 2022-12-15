@@ -71,7 +71,7 @@ class Tox21Base(XYBaseDataModule):
             reader = csv.DictReader(input_file)
             for row in reader:
                 smiles = row["smiles"]
-                labels = [bool(int(l)) if l else False for l in (row[k] for k in self.HEADERS)]
+                labels = [bool(int(l)) if l else None for l in (row[k] for k in self.HEADERS)]
                 yield smiles, labels
 
 class Tox21Chem(Tox21Base):
