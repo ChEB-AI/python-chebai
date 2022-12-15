@@ -136,11 +136,11 @@ class Electra(JCIBaseNet):
             self.electra = ElectraForSequenceClassification(config=self.config)
 
     def _get_data_for_loss(self, model_output, labels):
-        d = model_output["logits"] * model_output["target_mask"] - 100 * (1 - model_output["target_mask"])
+        d = model_output["logits"] * model_output["target_mask"] - 100 * (1 - model_output["target_mask"].int())
         return dict(input=d, target=(labels * model_output["target_mask"]).float())
 
     def _get_prediction_and_labels(self, data, labels, model_output):
-        d = model_output["logits"]*model_output["target_mask"] - 100 * (1 - model_output["target_mask"])
+        d = model_output["logits"]*model_output["target_mask"] - 100 * (1 - model_output["target_mask"].int())
         return d, (labels * model_output["target_mask"]).int()
 
     def forward(self, data, **kwargs):
