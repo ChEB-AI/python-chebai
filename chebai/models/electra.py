@@ -134,7 +134,12 @@ class Electra(JCIBaseNet):
 
     def forward(self, data, **kwargs):
         self.batch_size = data["features"].shape[0]
-        electra = self.electra(data["features"], **kwargs)
+        masks = torch.rand(data["features"].shape) < 0.1
+        inp = data["features"]
+        if self.training:
+            inp *= masks
+
+        electra = self.electra(inp, **kwargs)
         return dict(logits=electra.logits, attentions=electra.attentions)
 
 
