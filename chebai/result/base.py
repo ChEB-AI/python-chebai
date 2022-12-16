@@ -29,7 +29,7 @@ class ResultProcessor(abc.ABC):
         PROCESSORS[cls._identifier()] = cls
 
     def process_prediction(
-        self, proc_id, raw_features, raw_labels, features, labels, pred
+        self, proc_id, features, labels, pred, ident
     ):
         raise NotImplementedError
 
@@ -53,8 +53,11 @@ class ResultFactory(abc.ABC):
         else:
             data_tuples = torch.load(data_path)
 
-        for features, labels in tqdm.tqdm(data_tuples):
-            yield self._model({"features":torch.tensor(features).unsqueeze(0)}), labels
+        for features, labels, ident in tqdm.tqdm(data_tuples):
+            f = torch.tensor([features])
+            #l = torch.tensor([labels])
+            preds, _ = self._model._get_prediction_and_labels(f, torch.tensor(0), self._model({"features": f}))
+            yield f, labels, preds[0], ident
 
     def call_procs(self, args):
         proc_id, proc_args = args
