@@ -78,8 +78,8 @@ class JCIBaseNet(pl.LightningModule):
         loss = self.loss(**self._get_data_for_loss(model_output, labels))
         pred, labels = self._get_prediction_and_labels(data, labels,
                                                        model_output)
-        f1 = self.f1(target=labels.int(), preds=torch.sigmoid(pred))
-        mse = self.mse(target=labels, preds=torch.sigmoid(pred))
+        f1 = self.f1(target=labels.int(), preds=pred)
+        mse = self.mse(target=labels, preds=pred)
         return loss, f1, mse
 
     def training_step(self, *args, **kwargs):
@@ -148,7 +148,6 @@ class JCIBaseNet(pl.LightningModule):
     def test_step(self, *args, **kwargs):
         with torch.no_grad():
             p, l = self._get_prediction_and_labels(*self._execute(*args, **kwargs))
-            p = torch.sigmoid(p)
             for name in self.metrics:
                 for agg in self.metric_aggs:
                     metric = getattr(self, name + agg)

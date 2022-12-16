@@ -17,12 +17,12 @@ class JSONResultProcessor(ResultProcessor):
             del self.data
 
     def process_prediction(
-        self, proc_id, raw_features, raw_labels, features, labels, pred
+        self, proc_id, features, labels, pred, ident
     ):
         self.data.append(
             dict(
-                smiles=raw_features,
+                ident=ident,
                 labels=labels if labels is not None else None,
-                prediction=pred["logits"].tolist(),
+                prediction=pred.tolist(),
             )
         )
