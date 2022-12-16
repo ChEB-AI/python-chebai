@@ -16,13 +16,13 @@ class Collater:
 
 class DefaultCollater(Collater):
     def __call__(self, data):
-        x, y = zip(*data)
+        x, y, _ = zip(*data)
         return XYData(x, y)
 
 
 class RaggedCollater(Collater):
     def __call__(self, data):
-        x, y = zip(*data)
+        x, y, _ = zip(*data)
         if not all(x is None for x in y):
             is_none = torch.tensor([[v is None for v in row] for row in y])
             y = pad_sequence([torch.tensor([v if v is not None else False for v in row]) for row in y], batch_first=True)
@@ -41,6 +41,10 @@ class RaggedCollater(Collater):
 
 class GraphCollater(Collater):
     def __call__(self, data):
+        merged_data = []
+        for d, y, _ in data:
+            d.y = y
+            merged_data.append(d)
         return graph_collate(
-            GraphData, data, follow_batch=["x", "edge_attr", "edge_index", "label"]
+            GraphData, merged_data, follow_batch=["x", "edge_attr", "edge_index", "label"]
         )

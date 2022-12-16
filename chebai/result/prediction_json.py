@@ -22,7 +22,7 @@ class JSONResultProcessor(ResultProcessor):
         self.data.append(
             dict(
                 smiles=raw_features,
-                labels=labels.tolist() if labels is not None else None,
+                labels=labels if labels is not None else None,
                 prediction=pred["logits"].tolist(),
             )
         )

@@ -39,8 +39,14 @@ class DataReader:
     def _get_raw_label(self, row):
         return row[1]
 
+    def _get_raw_id(self, row):
+        return row[0]
+
     def name(cls):
         raise NotImplementedError
+
+    def _read_id(self, raw_data):
+        return raw_data
 
     def _read_data(self, raw_data):
         return raw_data
@@ -49,11 +55,11 @@ class DataReader:
         return raw_label
 
     def _read_components(self, row):
-        return self._get_raw_data(row), self._get_raw_label(row)
+        return self._get_raw_data(row), self._get_raw_label(row), self._get_raw_id(row)
 
     def to_data(self, row):
-        x, y = self._read_components(row)
-        return self._read_data(x), self._read_label(y)
+        x, y, ident = self._read_components(row)
+        return self._read_data(x), self._read_label(y), self._read_id(ident)
 
 
 class ChemDataReader(DataReader):
@@ -180,30 +186,34 @@ class GraphReader(DataReader):
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        with open("chebai/preprocessing/bin/tokens.pkl", "rb") as pk:
-            self.cache = pickle.load(pk)
+        dirname = os.path.dirname(__file__)
+        with open(os.path.join(dirname, "bin", "tokens.txt"), "r") as pk:
+            self.cache = [x.strip() for x in pk]
 
-    def process_smiles(self, smiles):
-        def cache(m):
-            try:
-                x = self.cache.index(m)
-            except ValueError:
-                x = len(self.cache)
-                self.cache.append(m)
-            return x
-
+    def _read_data(self, raw_data):
         try:
-            mol = ps.read_smiles(smiles)
+            mol = ps.read_smiles(raw_data)
         except ValueError:
             return None
         d = {}
         de = {}
         for node in mol.nodes:
+            n = mol.nodes[node]
             try:
-                m = mol.nodes[node]["element"]
+                m = n["element"]
+                charge = n["charge"]
+                if charge:
+                    if charge > 0:
+                        m += "+"
+                    else:
+                        m += "-"
+                        charge *= -1
+                    if charge > 1:
+                        m += str(charge)
+                m = f"[{m}]"
             except KeyError:
                 m = "*"
-            d[node] = cache(m)
+            d[node] = self.cache.index(m) + EMBEDDING_OFFSET
             for attr in list(mol.nodes[node].keys()):
                 del mol.nodes[node][attr]
         for edge in mol.edges:
@@ -216,13 +226,6 @@ class GraphReader(DataReader):
 
     def collate(self, list_of_tuples):
         return self.collater(list_of_tuples)
-
-    def to_data(self, row):
-        d = self.process_smiles(row[1])
-        if d is not None and d.num_nodes > 1:
-            d.y = torch.tensor(row[2:].astype(bool)).unsqueeze(0)
-            return d
-
 
 try:
     from k_gnn import TwoMalkin

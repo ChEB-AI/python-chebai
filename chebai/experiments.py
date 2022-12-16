@@ -55,10 +55,10 @@ class Experiment(ABC):
             ckpt_path,
         )
 
-    def predict(self, data_path, model_ckpt, processors: Iterable[ResultProcessor]):
+    def predict(self, data_path, model_ckpt, processors: Iterable[ResultProcessor], **kwargs):
         model = self.MODEL.load_from_checkpoint(model_ckpt)
         result_factory = ResultFactory(model, self.dataset, processors)
-        result_factory.execute(data_path)
+        result_factory.execute(data_path, **kwargs)
 
 
 class ElectraPreOnSWJ(Experiment):
@@ -442,3 +442,23 @@ class GATOnSWJ(Experiment):
 
     def build_dataset(self, batch_size) -> datasets.XYBaseDataModule:
         return datasets.JCIGraphData(batch_size)
+
+
+class GATOnTox21(Experiment):
+    MODEL = graph.JCIGraphAttentionNet
+
+    @classmethod
+    def identifier(cls) -> str:
+        return "GAT+Tox21"
+
+    def model_kwargs(self, *args) -> Dict:
+        return dict(
+            lr=1e-4,
+            in_length=50,
+            hidden_length=100,
+            epochs=100,
+        )
+
+    def build_dataset(self, batch_size) -> datasets.XYBaseDataModule:
+        return datasets.Tox21Graph(batch_size)
+
