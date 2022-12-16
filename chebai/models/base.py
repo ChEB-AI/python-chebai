@@ -71,15 +71,15 @@ class JCIBaseNet(pl.LightningModule):
         return dict(input=model_output, target=labels.float())
 
     def training_step(self, *args, **kwargs):
-        return self.calculate_all_metrics("train", *args, **kwargs)
+        return self.calculate_all_metrics("train_", *args, **kwargs)
 
     def validation_step(self, *args, **kwargs):
         with torch.no_grad():
-            return self.calculate_all_metrics("val", *args, **kwargs)
+            return self.calculate_all_metrics("val_", *args, **kwargs)
 
     def test_step(self, *args, **kwargs):
         with torch.no_grad():
-            return self.calculate_all_metrics("test", *args, **kwargs)
+            return self.calculate_all_metrics("test_", *args, **kwargs)
 
     def calculate_all_metrics(self, prefix, *args, **kwargs):
         data, labels, model_output = self._execute(*args, **kwargs)
