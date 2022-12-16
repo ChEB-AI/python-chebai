@@ -41,10 +41,8 @@ class JCIBaseNet(pl.LightningModule):
         else:
             self.loss = loss_cls()
 
-        self.f1 = F1Score(threshold=kwargs.get("threshold", 0.5), task=task, num_labels=self.out_dim)
-        self.mse = MeanSquaredError()
         self.lr = kwargs.get("lr", 1e-4)
-        self.thres = 0.3
+        self.thres = kwargs.get("lr", 0.5)
         self.metrics = ["F1Score", "Precision", "Recall", "AUROC"]
         self.metric_aggs = ["micro", "macro", "weighted"]
         for metric in self.metrics:
@@ -71,14 +69,6 @@ class JCIBaseNet(pl.LightningModule):
 
     def _get_data_for_loss(self, model_output, labels):
         return dict(input=model_output, target=labels.float())
-
-
-    def calculate_metrics(self, data, labels, model_output):
-
-
-        f1 = self.f1(target=labels.int(), preds=pred)
-        mse = self.mse(target=labels, preds=pred)
-        return loss, f1, mse
 
     def training_step(self, *args, **kwargs):
         return self.calculate_all_metrics("train", *args, **kwargs)
@@ -107,6 +97,15 @@ class JCIBaseNet(pl.LightningModule):
                     logger=True,
                     batch_size=p.shape[0]
                 )
+        self.log(
+            prefix + "loss",
+            loss,
+            on_step=False,
+            on_epoch=True,
+            prog_bar=True,
+            logger=True,
+            batch_size=p.shape[0]
+        )
         return loss
 
     def forward(self, x):
