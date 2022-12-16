@@ -176,14 +176,14 @@ class JCIBaseNet(pl.LightningModule):
         tb_logger = pl_loggers.TensorBoardLogger("logs/", name=name)
         best_checkpoint_callback = ModelCheckpoint(
             dirpath=os.path.join(tb_logger.log_dir, "best_checkpoints"),
-            filename="{epoch}-{val_f1:.7f}",
+            filename="{epoch}-{val_F1Score_micro:.2f}--{val_loss:.2f}",
             save_top_k=5,
-            monitor="val_f1",
+            monitor="val_loss",
             mode="max",
         )
         checkpoint_callback = ModelCheckpoint(
             dirpath=os.path.join(tb_logger.log_dir, "periodic_checkpoints"),
-            filename="{epoch}-{val_f1:.7f}",
+            filename="{epoch}-{val_F1Score_micro:.2f}--{val_loss:.2f}",
             every_n_epochs=5,
             save_top_k=-1,
             save_last=True,
@@ -196,7 +196,7 @@ class JCIBaseNet(pl.LightningModule):
 
         # Early stopping seems to be bugged right now with ddp accelerator :(
         es = EarlyStopping(
-            monitor="val_f1", patience=10, min_delta=0.00, verbose=False, mode="max"
+            monitor="val_loss", patience=10, min_delta=0.00, verbose=False, mode="max"
         )
 
         trainer = pl.Trainer(
