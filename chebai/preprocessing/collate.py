@@ -24,17 +24,17 @@ class RaggedCollater(Collater):
     def __call__(self, data):
         x, y, _ = zip(*data)
         if not all(x is None for x in y):
-            is_none = torch.tensor([[v is None for v in row] for row in y])
+            is_not_none = ~torch.tensor([[v is None for v in row] for row in y])
             y = pad_sequence([torch.tensor([v if v is not None else False for v in row]) for row in y], batch_first=True)
         else:
-            is_none = None
+            is_not_none = None
             y = None
         lens = torch.tensor(list(map(len, x)))
         mask = torch.arange(max(lens))[None, :] < lens[:, None]
         return XYData(
             pad_sequence([torch.tensor(a) for a in x], batch_first=True),
             y,
-            additional_fields=dict(lens=lens, mask=mask, target_mask=~is_none),
+            additional_fields=dict(lens=lens, mask=mask, target_mask=is_not_none),
 
         )
 

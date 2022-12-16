@@ -87,7 +87,7 @@ class ChemDataUnlabeledReader(ChemDataReader):
         return "smiles_token_unlabeled"
 
     def _read_components(self, row):
-        return row[0], None
+        return row[0], None, row[0]
 
 
 class ChemBPEReader(DataReader):
