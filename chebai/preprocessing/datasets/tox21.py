@@ -13,7 +13,6 @@ from chebai.preprocessing import reader as dr
 class Tox21Base(XYBaseDataModule):
     HEADERS = ['NR-AR', 'NR-AR-LBD', 'NR-AhR', 'NR-Aromatase', 'NR-ER', 'NR-ER-LBD', 'NR-PPAR-gamma', 'SR-ARE', 'SR-ATAD5', 'SR-HSE', 'SR-MMP', 'SR-p53']
 
-
     @property
     def _name(self):
         return "tox21"
@@ -76,3 +75,6 @@ class Tox21Base(XYBaseDataModule):
 
 class Tox21Chem(Tox21Base):
     READER = dr.ChemDataReader
+
+class Tox21Graph(Tox21Base):
+    READER = dr.GraphReader

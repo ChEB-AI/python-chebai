@@ -54,7 +54,8 @@ def test(experiment, batch_size, ckpt_path, args):
 @click.argument("ckpt_path")
 @click.argument("data_path")
 @click.option("--processors", "-p", default=["json"], multiple=True)
-def predict(experiment, ckpt_path, data_path, processors):
+@click.option("--compiled-data", "-c", is_flag=True, default=False)
+def predict(experiment, ckpt_path, data_path, processors, compiled_data):
     """Run experiment identified by EXPERIMENT in batches of size BATCH_SIZE."""
     try:
         ex = experiments.EXPERIMENTS[experiment](1)
@@ -72,7 +73,7 @@ def predict(experiment, ckpt_path, data_path, processors):
             raise Exception(
                 f"Processor {p} not found. Available processors are {', '.join(PROCESSORS.keys())}"
             )
-    ex.predict(data_path, ckpt_path, processor_list)
+    ex.predict(data_path, ckpt_path, processor_list, raw=not compiled_data)
 
 
 cli.add_command(train)

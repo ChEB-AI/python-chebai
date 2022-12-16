@@ -136,12 +136,12 @@ class Electra(JCIBaseNet):
             self.electra = ElectraForSequenceClassification(config=self.config)
 
     def _get_data_for_loss(self, model_output, labels):
-        d = model_output["logits"] * model_output["target_mask"] - 100 * (1 - model_output["target_mask"].int())
-        return dict(input=d, target=(labels * model_output["target_mask"]).float())
+        d = model_output["logits"] * model_output["target_mask"] - 100 * ~model_output["target_mask"]
+        return dict(input=d, target=labels.float())
 
     def _get_prediction_and_labels(self, data, labels, model_output):
-        d = model_output["logits"]*model_output["target_mask"] - 100 * (1 - model_output["target_mask"].int())
-        return d, (labels * model_output["target_mask"]).int()
+        d = model_output["logits"]*model_output["target_mask"] - 100 * ~model_output["target_mask"]
+        return d, labels.int()
 
     def forward(self, data, **kwargs):
         self.batch_size = data["features"].shape[0]
@@ -150,7 +150,7 @@ class Electra(JCIBaseNet):
         #    inp *= torch.rand(data["features"].shape, device=self.device) >= 0.1
 
         electra = self.electra(inp, **kwargs)
-        return dict(logits=electra.logits, attentions=electra.attentions, target_mask=data["target_mask"])
+        return dict(logits=electra.logits, attentions=electra.attentions, target_mask=data.get("target_mask"))
 
 
 class ElectraLegacy(JCIBaseNet):

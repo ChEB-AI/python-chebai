@@ -46,35 +46,32 @@ class ResultFactory(abc.ABC):
     def _process_row(self, row):
         return row
 
-    def _generate_predictions(self, data_path):
+    def _generate_predictions(self, data_path, raw=False, **kwargs):
         self._model.eval()
-        for x in tqdm.tqdm(self.dataset._load_tuples(data_path)):
-            processed_row = self._process_row(x)
-            try:
-                features, labels = self._reader.to_data(processed_row)
-            except:
-                print("Error processing the following row:", x)
-            else:
-                raw_features, raw_labels = self._reader._read_components(processed_row)
-                yield raw_features, raw_labels, features, labels, self._model(
-                    torch.tensor(features).unsqueeze(0)
-                )
+        if raw:
+            data_tuples = [self._reader.to_data(self._process_row(x)) for x in self.dataset._load_tuples(data_path)]
+        else:
+            data_tuples = torch.load(data_path)
+
+        for features, labels in tqdm.tqdm(data_tuples):
+            yield self._model({"features":torch.tensor(features).unsqueeze(0)}), labels
 
     def call_procs(self, args):
         proc_id, proc_args = args
         for proc in self._processors:
             try:
                 proc.process_prediction(proc_id, *proc_args)
-            except:
+            except Exception:
                 print("Could not process results for", proc_args[0])
+                raise
 
-    def execute(self, data_path):
+    def execute(self, data_path, **kwargs):
         for proc in self._processors:
             proc.start()
         try:
             with mp.Pool() as pool:
                 res = map(
-                    self.call_procs, enumerate(self._generate_predictions(data_path))
+                    self.call_procs, enumerate(self._generate_predictions(data_path, **kwargs))
                 )
             for r in res:
                 pass
