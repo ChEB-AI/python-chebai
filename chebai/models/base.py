@@ -75,92 +75,39 @@ class JCIBaseNet(pl.LightningModule):
 
     def calculate_metrics(self, data, labels, model_output):
 
-        loss = self.loss(**self._get_data_for_loss(model_output, labels))
-        pred, labels = self._get_prediction_and_labels(data, labels,
-                                                       model_output)
+
         f1 = self.f1(target=labels.int(), preds=pred)
         mse = self.mse(target=labels, preds=pred)
         return loss, f1, mse
 
     def training_step(self, *args, **kwargs):
-        loss, f1, mse = self.calculate_metrics(*self._execute(*args, **kwargs))
-        self.log(
-            "train_loss",
-            loss.detach().item(),
-            on_step=False,
-            on_epoch=True,
-            prog_bar=True,
-            logger=True,
-            batch_size=self.batch_size,
-        )
-        self.log(
-            "train_f1",
-            f1.detach().item(),
-            on_step=False,
-            on_epoch=True,
-            prog_bar=True,
-            logger=True,
-            batch_size=self.batch_size,
-        )
-        self.log(
-            "train_mse",
-            mse.detach().item(),
-            on_step=False,
-            on_epoch=True,
-            prog_bar=True,
-            logger=True,
-            batch_size=self.batch_size,
-        )
-        return loss
+        return self.calculate_all_metrics("train", *args, **kwargs)
 
     def validation_step(self, *args, **kwargs):
         with torch.no_grad():
-            loss, f1, mse = self.calculate_metrics(*self._execute(*args, **kwargs))
-            self.log(
-                "val_loss",
-                loss.detach().item(),
-                on_step=False,
-                on_epoch=True,
-                prog_bar=True,
-                logger=True,
-                batch_size=self.batch_size,
-            )
-            self.log(
-                "val_f1",
-                f1.detach().item(),
-                on_step=False,
-                on_epoch=True,
-                prog_bar=True,
-                logger=True,
-                batch_size=self.batch_size,
-            )
-            self.log(
-                "val_mse",
-                mse.detach().item(),
-                on_step=False,
-                on_epoch=True,
-                prog_bar=True,
-                logger=True,
-                batch_size=self.batch_size,
-            )
-            return loss
+            return self.calculate_all_metrics("val", *args, **kwargs)
 
     def test_step(self, *args, **kwargs):
         with torch.no_grad():
-            p, l = self._get_prediction_and_labels(*self._execute(*args, **kwargs))
-            for name in self.metrics:
-                for agg in self.metric_aggs:
-                    metric = getattr(self, name + agg)
-                    self.log(
-                        name + "_" + agg,
-                        metric(preds=p, target=l),
-                        on_step=False,
-                        on_epoch=True,
-                        prog_bar=True,
-                        logger=True,
-                        batch_size=p.shape[0]
-                    )
-            return self.loss(p, l.float())
+            return self.calculate_all_metrics("test", *args, **kwargs)
+
+    def calculate_all_metrics(self, prefix, *args, **kwargs):
+        data, labels, model_output = self._execute(*args, **kwargs)
+        loss = self.loss(**self._get_data_for_loss(model_output, labels))
+        p, l = self._get_prediction_and_labels(data, labels, model_output)
+        for name in self.metrics:
+            for agg in self.metric_aggs:
+                metric = getattr(self, name + agg)
+                self.log(
+                    prefix + name + "_" + agg,
+                    metric(preds=p, target=l),
+                    on_step=False,
+                    on_epoch=True,
+                    prog_bar=True,
+                    logger=True,
+                    batch_size=p.shape[0]
+                )
+        return loss
 
     def forward(self, x):
         raise NotImplementedError
