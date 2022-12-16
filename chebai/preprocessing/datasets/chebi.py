@@ -74,7 +74,7 @@ class JCIBase(XYBaseDataModule):
     def _load_tuples(input_file_path):
         with open(input_file_path, "rb") as input_file:
             for row in pickle.load(input_file).values:
-                yield row[1], row[2:].astype(bool)
+                yield row[1], row[2:].astype(bool), row[0]
 
     @staticmethod
     def _get_data_size(input_file_path):
