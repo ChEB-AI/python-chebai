@@ -48,22 +48,23 @@ class ElectraPre(JCIBaseNet):
     def forward(self, data):
         x = torch.clone(data["features"])
         self.batch_size = x.shape[0]
-        gen_tar = []
-        dis_tar = []
         mask = data["mask"]
-        for i, l in enumerate(mask):
-            tokens = list(set(x.item() for x in x[i][l]))
-            token_to_replace = random.choice(tokens)
-            candidates = x[i] == token_to_replace
-            possible_indices = torch.arange(x.shape[1], device=self.device)[candidates]
-            j = random.choice(list(possible_indices))
-            t = x[i,j].item()
-            x[i,j] = MASK_TOKEN_INDEX
-            gen_tar.append(t)
-            dis_tar.append(j)
+        with torch.no_grad():
+            gen_tar = []
+            dis_tar = []
+            for i, l in enumerate(mask):
+                tokens = list(set(x.item() for x in x[i][l]))
+                token_to_replace = random.choice(tokens)
+                candidates = x[i] == token_to_replace
+                possible_indices = torch.arange(x.shape[1], device=self.device)[candidates]
+                j = random.choice(list(possible_indices))
+                t = x[i,j].item()
+                x[i,j] = MASK_TOKEN_INDEX
+                gen_tar.append(t)
+                dis_tar.append(j)
         raw_gen_out = torch.mean(self.generator(x, attention_mask=mask).logits, dim=1)
         gen_best_guess = raw_gen_out.argmax(dim=-1)
-        gen_tar_one_hot = torch.eq(torch.arange(self.generator_config.vocab_size, device=self.device)[None, :], gen_best_guess[:, None])
+        gen_tar_one_hot = torch.eq(torch.arange(self.generator_config.vocab_size, device=self.device)[None, :], torch.tensor(gen_tar)[:, None])
         with torch.no_grad():
             xc = data["features"].clone()
             for i in range(x.shape[0]):
@@ -126,7 +127,7 @@ class Electra(JCIBaseNet):
         self.config = ElectraConfig(**kwargs["config"], output_attentions=True)
 
         if pretrained_checkpoint:
-            elpre = Electra.load_from_checkpoint(pretrained_checkpoint)
+            elpre = ElectraPre.load_from_checkpoint(pretrained_checkpoint)
             with TemporaryDirectory() as td:
                 elpre.as_pretrained.save_pretrained(td)
                 self.electra = ElectraModel.from_pretrained(
