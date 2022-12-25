@@ -179,7 +179,7 @@ class JCIBaseNet(pl.LightningModule):
             filename="{epoch}-{val_F1Score_micro:.2f}--{val_loss:.2f}",
             save_top_k=5,
             monitor="val_loss",
-            mode="max",
+            mode="min",
         )
         checkpoint_callback = ModelCheckpoint(
             dirpath=os.path.join(tb_logger.log_dir, "periodic_checkpoints"),
@@ -196,7 +196,7 @@ class JCIBaseNet(pl.LightningModule):
 
         # Early stopping seems to be bugged right now with ddp accelerator :(
         es = EarlyStopping(
-            monitor="val_loss", patience=10, min_delta=0.00, verbose=False, mode="max"
+            monitor="val_loss", patience=10, min_delta=0.00, verbose=False, mode="min"
         )
 
         trainer = pl.Trainer(
