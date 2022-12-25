@@ -71,8 +71,12 @@ class ElectraPre(JCIBaseNet):
                 xc[i,dis_tar[i]] = gen_best_guess[i]
             replaced_by_different = torch.ne(data["features"], xc)
         replaced_any = torch.any(replaced_by_different, dim=-1)
-        disc_out = torch.softmax(self.discriminator(xc[replaced_any], attention_mask=mask[replaced_any]).logits, dim=-1)
-        return (torch.softmax(raw_gen_out, dim=-1), disc_out), (gen_tar_one_hot.float(), replaced_by_different[replaced_any].float())
+        if torch.any(replaced_any):
+            disc_out = torch.softmax(self.discriminator(xc[replaced_any], attention_mask=mask[replaced_any]).logits, dim=-1)
+            disc_tar = replaced_by_different[replaced_any].float()
+        else:
+            disc_out = disc_tar = torch.tensor(0, device=self.device)
+        return (torch.softmax(raw_gen_out, dim=-1), disc_out), (gen_tar_one_hot.float(), disc_tar)
 
     def _get_prediction_and_labels(self, batch, labels, output):
         replaced = torch.any(output[1][1],dim=-1)
