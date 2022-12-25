@@ -65,18 +65,16 @@ class ElectraPre(JCIBaseNet):
         raw_gen_out = torch.mean(self.generator(x, attention_mask=mask).logits, dim=1)
         gen_best_guess = raw_gen_out.argmax(dim=-1)
         gen_tar_one_hot = torch.eq(torch.arange(self.generator_config.vocab_size, device=self.device)[None, :], torch.tensor(gen_tar, device=self.device)[:, None])
+        disc_tar_one_hot = torch.eq(torch.arange(x.shape[1], device=self.device)[None, :], torch.tensor(dis_tar, device=self.device)[:, None])
         with torch.no_grad():
             xc = data["features"].clone()
             for i in range(x.shape[0]):
-                xc[i,dis_tar[i]] = gen_best_guess[i]
-            replaced_by_different = torch.ne(data["features"], xc)
-        replaced_any = torch.any(replaced_by_different, dim=-1)
-        if torch.any(replaced_any):
-            disc_out = torch.softmax(self.discriminator(xc[replaced_any], attention_mask=mask[replaced_any]).logits, dim=-1)
-            disc_tar = replaced_by_different[replaced_any].float()
-        else:
-            disc_out = disc_tar = torch.zeros_like(xc, device=self.device)
-        return (torch.softmax(raw_gen_out, dim=-1), disc_out), (gen_tar_one_hot.float(), disc_tar)
+                if xc[i,dis_tar[i]] == gen_best_guess[i]:
+                    xc[i, dis_tar[i]] = random.randint(0, self.generator_config.vocab_size)
+                else:
+                    xc[i,dis_tar[i]] = gen_best_guess[i]
+        disc_out = torch.softmax(self.discriminator(xc, attention_mask=mask).logits, dim=-1)
+        return (torch.softmax(raw_gen_out, dim=-1), disc_out), (gen_tar_one_hot.float(), disc_tar_one_hot.float())
 
     def _get_prediction_and_labels(self, batch, labels, output):
         replaced = torch.any(output[1][1],dim=-1)
