@@ -64,7 +64,7 @@ class ElectraPre(JCIBaseNet):
                 dis_tar.append(j)
         raw_gen_out = torch.mean(self.generator(x, attention_mask=mask).logits, dim=1)
         gen_best_guess = raw_gen_out.argmax(dim=-1)
-        gen_tar_one_hot = torch.eq(torch.arange(self.generator_config.vocab_size, device=self.device)[None, :], torch.tensor(gen_tar)[:, None])
+        gen_tar_one_hot = torch.eq(torch.arange(self.generator_config.vocab_size, device=self.device)[None, :], torch.tensor(gen_tar, device=self.device)[:, None])
         with torch.no_grad():
             xc = data["features"].clone()
             for i in range(x.shape[0]):
