@@ -24,7 +24,7 @@ import torch
 from chebai.models.base import JCIBaseNet
 
 logging.getLogger("pysmiles").setLevel(logging.CRITICAL)
-f
+
 class ElectraPre(JCIBaseNet):
     NAME = "ElectraPre"
 
