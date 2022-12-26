@@ -77,8 +77,7 @@ class ElectraPre(JCIBaseNet):
         return (torch.softmax(raw_gen_out, dim=-1), disc_out), (gen_tar_one_hot.float(), disc_tar_one_hot.float())
 
     def _get_prediction_and_labels(self, batch, labels, output):
-        replaced = torch.any(output[1][1],dim=-1)
-        return output[0][1][replaced], output[1][1][replaced]
+        return output[0][1], output[1][1].int()
 
     def _get_data_for_loss(self, model_output, labels):
         return dict(input=model_output, target=None)
