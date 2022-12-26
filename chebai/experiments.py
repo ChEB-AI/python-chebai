@@ -75,14 +75,12 @@ class ElectraPreOnSWJ(Experiment):
             config=dict(
                 generator=dict(
                     vocab_size=1400,
-                    hidden_size=512,
                     max_position_embeddings=1800,
                     num_attention_heads=8,
                     num_hidden_layers=6,
                     type_vocab_size=1),
                 discriminator=dict(
                     vocab_size=1400,
-                    hidden_size=512,
                     max_position_embeddings=1800,
                     num_attention_heads=8,
                     num_hidden_layers=6,
