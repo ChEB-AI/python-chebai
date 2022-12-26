@@ -91,7 +91,7 @@ class JCIBaseNet(pl.LightningModule):
                     metric = getattr(self, name + agg)
                     self.log(
                         prefix + name + "_" + agg,
-                        metric(preds=p.detach(), target=l.detach()),
+                        metric(preds=p.detach().cpu(), target=l.detach().cpu()),
                         on_step=False,
                         on_epoch=True,
                         prog_bar=True,
