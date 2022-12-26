@@ -24,7 +24,7 @@ import torch
 from chebai.models.base import JCIBaseNet
 
 logging.getLogger("pysmiles").setLevel(logging.CRITICAL)
-
+f
 class ElectraPre(JCIBaseNet):
     NAME = "ElectraPre"
 
@@ -73,8 +73,8 @@ class ElectraPre(JCIBaseNet):
         with torch.no_grad():
             xc = data["features"].clone()
             for i in range(x.shape[0]):
-                if xc[i,dis_tar[i]] == gen_best_guess[i]:
-                    xc[i, dis_tar[i]] = random.randint(0, self.generator_config.vocab_size)
+                if random.random() < 0.5: #xc[i,dis_tar[i]] == gen_best_guess[i]:
+                    xc[i, dis_tar[i]] = torch.randint(self.generator_config.vocab_size, (1,), device=self.device)
                 else:
                     xc[i,dis_tar[i]] = gen_best_guess[i]
         disc_out = torch.softmax(self.discriminator(xc, attention_mask=mask).logits, dim=-1)
