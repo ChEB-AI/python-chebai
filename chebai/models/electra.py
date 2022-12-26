@@ -62,10 +62,14 @@ class ElectraPre(JCIBaseNet):
                 x[i,j] = MASK_TOKEN_INDEX
                 gen_tar.append(t)
                 dis_tar.append(j)
+            gen_tar_one_hot = torch.eq(torch.arange(self.generator_config.vocab_size, device=self.device)[None, :],
+                                       torch.tensor(gen_tar, device=self.device)[:, None])
+            disc_tar_one_hot = torch.eq(torch.arange(x.shape[1], device=self.device)[None, :],
+                                        torch.tensor(dis_tar, device=self.device)[:, None])
+
         raw_gen_out = torch.mean(self.generator(x, attention_mask=mask).logits, dim=1)
         gen_best_guess = raw_gen_out.argmax(dim=-1)
-        gen_tar_one_hot = torch.eq(torch.arange(self.generator_config.vocab_size, device=self.device)[None, :], torch.tensor(gen_tar, device=self.device)[:, None])
-        disc_tar_one_hot = torch.eq(torch.arange(x.shape[1], device=self.device)[None, :], torch.tensor(dis_tar, device=self.device)[:, None])
+
         with torch.no_grad():
             xc = data["features"].clone()
             for i in range(x.shape[0]):
