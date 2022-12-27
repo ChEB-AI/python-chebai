@@ -50,7 +50,7 @@ class ElectraPre(JCIBaseNet):
         self.batch_size = x.shape[0]
         mask = data["mask"]
         with torch.no_grad():
-            dis_tar = (torch.rand((x.shape[0],)) * torch.sum(mask, dim=-1)).int()
+            dis_tar = (torch.rand((x.shape[0],), device=self.device) * torch.sum(mask, dim=-1)).int()
             disc_tar_one_hot = torch.eq(torch.arange(x.shape[1], device=self.device)[None, :],
                                         dis_tar[:, None])
             gen_tar = x[disc_tar_one_hot]
