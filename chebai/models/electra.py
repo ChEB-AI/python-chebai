@@ -50,33 +50,24 @@ class ElectraPre(JCIBaseNet):
         self.batch_size = x.shape[0]
         mask = data["mask"]
         with torch.no_grad():
-            gen_tar = []
-            dis_tar = []
-            for i, l in enumerate(mask):
-                tokens = list(set(x.item() for x in x[i][l]))
-                token_to_replace = random.choice(tokens)
-                candidates = x[i] == token_to_replace
-                possible_indices = torch.arange(x.shape[1], device=self.device)[candidates]
-                j = random.choice(list(possible_indices))
-                t = x[i,j].item()
-                x[i,j] = MASK_TOKEN_INDEX
-                gen_tar.append(t)
-                dis_tar.append(j)
-            gen_tar_one_hot = torch.eq(torch.arange(self.generator_config.vocab_size, device=self.device)[None, :],
-                                       torch.tensor(gen_tar, device=self.device)[:, None])
+            dis_tar = (torch.rand((x.shape[0],)) * torch.sum(mask, dim=-1)).int()
             disc_tar_one_hot = torch.eq(torch.arange(x.shape[1], device=self.device)[None, :],
-                                        torch.tensor(dis_tar, device=self.device)[:, None])
+                                        dis_tar[:, None])
+            gen_tar = x[disc_tar_one_hot]
+            x[disc_tar_one_hot] = MASK_TOKEN_INDEX
+            gen_tar_one_hot = torch.eq(torch.arange(self.generator_config.vocab_size, device=self.device)[None, :],
+                                       gen_tar[:, None])
+
 
         raw_gen_out = torch.mean(self.generator(x, attention_mask=mask).logits, dim=1)
         gen_best_guess = raw_gen_out.argmax(dim=-1)
 
         with torch.no_grad():
-            xc = data["features"].clone()
-            for i in range(x.shape[0]):
-                if xc[i,dis_tar[i]] == gen_best_guess[i]:
-                    xc[i, dis_tar[i]] = torch.randint(self.generator_config.vocab_size, (1,), device=self.device)
-                else:
-                    xc[i,dis_tar[i]] = gen_best_guess[i]
+            xc = x.clone()
+            correct_mask = (data["features"][disc_tar_one_hot] == gen_best_guess)
+            random_tokens = torch.randint(self.generator_config.vocab_size, (x.shape[0],), device=self.device)
+            xc[disc_tar_one_hot] = gen_best_guess * ~correct_mask + random_tokens*correct_mask
+
         disc_out = torch.softmax(self.discriminator(xc, attention_mask=mask).logits, dim=-1)
         return (torch.softmax(raw_gen_out, dim=-1), disc_out), (gen_tar_one_hot.float(), disc_tar_one_hot.float())
 
