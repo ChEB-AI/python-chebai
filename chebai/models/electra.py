@@ -67,11 +67,11 @@ class ElectraPre(JCIBaseNet):
             random_tokens = torch.randint(self.generator_config.vocab_size, (batch_size,), device=self.device)
             replacements = gen_best_guess * ~correct_mask + random_tokens*correct_mask
 
-        disc_out = torch.softmax(self.discriminator(features * ~disc_tar_one_hot + replacements[:,None] * disc_tar_one_hot, attention_mask=mask).logits, dim=-1)
-        return (torch.softmax(raw_gen_out, dim=-1), disc_out), (gen_tar_one_hot.float(), disc_tar_one_hot.float())
+        disc_out = self.discriminator(features * ~disc_tar_one_hot + replacements[:,None] * disc_tar_one_hot, attention_mask=mask).logits
+        return (raw_gen_out, disc_out), (gen_tar_one_hot, disc_tar_one_hot)
 
     def _get_prediction_and_labels(self, batch, labels, output):
-        return output[0][1], output[1][1].int()
+        return torch.softmax(output[0][1], dim=-1), output[1][1].int()
 
     def _get_data_for_loss(self, model_output, labels):
         return dict(input=model_output, target=None)
@@ -85,12 +85,8 @@ class ElectraPreLoss:
         t, p = input
         gen_pred, disc_pred = t
         gen_tar, disc_tar = p
-        gen_loss = self.ce(target=gen_tar, input=gen_pred)
-        with_differences = torch.any(disc_tar, dim=-1)
-        if torch.any(with_differences):
-            disc_loss = self.ce(target=disc_tar[with_differences], input=disc_pred[with_differences])
-        else:
-            disc_loss = 0
+        gen_loss = self.ce(target=torch.argmax(gen_tar.int(), dim=-1), input=gen_pred)
+        disc_loss = self.ce(target=torch.argmax(disc_tar.int(), dim=-1), input=disc_pred)
         return gen_loss + disc_loss
 
 
