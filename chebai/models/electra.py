@@ -73,7 +73,7 @@ class ElectraPre(JCIBaseNet):
         with torch.no_grad():
             xc = data["features"].clone()
             for i in range(x.shape[0]):
-                if random.random() < 0.5: #xc[i,dis_tar[i]] == gen_best_guess[i]:
+                if xc[i,dis_tar[i]] == gen_best_guess[i]:
                     xc[i, dis_tar[i]] = torch.randint(self.generator_config.vocab_size, (1,), device=self.device)
                 else:
                     xc[i,dis_tar[i]] = gen_best_guess[i]
