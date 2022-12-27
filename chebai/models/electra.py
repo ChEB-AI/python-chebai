@@ -56,14 +56,13 @@ class ElectraPre(JCIBaseNet):
             disc_tar_one_hot = torch.eq(torch.arange(max_seq_len, device=self.device)[None, :],
                                         dis_tar[:, None])
             gen_tar = features[disc_tar_one_hot]
-            #x[disc_tar_one_hot] = MASK_TOKEN_INDEX
             gen_tar_one_hot = torch.eq(torch.arange(self.generator_config.vocab_size, device=self.device)[None, :],
                                        gen_tar[:, None])
 
         raw_gen_out = torch.mean(self.generator((features * ~disc_tar_one_hot) + MASK_TOKEN_INDEX*disc_tar_one_hot, attention_mask=mask).logits, dim=1)
-        gen_best_guess = raw_gen_out.argmax(dim=-1)
 
         with torch.no_grad():
+            gen_best_guess = raw_gen_out.argmax(dim=-1)
             correct_mask = (features[disc_tar_one_hot] == gen_best_guess)
             random_tokens = torch.randint(self.generator_config.vocab_size, (batch_size,), device=self.device)
             replacements = gen_best_guess * ~correct_mask + random_tokens*correct_mask
@@ -80,17 +79,16 @@ class ElectraPre(JCIBaseNet):
 
 class ElectraPreLoss:
     def __init__(self):
-        self.bce_log = torch.nn.BCEWithLogitsLoss()
-        self.bce = torch.nn.BCELoss()
+        self.ce = torch.nn.CrossEntropyLoss()
 
     def __call__(self, target, input):
         t, p = input
         gen_pred, disc_pred = t
         gen_tar, disc_tar = p
-        gen_loss = self.bce(target=gen_tar, input=gen_pred)
+        gen_loss = self.ce(target=gen_tar, input=gen_pred)
         with_differences = torch.any(disc_tar, dim=-1)
         if torch.any(with_differences):
-            disc_loss = self.bce(target=disc_tar[with_differences], input=disc_pred[with_differences])
+            disc_loss = self.ce(target=disc_tar[with_differences], input=disc_pred[with_differences])
         else:
             disc_loss = 0
         return gen_loss + disc_loss
