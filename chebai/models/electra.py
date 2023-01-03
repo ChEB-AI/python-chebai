@@ -97,7 +97,7 @@ class Electra(JCIBaseNet):
         mask = pad_sequence([torch.ones(l+1, device=self.device) for l in batch.lens], batch_first=True)
         cls_tokens = torch.ones(batch.x.shape[0], dtype=torch.int, device=self.device).unsqueeze(-1) * CLS_TOKEN
         return dict(
-            features=torch.concat((cls_tokens, batch.x), dim=1), labels=batch.y, model_kwargs=dict(attention_mask=mask), target_mask=batch.target_mask
+            features=torch.cat((cls_tokens, batch.x), dim=1), labels=batch.y, model_kwargs=dict(attention_mask=mask), target_mask=batch.target_mask
         )
 
     @property
@@ -130,14 +130,9 @@ class Electra(JCIBaseNet):
         in_d = self.config.hidden_size
 
         self.output = nn.Sequential(
-            nn.Linear(in_d, in_d),
-            nn.Tanh(),
             nn.Dropout(0.1),
             nn.Linear(in_d, in_d),
-            nn.Tanh(),
-            nn.Dropout(0.1),
-            nn.Linear(in_d, in_d),
-            nn.Tanh(),
+            nn.GELU(),
             nn.Dropout(0.1),
             nn.Linear(in_d,  self.config.num_labels),
         )
