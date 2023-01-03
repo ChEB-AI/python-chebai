@@ -24,6 +24,7 @@ from chebai.preprocessing.collate import (
 EMBEDDING_OFFSET = 10
 PADDING_TOKEN_INDEX = 0
 MASK_TOKEN_INDEX = 1
+CLS_TOKEN = 2
 
 class DataReader:
     COLLATER = DefaultCollater
