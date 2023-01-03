@@ -126,6 +126,21 @@ class Electra(JCIBaseNet):
         else:
             self.electra = ElectraForSequenceClassification(config=self.config)
 
+        in_d = self.config.hidden_size
+
+        self.output = nn.Sequential(
+            nn.Linear(in_d, in_d),
+            nn.Tanh(),
+            nn.Dropout(0.1),
+            nn.Linear(in_d, in_d),
+            nn.Tanh(),
+            nn.Dropout(0.1),
+            nn.Linear(in_d, in_d),
+            nn.Tanh(),
+            nn.Dropout(0.1),
+            nn.Linear(in_d,  self.config.num_attention_heads),
+        )
+
     def _get_data_for_loss(self, model_output, labels):
         mask = model_output.get("target_mask")
         if mask is not None:
@@ -146,7 +161,8 @@ class Electra(JCIBaseNet):
         self.batch_size = data["features"].shape[0]
         inp = data["features"]
         electra = self.electra(inp, **kwargs)
-        return dict(logits=electra.logits, attentions=electra.attentions, target_mask=data.get("target_mask"))
+        d = torch.sum(electra.last_hidden_state, dim=1)
+        return dict(logits=self.output(d), attentions=electra.attentions, target_mask=data.get("target_mask"))
 
 
 class ElectraLegacy(JCIBaseNet):
