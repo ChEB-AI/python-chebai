@@ -42,7 +42,7 @@ class JCIBaseNet(pl.LightningModule):
             self.loss = loss_cls()
 
         self.lr = kwargs.get("lr", 1e-4)
-        self.thres = kwargs.get("lr", 0.5)
+        self.thres = kwargs.get("threshold", 0.5)
         self.metrics = ["F1Score", "Precision", "Recall", "AUROC"]
         self.metric_aggs = ["micro", "macro", "weighted"]
         for metric in self.metrics:
@@ -51,7 +51,7 @@ class JCIBaseNet(pl.LightningModule):
                     self,
                     metric + agg,
                     getattr(torchmetrics, metric)(
-                        threshold=self.thres, average=agg, num_classes=self.out_dim, task=task, num_labels=self.out_dim
+                        threshold=self.thres, average=agg, task=task, num_labels=self.out_dim
                     ),
                 )
 
@@ -71,7 +71,7 @@ class JCIBaseNet(pl.LightningModule):
         return dict(input=model_output, target=labels.float())
 
     def training_step(self, *args, **kwargs):
-        return self.calculate_all_metrics("train_", *args, **kwargs)
+        return self.calculate_all_metrics("train_", *args, on_step=True, **kwargs)
 
     def validation_step(self, *args, **kwargs):
         with torch.no_grad():
@@ -81,7 +81,7 @@ class JCIBaseNet(pl.LightningModule):
         with torch.no_grad():
             return self.calculate_all_metrics("test_", *args, **kwargs)
 
-    def calculate_all_metrics(self, prefix, *args, **kwargs):
+    def calculate_all_metrics(self, prefix, *args, on_step=False, **kwargs):
         data, labels, model_output = self._execute(*args, **kwargs)
         loss = self.loss(**self._get_data_for_loss(model_output, labels))
         with torch.no_grad():
@@ -92,7 +92,7 @@ class JCIBaseNet(pl.LightningModule):
                     self.log(
                         prefix + name + "_" + agg,
                         metric(preds=p.detach().cpu(), target=l.detach().cpu()),
-                        on_step=False,
+                        on_step=on_step,
                         on_epoch=True,
                         prog_bar=True,
                         logger=True,
