@@ -18,7 +18,7 @@ from transformers import (
     ElectraModel,
     PretrainedConfig,
 )
-from chebai.preprocessing.reader import MASK_TOKEN_INDEX
+from chebai.preprocessing.reader import MASK_TOKEN_INDEX, CLS_TOKEN
 import torch
 
 from chebai.models.base import JCIBaseNet
@@ -94,9 +94,10 @@ class Electra(JCIBaseNet):
     NAME = "Electra"
 
     def _get_data_and_labels(self, batch, batch_idx):
-        mask = pad_sequence([torch.ones(l, device=self.device) for l in batch.lens], batch_first=True)
+        mask = pad_sequence([torch.ones(l+1, device=self.device) for l in batch.lens], batch_first=True)
+        cls_tokens = torch.ones(batch.x.shape[0], dtype=torch.int, device=self.device).unsqueeze(-1) * CLS_TOKEN
         return dict(
-            features=batch.x, labels=batch.y, model_kwargs=dict(attention_mask=mask), target_mask=batch.target_mask
+            features=torch.concat((cls_tokens, batch.x), dim=1), labels=batch.y, model_kwargs=dict(attention_mask=mask), target_mask=batch.target_mask
         )
 
     @property
@@ -120,11 +121,11 @@ class Electra(JCIBaseNet):
             elpre = ElectraPre.load_from_checkpoint(pretrained_checkpoint)
             with TemporaryDirectory() as td:
                 elpre.as_pretrained.save_pretrained(td)
-                self.electra = ElectraForSequenceClassification.from_pretrained(
+                self.electra = ElectraModel.from_pretrained(
                     td, config=self.config
                 )
         else:
-            self.electra = ElectraForSequenceClassification(config=self.config)
+            self.electra = ElectraModel(config=self.config)
 
         in_d = self.config.hidden_size
 
@@ -138,7 +139,7 @@ class Electra(JCIBaseNet):
             nn.Linear(in_d, in_d),
             nn.Tanh(),
             nn.Dropout(0.1),
-            nn.Linear(in_d,  self.config.num_attention_heads),
+            nn.Linear(in_d,  self.config.num_labels),
         )
 
     def _get_data_for_loss(self, model_output, labels):
@@ -161,7 +162,7 @@ class Electra(JCIBaseNet):
         self.batch_size = data["features"].shape[0]
         inp = data["features"]
         electra = self.electra(inp, **kwargs)
-        d = torch.sum(electra.last_hidden_state, dim=1)
+        d = electra.last_hidden_state[:, 0, :]
         return dict(logits=self.output(d), attentions=electra.attentions, target_mask=data.get("target_mask"))
 
 
