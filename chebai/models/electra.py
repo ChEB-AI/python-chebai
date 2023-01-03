@@ -94,7 +94,7 @@ class Electra(JCIBaseNet):
     NAME = "Electra"
 
     def _get_data_and_labels(self, batch, batch_idx):
-        mask = pad_sequence([torch.ones(l, device=self.device) for l in batch.lens]).T
+        mask = pad_sequence([torch.ones(l, device=self.device) for l in batch.lens], batch_first=True)
         return dict(
             features=batch.x, labels=batch.y, model_kwargs=dict(attention_mask=mask), target_mask=batch.target_mask
         )
@@ -120,24 +120,11 @@ class Electra(JCIBaseNet):
             elpre = ElectraPre.load_from_checkpoint(pretrained_checkpoint)
             with TemporaryDirectory() as td:
                 elpre.as_pretrained.save_pretrained(td)
-                self.electra = ElectraModel.from_pretrained(
+                self.electra = ElectraForSequenceClassification.from_pretrained(
                     td, config=self.config
                 )
         else:
-            self.electra = ElectraModel(config=self.config)
-
-        in_d = self.config.hidden_size
-
-        self.output = nn.Sequential(
-            nn.Linear(in_d, in_d),
-            nn.ReLU(),
-            nn.Linear(in_d, in_d),
-            nn.ReLU(),
-            nn.Linear(in_d, in_d),
-            nn.ReLU(),
-            nn.Dropout(0.2),
-            nn.Linear(in_d, 500),
-        )
+            self.electra = ElectraForSequenceClassification(config=self.config)
 
     def _get_data_for_loss(self, model_output, labels):
         mask = model_output.get("target_mask")
@@ -159,8 +146,7 @@ class Electra(JCIBaseNet):
         self.batch_size = data["features"].shape[0]
         inp = data["features"]
         electra = self.electra(inp, **kwargs)
-        d = torch.mean(electra.last_hidden_state, dim=1)
-        return dict(logits=self.output(d), attentions=electra.attentions, target_mask=data.get("target_mask"))
+        return dict(logits=electra.logits, attentions=electra.attentions, target_mask=data.get("target_mask"))
 
 
 class ElectraLegacy(JCIBaseNet):
