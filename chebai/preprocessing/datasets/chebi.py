@@ -261,7 +261,7 @@ class ChEBIOver100(_ChEBIDataExtractor):
                 }
             )
         )
-        with open("/tmp/ChEBI100.txt", "wt") as fout:
+        with open(os.path.join(self.raw_dir,"classes.txt"), "wt") as fout:
             fout.writelines(str(node) + "\n" for node in nodes)
         return nodes
 
