@@ -115,7 +115,7 @@ class Tox21Bloat(Tox21Base):
             for row in reader:
                 smiles = row["smiles"]
                 labels = [bool(int(l)) if l else None for l in (row[k] for k in self.HEADERS)]
-                yield dict(features=smiles, labels=labels, group=row["mol_id"], additional_kwargs=dict(original=False))
+                yield dict(features=smiles, labels=labels, group=row["mol_id"], additional_kwargs=dict(original=True))
                 try:
                     mol = pysmiles.read_smiles(smiles)
                 except:
