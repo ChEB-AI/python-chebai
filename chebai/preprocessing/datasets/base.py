@@ -55,11 +55,11 @@ class XYBaseDataModule(pl.LightningDataModule):
         )
 
     @staticmethod
-    def _load_tuples(input_file_path):
+    def _load_dict(input_file_path):
         with open(input_file_path, "r") as input_file:
             for row in input_file:
                 smiles, labels = row.split("\t")
-                yield smiles, labels
+                yield dict(features=smiles, labels=labels)
 
     @staticmethod
     def _get_data_size(input_file_path):
@@ -69,18 +69,7 @@ class XYBaseDataModule(pl.LightningDataModule):
     def _load_data_from_file(self, path):
         lines = self._get_data_size(path)
         print(f"Processing {lines} lines...")
-        #with mp.Pool() as pool:
-        data = [
-            x
-            #for x in pool.imap_unordered(
-            for x in map(
-                self.reader.to_data,
-                tqdm.tqdm(self._load_tuples(path), total=lines),
-                #chunksize=1000,
-            )
-            if x[0] is not None
-        ]
-
+        data = [self.reader.to_data(d) for d in tqdm.tqdm(self._load_dict(path), total=lines) if d["features"] is not None]
         return data
 
     def train_dataloader(self, *args, **kwargs) -> DataLoader:
