@@ -121,8 +121,16 @@ class Tox21Bloat(Tox21Base):
                 except:
                     pass
                 else:
-                    for _ in range(15):
-                        n = random.randint(0, len(mol.nodes)-1)
+                    def keyfunc(idx):
+                        """
+                        pysmiles uses this method to determine possible starting points
+                        """
+                        return (mol.degree(idx),
+                                # True > False
+                                mol.nodes[idx].get("element", "*") == "C",
+                                idx)
+                    possible_starts = list(sorted(mol.nodes, key=keyfunc))[1:11]
+                    for n in possible_starts:
                         try:
                             alt_smiles = pysmiles.write_smiles(mol, start=n)
                         except:
