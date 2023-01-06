@@ -46,6 +46,9 @@ class DataReader:
     def _get_raw_group(self, row):
         return row.get("group", None)
 
+    def _get_additional_kwargs(self, row):
+        return row.get("additional_kwargs", dict())
+
     def name(cls):
         raise NotImplementedError
 
@@ -62,7 +65,7 @@ class DataReader:
         return raw
 
     def _read_components(self, row):
-        return dict(features=self._get_raw_data(row), labels=self._get_raw_label(row), ident=self._get_raw_id(row), group=self._get_raw_group(row))
+        return dict(features=self._get_raw_data(row), labels=self._get_raw_label(row), ident=self._get_raw_id(row), group=self._get_raw_group(row), additional_kwargs=self._get_additional_kwargs(row))
 
     def to_data(self, row):
         d = self._read_components(row)
@@ -70,7 +73,8 @@ class DataReader:
             features=self._read_data(d["features"]),
             labels=self._read_label(d["labels"]),
             ident=self._read_id(d["ident"]),
-            group=self._read_group(d["group"])
+            group=self._read_group(d["group"]),
+            **d["additional_kwargs"]
         )
 
 
