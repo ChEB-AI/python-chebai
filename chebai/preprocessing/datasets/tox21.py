@@ -60,8 +60,8 @@ class Tox21Base(XYBaseDataModule):
                 temp_split_index, groups=split_groups
             ))
             train_split = [data[i] for i in train_split_index]
-            test_split = [data[temp_split_index[i]] for i in test_split_index]
-            validation_split = [data[temp_split_index[i]] for i in validation_split_index]
+            test_split = [d for d in (data[temp_split_index[i]] for i in test_split_index) if d["original"]]
+            validation_split = [d for d in (data[temp_split_index[i]] for i in validation_split_index) if d["original"]]
         else:
             train_split, test_split = train_test_split(
                 data, train_size=self.train_split, shuffle=True
@@ -115,20 +115,20 @@ class Tox21Bloat(Tox21Base):
             for row in reader:
                 smiles = row["smiles"]
                 labels = [bool(int(l)) if l else None for l in (row[k] for k in self.HEADERS)]
-                yield dict(features=smiles, labels=labels, group=row["mol_id"])
+                yield dict(features=smiles, labels=labels, group=row["mol_id"], original=True)
                 try:
                     mol = pysmiles.read_smiles(smiles)
                 except:
                     pass
                 else:
-                    for _ in range(5):
+                    for _ in range(15):
                         n = random.randint(0, len(mol.nodes)-1)
                         try:
                             alt_smiles = pysmiles.write_smiles(mol, start=n)
                         except:
                             pass
                         else:
-                            yield dict(features=alt_smiles, labels=labels, group=row["mol_id"])
+                            yield dict(features=alt_smiles, labels=labels, group=row["mol_id"], original=False)
 
 
 class Tox21BloatChem(Tox21Bloat):
