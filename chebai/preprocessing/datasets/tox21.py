@@ -1,3 +1,5 @@
+import random
+
 from chebai.preprocessing.datasets.chebi import JCIBase
 from chebai.preprocessing.datasets.base import XYBaseDataModule
 from tempfile import NamedTemporaryFile
@@ -8,7 +10,7 @@ import os
 import csv
 import torch
 from chebai.preprocessing import reader as dr
-
+import pysmiles
 
 class Tox21Base(XYBaseDataModule):
     HEADERS = ['NR-AR', 'NR-AR-LBD', 'NR-AhR', 'NR-Aromatase', 'NR-ER', 'NR-ER-LBD', 'NR-PPAR-gamma', 'SR-ARE', 'SR-ATAD5', 'SR-HSE', 'SR-MMP', 'SR-p53']
@@ -78,3 +80,35 @@ class Tox21Chem(Tox21Base):
 
 class Tox21Graph(Tox21Base):
     READER = dr.GraphReader
+
+
+class Tox21Bloat(Tox21Base):
+
+    @property
+    def _name(self):
+        return "tox21bloat"
+
+    def _load_tuples(self, input_file_path):
+        with open(input_file_path, "r") as input_file:
+            reader = csv.DictReader(input_file)
+            for row in reader:
+                smiles = row["smiles"]
+                labels = [bool(int(l)) if l else None for l in (row[k] for k in self.HEADERS)]
+                yield smiles, labels
+                try:
+                    mol = pysmiles.read_smiles(smiles)
+                except:
+                    pass
+                else:
+                    for _ in range(5):
+                        n = random.randint(0, len(mol.nodes)-1)
+                        try:
+                            alt_smiles = pysmiles.write_smiles(mol, start=n)
+                        except:
+                            pass
+                        else:
+                            yield alt_smiles, labels
+
+
+class Tox21BloatChem(Tox21Bloat):
+    READER = dr.ChemDataReader

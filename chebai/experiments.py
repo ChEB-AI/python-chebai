@@ -307,6 +307,7 @@ class ElectraOnJCI(Experiment):
             config=dict(
                 vocab_size=1400,
                 max_position_embeddings=1800,
+                hidden_size=512,
                 num_attention_heads=8,
                 num_hidden_layers=6,
                 type_vocab_size=1,
@@ -406,14 +407,13 @@ class ElectraOnTox21(Experiment):
         return datasets.Tox21Chem(batch_size)
 
     def model_kwargs(self, *args) -> Dict:
-        checkpoint_path = args[0]
+        checkpoint_path = args[0] if len(args) > 0 else None
         return dict(
             lr=1e-4,
             out_dim=self.dataset.label_number,
             pretrained_checkpoint=checkpoint_path,
             config=dict(
                 vocab_size=1400,
-                hidden_size=512,
                 max_position_embeddings=1800,
                 num_attention_heads=8,
                 num_hidden_layers=6,
@@ -421,6 +421,19 @@ class ElectraOnTox21(Experiment):
             ),
             epochs=100,
         )
+
+
+class ElectraOnTox21Bloat(ElectraOnTox21):
+    MODEL = electra.Electra
+    LOSS = torch.nn.BCEWithLogitsLoss
+
+    @classmethod
+    def identifier(cls) -> str:
+        return "Electra+Tox21Bloat"
+
+    def build_dataset(self, batch_size) -> datasets.XYBaseDataModule:
+        return datasets.Tox21BloatChem(batch_size)
+
 
 class GATOnSWJ(Experiment):
     MODEL = graph.JCIGraphAttentionNet
