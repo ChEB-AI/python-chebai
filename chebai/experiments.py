@@ -291,56 +291,41 @@ class ElectraLegSWJ(ElectraSWJ):
         return "ElectraLeg+SWJ"
 
 
-class ElectraOnJCI(Experiment):
+class _ElectraExperiment(Experiment):
     MODEL = electra.Electra
+
+    def model_kwargs(self, *args) -> Dict:
+        checkpoint_path = args[0] if len(args) > 0 else None
+        return dict(
+            lr=1e-4,
+            pretrained_checkpoint=checkpoint_path,
+            out_dim=self.dataset.label_number,
+            config=dict(
+                vocab_size=1400,
+                max_position_embeddings=1800,
+                num_attention_heads=8,
+                num_hidden_layers=6,
+                type_vocab_size=1,
+            ),
+            epochs=100,
+        )
+
+class ElectraOnJCI(_ElectraExperiment):
 
     @classmethod
     def identifier(cls) -> str:
         return "Electra+JCI"
 
-    def model_kwargs(self, *args) -> Dict:
-        checkpoint_path = args[0]
-        return dict(
-            lr=1e-4,
-            pretrained_checkpoint=checkpoint_path,
-            out_dim=self.dataset.label_number,
-            config=dict(
-                vocab_size=1400,
-                max_position_embeddings=1800,
-                hidden_size=512,
-                num_attention_heads=8,
-                num_hidden_layers=6,
-                type_vocab_size=1,
-            ),
-            epochs=100,
-        )
-
     def build_dataset(self, batch_size) -> datasets.XYBaseDataModule:
         return datasets.JCITokenData(batch_size)
 
 
-class ElectraOnChEBI100(Experiment):
+class ElectraOnChEBI100(_ElectraExperiment):
     MODEL = electra.Electra
 
     @classmethod
     def identifier(cls) -> str:
         return "Electra+ChEBI100"
-
-    def model_kwargs(self, *args) -> Dict:
-        checkpoint_path = args[0]
-        return dict(
-            lr=1e-4,
-            pretrained_checkpoint=checkpoint_path,
-            out_dim=self.dataset.label_number,
-            config=dict(
-                vocab_size=1400,
-                max_position_embeddings=1800,
-                num_attention_heads=8,
-                num_hidden_layers=6,
-                type_vocab_size=1,
-            ),
-            epochs=100,
-        )
 
     def build_dataset(self, batch_size) -> datasets.XYBaseDataModule:
         return datasets.ChEBIOver100(batch_size)
@@ -395,7 +380,7 @@ class ElectraLegJCIExt(ElectraOnJCIExt):
         return "ElectraLeg+JCIExt"
 
 
-class ElectraOnTox21(Experiment):
+class ElectraOnTox21(_ElectraExperiment):
     MODEL = electra.Electra
     LOSS = torch.nn.BCEWithLogitsLoss
 
@@ -405,22 +390,6 @@ class ElectraOnTox21(Experiment):
 
     def build_dataset(self, batch_size) -> datasets.XYBaseDataModule:
         return datasets.Tox21Chem(batch_size)
-
-    def model_kwargs(self, *args) -> Dict:
-        checkpoint_path = args[0] if len(args) > 0 else None
-        return dict(
-            lr=1e-4,
-            out_dim=self.dataset.label_number,
-            pretrained_checkpoint=checkpoint_path,
-            config=dict(
-                vocab_size=1400,
-                max_position_embeddings=1800,
-                num_attention_heads=8,
-                num_hidden_layers=6,
-                type_vocab_size=1,
-            ),
-            epochs=100,
-        )
 
 
 class ElectraOnTox21Bloat(ElectraOnTox21):
