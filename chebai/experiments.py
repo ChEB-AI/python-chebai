@@ -94,113 +94,6 @@ class ElectraPreOnSWJ(Experiment):
         return datasets.SWJChem(batch_size, k=100)
 
 
-class ElectraPreOnJCIExt(Experiment):
-    MODEL = electra.ElectraPre
-
-    @classmethod
-    def identifier(cls) -> str:
-        return "ElectraPre+JCIExt"
-
-    def model_kwargs(self, *args) -> Dict:
-        return dict(
-            lr=1e-4,
-            config=dict(
-                vocab_size=1400,
-                max_position_embeddings=1800,
-                num_attention_heads=8,
-                num_hidden_layers=6,
-                type_vocab_size=1,
-            ),
-            epochs=100,
-        )
-
-    def build_dataset(self, batch_size) -> datasets.XYBaseDataModule:
-        return datasets.JCIExtendedTokenData(batch_size)
-
-
-class ElectraPreOnJCI(Experiment):
-    MODEL = electra.ElectraPre
-
-    @classmethod
-    def identifier(cls) -> str:
-        return "ElectraPre+JCI"
-
-    def model_kwargs(self, *args) -> Dict:
-        return dict(
-            lr=1e-4,
-            config=dict(
-                vocab_size=1400,
-                max_position_embeddings=1800,
-                num_attention_heads=8,
-                num_hidden_layers=6,
-                type_vocab_size=1,
-            ),
-            epochs=100,
-        )
-
-    def build_dataset(self, batch_size) -> datasets.XYBaseDataModule:
-        return datasets.JCITokenData(batch_size)
-
-
-class ElectraPreBPEOnSWJ(Experiment):
-    MODEL = electra.ElectraPre
-
-    @classmethod
-    def identifier(cls) -> str:
-        return "ElectraBPEPre+SWJ"
-
-    def model_kwargs(self, *args) -> Dict:
-        return dict(
-            lr=1e-4,
-            config=dict(
-                vocab_size=4000,
-                max_position_embeddings=1800,
-                num_attention_heads=8,
-                num_hidden_layers=6,
-                type_vocab_size=1,
-            ),
-            epochs=100,
-        )
-
-    def build_dataset(self, batch_size) -> datasets.XYBaseDataModule:
-        return datasets.SWJBPE(
-            batch_size,
-            reader_kwargs=dict(
-                data_path=os.path.join(MODULE_PATH, "preprocessing/bin/BPE_SWJ")
-            ),
-            k=100,
-        )
-
-
-class ElectraBPEOnJCIExt(Experiment):
-    MODEL = electra.Electra
-
-    @classmethod
-    def identifier(cls) -> str:
-        return "Electra+JCIExtBPE"
-
-    def model_kwargs(self, *args) -> Dict:
-        return dict(
-            lr=1e-4,
-            config=dict(
-                vocab_size=4000,
-                max_position_embeddings=1800,
-                num_attention_heads=8,
-                num_hidden_layers=6,
-                type_vocab_size=1,
-            ),
-            epochs=100,
-        )
-
-    def build_dataset(self, batch_size) -> datasets.XYBaseDataModule:
-        return datasets.JCIExtendedBPEData(
-            batch_size,
-            reader_kwargs=dict(
-                data_path=os.path.join(MODULE_PATH, "preprocessing/bin/BPE_SWJ")
-            ),
-        )
-
-
 class ChembertaPreOnSWJ(Experiment):
     MODEL = chemberta.ChembertaPre
 
@@ -254,41 +147,6 @@ class ChembertaPreBPEOnSWJ(Experiment):
             ),
             k=100,
         )
-
-
-class ElectraSWJ(Experiment):
-    MODEL = electra.Electra
-
-    @classmethod
-    def identifier(cls) -> str:
-        return "Electra+SWJ"
-
-    def model_kwargs(self, *args) -> Dict:
-        return dict(
-            lr=1e-4,
-            config=dict(
-                vocab_size=1400,
-                max_position_embeddings=1800,
-                num_attention_heads=8,
-                num_hidden_layers=6,
-                type_vocab_size=1,
-            ),
-            epochs=100,
-        )
-
-    def build_dataset(self, batch_size) -> datasets.XYBaseDataModule:
-        return datasets.SWJChem(batch_size, k=100)
-
-    def train(self, batch_size, *args):
-        raise Exception("This expermient is prediction only")
-
-
-class ElectraLegSWJ(ElectraSWJ):
-    MODEL = electra.ElectraLegacy
-
-    @classmethod
-    def identifier(cls) -> str:
-        return "ElectraLeg+SWJ"
 
 
 class _ElectraExperiment(Experiment):
@@ -402,6 +260,21 @@ class ElectraOnTox21Bloat(ElectraOnTox21):
 
     def build_dataset(self, batch_size) -> datasets.XYBaseDataModule:
         return datasets.Tox21BloatChem(batch_size)
+
+
+class ElectraBPEOnJCIExt(_ElectraExperiment):
+
+    @classmethod
+    def identifier(cls) -> str:
+        return "Electra+JCIExtBPE"
+
+    def build_dataset(self, batch_size) -> datasets.XYBaseDataModule:
+        return datasets.JCIExtendedBPEData(
+            batch_size,
+            reader_kwargs=dict(
+                data_path=os.path.join(MODULE_PATH, "preprocessing/bin/BPE_SWJ")
+            ),
+        )
 
 
 class GATOnSWJ(Experiment):
