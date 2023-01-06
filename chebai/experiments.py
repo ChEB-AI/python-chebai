@@ -19,11 +19,11 @@ class Experiment(ABC):
     LOSS = torch.nn.BCEWithLogitsLoss
 
     def __init_subclass__(cls, **kwargs):
-        assert cls.identifier(), "No identifier set"
         assert (
             cls.identifier() not in EXPERIMENTS
         ), f"Identifier {cls.identifier()} is not unique."
-        EXPERIMENTS[cls.identifier()] = cls
+        if cls.identifier() is not None:
+            EXPERIMENTS[cls.identifier()] = cls
 
     def __init__(self, batch_size, *args, **kwargs):
         self.dataset = self.build_dataset(batch_size)
@@ -151,6 +151,10 @@ class ChembertaPreBPEOnSWJ(Experiment):
 
 class _ElectraExperiment(Experiment):
     MODEL = electra.Electra
+
+    @classmethod
+    def identifier(cls) -> str:
+        return None
 
     def model_kwargs(self, *args) -> Dict:
         checkpoint_path = args[0] if len(args) > 0 else None
