@@ -16,13 +16,17 @@ class Collater:
 
 class DefaultCollater(Collater):
     def __call__(self, data):
-        x, y, _ = zip(*data)
+        x, y = zip(*((d["features"], d["labels"]) for d in data))
         return XYData(x, y)
 
 
 class RaggedCollater(Collater):
     def __call__(self, data):
-        x, y, _ = zip(*data)
+        if isinstance(data[0], tuple):
+            # For legacy data
+            x, y, _ = zip(*data)
+        else:
+            x, y = zip(*((d["features"], d["labels"]) for d in data))
         if not all(x is None for x in y):
             is_not_none = ~torch.tensor([[v is None for v in row] for row in y])
             y = pad_sequence([torch.tensor([v if v is not None else False for v in row]) for row in y], batch_first=True)

@@ -35,13 +35,16 @@ class DataReader:
         self.collater = self.COLLATER(**collator_kwargs)
 
     def _get_raw_data(self, row):
-        return row[0]
+        return row["features"]
 
     def _get_raw_label(self, row):
-        return row[1]
+        return row["labels"]
 
     def _get_raw_id(self, row):
-        return row[0]
+        return row.get("ident", row["features"])
+
+    def _get_raw_group(self, row):
+        return row.get("group", None)
 
     def name(cls):
         raise NotImplementedError
@@ -55,12 +58,20 @@ class DataReader:
     def _read_label(self, raw_label):
         return raw_label
 
+    def _read_group(self, raw):
+        return raw
+
     def _read_components(self, row):
-        return self._get_raw_data(row), self._get_raw_label(row), self._get_raw_id(row)
+        return dict(features=self._get_raw_data(row), labels=self._get_raw_label(row), ident=self._get_raw_id(row), group=self._get_raw_group(row))
 
     def to_data(self, row):
-        x, y, ident = self._read_components(row)
-        return self._read_data(x), self._read_label(y), self._read_id(ident)
+        d = self._read_components(row)
+        return dict(
+            features=self._read_data(d["features"]),
+            labels=self._read_label(d["labels"]),
+            ident=self._read_id(d["ident"]),
+            group=self._read_group(d["group"])
+        )
 
 
 class ChemDataReader(DataReader):
@@ -87,8 +98,8 @@ class ChemDataUnlabeledReader(ChemDataReader):
     def name(cls):
         return "smiles_token_unlabeled"
 
-    def _read_components(self, row):
-        return row[0], None, row[0]
+    def _get_raw_label(self, row):
+        return None
 
 
 class ChemBPEReader(DataReader):
@@ -105,7 +116,7 @@ class ChemBPEReader(DataReader):
         )
 
     def _get_raw_data(self, row):
-        return self.tokenizer(row[0])["input_ids"]
+        return self.tokenizer(row["features"])["input_ids"]
 
 
 class SelfiesReader(DataReader):
@@ -122,7 +133,7 @@ class SelfiesReader(DataReader):
 
     def _get_raw_data(self, row):
         try:
-            splits = sf.split_selfies(sf.encoder(row[0].strip(), strict=True))
+            splits = sf.split_selfies(sf.encoder(row["features"].strip(), strict=True))
         except Exception as e:
             print(e)
             return
