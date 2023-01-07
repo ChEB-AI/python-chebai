@@ -164,7 +164,7 @@ class _ChEBIDataExtractor(XYBaseDataModule, ABC):
     def _load_dict(input_file_path):
         with open(input_file_path, "rb") as input_file:
             for row in pickle.load(input_file).values:
-                yield dict(feature=row[2], label=row[3:].astype(bool))
+                yield dict(features=row[2], labels=row[3:].astype(bool), ident=row[0])
 
     @staticmethod
     def _get_data_size(input_file_path):
