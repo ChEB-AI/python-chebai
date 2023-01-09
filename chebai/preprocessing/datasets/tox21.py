@@ -1,6 +1,6 @@
 import random
 
-from chebai.preprocessing.datasets.chebi import JCIBase
+from chebai.preprocessing.datasets.chebi import JCIExtendedTokenData
 from chebai.preprocessing.datasets.pubchem import Hazardous
 from chebai.preprocessing.datasets.base import XYBaseDataModule, MergedDataset
 from tempfile import NamedTemporaryFile
@@ -145,18 +145,21 @@ class Tox21BloatChem(Tox21Bloat):
 
 
 class Tox21ExtendedChem(MergedDataset):
-    MERGED = [Tox21Chem, Hazardous]
+    MERGED = [Tox21Chem, Hazardous, JCIExtendedTokenData]
 
     @property
     def limits(self):
-        return [None, 10000]
+        return [None, 5000, 5000]
 
     def _process_data(self, subset_id, data):
         res = dict(features=data["features"], labels=data["labels"], ident=data["ident"])
+        # Feature: non-toxic
         if subset_id == 0:
             res["labels"] = [not any(res["labels"])]
-        if subset_id == 1:
+        elif subset_id == 1:
             res["labels"] = [False]
+        elif subset_id == 2:
+            res["labels"] = [True]
         return res
 
     @property
