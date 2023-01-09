@@ -28,7 +28,7 @@ class JCIBaseNet(pl.LightningModule):
     def __init__(self, loss_cls=None, out_dim=None, **kwargs):
         super().__init__()
         self.save_hyperparameters()
-        if out_dim:
+        if out_dim and out_dim > 1:
             task = "multilabel"
         else:
             task = "binary"

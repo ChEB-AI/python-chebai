@@ -1,7 +1,8 @@
 import random
 
 from chebai.preprocessing.datasets.chebi import JCIBase
-from chebai.preprocessing.datasets.base import XYBaseDataModule
+from chebai.preprocessing.datasets.pubchem import Hazardous
+from chebai.preprocessing.datasets.base import XYBaseDataModule, MergedDataset
 from tempfile import NamedTemporaryFile
 from urllib import request
 from sklearn.model_selection import train_test_split, GroupShuffleSplit
@@ -141,3 +142,24 @@ class Tox21Bloat(Tox21Base):
 
 class Tox21BloatChem(Tox21Bloat):
     READER = dr.ChemDataReader
+
+
+class Tox21ExtendedChem(MergedDataset):
+    MERGED = [Tox21Chem, Hazardous]
+
+    @property
+    def limits(self):
+        return [None, 10000]
+
+    def _process_data(self, subset_id, data):
+        res = dict(features=data["features"], labels=data["labels"], ident=data["ident"])
+        if subset_id == 0:
+            res["labels"] = [not any(res["labels"])]
+        if subset_id == 1:
+            res["labels"] = [False]
+        return res
+
+    @property
+    def label_number(self):
+        return 1
+

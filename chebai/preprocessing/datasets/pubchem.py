@@ -52,11 +52,11 @@ class PubChem(XYBaseDataModule):
         return os.path.join("data", self._name, "raw", self.split_label)
 
     @staticmethod
-    def _load_tuples(input_file_path):
+    def _load_dict(input_file_path):
         with open(input_file_path, "r") as input_file:
             for row in input_file:
                 _, smiles = row.split("\t")
-                yield smiles, None
+                yield dict(features=smiles, labels=None)
 
     def download(self):
         url = f"https://ftp.ncbi.nlm.nih.gov/pubchem/Compound/Monthly/2021-10-01/Extras/CID-SMILES.gz"
@@ -178,3 +178,21 @@ class SWJBPE(SWJPreChem):
 
 class PubChemTokens(PubChem):
     READER = dr.ChemDataReader
+
+
+class Hazardous(SWJChem):
+    READER = dr.ChemDataUnlabeledReader
+
+    @property
+    def _name(self):
+        return f"hazardous"
+
+    @staticmethod
+    def _load_dict(input_file_path):
+        with open(input_file_path, "r") as input_file:
+            for row in input_file:
+                smiles = row.strip()
+                yield dict(features=smiles, labels=None)
+
+    def download(self):
+        raise Exception("This dataset is not publicly available, yet. Please supply raw data manually.")

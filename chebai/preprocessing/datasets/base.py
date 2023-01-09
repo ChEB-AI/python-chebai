@@ -13,12 +13,12 @@ from chebai.preprocessing import reader as dr
 class XYBaseDataModule(pl.LightningDataModule):
     READER = dr.DataReader
 
-    def __init__(self, batch_size=1, tran_split=0.85, reader_kwargs=None, **kwargs):
+    def __init__(self, batch_size=1, train_split=0.85, reader_kwargs=None, **kwargs):
         super().__init__(**kwargs)
         if reader_kwargs is None:
             reader_kwargs = dict()
         self.reader = self.READER(**reader_kwargs)
-        self.train_split = tran_split
+        self.train_split = train_split
         self.batch_size = batch_size
         os.makedirs(self.raw_dir, exist_ok=True)
         os.makedirs(self.processed_dir, exist_ok=True)
@@ -103,3 +103,67 @@ class XYBaseDataModule(pl.LightningDataModule):
         Returns -1 for seq2seq encoding, otherwise the number of labels
         """
         raise NotImplementedError
+
+
+class MergedDataset(XYBaseDataModule):
+
+    MERGED = []
+
+    @property
+    def _name(self):
+        return "+".join(s._name for s in self.subsets)
+
+    def __init__(self, batch_size=1, train_split=0.85, reader_kwargs=None, **kwargs):
+        if reader_kwargs is None:
+            reader_kwargs = [None for _ in self.MERGED]
+        self.train_split = train_split
+        self.batch_size = batch_size
+        self.subsets = [s(train_split=train_split, reader_kwargs=kws) for s, kws in zip(self.MERGED, reader_kwargs)]
+        self.reader = self.subsets[0].reader
+        os.makedirs(self.processed_dir, exist_ok=True)
+        super(pl.LightningDataModule, self).__init__(**kwargs)
+
+    def prepare_data(self):
+        for s in self.subsets:
+            s.prepare_data()
+
+    def setup(self, **kwargs):
+        for s in self.subsets:
+            s.setup(**kwargs)
+
+    def dataloader(self, kind, **kwargs):
+        subdatasets = [torch.load(os.path.join(s.processed_dir, f"{kind}.pt")) for s in self.subsets]
+        dataset = [self._process_data(i, d) for i, (s, lim) in enumerate(zip(subdatasets, self.limits)) for d in (s if lim is None else s[:lim])]
+        return DataLoader(
+            dataset,
+            collate_fn=self.reader.collater,
+            batch_size=self.batch_size,
+            **kwargs,
+        )
+
+    def train_dataloader(self, *args, **kwargs) -> DataLoader:
+        return self.dataloader("train", shuffle=True, **kwargs)
+
+    def val_dataloader(self, *args, **kwargs) -> Union[DataLoader, List[DataLoader]]:
+        return self.dataloader("validation", shuffle=False, **kwargs)
+
+    def test_dataloader(self, *args, **kwargs) -> Union[DataLoader, List[DataLoader]]:
+        return self.dataloader("test", shuffle=False, **kwargs)
+
+    def _process_data(self, subset_id, data):
+        return dict(features=data["features"], labels=data["labels"], ident=data["ident"])
+
+    def setup_processed(self):
+        pass
+
+    @property
+    def processed_file_names(self):
+        return ["test.pt", "train.pt", "validation.pt"]
+
+    @property
+    def label_number(self):
+        return self.subsets[0].label_number
+
+    @property
+    def limits(self):
+        return None

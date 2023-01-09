@@ -266,6 +266,18 @@ class ElectraOnTox21Bloat(ElectraOnTox21):
         return datasets.Tox21BloatChem(batch_size)
 
 
+class ElectraOnTox21Ext(_ElectraExperiment):
+    MODEL = electra.Electra
+    LOSS = torch.nn.BCEWithLogitsLoss
+
+    @classmethod
+    def identifier(cls) -> str:
+        return "Electra+Tox21Ext"
+
+    def build_dataset(self, batch_size) -> datasets.XYBaseDataModule:
+        return datasets.Tox21ExtendedChem(batch_size)
+
+
 class ElectraBPEOnJCIExt(_ElectraExperiment):
 
     @classmethod
