@@ -248,14 +248,12 @@ class AttentionMolPlot(abc.ABC):
 
 
 class AttentionOnMoleculesProcessor(AttentionMolPlot, ResultProcessor):
-    def __init__(self, headers, *args, **kwargs):
+    def __init__(self, *args, headers=None, **kwargs):
         super().__init__(*args, **kwargs)
         self.headers = headers
 
     def start(self):
         self.counter = 0
-        for w in self.headers:
-            makedirs(f"/tmp/plots/{w}", exist_ok=True)
 
     @classmethod
     def _identifier(cls):
@@ -269,6 +267,14 @@ class AttentionOnMoleculesProcessor(AttentionMolPlot, ResultProcessor):
             predictions = (
                 torch.sigmoid(pred["logits"]).detach().numpy().squeeze(0) > 0.5
             )
+            if self.headers is None:
+                headers = list(range(len(labels[0])))
+            else:
+                headers = self.headers
+
+            for w in headers:
+                makedirs(f"/tmp/plots/{w}", exist_ok=True)
+
             try:
                 self.plot_attentions(
                     raw_features,
@@ -277,7 +283,7 @@ class AttentionOnMoleculesProcessor(AttentionMolPlot, ResultProcessor):
                     [
                         (ident, label, predicted)
                         for label, ident, predicted in zip(
-                            labels, self.headers, predictions
+                            labels, headers, predictions
                         )
                         if (label or predicted)
                     ],
