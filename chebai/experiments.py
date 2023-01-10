@@ -71,7 +71,7 @@ class ElectraPreOnSWJ(Experiment):
 
     def model_kwargs(self, *args) -> Dict:
         return dict(
-            lr=1e-4,
+            optimizer_kwargs=dict(lr=1e-4),
             config=dict(
                 generator=dict(
                     vocab_size=1400,
@@ -103,7 +103,7 @@ class ChembertaPreOnSWJ(Experiment):
 
     def model_kwargs(self, *args) -> Dict:
         return dict(
-            lr=1e-4,
+            optimizer_kwargs=dict(lr=1e-4),
             config=dict(
                 vocab_size=1400,
                 max_position_embeddings=1800,
@@ -127,7 +127,7 @@ class ChembertaPreBPEOnSWJ(Experiment):
 
     def model_kwargs(self, *args) -> Dict:
         return dict(
-            lr=1e-4,
+            optimizer_kwargs=dict(lr=1e-4),
             tokenizer_path=os.path.join(MODULE_PATH, "preprocessing/bin/BPE_SWJ"),
             config=dict(
                 vocab_size=4000,
@@ -159,7 +159,7 @@ class _ElectraExperiment(Experiment):
     def model_kwargs(self, *args) -> Dict:
         checkpoint_path = args[0] if len(args) > 0 else None
         return dict(
-            lr=1e-4,
+            optimizer_kwargs=dict(lr=1e-4),
             pretrained_checkpoint=checkpoint_path,
             out_dim=self.dataset.label_number,
             config=dict(
@@ -253,6 +253,12 @@ class ElectraOnTox21(_ElectraExperiment):
     def build_dataset(self, batch_size) -> datasets.XYBaseDataModule:
         return datasets.Tox21Chem(batch_size)
 
+    def model_kwargs(self, *args) -> Dict:
+        d = super().model_kwargs(*args)
+        d["config"]["hidden_dropout_prob"] = 0.4
+        d["config"]["word_dropout"] = 0.2
+        return d
+
 
 class ElectraOnTox21Bloat(ElectraOnTox21):
     MODEL = electra.Electra
@@ -302,7 +308,6 @@ class GATOnSWJ(Experiment):
 
     def model_kwargs(self, *args) -> Dict:
         return dict(
-            lr=1e-4,
             in_length=50,
             hidden_length=100,
             epochs=100,
@@ -321,7 +326,6 @@ class GATOnTox21(Experiment):
 
     def model_kwargs(self, *args) -> Dict:
         return dict(
-            lr=1e-4,
             in_length=50,
             hidden_length=100,
             epochs=100,

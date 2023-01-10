@@ -41,7 +41,7 @@ class JCIBaseNet(pl.LightningModule):
         else:
             self.loss = loss_cls()
 
-        self.lr = kwargs.get("lr", 1e-4)
+        self.optimizer_kwargs = kwargs.get("optimizer_kwargs", dict())
         self.thres = kwargs.get("threshold", 0.5)
         self.metrics = ["F1Score", "Precision", "Recall", "AUROC"]
         self.metric_aggs = ["micro", "macro", "weighted"]
@@ -112,8 +112,8 @@ class JCIBaseNet(pl.LightningModule):
     def forward(self, x):
         raise NotImplementedError
 
-    def configure_optimizers(self):
-        optimizer = torch.optim.Adamax(self.parameters(), lr=self.lr)
+    def configure_optimizers(self, **kwargs):
+        optimizer = torch.optim.Adamax(self.parameters(), **self.optimizer_kwargs)
         return optimizer
 
     @classmethod

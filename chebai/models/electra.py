@@ -112,11 +112,12 @@ class Electra(JCIBaseNet):
             if "pretrained_checkpoint" in kwargs
             else None
         )
+
         super().__init__(**kwargs)
         if not "num_labels" in kwargs["config"] and self.out_dim is not None:
             kwargs["config"]["num_labels"] = self.out_dim
         self.config = ElectraConfig(**kwargs["config"], output_attentions=True)
-
+        self.word_dropout = nn.Dropout(kwargs["config"].get("word_dropout", 0))
         if pretrained_checkpoint:
             elpre = ElectraPre.load_from_checkpoint(pretrained_checkpoint)
             with TemporaryDirectory() as td:
@@ -130,10 +131,10 @@ class Electra(JCIBaseNet):
         in_d = self.config.hidden_size
 
         self.output = nn.Sequential(
-            nn.Dropout(0.1),
+            nn.Dropout(self.config.hidden_dropout_prob),
             nn.Linear(in_d, in_d),
             nn.GELU(),
-            nn.Dropout(0.1),
+            nn.Dropout(self.config.hidden_dropout_prob),
             nn.Linear(in_d,  self.config.num_labels),
         )
 
@@ -155,8 +156,9 @@ class Electra(JCIBaseNet):
 
     def forward(self, data, **kwargs):
         self.batch_size = data["features"].shape[0]
-        inp = data["features"]
-        electra = self.electra(inp, **kwargs)
+        inp = self.electra.embeddings.forward(data["features"])
+        inp = self.word_dropout(inp)
+        electra = self.electra(inputs_embeds=inp, **kwargs)
         d = electra.last_hidden_state[:, 0, :]
         return dict(logits=self.output(d), attentions=electra.attentions, target_mask=data.get("target_mask"))
 
