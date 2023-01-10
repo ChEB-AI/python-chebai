@@ -262,10 +262,10 @@ class AttentionOnMoleculesProcessor(AttentionMolPlot, ResultProcessor):
     def filter(self, l):
         return
 
-    def process_prediction(self, raw_features, raw_labels, features, labels, pred):
-            atts = torch.stack(pred["attentions"]).squeeze(1).detach().numpy()
+    def process_prediction(self, pred, labels, raw_features, model_output,**kwargs):
+            atts = torch.stack(model_output["attentions"]).squeeze(1).detach().numpy()
             predictions = (
-                torch.sigmoid(pred["logits"]).detach().numpy().squeeze(0) > 0.5
+                labels.detach().numpy().squeeze(0) > 0.5
             )
             if self.headers is None:
                 headers = list(range(len(labels[0])))

@@ -49,21 +49,22 @@ class ResultFactory(abc.ABC):
     def _generate_predictions(self, data_path, raw=False, **kwargs):
         self._model.eval()
         if raw:
-            data_tuples = [self._reader.to_data(self._process_row(x)) for x in self.dataset._load_dicts(data_path)]
+            data_tuples = [self._reader.to_data(self._process_row(x)) for x in self.dataset._load_dict(data_path)]
         else:
             data_tuples = torch.load(data_path)
 
         for row in tqdm.tqdm(data_tuples):
             f = torch.tensor([row["features"]])
             #l = torch.tensor([labels])
-            preds, _ = self._model._get_prediction_and_labels(f, torch.tensor(0), self._model({"features": f}))
-            yield f, row["labels"], preds[0], row["ident"]
+            model_output = self._model({"features": f})
+            preds, labels = self._model._get_prediction_and_labels(f, torch.tensor(0), model_output)
+            yield dict(model_output=model_output, preds=preds, raw_features=row["features"], raw_labels=row["labels"], labels=labels)
 
     def call_procs(self, args):
         proc_id, proc_args = args
         for proc in self._processors:
             try:
-                proc.process_prediction(proc_id, *proc_args)
+                proc.process_prediction(proc_id, **proc_args)
             except Exception:
                 print("Could not process results for", proc_args[0])
                 raise
