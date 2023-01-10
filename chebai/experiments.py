@@ -257,6 +257,7 @@ class ElectraOnTox21(_ElectraExperiment):
         d = super().model_kwargs(*args)
         d["config"]["hidden_dropout_prob"] = 0.4
         d["config"]["word_dropout"] = 0.2
+        d["optimizer_kwargs"]["weight_decay"] = 1e-4
         return d
 
 
