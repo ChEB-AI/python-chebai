@@ -248,13 +248,13 @@ class AttentionMolPlot(abc.ABC):
 
 
 class AttentionOnMoleculesProcessor(AttentionMolPlot, ResultProcessor):
-    def __init__(self, *args, **kwargs):
+    def __init__(self, headers, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.wanted_classes = (37141, 24873, 33555, 28874, 22693)
+        self.headers = headers
 
     def start(self):
         self.counter = 0
-        for w in self.wanted_classes:
+        for w in self.headers:
             makedirs(f"/tmp/plots/{w}", exist_ok=True)
 
     @classmethod
@@ -265,11 +265,6 @@ class AttentionOnMoleculesProcessor(AttentionMolPlot, ResultProcessor):
         return
 
     def process_prediction(self, raw_features, raw_labels, features, labels, pred):
-        if any(
-            True
-            for (ident, match) in zip(JCI_500_COLUMNS_INT, labels)
-            if match and ident in self.wanted_classes
-        ):
             atts = torch.stack(pred["attentions"]).squeeze(1).detach().numpy()
             predictions = (
                 torch.sigmoid(pred["logits"]).detach().numpy().squeeze(0) > 0.5
@@ -282,9 +277,9 @@ class AttentionOnMoleculesProcessor(AttentionMolPlot, ResultProcessor):
                     [
                         (ident, label, predicted)
                         for label, ident, predicted in zip(
-                            labels, JCI_500_COLUMNS_INT, predictions
+                            labels, self.headers, predictions
                         )
-                        if (label or predicted) and ident in self.wanted_classes
+                        if (label or predicted)
                     ],
                 )
             except StopIteration:
