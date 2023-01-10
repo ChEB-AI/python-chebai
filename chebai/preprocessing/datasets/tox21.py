@@ -68,7 +68,7 @@ class Tox21Base(XYBaseDataModule):
                 data, train_size=self.train_split, shuffle=True
             )
             test_split, validation_split = train_test_split(
-                test_split, train_size=self.train_split, shuffle=True
+                test_split, train_size=0.5, shuffle=True
             )
         for k, split in [("test", test_split), ("train", train_split), ("validation", validation_split)]:
             print("transform", k)
