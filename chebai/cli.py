@@ -19,9 +19,7 @@ def cli():
 def train(experiment, batch_size, group, args):
     """Run experiment identified by EXPERIMENT in batches of size BATCH_SIZE."""
     try:
-        ex = experiments.EXPERIMENTS[experiment](
-            batch_size, group
-        )
+        ex = experiments.EXPERIMENTS[experiment](batch_size, group)
     except KeyError:
         raise Exception(
             "Experiment ID not found. The following are available:"
@@ -75,7 +73,9 @@ def predict(experiment, ckpt_path, data_path, processors, compiled_data, headers
             raise Exception(
                 f"Processor {p} not found. Available processors are {', '.join(PROCESSORS.keys())}"
             )
-    ex.predict(data_path, ckpt_path, processor_list, raw=not compiled_data, headers=headers)
+    ex.predict(
+        data_path, ckpt_path, processor_list, raw=not compiled_data, headers=headers
+    )
 
 
 cli.add_command(train)

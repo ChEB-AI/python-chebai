@@ -69,7 +69,11 @@ class XYBaseDataModule(pl.LightningDataModule):
     def _load_data_from_file(self, path):
         lines = self._get_data_size(path)
         print(f"Processing {lines} lines...")
-        data = [self.reader.to_data(d) for d in tqdm.tqdm(self._load_dict(path), total=lines) if d["features"] is not None]
+        data = [
+            self.reader.to_data(d)
+            for d in tqdm.tqdm(self._load_dict(path), total=lines)
+            if d["features"] is not None
+        ]
         return data
 
     def train_dataloader(self, *args, **kwargs) -> DataLoader:
@@ -118,7 +122,10 @@ class MergedDataset(XYBaseDataModule):
             reader_kwargs = [None for _ in self.MERGED]
         self.train_split = train_split
         self.batch_size = batch_size
-        self.subsets = [s(train_split=train_split, reader_kwargs=kws) for s, kws in zip(self.MERGED, reader_kwargs)]
+        self.subsets = [
+            s(train_split=train_split, reader_kwargs=kws)
+            for s, kws in zip(self.MERGED, reader_kwargs)
+        ]
         self.reader = self.subsets[0].reader
         os.makedirs(self.processed_dir, exist_ok=True)
         super(pl.LightningDataModule, self).__init__(**kwargs)
@@ -132,8 +139,15 @@ class MergedDataset(XYBaseDataModule):
             s.setup(**kwargs)
 
     def dataloader(self, kind, **kwargs):
-        subdatasets = [torch.load(os.path.join(s.processed_dir, f"{kind}.pt")) for s in self.subsets]
-        dataset = [self._process_data(i, d) for i, (s, lim) in enumerate(zip(subdatasets, self.limits)) for d in (s if lim is None else s[:lim])]
+        subdatasets = [
+            torch.load(os.path.join(s.processed_dir, f"{kind}.pt"))
+            for s in self.subsets
+        ]
+        dataset = [
+            self._process_data(i, d)
+            for i, (s, lim) in enumerate(zip(subdatasets, self.limits))
+            for d in (s if lim is None else s[:lim])
+        ]
         return DataLoader(
             dataset,
             collate_fn=self.reader.collater,
@@ -151,7 +165,9 @@ class MergedDataset(XYBaseDataModule):
         return self.dataloader("test", shuffle=False, **kwargs)
 
     def _process_data(self, subset_id, data):
-        return dict(features=data["features"], labels=data["labels"], ident=data["ident"])
+        return dict(
+            features=data["features"], labels=data["labels"], ident=data["ident"]
+        )
 
     def setup_processed(self):
         pass

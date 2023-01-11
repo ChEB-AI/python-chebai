@@ -45,7 +45,7 @@ class Experiment(ABC):
             self.dataset,
             self.MODEL.NAME,
             loss=self.LOSS,
-            model_kwargs=self.model_kwargs(*args)
+            model_kwargs=self.model_kwargs(*args),
         )
 
     def test(self, ckpt_path, *args):
@@ -55,7 +55,9 @@ class Experiment(ABC):
             ckpt_path,
         )
 
-    def predict(self, data_path, model_ckpt, processors: Iterable[ResultProcessor], **kwargs):
+    def predict(
+        self, data_path, model_ckpt, processors: Iterable[ResultProcessor], **kwargs
+    ):
         model = self.MODEL.load_from_checkpoint(model_ckpt)
         result_factory = ResultFactory(model, self.dataset, processors)
         result_factory.execute(data_path, **kwargs)
@@ -78,14 +80,15 @@ class ElectraPreOnSWJ(Experiment):
                     max_position_embeddings=1800,
                     num_attention_heads=8,
                     num_hidden_layers=6,
-                    type_vocab_size=1),
+                    type_vocab_size=1,
+                ),
                 discriminator=dict(
                     vocab_size=1400,
                     max_position_embeddings=1800,
                     num_attention_heads=8,
                     num_hidden_layers=6,
-                    type_vocab_size=1),
-
+                    type_vocab_size=1,
+                ),
             ),
             epochs=100,
         )
@@ -172,8 +175,8 @@ class _ElectraExperiment(Experiment):
             epochs=100,
         )
 
-class ElectraOnJCI(_ElectraExperiment):
 
+class ElectraOnJCI(_ElectraExperiment):
     @classmethod
     def identifier(cls) -> str:
         return "Electra+JCI"
@@ -286,7 +289,6 @@ class ElectraOnTox21Ext(_ElectraExperiment):
 
 
 class ElectraBPEOnJCIExt(_ElectraExperiment):
-
     @classmethod
     def identifier(cls) -> str:
         return "Electra+JCIExtBPE"
@@ -334,4 +336,3 @@ class GATOnTox21(Experiment):
 
     def build_dataset(self, batch_size) -> datasets.XYBaseDataModule:
         return datasets.Tox21Graph(batch_size)
-

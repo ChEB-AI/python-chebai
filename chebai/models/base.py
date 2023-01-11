@@ -51,7 +51,10 @@ class JCIBaseNet(pl.LightningModule):
                     self,
                     metric + agg,
                     getattr(torchmetrics, metric)(
-                        threshold=self.thres, average=agg, task=task, num_labels=self.out_dim
+                        threshold=self.thres,
+                        average=agg,
+                        task=task,
+                        num_labels=self.out_dim,
                     ),
                 )
 
@@ -96,7 +99,7 @@ class JCIBaseNet(pl.LightningModule):
                         on_epoch=True,
                         prog_bar=True,
                         logger=True,
-                        batch_size=p.shape[0]
+                        batch_size=p.shape[0],
                     )
             self.log(
                 prefix + "loss",
@@ -105,7 +108,7 @@ class JCIBaseNet(pl.LightningModule):
                 on_epoch=True,
                 prog_bar=True,
                 logger=True,
-                batch_size=p.shape[0]
+                batch_size=p.shape[0],
             )
         return loss
 

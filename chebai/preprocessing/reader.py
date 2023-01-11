@@ -26,6 +26,7 @@ PADDING_TOKEN_INDEX = 0
 MASK_TOKEN_INDEX = 1
 CLS_TOKEN = 2
 
+
 class DataReader:
     COLLATER = DefaultCollater
 
@@ -65,7 +66,13 @@ class DataReader:
         return raw
 
     def _read_components(self, row):
-        return dict(features=self._get_raw_data(row), labels=self._get_raw_label(row), ident=self._get_raw_id(row), group=self._get_raw_group(row), additional_kwargs=self._get_additional_kwargs(row))
+        return dict(
+            features=self._get_raw_data(row),
+            labels=self._get_raw_label(row),
+            ident=self._get_raw_id(row),
+            group=self._get_raw_group(row),
+            additional_kwargs=self._get_additional_kwargs(row),
+        )
 
     def to_data(self, row):
         d = self._read_components(row)
@@ -74,7 +81,7 @@ class DataReader:
             labels=self._read_label(d["labels"]),
             ident=self._read_id(d["ident"]),
             group=self._read_group(d["group"]),
-            **d["additional_kwargs"]
+            **d["additional_kwargs"],
         )
 
 
@@ -92,7 +99,9 @@ class ChemDataReader(DataReader):
             self.cache = [x.strip() for x in pk]
 
     def _read_data(self, raw_data):
-        return [self.cache.index(str(v[1])) + EMBEDDING_OFFSET for v in _tokenize(raw_data)]
+        return [
+            self.cache.index(str(v[1])) + EMBEDDING_OFFSET for v in _tokenize(raw_data)
+        ]
 
 
 class ChemDataUnlabeledReader(ChemDataReader):
@@ -242,6 +251,7 @@ class GraphReader(DataReader):
 
     def collate(self, list_of_tuples):
         return self.collater(list_of_tuples)
+
 
 try:
     from k_gnn import TwoMalkin

@@ -4,7 +4,7 @@ __all__ = [
     "SWJSelfies",
     "SWJPreChem",
     "SWJBPE",
-    "SWJChem"
+    "SWJChem",
 ]
 
 import gzip
@@ -195,4 +195,6 @@ class Hazardous(SWJChem):
                 yield dict(features=smiles, labels=None)
 
     def download(self):
-        raise Exception("This dataset is not publicly available, yet. Please supply raw data manually.")
+        raise Exception(
+            "This dataset is not publicly available, yet. Please supply raw data manually."
+        )

@@ -73,7 +73,8 @@ class AttentionMolPlot(abc.ABC):
 
         table = plt.table(
             cellText=[
-                (["[CLS]"] + [t for _, t in _tokenize(smiles)]) for _ in range(attention.shape[0])
+                (["[CLS]"] + [t for _, t in _tokenize(smiles)])
+                for _ in range(attention.shape[0])
             ],
             cellColours=attention_colors,
             cellLoc="center",
@@ -262,36 +263,34 @@ class AttentionOnMoleculesProcessor(AttentionMolPlot, ResultProcessor):
     def filter(self, l):
         return
 
-    def process_prediction(self, proc_id, preds, raw_features, model_output, labels, **kwargs):
-            atts = torch.stack(model_output["attentions"]).squeeze(1).detach().numpy()
-            predictions = (
-                preds.detach().numpy().squeeze(0) > 0.5
+    def process_prediction(
+        self, proc_id, preds, raw_features, model_output, labels, **kwargs
+    ):
+        atts = torch.stack(model_output["attentions"]).squeeze(1).detach().numpy()
+        predictions = preds.detach().numpy().squeeze(0) > 0.5
+        if self.headers is None:
+            headers = list(range(len(labels)))
+        else:
+            headers = self.headers
+
+        for w in headers:
+            makedirs(f"/tmp/plots/{w}", exist_ok=True)
+
+        try:
+            self.plot_attentions(
+                raw_features,
+                np.max(np.max(atts, axis=2), axis=1),
+                0.4,
+                [
+                    (ident, label, predicted)
+                    for label, ident, predicted in zip(labels, headers, predictions)
+                    if (label or predicted)
+                ],
             )
-            if self.headers is None:
-                headers = list(range(len(labels)))
-            else:
-                headers = self.headers
-
-            for w in headers:
-                makedirs(f"/tmp/plots/{w}", exist_ok=True)
-
-            try:
-                self.plot_attentions(
-                    raw_features,
-                    np.max(np.max(atts, axis=2), axis=1),
-                    0.4,
-                    [
-                        (ident, label, predicted)
-                        for label, ident, predicted in zip(
-                            labels, headers, predictions
-                        )
-                        if (label or predicted)
-                    ],
-                )
-            except StopIteration:
-                print("Could not match", raw_features)
-            except NoRDMolException:
-                pass
+        except StopIteration:
+            print("Could not match", raw_features)
+        except NoRDMolException:
+            pass
 
 
 class LastLayerAttentionProcessor(AttentionMolPlot, ResultProcessor):
@@ -385,9 +384,16 @@ class AttentionNetwork(ResultProcessor):
     def start(self):
         self.counter = 0
 
-
     def process_prediction(
-        self, proc_id, preds, raw_features, model_output, labels, ident=None, threshold=0.5, **kwargs
+        self,
+        proc_id,
+        preds,
+        raw_features,
+        model_output,
+        labels,
+        ident=None,
+        threshold=0.5,
+        **kwargs,
     ):
         if self.headers is None:
             headers = list(range(len(labels)))
@@ -398,9 +404,7 @@ class AttentionNetwork(ResultProcessor):
             makedirs(f"plots/{w}", exist_ok=True)
 
         atts = torch.stack(model_output["attentions"]).squeeze(1).detach().numpy()
-        predictions = (
-            preds.detach().numpy().squeeze(0) > 0.5
-        )
+        predictions = preds.detach().numpy().squeeze(0) > 0.5
         plt.rcParams.update({"font.size": 8})
         try:
             attentions = atts
@@ -419,9 +423,7 @@ class AttentionNetwork(ResultProcessor):
                     0,
                     "annotated:"
                     + ", ".join(
-                        str(l)
-                        for (l, is_member) in zip(headers, labels)
-                        if is_member
+                        str(l) for (l, is_member) in zip(headers, labels) if is_member
                     )
                     + "\n"
                     + "predicted:"
@@ -438,7 +440,7 @@ class AttentionNetwork(ResultProcessor):
                     pad_inches=0,
                 )
                 plt.close(fig0)
-                fig = plt.figure(figsize=(10*12, width // 3))
+                fig = plt.figure(figsize=(10 * 12, width // 3))
                 l_tokens = {i: str(t) for i, t in enumerate(tokens)}
                 r_tokens = {(len(tokens) + i): str(t) for i, t in enumerate(tokens)}
                 labels = dict(list(l_tokens.items()) + list(r_tokens.items()))
@@ -447,14 +449,16 @@ class AttentionNetwork(ResultProcessor):
                 g.add_nodes_from(l_tokens, bipartite=0)
                 g.add_nodes_from(r_tokens, bipartite=1)
                 g.add_edges_from(edges)
-                pos = np.array([(0, -i) for i in range(len(l_tokens))] + [
-                    (1, -i) for i in range(len(l_tokens))
-                ])
+                pos = np.array(
+                    [(0, -i) for i in range(len(l_tokens))]
+                    + [(1, -i) for i in range(len(l_tokens))]
+                )
 
-                offset = np.array([(1, 0) for i in range(len(l_tokens))] + [
-                    (1, 0) for i in range(len(l_tokens))
-                ])
-                #axes = fig.subplots(1, 6 * 8 + 5, subplot_kw=dict(frameon=False))
+                offset = np.array(
+                    [(1, 0) for i in range(len(l_tokens))]
+                    + [(1, 0) for i in range(len(l_tokens))]
+                )
+                # axes = fig.subplots(1, 6 * 8 + 5, subplot_kw=dict(frameon=False))
 
                 ax = fig.add_subplot(111)
                 ax.axis("off")
@@ -481,7 +485,7 @@ class AttentionNetwork(ResultProcessor):
                     # transparent=True,
                     bbox_inches="tight",
                     pad_inches=0,
-                    dpi=100
+                    dpi=100,
                 )
 
             plt.close()

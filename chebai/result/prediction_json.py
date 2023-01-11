@@ -16,9 +16,7 @@ class JSONResultProcessor(ResultProcessor):
             json.dump(self.data, fout)
             del self.data
 
-    def process_prediction(
-        self, proc_id, features, labels, pred, ident
-    ):
+    def process_prediction(self, proc_id, features, labels, pred, ident):
         self.data.append(
             dict(
                 ident=ident,
