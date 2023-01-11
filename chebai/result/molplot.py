@@ -408,8 +408,9 @@ class AttentionNetwork(ResultProcessor):
             plt.rcParams.update({"font.size": 8})
             try:
                 attentions = atts
-                tokens = [s for _, s in _tokenize(raw_features)]
+                tokens = ["[CLS]"] + [s for _, s in _tokenize(raw_features)]
                 cmap = cm.ScalarMappable(cmap=cm.Greens)
+                assert len(tokens) == attentions.shape[2]
 
                 rows = int((attentions.shape[1] + 2))
                 width = len(tokens)
