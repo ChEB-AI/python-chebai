@@ -387,7 +387,7 @@ class AttentionNetwork(ResultProcessor):
 
 
     def process_prediction(
-        self, proc_id, preds, raw_features, model_output, labels, **kwargs
+        self, proc_id, preds, raw_features, model_output, labels, ident=None, **kwargs
     ):
         if self.headers is None:
             headers = list(range(len(labels)))
@@ -399,7 +399,7 @@ class AttentionNetwork(ResultProcessor):
 
         if any(
             True
-            for (ident, match) in zip(headers, labels)
+            for _ in zip(headers, labels)
         ):
             atts = torch.stack(model_output["attentions"]).squeeze(1).detach().numpy()
             predictions = (
@@ -436,7 +436,7 @@ class AttentionNetwork(ResultProcessor):
                         fontdict=dict(fontsize=10),
                     )
                     fig0.savefig(
-                        f"plots/mol_{proc_id}.png",
+                        f"plots/mol_{ident}.png",
                         bbox_inches="tight",
                         pad_inches=0,
                     )
@@ -474,7 +474,7 @@ class AttentionNetwork(ResultProcessor):
                             # sns.heatmap(attentions[i,j], linewidth=0.5, ax=ax, cmap=cm.Greens, square=True, vmin=0, vmax=1, xticklabels=tokens, yticklabels=tokens)
                     fig.subplots_adjust()
                     fig.savefig(
-                        f"plots/att_{proc_id}.png",
+                        f"plots/att_{ident}.png",
                         # transparent=True,
                         bbox_inches="tight",
                         pad_inches=0,
