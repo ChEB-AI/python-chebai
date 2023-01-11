@@ -441,7 +441,7 @@ class AttentionNetwork(ResultProcessor):
                         pad_inches=0,
                     )
                     plt.close(fig0)
-                    fig = plt.figure(figsize=(12 * 10, width // 3))
+                    fig = plt.figure(figsize=(10*12, width // 3))
                     l_tokens = {i: str(t) for i, t in enumerate(tokens)}
                     r_tokens = {(len(tokens) + i): str(t) for i, t in enumerate(tokens)}
                     labels = dict(list(l_tokens.items()) + list(r_tokens.items()))
@@ -450,21 +450,27 @@ class AttentionNetwork(ResultProcessor):
                     g.add_nodes_from(l_tokens, bipartite=0)
                     g.add_nodes_from(r_tokens, bipartite=1)
                     g.add_edges_from(edges)
-                    pos = [(0, -i) for i in range(len(l_tokens))] + [
+                    pos = np.array([(0, -i) for i in range(len(l_tokens))] + [
                         (1, -i) for i in range(len(l_tokens))
-                    ]
-                    axes = fig.subplots(1, 6 * 8 + 5, subplot_kw=dict(frameon=False))
+                    ])
+
+                    offset = np.array([(1, 0) for i in range(len(l_tokens))] + [
+                        (1, 0) for i in range(len(l_tokens))
+                    ])
+                    #axes = fig.subplots(1, 6 * 8 + 5, subplot_kw=dict(frameon=False))
+
+                    ax = fig.add_subplot(111)
+                    ax.axis("off")
                     for layer in range(attentions.shape[0]):
                         for head in range(attentions.shape[1]):
-                            index = 8 * (layer) + head + layer
-                            ax = axes[index]
-                            ax.axis("off")
+                            index = 8 * (layer) + head + layer + 1
+
                             at = np.concatenate([a for a in attentions[layer, head]])
                             col = cmap.cmap(at)
                             col[:, 3] = at
                             nx.draw_networkx(
                                 g,
-                                pos=pos,
+                                pos=pos + (index * offset),
                                 edge_color=col,
                                 ax=ax,
                                 labels=labels,
@@ -478,6 +484,7 @@ class AttentionNetwork(ResultProcessor):
                         # transparent=True,
                         bbox_inches="tight",
                         pad_inches=0,
+                        dpi=100
                     )
 
                 plt.close()
