@@ -73,7 +73,7 @@ class AttentionMolPlot(abc.ABC):
 
         table = plt.table(
             cellText=[
-                [t for _, t in _tokenize(smiles)] for _ in range(attention.shape[0])
+                (["[CLS]"] + [t for _, t in _tokenize(smiles)]) for _ in range(attention.shape[0])
             ],
             cellColours=attention_colors,
             cellLoc="center",
@@ -262,13 +262,13 @@ class AttentionOnMoleculesProcessor(AttentionMolPlot, ResultProcessor):
     def filter(self, l):
         return
 
-    def process_prediction(self, pred, labels, raw_features, model_output,**kwargs):
+    def process_prediction(self, proc_id, preds, raw_features, model_output, labels, **kwargs):
             atts = torch.stack(model_output["attentions"]).squeeze(1).detach().numpy()
             predictions = (
-                labels.detach().numpy().squeeze(0) > 0.5
+                preds.detach().numpy().squeeze(0) > 0.5
             )
             if self.headers is None:
-                headers = list(range(len(labels[0])))
+                headers = list(range(len(labels)))
             else:
                 headers = self.headers
 
@@ -373,9 +373,9 @@ class SingletonAttentionProcessor(AttentionMolPlot, ResultProcessor):
 
 
 class AttentionNetwork(ResultProcessor):
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, headers=None, **kwargs):
         super().__init__(*args, **kwargs)
-        self.wanted_classes = (37141, 24873, 33555, 28874, 22693)
+        self.headers = headers
         self.i = 0
 
     @classmethod
@@ -384,20 +384,26 @@ class AttentionNetwork(ResultProcessor):
 
     def start(self):
         self.counter = 0
-        for w in self.wanted_classes:
-            makedirs(f"plots/{w}", exist_ok=True)
+
 
     def process_prediction(
-        self, proc_id, raw_features, raw_labels, features, labels, pred
+        self, proc_id, preds, raw_features, model_output, labels, **kwargs
     ):
+        if self.headers is None:
+            headers = list(range(len(labels)))
+        else:
+            headers = self.headers
+
+        for w in headers:
+            makedirs(f"plots/{w}", exist_ok=True)
+
         if any(
             True
-            for (ident, match) in zip(JCI_500_COLUMNS_INT, labels)
-            if match and ident in self.wanted_classes
+            for (ident, match) in zip(headers, labels)
         ):
-            atts = torch.stack(pred["attentions"]).squeeze(1).detach().numpy()
+            atts = torch.stack(model_output["attentions"]).squeeze(1).detach().numpy()
             predictions = (
-                torch.sigmoid(pred["logits"]).detach().numpy().squeeze(0) > 0.5
+                preds.detach().numpy().squeeze(0) > 0.5
             )
             plt.rcParams.update({"font.size": 8})
             try:
@@ -417,14 +423,14 @@ class AttentionNetwork(ResultProcessor):
                         "annotated:"
                         + ", ".join(
                             str(l)
-                            for (l, is_member) in zip(JCI_500_COLUMNS_INT, labels)
+                            for (l, is_member) in zip(headers, labels)
                             if is_member
                         )
                         + "\n"
                         + "predicted:"
                         + ", ".join(
                             str(l)
-                            for (l, is_member) in zip(JCI_500_COLUMNS_INT, predictions)
+                            for (l, is_member) in zip(headers, predictions)
                             if is_member
                         ),
                         fontdict=dict(fontsize=10),

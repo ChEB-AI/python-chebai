@@ -95,7 +95,7 @@ class Tox21Base(XYBaseDataModule):
             for row in reader:
                 smiles = row["smiles"]
                 labels = [bool(int(l)) if l else None for l in (row[k] for k in self.HEADERS)]
-                yield dict(features=smiles, labels=labels)
+                yield dict(features=smiles, labels=labels, ident=row["mol_id"])
 
 class Tox21Chem(Tox21Base):
     READER = dr.ChemDataReader

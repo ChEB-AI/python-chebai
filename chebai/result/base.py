@@ -48,17 +48,24 @@ class ResultFactory(abc.ABC):
 
     def _generate_predictions(self, data_path, raw=False, **kwargs):
         self._model.eval()
+        collate = self._reader.COLLATER()
         if raw:
-            data_tuples = [self._reader.to_data(self._process_row(x)) for x in self.dataset._load_dict(data_path)]
+            data_tuples = [(x["features"], x["ident"], self._reader.to_data(self._process_row(x))) for x in self.dataset._load_dict(data_path)]
         else:
             data_tuples = torch.load(data_path)
 
-        for row in tqdm.tqdm(data_tuples):
-            f = torch.tensor([row["features"]])
-            #l = torch.tensor([labels])
-            model_output = self._model({"features": f})
-            preds, labels = self._model._get_prediction_and_labels(f, torch.tensor(0), model_output)
-            yield dict(model_output=model_output, preds=preds, raw_features=row["features"], raw_labels=row["labels"], labels=labels)
+        for raw_features, ident, row in tqdm.tqdm(data_tuples):
+            raw_labels = row.get("labels")
+
+
+            processable_data = self._model._get_data_and_labels(collate([row]), 0)
+
+            model_output = self._model(processable_data)
+            preds, labels = self._model._get_prediction_and_labels(processable_data, processable_data["labels"], model_output)
+            d = dict(model_output=model_output, preds=preds, raw_features=raw_features, ident=ident)
+            if raw_labels is not None:
+                d["labels"] = raw_labels
+            yield d
 
     def call_procs(self, args):
         proc_id, proc_args = args
@@ -66,7 +73,7 @@ class ResultFactory(abc.ABC):
             try:
                 proc.process_prediction(proc_id, **proc_args)
             except Exception:
-                print("Could not process results for", proc_args[0])
+                print("Could not process results for", proc_args["ident"])
                 raise
 
     def execute(self, data_path, **kwargs):
