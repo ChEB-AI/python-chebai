@@ -1,9 +1,9 @@
-from chebai.result.base import ResultProcessor
 import json
+
+from chebai.result.base import ResultProcessor
 
 
 class JSONResultProcessor(ResultProcessor):
-
     @classmethod
     def _identifier(cls):
         return "json"
@@ -16,6 +16,11 @@ class JSONResultProcessor(ResultProcessor):
             json.dump(self.data, fout)
             del self.data
 
-    def process_prediction(self, raw_features, raw_labels, features, labels, pred):
-        self.data.append(dict(smiles=raw_features, labels=labels.tolist(), prediction=pred["logits"].tolist()))
-
+    def process_prediction(self, proc_id, features, labels, pred, ident):
+        self.data.append(
+            dict(
+                ident=ident,
+                labels=labels if labels is not None else None,
+                prediction=pred.tolist(),
+            )
+        )

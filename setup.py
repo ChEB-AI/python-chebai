@@ -38,7 +38,7 @@ setup(
         "click",
         "scikit-network",
         "svgutils",
-        "matplotlib"
+        "matplotlib",
     ],
     extras_require={"dev": ["black", "isort", "pre-commit"]},
 )
