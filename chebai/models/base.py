@@ -5,10 +5,15 @@ import sys
 
 from pytorch_lightning import loggers as pl_loggers
 from pytorch_lightning.callbacks import EarlyStopping, ModelCheckpoint
-from torchmetrics import F1, MeanSquaredError
+from pytorch_lightning.tuner.tuning import Tuner
+from sklearn.metrics import f1_score
 from torch import nn
+from torchmetrics import MeanSquaredError
+from torchmetrics import F1Score, MeanSquaredError
+from torchmetrics import functional as tmf
 import pytorch_lightning as pl
 import torch
+import torchmetrics
 import tqdm
 
 from chebai.preprocessing.datasets import XYBaseDataModule
@@ -18,125 +23,100 @@ logging.getLogger("pysmiles").setLevel(logging.CRITICAL)
 
 class JCIBaseNet(pl.LightningModule):
     NAME = None
+    LOSS = torch.nn.BCEWithLogitsLoss
 
-    def __init__(self, out_dim=None, **kwargs):
+    def __init__(self, loss_cls=None, out_dim=None, **kwargs):
         super().__init__()
+        self.save_hyperparameters()
+        if out_dim and out_dim > 1:
+            task = "multilabel"
+        else:
+            task = "binary"
         self.out_dim = out_dim
         weights = kwargs.get("weights", None)
+        if loss_cls is None:
+            loss_cls = torch.nn.BCEWithLogitsLoss
         if weights is not None:
-            self.loss = nn.BCEWithLogitsLoss(pos_weight=weights)
+            self.loss = loss_cls(pos_weight=weights)
         else:
-            self.loss = nn.BCEWithLogitsLoss()
-        self.f1 = F1(threshold=kwargs.get("threshold", 0.5))
-        self.mse = MeanSquaredError()
-        self.lr = kwargs.get("lr", 1e-4)
+            self.loss = loss_cls()
 
-        self.save_hyperparameters()
+        self.optimizer_kwargs = kwargs.get("optimizer_kwargs", dict())
+        self.thres = kwargs.get("threshold", 0.5)
+        self.metrics = ["F1Score", "Precision", "Recall", "AUROC"]
+        self.metric_aggs = ["micro", "macro", "weighted"]
+        for metric in self.metrics:
+            for agg in self.metric_aggs:
+                setattr(
+                    self,
+                    metric + agg,
+                    getattr(torchmetrics, metric)(
+                        threshold=self.thres,
+                        average=agg,
+                        task=task,
+                        num_labels=self.out_dim,
+                    ),
+                )
 
-    def _execute(self, batch, batch_idx):
-        data = self._get_data_and_labels(batch, batch_idx)
-        labels = data["labels"]
-        pred = self(data["features"], **data.get("model_kwargs", dict()))["logits"]
-        labels = labels.float()
-        loss = self.loss(pred, labels)
-        f1 = self.f1(target=labels.int(), preds=torch.sigmoid(pred))
-        mse = self.mse(labels, torch.sigmoid(pred))
-        return loss, f1, mse
+    def _get_prediction_and_labels(self, data, labels, output):
+        return output, labels
 
     def _get_data_and_labels(self, batch, batch_idx):
         return dict(features=batch.x, labels=batch.y.float())
 
+    def _execute(self, batch, batch_idx):
+        data = self._get_data_and_labels(batch, batch_idx)
+        labels = data["labels"]
+        model_output = self(data, **data.get("model_kwargs", dict()))
+        return data, labels, model_output
+
+    def _get_data_for_loss(self, model_output, labels):
+        return dict(input=model_output, target=labels.float())
+
     def training_step(self, *args, **kwargs):
-        loss, f1, mse = self._execute(*args, **kwargs)
-        self.log(
-            "train_loss",
-            loss.detach().item(),
-            on_step=False,
-            on_epoch=True,
-            prog_bar=True,
-            logger=True,
-        )
-        self.log(
-            "train_f1",
-            f1.detach().item(),
-            on_step=False,
-            on_epoch=True,
-            prog_bar=True,
-            logger=True,
-        )
-        self.log(
-            "train_mse",
-            mse.detach().item(),
-            on_step=False,
-            on_epoch=True,
-            prog_bar=True,
-            logger=True,
-        )
-        return loss
+        return self.calculate_all_metrics("train_", *args, on_step=True, **kwargs)
 
     def validation_step(self, *args, **kwargs):
         with torch.no_grad():
-            loss, f1, mse = self._execute(*args, **kwargs)
-            self.log(
-                "val_loss",
-                loss.detach().item(),
-                on_step=False,
-                on_epoch=True,
-                prog_bar=True,
-                logger=True,
-            )
-            self.log(
-                "val_f1",
-                f1.detach().item(),
-                on_step=False,
-                on_epoch=True,
-                prog_bar=True,
-                logger=True,
-            )
-            self.log(
-                "val_mse",
-                mse.detach().item(),
-                on_step=False,
-                on_epoch=True,
-                prog_bar=True,
-                logger=True,
-            )
-            return loss
+            return self.calculate_all_metrics("val_", *args, **kwargs)
 
     def test_step(self, *args, **kwargs):
         with torch.no_grad():
-            loss, f1, mse = self._execute(*args, **kwargs)
+            return self.calculate_all_metrics("test_", *args, **kwargs)
+
+    def calculate_all_metrics(self, prefix, *args, on_step=False, **kwargs):
+        data, labels, model_output = self._execute(*args, **kwargs)
+        loss = self.loss(**self._get_data_for_loss(model_output, labels))
+        with torch.no_grad():
+            p, l = self._get_prediction_and_labels(data, labels, model_output)
+            for name in self.metrics:
+                for agg in self.metric_aggs:
+                    metric = getattr(self, name + agg)
+                    self.log(
+                        prefix + name + "_" + agg,
+                        metric(preds=p.detach().cpu(), target=l.detach().cpu()),
+                        on_step=on_step,
+                        on_epoch=True,
+                        prog_bar=True,
+                        logger=True,
+                        batch_size=p.shape[0],
+                    )
             self.log(
-                "test_loss",
-                loss.detach().item(),
+                prefix + "loss",
+                loss.detach(),
                 on_step=False,
                 on_epoch=True,
                 prog_bar=True,
                 logger=True,
+                batch_size=p.shape[0],
             )
-            self.log(
-                "test_f1",
-                f1.detach().item(),
-                on_step=False,
-                on_epoch=True,
-                prog_bar=True,
-                logger=True,
-            )
-            self.log(
-                "test_mse",
-                mse.detach().item(),
-                on_step=False,
-                on_epoch=True,
-                prog_bar=True,
-                logger=True,
-            )
-            return loss
+        return loss
 
     def forward(self, x):
         raise NotImplementedError
 
-    def configure_optimizers(self):
-        optimizer = torch.optim.Adam(self.parameters(), lr=self.lr)
+    def configure_optimizers(self, **kwargs):
+        optimizer = torch.optim.Adamax(self.parameters(), **self.optimizer_kwargs)
         return optimizer
 
     @classmethod
@@ -164,6 +144,7 @@ class JCIBaseNet(pl.LightningModule):
         name,
         model_args: list = None,
         model_kwargs: dict = None,
+        loss=torch.nn.BCELoss,
         weighted=False,
     ):
         if model_args is None:
@@ -199,14 +180,14 @@ class JCIBaseNet(pl.LightningModule):
         tb_logger = pl_loggers.TensorBoardLogger("logs/", name=name)
         best_checkpoint_callback = ModelCheckpoint(
             dirpath=os.path.join(tb_logger.log_dir, "best_checkpoints"),
-            filename="{epoch}-{val_f1:.7f}",
+            filename="{epoch}-{val_F1Score_micro:.4f}--{val_loss:.4f}",
             save_top_k=5,
-            monitor="val_f1",
-            mode="max",
+            monitor="val_loss",
+            mode="min",
         )
         checkpoint_callback = ModelCheckpoint(
             dirpath=os.path.join(tb_logger.log_dir, "periodic_checkpoints"),
-            filename="{epoch}-{val_f1:.7f}",
+            filename="{epoch}-{val_F1Score_micro:.4f}--{val_loss:.4f}",
             every_n_epochs=5,
             save_top_k=-1,
             save_last=True,
@@ -215,11 +196,11 @@ class JCIBaseNet(pl.LightningModule):
 
         # Calculate weights per class
 
-        net = cls(*model_args, **model_kwargs)
+        net = cls(*model_args, loss_cls=loss, **model_kwargs)
 
         # Early stopping seems to be bugged right now with ddp accelerator :(
         es = EarlyStopping(
-            monitor="val_f1", patience=10, min_delta=0.00, verbose=False, mode="max"
+            monitor="val_loss", patience=10, min_delta=0.00, verbose=False, mode="min"
         )
 
         trainer = pl.Trainer(
