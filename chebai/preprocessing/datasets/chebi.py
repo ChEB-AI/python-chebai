@@ -8,7 +8,7 @@ __all__ = [
     "ChEBIOver100",
     "JCIGraphData",
     "JCI_500_COLUMNS",
-    "JCI_500_COLUMNS_INT"
+    "JCI_500_COLUMNS_INT",
 ]
 
 from abc import ABC
@@ -261,7 +261,7 @@ class ChEBIOver100(_ChEBIDataExtractor):
                 }
             )
         )
-        with open(os.path.join(self.raw_dir,"classes.txt"), "wt") as fout:
+        with open(os.path.join(self.raw_dir, "classes.txt"), "wt") as fout:
             fout.writelines(str(node) + "\n" for node in nodes)
         return nodes
 

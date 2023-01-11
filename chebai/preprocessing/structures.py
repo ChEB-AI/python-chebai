@@ -67,7 +67,6 @@ class XYData(torch.utils.data.Dataset, TransferableDataType):
         else:
             return obj
 
-
     def to(self, device):
         x = self.to_x(device)
         if self.y is not None:
@@ -77,7 +76,10 @@ class XYData(torch.utils.data.Dataset, TransferableDataType):
         return XYData(
             x,
             y,
-            additional_fields={k: self._to_if_tensor(getattr(self, k), device) for k in self.additional_fields},
+            additional_fields={
+                k: self._to_if_tensor(getattr(self, k), device)
+                for k in self.additional_fields
+            },
         )
 
 

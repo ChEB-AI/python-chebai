@@ -28,9 +28,7 @@ class ResultProcessor(abc.ABC):
         ), f"ResultProcessor {cls.__name__} does not have a unique identifier"
         PROCESSORS[cls._identifier()] = cls
 
-    def process_prediction(
-        self, proc_id, features, labels, pred, ident
-    ):
+    def process_prediction(self, proc_id, features, labels, pred, ident):
         raise NotImplementedError
 
 
@@ -50,19 +48,29 @@ class ResultFactory(abc.ABC):
         self._model.eval()
         collate = self._reader.COLLATER()
         if raw:
-            data_tuples = [(x["features"], x["ident"], self._reader.to_data(self._process_row(x))) for x in self.dataset._load_dict(data_path)]
+            data_tuples = [
+                (x["features"], x["ident"], self._reader.to_data(self._process_row(x)))
+                for x in self.dataset._load_dict(data_path)
+            ]
         else:
             data_tuples = torch.load(data_path)
 
         for raw_features, ident, row in tqdm.tqdm(data_tuples):
             raw_labels = row.get("labels")
 
-
             processable_data = self._model._get_data_and_labels(collate([row]), 0)
 
             model_output = self._model(processable_data)
-            preds, labels = self._model._get_prediction_and_labels(processable_data, processable_data["labels"], model_output)
-            d = dict(model_output=model_output, preds=preds, raw_features=raw_features, ident=ident, threshold=self._model.thres)
+            preds, labels = self._model._get_prediction_and_labels(
+                processable_data, processable_data["labels"], model_output
+            )
+            d = dict(
+                model_output=model_output,
+                preds=preds,
+                raw_features=raw_features,
+                ident=ident,
+                threshold=self._model.thres,
+            )
             if raw_labels is not None:
                 d["labels"] = raw_labels
             yield d
@@ -82,7 +90,8 @@ class ResultFactory(abc.ABC):
         try:
             with mp.Pool() as pool:
                 res = map(
-                    self.call_procs, enumerate(self._generate_predictions(data_path, **kwargs))
+                    self.call_procs,
+                    enumerate(self._generate_predictions(data_path, **kwargs)),
                 )
             for r in res:
                 pass

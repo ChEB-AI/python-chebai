@@ -25,6 +25,7 @@ from chebai.models.base import JCIBaseNet
 
 logging.getLogger("pysmiles").setLevel(logging.CRITICAL)
 
+
 class ElectraPre(JCIBaseNet):
     NAME = "ElectraPre"
 
@@ -52,22 +53,40 @@ class ElectraPre(JCIBaseNet):
 
         mask = data["mask"]
         with torch.no_grad():
-            dis_tar = (torch.rand((batch_size,), device=self.device) * torch.sum(mask, dim=-1)).int()
-            disc_tar_one_hot = torch.eq(torch.arange(max_seq_len, device=self.device)[None, :],
-                                        dis_tar[:, None])
+            dis_tar = (
+                torch.rand((batch_size,), device=self.device) * torch.sum(mask, dim=-1)
+            ).int()
+            disc_tar_one_hot = torch.eq(
+                torch.arange(max_seq_len, device=self.device)[None, :], dis_tar[:, None]
+            )
             gen_tar = features[disc_tar_one_hot]
-            gen_tar_one_hot = torch.eq(torch.arange(self.generator_config.vocab_size, device=self.device)[None, :],
-                                       gen_tar[:, None])
+            gen_tar_one_hot = torch.eq(
+                torch.arange(self.generator_config.vocab_size, device=self.device)[
+                    None, :
+                ],
+                gen_tar[:, None],
+            )
 
-        raw_gen_out = torch.mean(self.generator((features * ~disc_tar_one_hot) + MASK_TOKEN_INDEX*disc_tar_one_hot, attention_mask=mask).logits, dim=1)
+        raw_gen_out = torch.mean(
+            self.generator(
+                (features * ~disc_tar_one_hot) + MASK_TOKEN_INDEX * disc_tar_one_hot,
+                attention_mask=mask,
+            ).logits,
+            dim=1,
+        )
 
         with torch.no_grad():
             gen_best_guess = raw_gen_out.argmax(dim=-1)
-            correct_mask = (features[disc_tar_one_hot] == gen_best_guess)
-            random_tokens = torch.randint(self.generator_config.vocab_size, (batch_size,), device=self.device)
-            replacements = gen_best_guess * ~correct_mask + random_tokens*correct_mask
+            correct_mask = features[disc_tar_one_hot] == gen_best_guess
+            random_tokens = torch.randint(
+                self.generator_config.vocab_size, (batch_size,), device=self.device
+            )
+            replacements = gen_best_guess * ~correct_mask + random_tokens * correct_mask
 
-        disc_out = self.discriminator(features * ~disc_tar_one_hot + replacements[:,None] * disc_tar_one_hot, attention_mask=mask).logits
+        disc_out = self.discriminator(
+            features * ~disc_tar_one_hot + replacements[:, None] * disc_tar_one_hot,
+            attention_mask=mask,
+        ).logits
         return (raw_gen_out, disc_out), (gen_tar_one_hot, disc_tar_one_hot)
 
     def _get_prediction_and_labels(self, batch, labels, output):
@@ -86,7 +105,9 @@ class ElectraPreLoss:
         gen_pred, disc_pred = t
         gen_tar, disc_tar = p
         gen_loss = self.ce(target=torch.argmax(gen_tar.int(), dim=-1), input=gen_pred)
-        disc_loss = self.ce(target=torch.argmax(disc_tar.int(), dim=-1), input=disc_pred)
+        disc_loss = self.ce(
+            target=torch.argmax(disc_tar.int(), dim=-1), input=disc_pred
+        )
         return gen_loss + disc_loss
 
 
@@ -94,10 +115,21 @@ class Electra(JCIBaseNet):
     NAME = "Electra"
 
     def _get_data_and_labels(self, batch, batch_idx):
-        mask = pad_sequence([torch.ones(l+1, device=self.device) for l in batch.lens], batch_first=True)
-        cls_tokens = torch.ones(batch.x.shape[0], dtype=torch.int, device=self.device).unsqueeze(-1) * CLS_TOKEN
+        mask = pad_sequence(
+            [torch.ones(l + 1, device=self.device) for l in batch.lens],
+            batch_first=True,
+        )
+        cls_tokens = (
+            torch.ones(batch.x.shape[0], dtype=torch.int, device=self.device).unsqueeze(
+                -1
+            )
+            * CLS_TOKEN
+        )
         return dict(
-            features=torch.cat((cls_tokens, batch.x), dim=1), labels=batch.y, model_kwargs=dict(attention_mask=mask), target_mask=batch.target_mask
+            features=torch.cat((cls_tokens, batch.x), dim=1),
+            labels=batch.y,
+            model_kwargs=dict(attention_mask=mask),
+            target_mask=batch.target_mask,
         )
 
     @property
@@ -122,9 +154,7 @@ class Electra(JCIBaseNet):
             elpre = ElectraPre.load_from_checkpoint(pretrained_checkpoint)
             with TemporaryDirectory() as td:
                 elpre.as_pretrained.save_pretrained(td)
-                self.electra = ElectraModel.from_pretrained(
-                    td, config=self.config
-                )
+                self.electra = ElectraModel.from_pretrained(td, config=self.config)
         else:
             self.electra = ElectraModel(config=self.config)
 
@@ -135,7 +165,7 @@ class Electra(JCIBaseNet):
             nn.Linear(in_d, in_d),
             nn.GELU(),
             nn.Dropout(self.config.hidden_dropout_prob),
-            nn.Linear(in_d,  self.config.num_labels),
+            nn.Linear(in_d, self.config.num_labels),
         )
 
     def _get_data_for_loss(self, model_output, labels):
@@ -149,7 +179,7 @@ class Electra(JCIBaseNet):
     def _get_prediction_and_labels(self, data, labels, model_output):
         mask = model_output.get("target_mask")
         if mask is not None:
-            d = model_output["logits"]*mask - 100 * ~mask
+            d = model_output["logits"] * mask - 100 * ~mask
         else:
             d = model_output["logits"]
         return torch.sigmoid(d), labels.int()
@@ -160,7 +190,11 @@ class Electra(JCIBaseNet):
         inp = self.word_dropout(inp)
         electra = self.electra(inputs_embeds=inp, **kwargs)
         d = electra.last_hidden_state[:, 0, :]
-        return dict(logits=self.output(d), attentions=electra.attentions, target_mask=data.get("target_mask"))
+        return dict(
+            logits=self.output(d),
+            attentions=electra.attentions,
+            target_mask=data.get("target_mask"),
+        )
 
 
 class ElectraLegacy(JCIBaseNet):
