@@ -62,7 +62,7 @@ class ResultFactory(abc.ABC):
 
             model_output = self._model(processable_data)
             preds, labels = self._model._get_prediction_and_labels(processable_data, processable_data["labels"], model_output)
-            d = dict(model_output=model_output, preds=preds, raw_features=raw_features, ident=ident)
+            d = dict(model_output=model_output, preds=preds, raw_features=raw_features, ident=ident, threshold=self._model.thres)
             if raw_labels is not None:
                 d["labels"] = raw_labels
             yield d
