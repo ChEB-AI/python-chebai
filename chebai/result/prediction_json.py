@@ -16,11 +16,11 @@ class JSONResultProcessor(ResultProcessor):
             json.dump(self.data, fout)
             del self.data
 
-    def process_prediction(self, proc_id, features, labels, pred, ident):
+    def process_prediction(self, proc_id, raw_features, labels, preds, ident, **kwargs):
         self.data.append(
             dict(
                 ident=ident,
                 labels=labels if labels is not None else None,
-                prediction=pred.tolist(),
+                prediction=preds.tolist(),
             )
         )
