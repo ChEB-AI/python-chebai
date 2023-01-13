@@ -138,60 +138,6 @@ class Tox21Graph(Tox21Base):
     READER = dr.GraphReader
 
 
-class Tox21Bloat(Tox21Base):
-    @property
-    def _name(self):
-        return "tox21bloat"
-
-    def _load_dict(self, input_file_path):
-        with open(input_file_path, "r") as input_file:
-            reader = csv.DictReader(input_file)
-            for row in reader:
-                smiles = row["smiles"]
-                labels = [
-                    bool(int(l)) if l else None for l in (row[k] for k in self.HEADERS)
-                ]
-                yield dict(
-                    features=smiles,
-                    labels=labels,
-                    group=row["mol_id"],
-                    additional_kwargs=dict(original=True),
-                )
-                try:
-                    mol = pysmiles.read_smiles(smiles)
-                except:
-                    pass
-                else:
-
-                    def keyfunc(idx):
-                        """
-                        pysmiles uses this method to determine possible starting points
-                        """
-                        return (
-                            mol.degree(idx),
-                            # True > False
-                            mol.nodes[idx].get("element", "*") == "C",
-                            idx,
-                        )
-
-                    possible_starts = list(sorted(mol.nodes, key=keyfunc))[1:11]
-                    for n in possible_starts:
-                        try:
-                            alt_smiles = pysmiles.write_smiles(mol, start=n)
-                        except:
-                            pass
-                        else:
-                            yield dict(
-                                features=alt_smiles,
-                                labels=labels,
-                                group=row["mol_id"],
-                                additional_kwargs=dict(original=False),
-                            )
-
-
-class Tox21BloatChem(Tox21Bloat):
-    READER = dr.ChemDataReader
-
 
 class Tox21ExtendedChem(MergedDataset):
     MERGED = [Tox21Chem, Hazardous, JCIExtendedTokenData]
