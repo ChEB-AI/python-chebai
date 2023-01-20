@@ -25,8 +25,9 @@ class Experiment(ABC):
         if cls.identifier() is not None:
             EXPERIMENTS[cls.identifier()] = cls
 
-    def __init__(self, batch_size, *args, **kwargs):
+    def __init__(self, batch_size, *args, version=None, **kwargs):
         self.dataset = self.build_dataset(batch_size)
+        self.version=version
 
     @classmethod
     def identifier(cls) -> str:
@@ -46,6 +47,7 @@ class Experiment(ABC):
             self.MODEL.NAME,
             loss=self.LOSS,
             model_kwargs=self.model_kwargs(*args),
+            version=self.version
         )
 
     def test(self, ckpt_path, *args):
@@ -264,28 +266,32 @@ class ElectraOnTox21(_ElectraExperiment):
         return d
 
 
-class ElectraOnTox21Bloat(ElectraOnTox21):
+class ElectraOnTox21MoleculeNet(_ElectraExperiment):
     MODEL = electra.Electra
     LOSS = torch.nn.BCEWithLogitsLoss
 
     @classmethod
     def identifier(cls) -> str:
-        return "Electra+Tox21Bloat"
+        return "Electra+Tox21MN"
 
     def build_dataset(self, batch_size) -> datasets.XYBaseDataModule:
-        return datasets.Tox21BloatChem(batch_size)
+        return datasets.Tox21MolNetChem(batch_size)
+
+    def model_kwargs(self, *args) -> Dict:
+        d = super().model_kwargs(*args)
+        d["config"]["hidden_dropout_prob"] = 0.4
+        d["config"]["word_dropout"] = 0.2
+        d["optimizer_kwargs"]["weight_decay"] = 1e-4
+        return d
 
 
-class ElectraOnTox21Ext(_ElectraExperiment):
-    MODEL = electra.Electra
-    LOSS = torch.nn.BCEWithLogitsLoss
-
+class ElectraOnTox21Challenge(_ElectraExperiment):
     @classmethod
     def identifier(cls) -> str:
-        return "Electra+Tox21Ext"
+        return "Electra+Tox21Chal"
 
     def build_dataset(self, batch_size) -> datasets.XYBaseDataModule:
-        return datasets.Tox21ExtendedChem(batch_size)
+        return datasets.Tox21ChallengeChem(batch_size)
 
 
 class ElectraBPEOnJCIExt(_ElectraExperiment):

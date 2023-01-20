@@ -146,6 +146,7 @@ class JCIBaseNet(pl.LightningModule):
         model_kwargs: dict = None,
         loss=torch.nn.BCELoss,
         weighted=False,
+        version=None
     ):
         if model_args is None:
             model_args = []
@@ -177,7 +178,9 @@ class JCIBaseNet(pl.LightningModule):
         else:
             trainer_kwargs = dict(gpus=0)
 
-        tb_logger = pl_loggers.TensorBoardLogger("logs/", name=name)
+        tb_logger = pl_loggers.TensorBoardLogger("logs/", name=name, version=version)
+        if os.path.isdir(tb_logger.log_dir):
+            raise IOError("Fixed logging directory does already exist:", tb_logger.log_dir)
         best_checkpoint_callback = ModelCheckpoint(
             dirpath=os.path.join(tb_logger.log_dir, "best_checkpoints"),
             filename="{epoch}-{val_F1Score_micro:.4f}--{val_loss:.4f}",
