@@ -44,7 +44,7 @@ class JCIBaseNet(pl.LightningModule):
         self.optimizer_kwargs = kwargs.get("optimizer_kwargs", dict())
         self.thres = kwargs.get("threshold", 0.5)
         self.metrics = ["F1Score", "Precision", "Recall", "AUROC"]
-        self.metric_aggs = ["micro", "macro", "weighted"]
+        self.metric_aggs = ["micro"]
         for metric in self.metrics:
             for agg in self.metric_aggs:
                 setattr(
