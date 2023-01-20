@@ -15,11 +15,12 @@ def cli():
 @click.argument("experiment")
 @click.argument("batch_size", type=click.INT)
 @click.option("-g", "--group", default="default")
+@click.option("--version", default=None)
 @click.argument("args", nargs=-1)
-def train(experiment, batch_size, group, args):
+def train(experiment, batch_size, group, version, args):
     """Run experiment identified by EXPERIMENT in batches of size BATCH_SIZE."""
     try:
-        ex = experiments.EXPERIMENTS[experiment](batch_size, group)
+        ex = experiments.EXPERIMENTS[experiment](batch_size, group, version=version)
     except KeyError:
         raise Exception(
             "Experiment ID not found. The following are available:"

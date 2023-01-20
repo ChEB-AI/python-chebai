@@ -151,10 +151,9 @@ class Electra(JCIBaseNet):
         self.config = ElectraConfig(**kwargs["config"], output_attentions=True)
         self.word_dropout = nn.Dropout(kwargs["config"].get("word_dropout", 0))
         if pretrained_checkpoint:
-            elpre = ElectraPre.load_from_checkpoint(pretrained_checkpoint)
-            with TemporaryDirectory() as td:
-                elpre.as_pretrained.save_pretrained(td)
-                self.electra = ElectraModel.from_pretrained(td, config=self.config)
+            with open(pretrained_checkpoint, "rb") as fin:
+                model_dict = torch.load(fin,map_location=self.device)
+                self.electra = ElectraModel.from_pretrained(None, state_dict=model_dict['state_dict'], config=self.config)
         else:
             self.electra = ElectraModel(config=self.config)
 
