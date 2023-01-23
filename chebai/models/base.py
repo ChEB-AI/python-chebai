@@ -146,7 +146,8 @@ class JCIBaseNet(pl.LightningModule):
         model_kwargs: dict = None,
         loss=torch.nn.BCELoss,
         weighted=False,
-        version=None
+        version=None,
+        **kwargs
     ):
         if model_args is None:
             model_args = []
@@ -199,7 +200,7 @@ class JCIBaseNet(pl.LightningModule):
 
         # Calculate weights per class
 
-        net = cls(*model_args, loss_cls=loss, **model_kwargs)
+        net = cls(*model_args, loss_cls=loss, **model_kwargs, **kwargs)
 
         # Early stopping seems to be bugged right now with ddp accelerator :(
         es = EarlyStopping(

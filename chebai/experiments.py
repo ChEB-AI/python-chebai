@@ -41,13 +41,14 @@ class Experiment(ABC):
     def build_dataset(self, batch_size) -> datasets.XYBaseDataModule:
         raise NotImplementedError
 
-    def train(self, batch_size, *args):
+    def train(self, batch_size, *args, **kwargs):
         self.MODEL.run(
             self.dataset,
             self.MODEL.NAME,
             loss=self.LOSS,
             model_kwargs=self.model_kwargs(*args),
-            version=self.version
+            version=self.version,
+            **kwargs
         )
 
     def test(self, ckpt_path, *args):
