@@ -217,7 +217,7 @@ class Tox21Challenge(XYBaseDataModule):
             test_smiles = dict(reversed(row.strip().split("\t")) for row in fin)
         with open(os.path.join(self.raw_dir, f"test_results.txt")) as fin:
             headers = next(fin).strip().split("\t")
-            test_results = {k["Sample ID"]:[int(k[h]) if k[h] != "x" else None for h in self.HEADERS] for k in (dict(zip(headers, row.strip().split("\t"), strict=True)) for row in fin if row)}
+            test_results = {k["Sample ID"]:[int(k[h]) if k[h] != "x" else None for h in self.HEADERS] for k in (dict(zip(headers, row.strip().split("\t"))) for row in fin if row)}
         test_data = [self.reader.to_data(dict(features=test_smiles[k], labels=test_results[k], ident=k)) for k in test_smiles]
         torch.save(test_data, os.path.join(self.processed_dir, f"test.pt"))
 
