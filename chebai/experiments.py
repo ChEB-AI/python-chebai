@@ -290,6 +290,13 @@ class ElectraOnTox21Challenge(_ElectraExperiment):
     def identifier(cls) -> str:
         return "Electra+Tox21Chal"
 
+    def model_kwargs(self, *args) -> Dict:
+        d = super().model_kwargs(*args)
+        d["config"]["hidden_dropout_prob"] = 0.5
+        d["config"]["word_dropout"] = 0.3
+        d["optimizer_kwargs"]["weight_decay"] = 1e-4
+        return d
+
     def build_dataset(self, batch_size) -> datasets.XYBaseDataModule:
         return datasets.Tox21ChallengeChem(batch_size)
 
