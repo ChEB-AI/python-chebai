@@ -142,6 +142,7 @@ class JCIBaseNet(pl.LightningModule):
         cls,
         data,
         name,
+        epochs,
         model_args: list = None,
         model_kwargs: dict = None,
         loss=torch.nn.BCELoss,
@@ -209,7 +210,7 @@ class JCIBaseNet(pl.LightningModule):
 
         trainer = pl.Trainer(
             logger=tb_logger,
-            min_epochs=model_kwargs.get("epochs", 100),
+            min_epochs=epochs,
             callbacks=[best_checkpoint_callback, checkpoint_callback, es],
             replace_sampler_ddp=False,
             **trainer_kwargs

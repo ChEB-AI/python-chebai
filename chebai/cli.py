@@ -17,8 +17,9 @@ def cli():
 @click.option("-g", "--group", default="default")
 @click.option("--version", default=None)
 @click.option("--load-prefix", default=None)
+@click.option("--epochs", default=100)
 @click.argument("args", nargs=-1)
-def train(experiment, batch_size, group, version, load_prefix, args):
+def train(experiment, batch_size, group, version, load_prefix, epochs, args):
     """Run experiment identified by EXPERIMENT in batches of size BATCH_SIZE."""
     try:
         ex = experiments.EXPERIMENTS[experiment](batch_size, group, version=version)
@@ -27,7 +28,7 @@ def train(experiment, batch_size, group, version, load_prefix, args):
             "Experiment ID not found. The following are available:"
             + ", ".join(experiments.EXPERIMENTS.keys())
         )
-    ex.train(batch_size, *args, load_prefix=load_prefix)
+    ex.train(batch_size, epochs, *args, load_prefix=load_prefix)
 
 
 @click.command()
