@@ -150,10 +150,15 @@ class Electra(JCIBaseNet):
             kwargs["config"]["num_labels"] = self.out_dim
         self.config = ElectraConfig(**kwargs["config"], output_attentions=True)
         self.word_dropout = nn.Dropout(kwargs["config"].get("word_dropout", 0))
+        model_prefix = kwargs.get("load_prefix", None)
         if pretrained_checkpoint:
             with open(pretrained_checkpoint, "rb") as fin:
                 model_dict = torch.load(fin,map_location=self.device)
-                self.electra = ElectraModel.from_pretrained(None, state_dict=model_dict['state_dict'], config=self.config)
+                if model_prefix:
+                    state_dict = {str(k)[len(model_prefix):]:v for k,v in model_dict["state_dict"].items() if str(k).startswith(model_prefix)}
+                else:
+                    state_dict = model_dict["state_dict"]
+                self.electra = ElectraModel.from_pretrained(None, state_dict=state_dict, config=self.config)
         else:
             self.electra = ElectraModel(config=self.config)
 
