@@ -36,7 +36,7 @@ class Tox21MolNet(XYBaseDataModule):
 
     @property
     def _name(self):
-        return "Tox21mn"
+        return "Tox21MN"
 
     @property
     def label_number(self):
@@ -151,7 +151,7 @@ class Tox21Challenge(XYBaseDataModule):
 
     @property
     def _name(self):
-        return "tox21chal"
+        return "Tox21Chal"
 
     @property
     def label_number(self):
