@@ -41,10 +41,11 @@ class Experiment(ABC):
     def build_dataset(self, batch_size) -> datasets.XYBaseDataModule:
         raise NotImplementedError
 
-    def train(self, batch_size, *args, **kwargs):
+    def train(self, batch_size, epochs, *args, **kwargs):
         self.MODEL.run(
             self.dataset,
             self.MODEL.NAME,
+            epochs,
             loss=self.LOSS,
             model_kwargs=self.model_kwargs(*args),
             version=self.version,
@@ -93,7 +94,6 @@ class ElectraPreOnSWJ(Experiment):
                     type_vocab_size=1,
                 ),
             ),
-            epochs=100,
         )
 
     def build_dataset(self, batch_size) -> datasets.XYBaseDataModule:
@@ -117,7 +117,6 @@ class ChembertaPreOnSWJ(Experiment):
                 num_hidden_layers=6,
                 type_vocab_size=1,
             ),
-            epochs=100,
         )
 
     def build_dataset(self, batch_size) -> datasets.XYBaseDataModule:
@@ -142,7 +141,6 @@ class ChembertaPreBPEOnSWJ(Experiment):
                 num_hidden_layers=6,
                 type_vocab_size=1,
             ),
-            epochs=100,
         )
 
     def build_dataset(self, batch_size) -> datasets.XYBaseDataModule:
@@ -174,8 +172,7 @@ class _ElectraExperiment(Experiment):
                 num_attention_heads=8,
                 num_hidden_layers=6,
                 type_vocab_size=1,
-            ),
-            epochs=100,
+            )
         )
 
 
@@ -327,7 +324,6 @@ class GATOnSWJ(Experiment):
         return dict(
             in_length=50,
             hidden_length=100,
-            epochs=100,
         )
 
     def build_dataset(self, batch_size) -> datasets.XYBaseDataModule:
@@ -345,7 +341,6 @@ class GATOnTox21(Experiment):
         return dict(
             in_length=50,
             hidden_length=100,
-            epochs=100,
         )
 
     def build_dataset(self, batch_size) -> datasets.XYBaseDataModule:
