@@ -265,6 +265,11 @@ class ChEBIOver100(_ChEBIDataExtractor):
             fout.writelines(str(node) + "\n" for node in nodes)
         return nodes
 
+    def headers(self):
+        with open(os.path.join(self.raw_dir, "classes.txt"), "rt") as fout:
+            return [l.strip() for l in fout]
+
+
 
 class JCIExtendedBPEData(JCIExtendedBase):
     READER = dr.ChemBPEReader

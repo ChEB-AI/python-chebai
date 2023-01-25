@@ -7,7 +7,7 @@ from chebai import MODULE_PATH
 import torch.nn
 
 from chebai import preprocessing as prep
-from chebai.models import base, chemberta, electra, graph
+from chebai.models import base, chemberta, electra, graph, strontex
 from chebai.preprocessing import datasets
 from chebai.result.base import ResultFactory, ResultProcessor
 
@@ -151,6 +151,7 @@ class ChembertaPreBPEOnSWJ(Experiment):
             ),
             k=100,
         )
+
 
 
 class _ElectraExperiment(Experiment):
@@ -311,6 +312,37 @@ class ElectraBPEOnJCIExt(_ElectraExperiment):
                 data_path=os.path.join(MODULE_PATH, "preprocessing/bin/BPE_SWJ")
             ),
         )
+
+class ElectraLnnOnChebi100(Experiment):
+    MODEL = strontex.ElectraLNN
+
+    @classmethod
+    def identifier(cls) -> str:
+        return "ElectraLnn+Chebi100"
+
+    def model_kwargs(self, *args) -> Dict:
+        checkpoint_path = args[0] if len(args) > 0 else None
+        return dict(
+                out_dim=self.dataset.label_number,
+                optimizer_kwargs=dict(lr=1e-4),
+                electra_kwargs = dict(
+                    out_dim=self.dataset.label_number,
+                    config=dict(
+                        vocab_size=1400,
+                        max_position_embeddings=1800,
+                        num_attention_heads=8,
+                        num_hidden_layers=6,
+                        type_vocab_size=1,
+                    )
+                ),
+                lnn_kwargs = dict(
+                    out_dim=self.dataset.label_number,
+                    class_labels = self.dataset.headers(),
+                )
+        )
+
+    def build_dataset(self, batch_size) -> datasets.XYBaseDataModule:
+        return datasets.ChEBIOver100(batch_size)
 
 
 class GATOnSWJ(Experiment):

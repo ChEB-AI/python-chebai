@@ -26,6 +26,12 @@ class JCIBaseNet(pl.LightningModule):
     LOSS = torch.nn.BCEWithLogitsLoss
 
     def __init__(self, loss_cls=None, out_dim=None, **kwargs):
+        """
+
+        :param loss_cls:
+        :param out_dim:
+        :param kwargs:
+        """
         super().__init__()
         self.save_hyperparameters()
         if out_dim and out_dim > 1:
