@@ -315,6 +315,7 @@ class ElectraBPEOnJCIExt(_ElectraExperiment):
 
 class ElectraLnnOnChebi100(Experiment):
     MODEL = strontex.ElectraLNN
+    LOSS = strontex.SplitLoss
 
     @classmethod
     def identifier(cls) -> str:

@@ -41,13 +41,22 @@ class LNN(JCIBaseNet):
 
         classes = [f"CHEBI_{f}" for f in kwargs["class_labels"]]
         graph = graph.subgraph(classes)
+        big_graph = graph
+
+
         self.predicates = predicates = {c: Predicate(c) for c in classes}
 
 
+        disjoint_pairs = {(a, b)  for _, c, d in (
+                    ax for ax in onto_dis.get_axioms()
+                if ax[0] == "AxiomKind::DisjointClasses" and isinstance(ax[-1], str)) if c in big_graph.nodes and d in big_graph.nodes
+                    for a in big_graph.predecesspr(c) for b in big_graph.predecesspr(d) if a in classes and b in classes}
+
         print("Process disjointness releation")
-        formulae = [Or(Not(predicates[get_name(c)](x)), Not(predicates[get_name(d)](x))) for
-         _, c, d in (ax for ax in onto_dis.get_axioms() if
-                     ax[0] == "AxiomKind::DisjointClasses" and isinstance(ax[-1], str)) if c in classes and d in classes]
+        formulae = [Or(Not(predicates[get_name(c)](x)), Not(predicates[get_name(d)](x))) for c,d in disjoint_pairs]
+
+
+        graph = nx.transitive_reduction(graph)
 
         print("Process subsumption releation")
         formulae += [

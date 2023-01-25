@@ -90,9 +90,12 @@ class JCIBaseNet(pl.LightningModule):
         with torch.no_grad():
             return self.calculate_all_metrics("test_", *args, **kwargs)
 
+    def calculate_loss(self, model_output, labels):
+        return self.loss(**self._get_data_for_loss(model_output, labels))
+
     def calculate_all_metrics(self, prefix, *args, on_step=False, **kwargs):
         data, labels, model_output = self._execute(*args, **kwargs)
-        loss = self.loss(**self._get_data_for_loss(model_output, labels))
+        loss = self.calculate_loss(model_output, labels)
         with torch.no_grad():
             p, l = self._get_prediction_and_labels(data, labels, model_output)
             for name in self.metrics:
