@@ -369,7 +369,7 @@ class ConeLoss:
         negated_cone_axes, negated_cone_arcs = self.negate(cone_arcs, cone_axes)
 
         predicted_vectors = input["predicted_vectors"]
-        loss = torch.zeros((predicted_vectors.shape[0], cone_axes.shape[1]))
+        loss = torch.zeros((predicted_vectors.shape[0], cone_axes.shape[1]), device=target.get_device())
         fltr = target.bool()
         loss[fltr] = 1 - self.cal_logit_cone(predicted_vectors, cone_axes, cone_arcs)[fltr]
         loss[~fltr] = 1 - self.cal_logit_cone(predicted_vectors, negated_cone_axes,
