@@ -284,6 +284,14 @@ class ElectraOnTox21MoleculeNet(_ElectraExperiment):
         return d
 
 
+class ElectraConeOnTox21MoleculeNet(ElectraOnChEBI100):
+    MODEL = electra.ConeElectra
+    LOSS = electra.ConeLoss
+
+    @classmethod
+    def identifier(cls) -> str:
+        return "ElectraCone+Chebi100"
+
 class ElectraOnTox21Challenge(_ElectraExperiment):
     @classmethod
     def identifier(cls) -> str:
