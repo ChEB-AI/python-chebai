@@ -2,7 +2,7 @@ import random
 from tempfile import TemporaryDirectory
 import logging
 import random
-
+from math import pi
 from torch import nn
 from torch.nn.utils.rnn import (
     pack_padded_sequence,
@@ -233,3 +233,145 @@ class ElectraLegacy(JCIBaseNet):
         electra = self.electra(data)
         d = torch.sum(electra.last_hidden_state, dim=1)
         return dict(logits=self.output(d), attentions=electra.attentions)
+
+class ConeElectra(JCIBaseNet):
+    NAME = "ConeElectra"
+
+    def _get_data_and_labels(self, batch, batch_idx):
+        mask = pad_sequence(
+            [torch.ones(l + 1, device=self.device) for l in batch.lens],
+            batch_first=True,
+        )
+        cls_tokens = (
+            torch.ones(batch.x.shape[0], dtype=torch.int, device=self.device).unsqueeze(
+                -1
+            )
+            * CLS_TOKEN
+        )
+        return dict(
+            features=torch.cat((cls_tokens, batch.x), dim=1),
+            labels=batch.y,
+            model_kwargs=dict(attention_mask=mask),
+            target_mask=batch.target_mask,
+        )
+
+    @property
+    def as_pretrained(self):
+        return self.electra.electra
+
+    def __init__(self, cone_dimensions=20, **kwargs):
+        # Remove this property in order to prevent it from being stored as a
+        # hyper parameter
+        pretrained_checkpoint = (
+            kwargs.pop("pretrained_checkpoint")
+            if "pretrained_checkpoint" in kwargs
+            else None
+        )
+
+        self.cone_dimensions = cone_dimensions
+
+        super().__init__(**kwargs)
+        if not "num_labels" in kwargs["config"] and self.out_dim is not None:
+            kwargs["config"]["num_labels"] = self.out_dim
+        self.config = ElectraConfig(**kwargs["config"], output_attentions=True)
+        self.word_dropout = nn.Dropout(kwargs["config"].get("word_dropout", 0))
+        model_prefix = kwargs.get("load_prefix", None)
+        if pretrained_checkpoint:
+            with open(pretrained_checkpoint, "rb") as fin:
+                model_dict = torch.load(fin,map_location=self.device)
+                if model_prefix:
+                    state_dict = {str(k)[len(model_prefix):]:v for k,v in model_dict["state_dict"].items() if str(k).startswith(model_prefix)}
+                else:
+                    state_dict = model_dict["state_dict"]
+                self.electra = ElectraModel.from_pretrained(None, state_dict=state_dict, config=self.config)
+        else:
+            self.electra = ElectraModel(config=self.config)
+
+        in_d = self.config.hidden_size
+
+        self.line_embedding = nn.Sequential(
+            nn.Dropout(self.config.hidden_dropout_prob),
+            nn.Linear(in_d, in_d),
+            nn.GELU(),
+            nn.Dropout(self.config.hidden_dropout_prob),
+            nn.Linear(in_d, self.cone_dimensions),
+        )
+
+        self.cone_axes = nn.Parameter(2*pi*torch.rand((1, self.config.num_labels, self.cone_dimensions)))
+        self.cone_arcs = nn.Parameter(pi*(1-2*torch.rand((1, self.config.num_labels, self.cone_dimensions))))
+
+    def _get_data_for_loss(self, model_output, labels):
+        mask = model_output.get("target_mask")
+        d = model_output["predicted_vectors"]
+        return dict(input=dict(predicted_vectors=d,
+                               cone_axes = self.cone_axes,
+                               cone_arcs = self.cone_arcs),
+                    target=labels.float())
+
+    def _get_prediction_and_labels(self, data, labels, model_output):
+        mask = model_output.get("target_mask")
+        d = model_output["predicted_vectors"]
+
+        d = 1- ConeLoss.cal_logit_cone(d, self.cone_axes, self.cone_arcs)
+
+        return d, labels.int()
+
+    def forward(self, data, **kwargs):
+        self.batch_size = data["features"].shape[0]
+        inp = self.electra.embeddings.forward(data["features"])
+        inp = self.word_dropout(inp)
+        electra = self.electra(inputs_embeds=inp, **kwargs)
+        d = electra.last_hidden_state[:, 0, :]
+        return dict(
+            predicted_vectors=self.line_embedding(d),
+            attentions=electra.attentions,
+            target_mask=data.get("target_mask"),
+        )
+
+class ConeLoss:
+
+    def __init__(self, center_scaling=0.1):
+        self.center_scaling = center_scaling
+
+    def negate(self, ax, arc):
+        offset = pi*torch.ones_like(ax)
+        offset[ax >= 0] *= -1
+        return ax + offset, pi - arc
+
+    @classmethod
+    def cal_logit_cone(cls, entity_embedding, query_axis_embedding, query_arg_embedding, center_scaling=0.2):
+        """Cone distance from https://github.com/MIRALab-USTC/QE-ConE
+        :param entity_embedding:
+        :param query_axis_embedding:
+        :param query_arg_embedding:
+        :return:
+        """
+
+        e = entity_embedding.unsqueeze(1)
+
+        distance2axis = torch.abs(torch.sin((e - query_axis_embedding) / 2))
+        distance_base = torch.abs(torch.sin(query_arg_embedding / 2))
+
+        indicator_in = distance2axis < distance_base
+        distance_out = torch.min(torch.abs(torch.sin(e - (query_axis_embedding - query_arg_embedding) / 2)), torch.abs(torch.sin(e - (query_axis_embedding + query_arg_embedding) / 2)))
+        distance_out[indicator_in] = 0.
+
+        distance_in = torch.min(distance2axis, distance_base)
+
+        distance = torch.norm(distance_out, p=1, dim=-1)/e.shape[-1] + center_scaling * torch.norm(distance_in, p=1, dim=-1)/e.shape[-1]
+
+        return distance
+
+    def __call__(self, target, input):
+        cone_axes = input["cone_axes"]
+        cone_arcs = input["cone_arcs"]
+
+        negated_cone_axes, negated_cone_arcs = self.negate(cone_arcs, cone_axes)
+
+        predicted_vectors = input["predicted_vectors"]
+        loss = torch.zeros((predicted_vectors.shape[0], cone_axes.shape[1]))
+        fltr = target.bool()
+        loss[fltr] = 1 - self.cal_logit_cone(predicted_vectors, cone_axes, cone_arcs)[fltr]
+        loss[~fltr] = 1 - self.cal_logit_cone(predicted_vectors, negated_cone_axes,
+                                               negated_cone_arcs)[~fltr]
+        return torch.mean(loss)
