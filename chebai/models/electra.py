@@ -310,11 +310,11 @@ class ConeElectra(JCIBaseNet):
 
     def _get_prediction_and_labels(self, data, labels, model_output):
         mask = model_output.get("target_mask")
-        d = model_output["predicted_vectors"]
+        d = model_output["predicted_vectors"].unsqueeze(1)
 
-        d = 1- ConeLoss.cal_logit_cone(d, self.cone_axes, self.cone_arcs)
+        d = in_cone_parts(d, self.cone_axes, self.cone_arcs)
 
-        return d, labels.int()
+        return torch.mean(d, dim=-1), labels.int()
 
     def forward(self, data, **kwargs):
         self.batch_size = data["features"].shape[0]
@@ -331,10 +331,35 @@ class ConeElectra(JCIBaseNet):
 def softabs(x, eps=0.01):
     return (x**2+eps)**0.5-eps**0.5
 
+def anglify(x):
+    return torch.tanh(x)*pi
+
+def turn(vector, angle):
+    v = vector - angle
+    return v - (v > pi)*2*pi + (v< -pi)*2*pi
+
 def in_cone_parts(vectors, cone_axes, cone_arcs):
-        theta_L = cone_axes + cone_arcs
-        theta_R = cone_axes - cone_arcs
-        return ((softabs(vectors - theta_L) + softabs(vectors - theta_R)) - cone_arcs)/(2*pi-cone_arcs)
+
+        """
+        # trap between -pi and pi
+        cone_ax_ang = anglify(cone_axes)
+        v = anglify(vectors)
+
+        # trap between 0 and pi
+        cone_arc_ang = (torch.tanh(cone_arcs)+1)*pi/2
+        theta_L = cone_ax_ang - cone_arc_ang/2
+        #theta_L = theta_L - (theta_L > 2*pi) * 2 * pi + (theta_L < 0) *2*pi
+        theta_R = cone_ax_ang + cone_arc_ang/2
+        #theta_R = theta_R - (theta_R > 2 * pi) * 2 * pi + (theta_R < 0) * 2 * pi
+        dis = (torch.abs(turn(v, theta_L)) + torch.abs(turn(v, theta_R)) - cone_arc_ang)/(2*pi-cone_arc_ang)
+        return dis
+        """
+        a = cone_axes - cone_arcs**2
+        b = cone_axes + cone_arcs**2
+        bigger_than_a = torch.sigmoid(vectors-a)
+        smaller_than_b = torch.sigmoid(b-vectors)
+        return bigger_than_a * smaller_than_b
+
 
 class ConeLoss:
 
@@ -347,9 +372,9 @@ class ConeLoss:
         return ax + offset, pi - arc
 
     def __call__(self, target, input):
-        predicted_vectors = input["predicted_vectors"]
+        predicted_vectors = input["predicted_vectors"].unsqueeze(1)
         cone_axes = input["cone_axes"]
         cone_arcs = input["cone_arcs"]
-        memberships =  1 - in_cone_parts(predicted_vectors, cone_axes, cone_arcs)
-        loss = torch.nn.functional.binary_cross_entropy(memberships, target)
+        memberships =  (1-1e-6)*(in_cone_parts(predicted_vectors, cone_axes, cone_arcs))
+        loss = torch.nn.functional.binary_cross_entropy(memberships, target.unsqueeze(-1).expand(-1,-1,20))
         return loss
