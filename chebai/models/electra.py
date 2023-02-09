@@ -328,6 +328,14 @@ class ConeElectra(JCIBaseNet):
             target_mask=data.get("target_mask"),
         )
 
+def softabs(x, eps=0.01):
+    return (x**2+eps)**0.5-eps**0.5
+
+def in_cone_parts(vectors, cone_axes, cone_arcs):
+        theta_L = cone_axes + cone_arcs
+        theta_R = cone_axes - cone_arcs
+        return ((softabs(vectors - theta_L) + softabs(vectors - theta_R)) - cone_arcs)/(2*pi-cone_arcs)
+
 class ConeLoss:
 
     def __init__(self, center_scaling=0.1):
@@ -338,40 +346,10 @@ class ConeLoss:
         offset[ax >= 0] *= -1
         return ax + offset, pi - arc
 
-    @classmethod
-    def cal_logit_cone(cls, entity_embedding, query_axis_embedding, query_arg_embedding, center_scaling=0.2):
-        """Cone distance from https://github.com/MIRALab-USTC/QE-ConE
-        :param entity_embedding:
-        :param query_axis_embedding:
-        :param query_arg_embedding:
-        :return:
-        """
-
-        e = entity_embedding.unsqueeze(1)
-
-        distance2axis = torch.abs(torch.sin((e - query_axis_embedding) / 2))
-        distance_base = torch.abs(torch.sin(query_arg_embedding / 2))
-
-        indicator_in = distance2axis < distance_base
-        distance_out = torch.min(torch.abs(torch.sin(e - (query_axis_embedding - query_arg_embedding) / 2)), torch.abs(torch.sin(e - (query_axis_embedding + query_arg_embedding) / 2)))
-        distance_out[indicator_in] = 0.
-
-        distance_in = torch.min(distance2axis, distance_base)
-
-        distance = torch.norm(distance_out, p=1, dim=-1)/e.shape[-1] + center_scaling * torch.norm(distance_in, p=1, dim=-1)/e.shape[-1]
-
-        return distance
-
     def __call__(self, target, input):
+        predicted_vectors = input["predicted_vectors"]
         cone_axes = input["cone_axes"]
         cone_arcs = input["cone_arcs"]
-
-        negated_cone_axes, negated_cone_arcs = self.negate(cone_arcs, cone_axes)
-
-        predicted_vectors = input["predicted_vectors"]
-        loss = torch.zeros((predicted_vectors.shape[0], cone_axes.shape[1]), device=target.get_device())
-        fltr = target.bool()
-        loss[fltr] = 1 - self.cal_logit_cone(predicted_vectors, cone_axes, cone_arcs)[fltr]
-        loss[~fltr] = 1 - self.cal_logit_cone(predicted_vectors, negated_cone_axes,
-                                               negated_cone_arcs)[~fltr]
-        return torch.mean(loss)
+        memberships =  1 - in_cone_parts(predicted_vectors, cone_axes, cone_arcs)
+        loss = torch.nn.functional.binary_cross_entropy(memberships, target)
+        return loss
