@@ -1,7 +1,7 @@
 from setuptools import setup
 
 setup(
-    name="ChEBI-learn",
+    name="chebai",
     version="0.0.0",
     packages=["chebai", "chebai.models"],
     url="",
@@ -39,6 +39,8 @@ setup(
         "scikit-network",
         "svgutils",
         "matplotlib",
+        "rdkit",
+        "selfies"
     ],
     extras_require={"dev": ["black", "isort", "pre-commit"]},
 )
