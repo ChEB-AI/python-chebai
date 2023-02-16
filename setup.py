@@ -32,7 +32,7 @@ setup(
         "torch-cluster",
         "torch-spline-conv",
         "torch-geometric>=1.9.0",
-        "transformers",
+        "transformers==4.24.0",
         "fastobo",
         "pysmiles",
         "click",
