@@ -111,6 +111,12 @@ class ElectraPreLoss:
         return gen_loss + disc_loss
 
 
+def filter_dict(d, filter_key):
+    return {str(k)[len(filter_key):]: v for k, v in
+                  d.items() if
+                  str(k).startswith(filter_key)}
+
+
 class Electra(JCIBaseNet):
     NAME = "Electra"
 
@@ -151,19 +157,8 @@ class Electra(JCIBaseNet):
         self.config = ElectraConfig(**kwargs["config"], output_attentions=True)
         self.word_dropout = nn.Dropout(kwargs["config"].get("word_dropout", 0))
         model_prefix = kwargs.get("load_prefix", None)
-        if pretrained_checkpoint:
-            with open(pretrained_checkpoint, "rb") as fin:
-                model_dict = torch.load(fin,map_location=self.device)
-                if model_prefix:
-                    state_dict = {str(k)[len(model_prefix):]:v for k,v in model_dict["state_dict"].items() if str(k).startswith(model_prefix)}
-                else:
-                    state_dict = model_dict["state_dict"]
-                self.electra = ElectraModel.from_pretrained(None, state_dict=state_dict, config=self.config)
-        else:
-            self.electra = ElectraModel(config=self.config)
 
         in_d = self.config.hidden_size
-
         self.output = nn.Sequential(
             nn.Dropout(self.config.hidden_dropout_prob),
             nn.Linear(in_d, in_d),
@@ -171,6 +166,17 @@ class Electra(JCIBaseNet):
             nn.Dropout(self.config.hidden_dropout_prob),
             nn.Linear(in_d, self.config.num_labels),
         )
+        if pretrained_checkpoint:
+            with open(pretrained_checkpoint, "rb") as fin:
+                model_dict = torch.load(fin,map_location=self.device)
+                if model_prefix:
+                    state_dict = filter_dict(model_dict["state_dict"], model_prefix)
+                else:
+                    state_dict = model_dict["state_dict"]
+                self.electra = ElectraModel.from_pretrained(None, state_dict={k:v for (k,v) in state_dict.items() if k.startswith("electra.")}, config=self.config)
+                self.output.load_state_dict(filter_dict(state_dict,"output."))
+        else:
+            self.electra = ElectraModel(config=self.config)
 
     def _get_data_for_loss(self, model_output, labels):
         mask = model_output.get("target_mask")

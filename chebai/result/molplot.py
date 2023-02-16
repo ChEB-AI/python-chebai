@@ -20,8 +20,9 @@ from chebai.preprocessing.datasets import JCI_500_COLUMNS, JCI_500_COLUMNS_INT
 from chebai.result.base import ResultProcessor
 
 
-class AttentionMolPlot(abc.ABC):
-    def plot_attentions(self, smiles, attention, threshold, labels):
+class AttentionMolPlot:
+
+    def draw_attention_molecule(self, smiles, attention):
         pmol = self.read_smiles_with_index(smiles)
         rdmol = Chem.MolFromSmiles(smiles)
         if not rdmol:
@@ -34,7 +35,7 @@ class AttentionMolPlot(abc.ABC):
         }
         d = rdMolDraw2D.MolDraw2DCairo(500, 500)
         cmap = cm.ScalarMappable(cmap=cm.Greens)
-        attention_colors = cmap.to_rgba(attention, norm=False)
+
         aggr_attention_colors = cmap.to_rgba(
             np.max(attention[2:, :], axis=0), norm=False
         )
@@ -42,18 +43,25 @@ class AttentionMolPlot(abc.ABC):
             token_to_node_map[token_index]: tuple(
                 aggr_attention_colors[token_index].tolist()
             )
-            for node, token_index in nx.get_node_attributes(pmol, "token_index").items()
+            for node, token_index in
+            nx.get_node_attributes(pmol, "token_index").items()
         }
         highlight_atoms = [
             token_to_node_map[token_index]
-            for node, token_index in nx.get_node_attributes(pmol, "token_index").items()
+            for node, token_index in
+            nx.get_node_attributes(pmol, "token_index").items()
         ]
         rdMolDraw2D.PrepareAndDrawMolecule(
             d, rdmol, highlightAtoms=highlight_atoms, highlightAtomColors=cols
         )
 
         d.FinishDrawing()
+        return d
 
+    def plot_attentions(self, smiles, attention, threshold, labels):
+        d = self.draw_attention_molecule(smiles, attention)
+        cmap = cm.ScalarMappable(cmap=cm.Greens)
+        attention_colors = cmap.to_rgba(attention, norm=False)
         num_tokens = sum(1 for _ in _tokenize(smiles))
 
         fig = plt.figure(figsize=(15, 15), facecolor="w")
