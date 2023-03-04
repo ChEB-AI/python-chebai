@@ -1,9 +1,13 @@
 from setuptools import setup
+from setuptools import find_packages
 
+packages = find_packages()
+print(packages)
 setup(
     name="chebai",
-    version="0.0.0",
-    packages=["chebai", "chebai.models"],
+    version="0.0.1",
+    packages=packages,
+    package_data={"": ["*.txt", "*.json"]},
     url="",
     license="",
     author="MGlauer",
