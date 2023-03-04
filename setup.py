@@ -8,6 +8,7 @@ setup(
     version="0.0.1",
     packages=packages,
     package_data={"": ["*.txt", "*.json"]},
+    include_package_data=True,
     url="",
     license="",
     author="MGlauer",
