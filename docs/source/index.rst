@@ -10,6 +10,11 @@ Welcome to chebai's documentation!
    :maxdepth: 2
    :caption: Contents:
 
+   pages/model
+   pages/experiments
+
+
+
 
 
 Indices and tables
