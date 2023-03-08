@@ -8,7 +8,6 @@ from pytorch_lightning.callbacks import EarlyStopping, ModelCheckpoint
 from pytorch_lightning.tuner.tuning import Tuner
 from sklearn.metrics import f1_score
 from torch import nn
-from torchmetrics import MeanSquaredError
 from torchmetrics import F1Score, MeanSquaredError
 from torchmetrics import functional as tmf
 import pytorch_lightning as pl

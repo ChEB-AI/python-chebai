@@ -3,9 +3,9 @@ from typing import Dict, Iterable, List
 import json
 import os.path
 
-from chebai import MODULE_PATH
 import torch.nn
 
+from chebai import MODULE_PATH
 from chebai import preprocessing as prep
 from chebai.models import base, chemberta, electra, graph
 from chebai.preprocessing import datasets

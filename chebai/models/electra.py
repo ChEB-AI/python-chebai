@@ -1,8 +1,8 @@
-import random
+from math import pi
 from tempfile import TemporaryDirectory
 import logging
 import random
-from math import pi
+
 from torch import nn
 from torch.nn.utils.rnn import (
     pack_padded_sequence,
@@ -18,10 +18,10 @@ from transformers import (
     ElectraModel,
     PretrainedConfig,
 )
-from chebai.preprocessing.reader import MASK_TOKEN_INDEX, CLS_TOKEN
 import torch
 
 from chebai.models.base import JCIBaseNet
+from chebai.preprocessing.reader import CLS_TOKEN, MASK_TOKEN_INDEX
 
 logging.getLogger("pysmiles").setLevel(logging.CRITICAL)
 

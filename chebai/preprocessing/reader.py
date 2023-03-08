@@ -4,10 +4,7 @@ from pysmiles.read_smiles import _tokenize
 from transformers import RobertaTokenizerFast
 import selfies as sf
 
-from chebai.preprocessing.collate import (
-    DefaultCollater,
-    RaggedCollater,
-)
+from chebai.preprocessing.collate import DefaultCollater, RaggedCollater
 
 EMBEDDING_OFFSET = 10
 PADDING_TOKEN_INDEX = 0
