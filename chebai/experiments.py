@@ -7,7 +7,7 @@ import torch.nn
 
 from chebai import MODULE_PATH
 from chebai import preprocessing as prep
-from chebai.models import base, chemberta, electra, graph
+from chebai.models import base, chemberta, electra
 from chebai.preprocessing import datasets
 from chebai.result.base import ResultFactory, ResultProcessor
 
