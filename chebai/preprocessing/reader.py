@@ -1,23 +1,11 @@
-from abc import ABC
-from collections import Counter
-from tempfile import TemporaryDirectory
 import os
-import pickle
-import random
 
 from pysmiles.read_smiles import _tokenize
-from tokenizers.implementations import ByteLevelBPETokenizer
-from torch_geometric.utils import from_networkx
 from transformers import RobertaTokenizerFast
-import networkx as nx
-import pandas as pd
-import pysmiles as ps
 import selfies as sf
-import torch
 
 from chebai.preprocessing.collate import (
     DefaultCollater,
-    GraphCollater,
     RaggedCollater,
 )
 
@@ -165,114 +153,4 @@ class OrdReader(DataReader):
         return [ord(s) for s in raw_data]
 
 
-class MolDatareader(DataReader):
-    @classmethod
-    def name(cls):
-        return "mol"
 
-    def __init__(self, batch_size, **kwargs):
-        super().__init__(batch_size, **kwargs)
-        self.cache = []
-
-    def to_data(self, row):
-        return self.get_encoded_mol(
-            row[self.SMILES_INDEX], self.cache
-        ), self._get_label(row)
-
-    def get_encoded_mol(self, smiles, cache):
-        try:
-            mol = ps.read_smiles(smiles)
-        except ValueError:
-            return None
-        d = {}
-        for node in mol.nodes:
-            try:
-                m = mol.nodes[node]["element"]
-            except KeyError:
-                m = "*"
-            try:
-                x = cache.index(m)
-            except ValueError:
-                x = len(cache)
-                cache.append(m)
-            d[node] = torch.tensor(x)
-            for attr in list(mol.nodes[node].keys()):
-                del mol.nodes[node][attr]
-        nx.set_node_attributes(mol, d, "x")
-        return mol
-
-
-class GraphReader(DataReader):
-    COLLATER = GraphCollater
-
-    @classmethod
-    def name(cls):
-        return "graph"
-
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-        dirname = os.path.dirname(__file__)
-        with open(os.path.join(dirname, "bin", "tokens.txt"), "r") as pk:
-            self.cache = [x.strip() for x in pk]
-
-    def _read_data(self, raw_data):
-        try:
-            mol = ps.read_smiles(raw_data)
-        except ValueError:
-            return None
-        d = {}
-        de = {}
-        for node in mol.nodes:
-            n = mol.nodes[node]
-            try:
-                m = n["element"]
-                charge = n["charge"]
-                if charge:
-                    if charge > 0:
-                        m += "+"
-                    else:
-                        m += "-"
-                        charge *= -1
-                    if charge > 1:
-                        m += str(charge)
-                m = f"[{m}]"
-            except KeyError:
-                m = "*"
-            d[node] = self.cache.index(m) + EMBEDDING_OFFSET
-            for attr in list(mol.nodes[node].keys()):
-                del mol.nodes[node][attr]
-        for edge in mol.edges:
-            de[edge] = mol.edges[edge]["order"]
-            for attr in list(mol.edges[edge].keys()):
-                del mol.edges[edge][attr]
-        nx.set_node_attributes(mol, d, "x")
-        nx.set_edge_attributes(mol, de, "edge_attr")
-        return from_networkx(mol)
-
-    def collate(self, list_of_tuples):
-        return self.collater(list_of_tuples)
-
-
-try:
-    from k_gnn import TwoMalkin
-except ModuleNotFoundError:
-    pass
-else:
-    from k_gnn.dataloader import collate
-
-    class GraphTwoDataset(GraphDataset):
-        @classmethod
-        def name(cls):
-            return "graph_k2"
-
-        def to_data(self, df: pd.DataFrame):
-            for data in super().to_data(df)[:DATA_LIMIT]:
-                if data.num_nodes >= 6:
-                    x = data.x
-                    data.x = data.x.unsqueeze(0)
-                    data = TwoMalkin()(data)
-                    data.x = x
-                    yield data
-
-        def collate(self, list_of_tuples):
-            return collate(list_of_tuples)
