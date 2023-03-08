@@ -287,6 +287,7 @@ def term_callback(doc):
         "smiles": smiles,
     }
 
+
 atom_index = (
     "\*",
     "H",

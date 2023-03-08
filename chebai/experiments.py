@@ -27,7 +27,7 @@ class Experiment(ABC):
 
     def __init__(self, batch_size, *args, version=None, **kwargs):
         self.dataset = self.build_dataset(batch_size)
-        self.version=version
+        self.version = version
 
     @classmethod
     def identifier(cls) -> str:
@@ -49,7 +49,7 @@ class Experiment(ABC):
             loss=self.LOSS,
             model_kwargs=self.model_kwargs(*args),
             version=self.version,
-            **kwargs
+            **kwargs,
         )
 
     def test(self, ckpt_path, *args):
@@ -172,7 +172,7 @@ class _ElectraExperiment(Experiment):
                 num_attention_heads=8,
                 num_hidden_layers=6,
                 type_vocab_size=1,
-            )
+            ),
         )
 
 
@@ -290,6 +290,7 @@ class ElectraConeOnTox21MoleculeNet(ElectraOnChEBI100):
     @classmethod
     def identifier(cls) -> str:
         return "ElectraCone+Chebi100"
+
 
 class ElectraOnTox21Challenge(_ElectraExperiment):
     @classmethod

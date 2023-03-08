@@ -112,9 +112,11 @@ class ElectraPreLoss:
 
 
 def filter_dict(d, filter_key):
-    return {str(k)[len(filter_key):]: v for k, v in
-                  d.items() if
-                  str(k).startswith(filter_key)}
+    return {
+        str(k)[len(filter_key) :]: v
+        for k, v in d.items()
+        if str(k).startswith(filter_key)
+    }
 
 
 class Electra(JCIBaseNet):
@@ -168,13 +170,21 @@ class Electra(JCIBaseNet):
         )
         if pretrained_checkpoint:
             with open(pretrained_checkpoint, "rb") as fin:
-                model_dict = torch.load(fin,map_location=self.device)
+                model_dict = torch.load(fin, map_location=self.device)
                 if model_prefix:
                     state_dict = filter_dict(model_dict["state_dict"], model_prefix)
                 else:
                     state_dict = model_dict["state_dict"]
-                self.electra = ElectraModel.from_pretrained(None, state_dict={k:v for (k,v) in state_dict.items() if k.startswith("electra.")}, config=self.config)
-                self.output.load_state_dict(filter_dict(state_dict,"output."))
+                self.electra = ElectraModel.from_pretrained(
+                    None,
+                    state_dict={
+                        k: v
+                        for (k, v) in state_dict.items()
+                        if k.startswith("electra.")
+                    },
+                    config=self.config,
+                )
+                self.output.load_state_dict(filter_dict(state_dict, "output."))
         else:
             self.electra = ElectraModel(config=self.config)
 
@@ -240,6 +250,7 @@ class ElectraLegacy(JCIBaseNet):
         d = torch.sum(electra.last_hidden_state, dim=1)
         return dict(logits=self.output(d), attentions=electra.attentions)
 
+
 class ConeElectra(JCIBaseNet):
     NAME = "ConeElectra"
 
@@ -284,12 +295,18 @@ class ConeElectra(JCIBaseNet):
         model_prefix = kwargs.get("load_prefix", None)
         if pretrained_checkpoint:
             with open(pretrained_checkpoint, "rb") as fin:
-                model_dict = torch.load(fin,map_location=self.device)
+                model_dict = torch.load(fin, map_location=self.device)
                 if model_prefix:
-                    state_dict = {str(k)[len(model_prefix):]:v for k,v in model_dict["state_dict"].items() if str(k).startswith(model_prefix)}
+                    state_dict = {
+                        str(k)[len(model_prefix) :]: v
+                        for k, v in model_dict["state_dict"].items()
+                        if str(k).startswith(model_prefix)
+                    }
                 else:
                     state_dict = model_dict["state_dict"]
-                self.electra = ElectraModel.from_pretrained(None, state_dict=state_dict, config=self.config)
+                self.electra = ElectraModel.from_pretrained(
+                    None, state_dict=state_dict, config=self.config
+                )
         else:
             self.electra = ElectraModel(config=self.config)
 
@@ -303,16 +320,22 @@ class ConeElectra(JCIBaseNet):
             nn.Linear(in_d, self.cone_dimensions),
         )
 
-        self.cone_axes = nn.Parameter(2*pi*torch.rand((1, self.config.num_labels, self.cone_dimensions)))
-        self.cone_arcs = nn.Parameter(pi*(1-2*torch.rand((1, self.config.num_labels, self.cone_dimensions))))
+        self.cone_axes = nn.Parameter(
+            2 * pi * torch.rand((1, self.config.num_labels, self.cone_dimensions))
+        )
+        self.cone_arcs = nn.Parameter(
+            pi * (1 - 2 * torch.rand((1, self.config.num_labels, self.cone_dimensions)))
+        )
 
     def _get_data_for_loss(self, model_output, labels):
         mask = model_output.get("target_mask")
         d = model_output["predicted_vectors"]
-        return dict(input=dict(predicted_vectors=d,
-                               cone_axes = self.cone_axes,
-                               cone_arcs = self.cone_arcs),
-                    target=labels.float())
+        return dict(
+            input=dict(
+                predicted_vectors=d, cone_axes=self.cone_axes, cone_arcs=self.cone_arcs
+            ),
+            target=labels.float(),
+        )
 
     def _get_prediction_and_labels(self, data, labels, model_output):
         mask = model_output.get("target_mask")
@@ -334,46 +357,49 @@ class ConeElectra(JCIBaseNet):
             target_mask=data.get("target_mask"),
         )
 
+
 def softabs(x, eps=0.01):
-    return (x**2+eps)**0.5-eps**0.5
+    return (x**2 + eps) ** 0.5 - eps**0.5
+
 
 def anglify(x):
-    return torch.tanh(x)*pi
+    return torch.tanh(x) * pi
+
 
 def turn(vector, angle):
     v = vector - angle
-    return v - (v > pi)*2*pi + (v< -pi)*2*pi
+    return v - (v > pi) * 2 * pi + (v < -pi) * 2 * pi
+
 
 def in_cone_parts(vectors, cone_axes, cone_arcs):
 
-        """
-        # trap between -pi and pi
-        cone_ax_ang = anglify(cone_axes)
-        v = anglify(vectors)
+    """
+    # trap between -pi and pi
+    cone_ax_ang = anglify(cone_axes)
+    v = anglify(vectors)
 
-        # trap between 0 and pi
-        cone_arc_ang = (torch.tanh(cone_arcs)+1)*pi/2
-        theta_L = cone_ax_ang - cone_arc_ang/2
-        #theta_L = theta_L - (theta_L > 2*pi) * 2 * pi + (theta_L < 0) *2*pi
-        theta_R = cone_ax_ang + cone_arc_ang/2
-        #theta_R = theta_R - (theta_R > 2 * pi) * 2 * pi + (theta_R < 0) * 2 * pi
-        dis = (torch.abs(turn(v, theta_L)) + torch.abs(turn(v, theta_R)) - cone_arc_ang)/(2*pi-cone_arc_ang)
-        return dis
-        """
-        a = cone_axes - cone_arcs**2
-        b = cone_axes + cone_arcs**2
-        bigger_than_a = torch.sigmoid(vectors-a)
-        smaller_than_b = torch.sigmoid(b-vectors)
-        return bigger_than_a * smaller_than_b
+    # trap between 0 and pi
+    cone_arc_ang = (torch.tanh(cone_arcs)+1)*pi/2
+    theta_L = cone_ax_ang - cone_arc_ang/2
+    #theta_L = theta_L - (theta_L > 2*pi) * 2 * pi + (theta_L < 0) *2*pi
+    theta_R = cone_ax_ang + cone_arc_ang/2
+    #theta_R = theta_R - (theta_R > 2 * pi) * 2 * pi + (theta_R < 0) * 2 * pi
+    dis = (torch.abs(turn(v, theta_L)) + torch.abs(turn(v, theta_R)) - cone_arc_ang)/(2*pi-cone_arc_ang)
+    return dis
+    """
+    a = cone_axes - cone_arcs**2
+    b = cone_axes + cone_arcs**2
+    bigger_than_a = torch.sigmoid(vectors - a)
+    smaller_than_b = torch.sigmoid(b - vectors)
+    return bigger_than_a * smaller_than_b
 
 
 class ConeLoss:
-
     def __init__(self, center_scaling=0.1):
         self.center_scaling = center_scaling
 
     def negate(self, ax, arc):
-        offset = pi*torch.ones_like(ax)
+        offset = pi * torch.ones_like(ax)
         offset[ax >= 0] *= -1
         return ax + offset, pi - arc
 
@@ -381,6 +407,10 @@ class ConeLoss:
         predicted_vectors = input["predicted_vectors"].unsqueeze(1)
         cone_axes = input["cone_axes"]
         cone_arcs = input["cone_arcs"]
-        memberships =  (1-1e-6)*(in_cone_parts(predicted_vectors, cone_axes, cone_arcs))
-        loss = torch.nn.functional.binary_cross_entropy(memberships, target.unsqueeze(-1).expand(-1,-1,20))
+        memberships = (1 - 1e-6) * (
+            in_cone_parts(predicted_vectors, cone_axes, cone_arcs)
+        )
+        loss = torch.nn.functional.binary_cross_entropy(
+            memberships, target.unsqueeze(-1).expand(-1, -1, 20)
+        )
         return loss

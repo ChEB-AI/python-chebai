@@ -53,7 +53,10 @@ class ResultFactory(abc.ABC):
                 for x in self.dataset._load_dict(data_path)
             ]
         else:
-            data_tuples = [(x.get("raw_features", x["ident"]), x["ident"], x) for x in  torch.load(data_path)]
+            data_tuples = [
+                (x.get("raw_features", x["ident"]), x["ident"], x)
+                for x in torch.load(data_path)
+            ]
 
         for raw_features, ident, row in tqdm.tqdm(data_tuples):
             raw_labels = row.get("labels")

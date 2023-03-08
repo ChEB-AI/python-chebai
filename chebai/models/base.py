@@ -182,7 +182,9 @@ class JCIBaseNet(pl.LightningModule):
 
         tb_logger = pl_loggers.TensorBoardLogger("logs/", name=name, version=version)
         if os.path.isdir(tb_logger.log_dir):
-            raise IOError("Fixed logging directory does already exist:", tb_logger.log_dir)
+            raise IOError(
+                "Fixed logging directory does already exist:", tb_logger.log_dir
+            )
         best_checkpoint_callback = ModelCheckpoint(
             dirpath=os.path.join(tb_logger.log_dir, "best_checkpoints"),
             filename="{epoch}-{val_F1Score_micro:.4f}--{val_loss:.4f}",

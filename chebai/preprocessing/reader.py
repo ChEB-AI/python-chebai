@@ -151,6 +151,3 @@ class OrdReader(DataReader):
 
     def _read_data(self, raw_data):
         return [ord(s) for s in raw_data]
-
-
-
