@@ -83,7 +83,6 @@ class Recursive(JCIBaseNet):
         return torch.sum(att.squeeze(0), dim=0)
 
     def input(self, x0, hidden):
-
         x = x0.unsqueeze(0).unsqueeze(0)
         a = self.input_norm_1(x + self.input_attention(x, x, x)[0])
         a = self.input_norm_2(a + F.relu(self.input_post(a)))

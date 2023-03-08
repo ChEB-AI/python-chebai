@@ -43,7 +43,6 @@ class ElectraPre(JCIBaseNet):
         return self.discriminator
 
     def _get_data_and_labels(self, batch, batch_idx):
-
         return dict(features=batch.x, labels=None, mask=batch.mask)
 
     def forward(self, data):
@@ -372,7 +371,6 @@ def turn(vector, angle):
 
 
 def in_cone_parts(vectors, cone_axes, cone_arcs):
-
     """
     # trap between -pi and pi
     cone_ax_ang = anglify(cone_axes)

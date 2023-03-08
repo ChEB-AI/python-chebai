@@ -44,7 +44,6 @@ class XYBaseDataModule(pl.LightningDataModule):
         raise NotImplementedError
 
     def dataloader(self, kind, **kwargs):
-
         dataset = torch.load(os.path.join(self.processed_dir, f"{kind}.pt"))
 
         return DataLoader(
@@ -110,7 +109,6 @@ class XYBaseDataModule(pl.LightningDataModule):
 
 
 class MergedDataset(XYBaseDataModule):
-
     MERGED = []
 
     @property
