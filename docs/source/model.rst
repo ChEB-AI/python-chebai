@@ -1,0 +1,1 @@
+.. autoclass:: chebai.experiments.Experiment
