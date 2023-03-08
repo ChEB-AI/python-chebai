@@ -5,7 +5,7 @@ packages = find_packages()
 print(packages)
 setup(
     name="chebai",
-    version="0.0.1",
+    version="0.0.2.dev0",
     packages=packages,
     package_data={"": ["*.txt", "*.json"]},
     include_package_data=True,
@@ -14,6 +14,7 @@ setup(
     author="MGlauer",
     author_email="martin.glauer@ovgu.de",
     description="",
+    zip_safe=False,
     install_requires=[
         "certifi",
         "idna",
