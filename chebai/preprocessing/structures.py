@@ -1,9 +1,8 @@
-from pytorch_lightning.utilities.apply_func import TransferableDataType
 from torch.utils.data.dataset import T_co
 import networkx as nx
 import torch
 
-class XYData(torch.utils.data.Dataset, TransferableDataType):
+class XYData(torch.utils.data.Dataset):
     def __getitem__(self, index) -> T_co:
         return self.x[index], self.y[index]
 

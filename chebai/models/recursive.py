@@ -5,12 +5,12 @@ import networkx as nx
 import torch
 import torch.nn.functional as F
 
-from chebai.models.base import JCIBaseNet
+from chebai.models.base import ChebaiBaseNet
 
 logging.getLogger("pysmiles").setLevel(logging.CRITICAL)
 
 
-class Recursive(JCIBaseNet):
+class Recursive(ChebaiBaseNet):
     NAME = "REC"
 
     def __init__(self, in_d, out_d, num_classes, **kwargs):

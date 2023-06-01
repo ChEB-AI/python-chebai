@@ -4,12 +4,12 @@ import sys
 from torch import nn
 from torch.nn.utils.rnn import pack_padded_sequence, pad_packed_sequence
 
-from chebai.models.base import JCIBaseNet
+from chebai.models.base import ChebaiBaseNet
 
 logging.getLogger("pysmiles").setLevel(logging.CRITICAL)
 
 
-class ChemLSTM(JCIBaseNet):
+class ChemLSTM(ChebaiBaseNet):
     NAME = "LSTM"
 
     def __init__(self, in_d, out_d, num_classes, **kwargs):

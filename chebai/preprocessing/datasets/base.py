@@ -3,14 +3,14 @@ import multiprocessing as mp
 import os
 
 from torch.utils.data import DataLoader
-import pytorch_lightning as pl
+from lightning.pytorch.core.datamodule import LightningDataModule
 import torch
 import tqdm
 
 from chebai.preprocessing import reader as dr
+from torch.nn import BCEWithLogitsLoss
 
-
-class XYBaseDataModule(pl.LightningDataModule):
+class XYBaseDataModule(LightningDataModule):
     READER = dr.DataReader
 
     def __init__(self, batch_size=1, train_split=0.85, reader_kwargs=None, **kwargs):

@@ -9,12 +9,12 @@ from torch.nn.functional import pad
 import networkx as nx
 import torch
 
-from chebai.models.base import JCIBaseNet
+from chebai.models.base import ChebaiBaseNet
 
 logging.getLogger("pysmiles").setLevel(logging.CRITICAL)
 
 
-class ChemYK(JCIBaseNet):
+class ChemYK(ChebaiBaseNet):
     NAME = "ChemYK"
 
     def __init__(self, in_d, out_d, num_classes, **kwargs):
