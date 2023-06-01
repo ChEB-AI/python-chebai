@@ -13,13 +13,13 @@ from transformers import (
 )
 import torch
 
-from chebai.models.base import JCIBaseNet
+from chebai.models.base import ChebaiBaseNet
 
 logging.getLogger("pysmiles").setLevel(logging.CRITICAL)
 MAX_LEN = 1800
 
 
-class ChembertaPre(JCIBaseNet):
+class ChembertaPre(ChebaiBaseNet):
     NAME = "ChembertaPre"
 
     def __init__(self, p=0.2, **kwargs):
@@ -46,7 +46,7 @@ class ChembertaPre(JCIBaseNet):
         return {"logits": torch.sum(x.logits, dim=1)}
 
 
-class Chemberta(JCIBaseNet):
+class Chemberta(ChebaiBaseNet):
     NAME = "Chemberta"
 
     def __init__(self, **kwargs):

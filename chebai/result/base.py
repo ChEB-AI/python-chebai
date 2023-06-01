@@ -5,7 +5,7 @@ import multiprocessing as mp
 import torch
 import tqdm
 
-from chebai.models.base import JCIBaseNet
+from chebai.models.base import ChebaiBaseNet
 from chebai.preprocessing.reader import DataReader
 
 PROCESSORS = dict()
@@ -34,7 +34,7 @@ class ResultProcessor(abc.ABC):
 
 class ResultFactory(abc.ABC):
     def __init__(
-        self, model: JCIBaseNet, dataset, processors: Iterable[ResultProcessor]
+        self, model: ChebaiBaseNet, dataset, processors: Iterable[ResultProcessor]
     ):
         self._model = model
         self._reader = dataset.reader

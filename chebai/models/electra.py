@@ -21,17 +21,16 @@ from transformers import (
 from chebai.preprocessing.reader import MASK_TOKEN_INDEX, CLS_TOKEN
 import torch
 
-from chebai.models.base import JCIBaseNet
-
+from chebai.models.base import ChebaiBaseNet
+from lightning.pytorch.core.datamodule import LightningDataModule
 logging.getLogger("pysmiles").setLevel(logging.CRITICAL)
 
 
-class ElectraPre(JCIBaseNet):
+class ElectraPre(ChebaiBaseNet):
     NAME = "ElectraPre"
 
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-        config = kwargs["config"]
+    def __init__(self, config=None, **kwargs):
+        super().__init__(config=config, **kwargs)
         self.generator_config = ElectraConfig(**config["generator"])
         self.generator = ElectraForMaskedLM(self.generator_config)
         self.discriminator_config = ElectraConfig(**config["discriminator"])
@@ -96,11 +95,12 @@ class ElectraPre(JCIBaseNet):
         return dict(input=model_output, target=None)
 
 
-class ElectraPreLoss:
+class ElectraPreLoss(torch.nn.Module):
     def __init__(self):
+        super().__init__()
         self.ce = torch.nn.CrossEntropyLoss()
 
-    def __call__(self, target, input):
+    def forward(self, input, target):
         t, p = input
         gen_pred, disc_pred = t
         gen_tar, disc_tar = p
@@ -117,7 +117,7 @@ def filter_dict(d, filter_key):
                   str(k).startswith(filter_key)}
 
 
-class Electra(JCIBaseNet):
+class Electra(ChebaiBaseNet):
     NAME = "Electra"
 
     def _get_data_and_labels(self, batch, batch_idx):
@@ -207,7 +207,7 @@ class Electra(JCIBaseNet):
         )
 
 
-class ElectraLegacy(JCIBaseNet):
+class ElectraLegacy(ChebaiBaseNet):
     NAME = "ElectraLeg"
 
     def __init__(self, **kwargs):
@@ -240,7 +240,7 @@ class ElectraLegacy(JCIBaseNet):
         d = torch.sum(electra.last_hidden_state, dim=1)
         return dict(logits=self.output(d), attentions=electra.attentions)
 
-class ConeElectra(JCIBaseNet):
+class ConeElectra(ChebaiBaseNet):
     NAME = "ConeElectra"
 
     def _get_data_and_labels(self, batch, batch_idx):
