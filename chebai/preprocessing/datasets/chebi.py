@@ -91,24 +91,28 @@ class JCITokenData(JCIBase):
     READER = dr.ChemDataReader
 
 
+
+def extract_class_hierarchy(chebi_path):
+    with open(chebi_path) as chebi:
+        chebi = "\n".join(l for l in chebi if not l.startswith("xref:"))
+    elements = [
+        term_callback(clause)
+        for clause in fastobo.loads(chebi)
+        if clause and ":" in str(clause.id)
+    ]
+    g = nx.DiGraph()
+    for n in elements:
+        g.add_node(n["id"], **n)
+    g.add_edges_from([(p, q["id"]) for q in elements for p in q["parents"]])
+    print("Compute transitive closure")
+    return nx.transitive_closure_dag(g)
+
+
 class _ChEBIDataExtractor(XYBaseDataModule, ABC):
     def select_classes(self, g, *args, **kwargs):
         raise NotImplementedError
 
-    def extract_class_hierarchy(self):
-        with open(os.path.join(self.raw_dir, "chebi.obo")) as chebi:
-            chebi = "\n".join(l for l in chebi if not l.startswith("xref:"))
-        elements = [
-            term_callback(clause)
-            for clause in fastobo.loads(chebi)
-            if clause and ":" in str(clause.id)
-        ]
-        g = nx.DiGraph()
-        for n in elements:
-            g.add_node(n["id"], **n)
-        g.add_edges_from([(p, q["id"]) for q in elements for p in q["parents"]])
-        print("Compute transitive closure")
-        return nx.transitive_closure_dag(g)
+
 
     def save(self, g, train_split, test_split, validation_split):
         smiles = nx.get_node_attributes(g, "smiles")
@@ -193,7 +197,7 @@ class _ChEBIDataExtractor(XYBaseDataModule, ABC):
                 url = "http://purl.obolibrary.org/obo/chebi/200/chebi.obo"
                 r = requests.get(url, allow_redirects=True)
                 open(os.path.join(self.raw_dir, "chebi.obo"), "wb").write(r.content)
-            g = self.extract_class_hierarchy()
+            g = extract_class_hierarchy(os.path.join(self.raw_dir, "chebi.obo"))
             self.save(g, *self.get_splits(g))
 
 
