@@ -47,14 +47,17 @@ class ChebaiBaseNet(LightningModule):
         return dict(features=batch.x, labels=batch.y.float())
 
     def training_step(self, batch, batch_idx):
+        return self._execute(batch, batch_idx)
+
+    def validation_step(self, batch, batch_idx):
+        return self._execute(batch, batch_idx)
+
+    def _execute(self, batch, batch_idx):
         data = self._get_data_and_labels(batch, batch_idx)
         labels = data["labels"]
         model_output = self(data, **data.get("model_kwargs", dict()))
         loss = self.criterion(model_output, labels)
         return dict(data=data, labels=labels, output=model_output, loss=loss)
-
-    def _get_data_for_loss(self, model_output, labels):
-        return dict(input=model_output, target=labels.float())
 
     def forward(self, x):
         raise NotImplementedError

@@ -1,3 +1,5 @@
+import os.path
+import pickle
 import random
 from tempfile import TemporaryDirectory
 import logging
@@ -19,6 +21,7 @@ from transformers import (
     PretrainedConfig,
 )
 from chebai.preprocessing.reader import MASK_TOKEN_INDEX, CLS_TOKEN
+from chebai.preprocessing.datasets.chebi import extract_class_hierarchy
 import torch
 
 from chebai.models.base import ChebaiBaseNet
@@ -142,7 +145,7 @@ class Electra(ChebaiBaseNet):
     def as_pretrained(self):
         return self.electra.electra
 
-    def __init__(self, **kwargs):
+    def __init__(self, config=None, **kwargs):
         # Remove this property in order to prevent it from being stored as a
         # hyper parameter
         pretrained_checkpoint = (
@@ -152,10 +155,10 @@ class Electra(ChebaiBaseNet):
         )
 
         super().__init__(**kwargs)
-        if not "num_labels" in kwargs["config"] and self.out_dim is not None:
-            kwargs["config"]["num_labels"] = self.out_dim
-        self.config = ElectraConfig(**kwargs["config"], output_attentions=True)
-        self.word_dropout = nn.Dropout(kwargs["config"].get("word_dropout", 0))
+        if not "num_labels" in config and self.out_dim is not None:
+            config["num_labels"] = self.out_dim
+        self.config = ElectraConfig(**config, output_attentions=True)
+        self.word_dropout = nn.Dropout(config.get("word_dropout", 0))
         model_prefix = kwargs.get("load_prefix", None)
 
         in_d = self.config.hidden_size
@@ -206,6 +209,27 @@ class Electra(ChebaiBaseNet):
             target_mask=data.get("target_mask"),
         )
 
+class ElectraChEBILoss(nn.Module):
+    CACHE_FILE = "chebi.cache"
+    def __init__(self, path_to_chebi, path_to_label_names):
+        super().__init__()
+        self.bce = nn.BCEWithLogitsLoss()
+        with open(path_to_label_names) as fin:
+            label_names = [int(line.strip()) for line in fin]
+        if os.path.isfile(self.CACHE_FILE):
+            with open(self.CACHE_FILE, "rb") as fin:
+                hierarchy = pickle.load(fin)
+        else:
+            hierarchy = extract_class_hierarchy(path_to_chebi)
+            with open(self.CACHE_FILE, "wb") as fout:
+                hierarchy = pickle.dump(hierarchy, fout)
+        self.implication_filter = torch.tensor([[l2 in hierarchy.pred[l1] for l2 in label_names] for l1 in label_names]).float()
+
+    def forward(self, input, target):
+        bce = self.bce(input["logits"], target.float())
+        pred = torch.sigmoid(input["logits"])
+        implication_loss = 1 - self.implication_filter * (1 - torch.matmul(pred, self.implication_filter).T*torch.matmul(self.implication_filter,pred.T))
+        return bce + implication_loss
 
 class ElectraLegacy(ChebaiBaseNet):
     NAME = "ElectraLeg"
