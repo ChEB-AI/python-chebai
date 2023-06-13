@@ -19,8 +19,8 @@ import torch
 import tqdm
 
 from chebai.preprocessing import reader as dr
-from chebai.preprocessing.datasets.base import XYBaseDataModule
-
+from chebai.preprocessing.datasets.base import XYBaseDataModule, DataLoader
+from chebai.preprocessing.datasets.chebi import ChEBIOver100
 
 class PubChem(XYBaseDataModule):
     SMILES_INDEX = 0
@@ -198,3 +198,57 @@ class Hazardous(SWJChem):
         raise Exception(
             "This dataset is not publicly available, yet. Please supply raw data manually."
         )
+
+
+class SWJPreChem(PubChem):
+    UNLABELED = True
+
+    @property
+    def _name(self):
+        return f"SWJpre"
+
+    def download(self):
+        raise Exception("Required raw files not found")
+
+    @property
+    def identifier(self):
+        return (self.reader.name(),)
+
+    @property
+    def raw_dir(self):
+        return os.path.join("data", self._name, "raw")
+
+class PubToxAndChEBI100(XYBaseDataModule):
+    READER = dr.ChemDataReader
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.labeled = ChEBIOver100(*args, **kwargs)
+        self.unlabeled = PubchemChem(*args, **kwargs)
+
+
+    @property
+    def _name(self):
+        return "PubToxUChebi100"
+
+    def dataloader(self, kind, **kwargs):
+
+        labeled_data = torch.load(os.path.join(self.labeled.processed_dir, f"{kind}.pt"))
+        unlabeled_data = torch.load(os.path.join(self.unlabeled.processed_dir, f"{kind}.pt"))
+        return DataLoader(
+            labeled_data + unlabeled_data,
+            collate_fn=self.reader.collater,
+            batch_size=self.batch_size,
+            **kwargs,
+        )
+
+    @property
+    def raw_file_names(self):
+        return []
+
+    @property
+    def processed_file_names(self):
+        return ["test.pt", "train.pt", "validation.pt"]
+
+    def setup_processed(self):
+        self.labeled.setup()
+        self.unlabeled.setup()

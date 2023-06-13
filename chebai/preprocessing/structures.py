@@ -9,17 +9,11 @@ class XYData(torch.utils.data.Dataset):
     def __len__(self):
         return len(self.x)
 
-    def __init__(self, x, y, additional_fields=None, **kwargs):
-        super().__init__(**kwargs)
-        if additional_fields:
-            for key, value in additional_fields.items():
-                setattr(self, key, value)
+    def __init__(self, x, y, **kwargs):
+        super().__init__()
+        self.additional_fields = kwargs
         self.x = x
         self.y = y
-
-        self.additional_fields = (
-            list(additional_fields.keys()) if additional_fields else []
-        )
 
     def to_x(self, device):
         return self.x.to(device)
@@ -30,6 +24,10 @@ class XYData(torch.utils.data.Dataset):
     def _to_if_tensor(self, obj, device):
         if isinstance(obj, torch.Tensor):
             return obj.to(device)
+        elif isinstance(obj, dict):
+            return  {k: self._to_if_tensor(v, device) for k, v in obj.items()}
+        elif isinstance(obj, list):
+            return [self._to_if_tensor(v, device) for v in obj]
         else:
             return obj
 
@@ -42,9 +40,9 @@ class XYData(torch.utils.data.Dataset):
         return XYData(
             x,
             y,
-            additional_fields={
-                k: self._to_if_tensor(getattr(self, k), device)
-                for k in self.additional_fields
+            **{
+                k: self._to_if_tensor(v, device)
+                for k, v in self.additional_fields.items()
             },
         )
 

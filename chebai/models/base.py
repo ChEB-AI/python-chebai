@@ -1,23 +1,6 @@
-import itertools
 import logging
-import os
-import sys
-
-from pytorch_lightning import loggers as pl_loggers
 from lightning.pytorch.core.module import LightningModule
-from pytorch_lightning.callbacks import EarlyStopping, ModelCheckpoint
-from pytorch_lightning.tuner.tuning import Tuner
-from sklearn.metrics import f1_score
-from torch import nn
-from torchmetrics import MeanSquaredError
-from torchmetrics import F1Score, MeanSquaredError
-from torchmetrics import functional as tmf
-import pytorch_lightning as pl
 import torch
-import torchmetrics
-import tqdm
-
-from chebai.preprocessing.datasets import XYBaseDataModule
 
 logging.getLogger("pysmiles").setLevel(logging.CRITICAL)
 
@@ -43,20 +26,24 @@ class ChebaiBaseNet(LightningModule):
     def _get_prediction_and_labels(self, data, labels, output):
         return output, labels
 
-    def _get_data_and_labels(self, batch, batch_idx):
-        return dict(features=batch.x, labels=batch.y.float())
+    def _process_batch(self, batch, batch_idx):
+        return dict(features=batch.x, labels=batch.y.float(), model_kwargs=batch.additional_fields["model_kwargs"], loss_kwargs=batch.additional_fields["loss_kwargs"])
 
     def training_step(self, batch, batch_idx):
-        return self._execute(batch, batch_idx)
+        result = self._execute(batch, batch_idx)
+        self.log("train_loss", result["loss"].item(), batch_size=batch.x.shape[0])
+        return result
 
     def validation_step(self, batch, batch_idx):
-        return self._execute(batch, batch_idx)
+        result = self._execute(batch, batch_idx)
+        self.log("val_loss", result["loss"].item(), batch_size=batch.x.shape[0])
+        return result
 
     def _execute(self, batch, batch_idx):
-        data = self._get_data_and_labels(batch, batch_idx)
+        data = self._process_batch(batch, batch_idx)
         labels = data["labels"]
         model_output = self(data, **data.get("model_kwargs", dict()))
-        loss = self.criterion(model_output, labels)
+        loss = self.criterion(model_output, labels, **data["loss_kwargs"])
         return dict(data=data, labels=labels, output=model_output, loss=loss)
 
     def forward(self, x):

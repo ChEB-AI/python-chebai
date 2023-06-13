@@ -58,7 +58,7 @@ class ResultFactory(abc.ABC):
         for raw_features, ident, row in tqdm.tqdm(data_tuples):
             raw_labels = row.get("labels")
 
-            processable_data = self._model._get_data_and_labels(collate([row]), 0)
+            processable_data = self._model._process_batch(collate([row]), 0)
 
             model_output = self._model(processable_data)
             preds, labels = self._model._get_prediction_and_labels(

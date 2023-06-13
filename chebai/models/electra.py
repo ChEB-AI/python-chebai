@@ -25,7 +25,6 @@ from chebai.preprocessing.datasets.chebi import extract_class_hierarchy
 import torch
 
 from chebai.models.base import ChebaiBaseNet
-from lightning.pytorch.core.datamodule import LightningDataModule
 logging.getLogger("pysmiles").setLevel(logging.CRITICAL)
 
 
@@ -44,7 +43,7 @@ class ElectraPre(ChebaiBaseNet):
     def as_pretrained(self):
         return self.discriminator
 
-    def _get_data_and_labels(self, batch, batch_idx):
+    def _process_batch(self, batch, batch_idx):
 
         return dict(features=batch.x, labels=None, mask=batch.mask)
 
@@ -123,11 +122,14 @@ def filter_dict(d, filter_key):
 class Electra(ChebaiBaseNet):
     NAME = "Electra"
 
-    def _get_data_and_labels(self, batch, batch_idx):
-        mask = pad_sequence(
-            [torch.ones(l + 1, device=self.device) for l in batch.lens],
-            batch_first=True,
-        )
+    def _process_batch(self, batch, batch_idx):
+        model_kwargs = dict()
+        loss_kwargs = batch.additional_fields["loss_kwargs"]
+        if "lens" in batch.additional_fields["model_kwargs"]:
+            model_kwargs["attention_mask"] = pad_sequence(
+                [torch.ones(l + 1, device=self.device) for l in batch.additional_fields["model_kwargs"]["lens"]],
+                batch_first=True,
+            )
         cls_tokens = (
             torch.ones(batch.x.shape[0], dtype=torch.int, device=self.device).unsqueeze(
                 -1
@@ -137,29 +139,23 @@ class Electra(ChebaiBaseNet):
         return dict(
             features=torch.cat((cls_tokens, batch.x), dim=1),
             labels=batch.y,
-            model_kwargs=dict(attention_mask=mask),
-            target_mask=batch.target_mask,
+            model_kwargs=model_kwargs,
+            loss_kwargs=loss_kwargs
         )
 
     @property
     def as_pretrained(self):
         return self.electra.electra
 
-    def __init__(self, config=None, **kwargs):
+    def __init__(self, config=None, pretrained_checkpoint = None, load_prefix=None, **kwargs):
         # Remove this property in order to prevent it from being stored as a
         # hyper parameter
-        pretrained_checkpoint = (
-            kwargs.pop("pretrained_checkpoint")
-            if "pretrained_checkpoint" in kwargs
-            else None
-        )
 
         super().__init__(**kwargs)
         if not "num_labels" in config and self.out_dim is not None:
             config["num_labels"] = self.out_dim
         self.config = ElectraConfig(**config, output_attentions=True)
         self.word_dropout = nn.Dropout(config.get("word_dropout", 0))
-        model_prefix = kwargs.get("load_prefix", None)
 
         in_d = self.config.hidden_size
         self.output = nn.Sequential(
@@ -172,12 +168,11 @@ class Electra(ChebaiBaseNet):
         if pretrained_checkpoint:
             with open(pretrained_checkpoint, "rb") as fin:
                 model_dict = torch.load(fin,map_location=self.device)
-                if model_prefix:
-                    state_dict = filter_dict(model_dict["state_dict"], model_prefix)
+                if load_prefix:
+                    state_dict = filter_dict(model_dict["state_dict"], load_prefix)
                 else:
                     state_dict = model_dict["state_dict"]
-                self.electra = ElectraModel.from_pretrained(None, state_dict={k:v for (k,v) in state_dict.items() if k.startswith("electra.")}, config=self.config)
-                self.output.load_state_dict(filter_dict(state_dict,"output."))
+                self.electra = ElectraModel.from_pretrained(None,  state_dict=state_dict, config=self.config)
         else:
             self.electra = ElectraModel(config=self.config)
 
@@ -223,12 +218,21 @@ class ElectraChEBILoss(nn.Module):
             hierarchy = extract_class_hierarchy(path_to_chebi)
             with open(self.CACHE_FILE, "wb") as fout:
                 hierarchy = pickle.dump(hierarchy, fout)
-        self.implication_filter = torch.tensor([[l2 in hierarchy.pred[l1] for l2 in label_names] for l1 in label_names]).float()
 
-    def forward(self, input, target):
-        bce = self.bce(input["logits"], target.float())
+        implication_filter = torch.tensor([(i1, i2) for i1, l1 in enumerate(label_names) for i2, l2 in enumerate(label_names) if l2 in hierarchy.pred[l1]])
+        self.implication_filter_l = implication_filter[:,0]
+        self.implication_filter_r = implication_filter[:, 1]
+
+    def forward(self, input, target, **kwargs):
+        inp = input["logits"]
+        if "non_null_labels" in kwargs:
+            n = kwargs["non_null_labels"]
+            inp = inp[n]
+        bce = self.bce(inp, target.float())
         pred = torch.sigmoid(input["logits"])
-        implication_loss = 1 - self.implication_filter * (1 - torch.matmul(pred, self.implication_filter).T*torch.matmul(self.implication_filter,pred.T))
+        l = pred[:,self.implication_filter_l]
+        r = pred[:,self.implication_filter_r]
+        implication_loss = torch.sqrt(torch.mean(torch.sum(l*(1-r), dim=-1), dim=0))
         return bce + implication_loss
 
 class ElectraLegacy(ChebaiBaseNet):
@@ -267,7 +271,7 @@ class ElectraLegacy(ChebaiBaseNet):
 class ConeElectra(ChebaiBaseNet):
     NAME = "ConeElectra"
 
-    def _get_data_and_labels(self, batch, batch_idx):
+    def _process_batch(self, batch, batch_idx):
         mask = pad_sequence(
             [torch.ones(l + 1, device=self.device) for l in batch.lens],
             batch_first=True,
