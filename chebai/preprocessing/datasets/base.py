@@ -1,5 +1,4 @@
 from typing import List, Union
-import multiprocessing as mp
 import os
 
 from torch.utils.data import DataLoader
@@ -8,7 +7,6 @@ import torch
 import tqdm
 
 from chebai.preprocessing import reader as dr
-from torch.nn import BCEWithLogitsLoss
 
 class XYBaseDataModule(LightningDataModule):
     READER = dr.DataReader
@@ -80,7 +78,7 @@ class XYBaseDataModule(LightningDataModule):
         return self.dataloader("train", shuffle=True, **kwargs)
 
     def val_dataloader(self, *args, **kwargs) -> Union[DataLoader, List[DataLoader]]:
-        return self.dataloader("validation", shuffle=False, **kwargs)
+        return self.dataloader("validation", shuffle=True, **kwargs)
 
     def test_dataloader(self, *args, **kwargs) -> Union[DataLoader, List[DataLoader]]:
         return self.dataloader("test", shuffle=False, **kwargs)

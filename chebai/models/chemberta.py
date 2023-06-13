@@ -28,7 +28,7 @@ class ChembertaPre(ChebaiBaseNet):
         self.config = RobertaConfig(**kwargs["config"])
         self.model = RobertaForMaskedLM(self.config)
 
-    def _get_data_and_labels(self, batch, batch_idx):
+    def _process_batch(self, batch, batch_idx):
         masked = (
             torch.rand([batch.x.shape[0]], device=self.device)
             * torch.tensor(batch.lens, device=self.device)
