@@ -217,7 +217,7 @@ class ElectraChEBILoss(nn.Module):
         else:
             hierarchy = extract_class_hierarchy(path_to_chebi)
             with open(self.CACHE_FILE, "wb") as fout:
-                hierarchy = pickle.dump(hierarchy, fout)
+                pickle.dump(hierarchy, fout)
 
         implication_filter = torch.tensor([(i1, i2) for i1, l1 in enumerate(label_names) for i2, l2 in enumerate(label_names) if l2 in hierarchy.pred[l1]])
         self.implication_filter_l = implication_filter[:,0]
