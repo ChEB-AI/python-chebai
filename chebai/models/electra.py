@@ -228,7 +228,10 @@ class ElectraChEBILoss(nn.Module):
         if "non_null_labels" in kwargs:
             n = kwargs["non_null_labels"]
             inp = inp[n]
-        bce = self.bce(inp, target.float())
+        if target is not None:
+            bce = self.bce(inp, target.float())
+        else:
+            bce = 0
         pred = torch.sigmoid(input["logits"])
         l = pred[:,self.implication_filter_l]
         r = pred[:,self.implication_filter_r]
