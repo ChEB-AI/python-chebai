@@ -31,12 +31,12 @@ class ChebaiBaseNet(LightningModule):
 
     def training_step(self, batch, batch_idx):
         result = self._execute(batch, batch_idx)
-        self.log("train_loss", result["loss"].item(), batch_size=batch.x.shape[0])
+        self.log("train_loss", result["loss"].item(), batch_size=batch.x.shape[0], on_step=False, on_epoch=True, prog_bar=True, logger=True)
         return result
 
     def validation_step(self, batch, batch_idx):
         result = self._execute(batch, batch_idx)
-        self.log("val_loss", result["loss"].item(), batch_size=batch.x.shape[0])
+        self.log("val_loss", result["loss"].item(), batch_size=batch.x.shape[0], on_step=False, on_epoch=True, prog_bar=True, logger=True)
         return result
 
     def _execute(self, batch, batch_idx):
