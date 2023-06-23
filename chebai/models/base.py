@@ -1,7 +1,7 @@
 import logging
 from lightning.pytorch.core.module import LightningModule
 import torch
-from typing import Optional, Dict
+from typing import Optional, Dict, Any, Self
 
 logging.getLogger("pysmiles").setLevel(logging.CRITICAL)
 
@@ -76,3 +76,9 @@ class ChebaiBaseNet(LightningModule):
 
     def configure_optimizers(self, **kwargs):
         return torch.optim.Adamax(self.parameters(), **self.optimizer_kwargs)
+
+    def to(self, *args: Any, **kwargs: Any) -> Self:
+        other = super().to(*args, **kwargs)
+        for k in self.metrics:
+            other.metrics[k] = other.metrics[k].to(other.device)
+        return other
