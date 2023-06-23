@@ -58,7 +58,7 @@ class ChebaiBaseNet(LightningModule):
                 loss_kwargs = dict()
                 if self.pass_loss_kwargs:
                     loss_kwargs = loss_kwargs_candidates
-                loss = self.criterion(model_output, labels, **loss_kwargs)
+                loss = self.criterion(loss_data, loss_labels, **loss_kwargs)
                 d["loss"] = loss
                 self.log(f"{prefix}loss", loss.item(),
                          batch_size=batch.x.shape[0], on_step=False, on_epoch=True,
