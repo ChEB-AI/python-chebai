@@ -1,7 +1,7 @@
 from lightning.pytorch.callbacks import BasePredictionWriter
 import torch
 import os
-
+import json
 class ChebaiPredictionWriter(BasePredictionWriter):
     def __init__(self, output_dir, write_interval):
         super().__init__(write_interval)
@@ -18,4 +18,18 @@ class ChebaiPredictionWriter(BasePredictionWriter):
 
 
     def write_on_epoch_end(self, trainer, pl_module, predictions, batch_indices):
-        torch.save(predictions, os.path.join(self.output_dir, "predictions.pt"))
+        pred_list = []
+        for p in predictions:
+            idents = p["data"]["idents"]
+            labels = p["data"]["labels"]
+            if labels is not None:
+                labels = labels.tolist()
+            else:
+                labels = [None for _ in idents]
+            output = torch.sigmoid(p["output"]["logits"]).tolist()
+            for i,l,p in zip(idents, labels, output):
+                pred_list.append(
+                    dict(ident=i, labels=l, predictions=p)
+                )
+        with open( os.path.join(self.output_dir, "predictions.json"), "wt") as fout:
+            json.dump(pred_list, fout)
