@@ -55,9 +55,11 @@ class ChebaiBaseNet(LightningModule):
                 self.log(f"{prefix}loss", loss.item(),
                          batch_size=batch.x.shape[0], on_step=False, on_epoch=True,
                          prog_bar=True, logger=True)
-            if self.metrics:
+            if self.metrics and labels is not None:
+                pr, tar = self._get_prediction_and_labels(data, labels, model_output)
                 for metric_name, metric in self.metrics.items():
-                    m = metric(model_output, labels, **data["loss_kwargs"])
+
+                    m = metric(pr, tar)
                     if isinstance(m, dict):
                         for k,m2 in m.items():
                             self.log(f"{prefix}{metric_name}{k}", m2,

@@ -197,6 +197,10 @@ class Electra(ChebaiBaseNet):
             d = model_output["logits"] * mask - 100 * ~mask
         else:
             d = model_output["logits"]
+        loss_kwargs = data.get("loss_kwargs", dict())
+        if "non_null_labels" in loss_kwargs:
+            n = loss_kwargs["non_null_labels"]
+            d = d[n]
         return torch.sigmoid(d), labels.int()
 
     def forward(self, data, **kwargs):
@@ -284,20 +288,6 @@ class ElectraChEBIDisjointLoss(ElectraChEBILoss):
             torch.mean(torch.sum((l*r), dim=-1), dim=0))
         return loss + disjointness_loss
 
-class ElectraMetrics(torch.nn.Module):
-    def __init__(self, base_metrics: Dict[str, torchmetrics.metric.Metric]):
-        super().__init__()
-        self.base_metrics = base_metrics
-
-    def forward(self, input, target, **kwargs):
-        inp = input["logits"]
-        if "non_null_labels" in kwargs:
-            n = kwargs["non_null_labels"]
-            inp = inp[n]
-        if target is None:
-            return dict()
-        else:
-            return {k: m(inp, target)  for k,m in self.base_metrics.items()}
 
 class ElectraLegacy(ChebaiBaseNet):
     NAME = "ElectraLeg"
