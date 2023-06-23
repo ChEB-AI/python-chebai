@@ -235,7 +235,7 @@ class PubToxAndChEBI100(XYBaseDataModule):
         labeled_data = torch.load(os.path.join(self.labeled.processed_dir, f"{kind}.pt"))
         unlabeled_data = torch.load(os.path.join(self.unlabeled.processed_dir, f"{kind}.pt"))
         return DataLoader(
-            labeled_data[:10] + unlabeled_data[:10],
+            labeled_data + unlabeled_data,
             collate_fn=self.reader.collater,
             batch_size=self.batch_size,
             **kwargs,
