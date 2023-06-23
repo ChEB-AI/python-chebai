@@ -55,8 +55,8 @@ class PubChem(XYBaseDataModule):
     def _load_dict(input_file_path):
         with open(input_file_path, "r") as input_file:
             for row in input_file:
-                _, smiles = row.split("\t")
-                yield dict(features=smiles, labels=None)
+                ident, smiles = row.split("\t")
+                yield dict(features=smiles, labels=None, ident=ident)
 
     def download(self):
         url = f"https://ftp.ncbi.nlm.nih.gov/pubchem/Compound/Monthly/2021-10-01/Extras/CID-SMILES.gz"
@@ -235,7 +235,7 @@ class PubToxAndChEBI100(XYBaseDataModule):
         labeled_data = torch.load(os.path.join(self.labeled.processed_dir, f"{kind}.pt"))
         unlabeled_data = torch.load(os.path.join(self.unlabeled.processed_dir, f"{kind}.pt"))
         return DataLoader(
-            labeled_data + unlabeled_data,
+            labeled_data[:10] + unlabeled_data[:10],
             collate_fn=self.reader.collater,
             batch_size=self.batch_size,
             **kwargs,
