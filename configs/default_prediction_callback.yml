@@ -1,0 +1,4 @@
+class_path: chebai.callbacks.ChebaiPredictionWriter
+init_args:
+  output_dir: pred
+  write_interval: epoch
