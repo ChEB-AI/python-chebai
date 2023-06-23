@@ -3,8 +3,10 @@ import pickle
 import random
 from tempfile import TemporaryDirectory
 import logging
-import random
+from typing import Dict
 from math import pi
+
+import torchmetrics
 from torch import nn
 from torch.nn.utils.rnn import (
     pack_padded_sequence,
@@ -23,6 +25,7 @@ from transformers import (
 from chebai.preprocessing.reader import MASK_TOKEN_INDEX, CLS_TOKEN
 from chebai.preprocessing.datasets.chebi import extract_class_hierarchy
 import torch
+import csv
 
 from chebai.models.base import ChebaiBaseNet
 logging.getLogger("pysmiles").setLevel(logging.CRITICAL)
@@ -140,7 +143,8 @@ class Electra(ChebaiBaseNet):
             features=torch.cat((cls_tokens, batch.x), dim=1),
             labels=batch.y,
             model_kwargs=model_kwargs,
-            loss_kwargs=loss_kwargs
+            loss_kwargs=loss_kwargs,
+            idents=batch.additional_fields["idents"]
         )
 
     @property
@@ -152,8 +156,11 @@ class Electra(ChebaiBaseNet):
         # hyper parameter
 
         super().__init__(**kwargs)
+        if config is None:
+            config = dict()
         if not "num_labels" in config and self.out_dim is not None:
             config["num_labels"] = self.out_dim
+        print(kwargs)
         self.config = ElectraConfig(**config, output_attentions=True)
         self.word_dropout = nn.Dropout(config.get("word_dropout", 0))
 
@@ -206,9 +213,8 @@ class Electra(ChebaiBaseNet):
 
 class ElectraChEBILoss(nn.Module):
     CACHE_FILE = "chebi.cache"
-    def __init__(self, path_to_chebi, path_to_label_names):
-        super().__init__()
-        self.bce = nn.BCEWithLogitsLoss()
+
+    def load_hierarchy(self, path_to_chebi, path_to_label_names):
         with open(path_to_label_names) as fin:
             label_names = [int(line.strip()) for line in fin]
         if os.path.isfile(self.CACHE_FILE):
@@ -219,9 +225,17 @@ class ElectraChEBILoss(nn.Module):
             with open(self.CACHE_FILE, "wb") as fout:
                 pickle.dump(hierarchy, fout)
 
-        implication_filter = torch.tensor([(i1, i2) for i1, l1 in enumerate(label_names) for i2, l2 in enumerate(label_names) if l2 in hierarchy.pred[l1]])
-        self.implication_filter_l = implication_filter[:,0]
-        self.implication_filter_r = implication_filter[:, 1]
+        return label_names, hierarchy
+
+    def load_implication_filter(self, label_names, hierarchy):
+        return torch.tensor([(i1, i2) for i1, l1 in enumerate(label_names) for i2, l2 in enumerate(label_names) if l2 in hierarchy.pred[l1]])
+    def __init__(self, path_to_chebi, path_to_label_names):
+        super().__init__()
+        self.bce = nn.BCEWithLogitsLoss()
+        label_names, hierarchy = self.load_hierarchy(path_to_chebi, path_to_label_names)
+        implication_filter = self.load_implication_filter(label_names, hierarchy)
+        self.disjoint_filter_l = implication_filter[:, 0]
+        self.disjoint_filter_r = implication_filter[:, 1]
 
     def forward(self, input, target, **kwargs):
         inp = input["logits"]
@@ -233,10 +247,57 @@ class ElectraChEBILoss(nn.Module):
         else:
             bce = 0
         pred = torch.sigmoid(input["logits"])
-        l = pred[:,self.implication_filter_l]
-        r = pred[:,self.implication_filter_r]
+        l = pred[:,self.disjoint_filter_l]
+        r = pred[:,self.disjoint_filter_r]
         implication_loss = torch.sqrt(torch.mean(torch.sum(l*(1-r), dim=-1), dim=0))
         return bce + implication_loss
+
+
+class ElectraChEBIDisjointLoss(ElectraChEBILoss):
+    def __init__(self, path_to_chebi, path_to_label_names, path_to_disjointedness):
+        super().__init__(path_to_chebi, path_to_label_names)
+        label_names, hierarchy = self.load_hierarchy(path_to_chebi,
+                                                     path_to_label_names)
+        disjoints = set()
+        label_dict = dict(map(reversed, enumerate(label_names)))
+
+        _, implication_filter = self.load_hierarchy(path_to_chebi,
+                                                    path_to_label_names)
+
+        with open(path_to_disjointedness, "rt") as fin:
+            reader = csv.reader(fin)
+            for l1_raw,r1_raw in reader:
+                l1 = int(l1_raw)
+                r1 = int(r1_raw)
+                disjoints.update({(label_dict[l2], label_dict[r2]) for r2 in hierarchy.succ[r1] if r2 in label_names for l2 in hierarchy.succ[l1] if l2 in self.label_names and l2 < r2})
+
+        implication_filter = torch.tensor(list(disjoints))
+        self.disjoint_filter_l = implication_filter[:, 0]
+        self.disjoint_filter_r = implication_filter[:, 1]
+
+    def forward(self, input, target, **kwargs):
+        loss = super().forward(input, target, **kwargs)
+        pred = torch.sigmoid(input["logits"])
+        l = pred[:, self.disjoint_filter_l]
+        r = pred[:, self.disjoint_filter_r]
+        disjointness_loss = torch.sqrt(
+            torch.mean(torch.sum((l*r), dim=-1), dim=0))
+        return loss + disjointness_loss
+
+class ElectraMetrics(torch.nn.Module):
+    def __init__(self, base_metrics: Dict[str, torchmetrics.metric.Metric]):
+        super().__init__()
+        self.base_metrics = base_metrics
+
+    def forward(self, input, target, **kwargs):
+        inp = input["logits"]
+        if "non_null_labels" in kwargs:
+            n = kwargs["non_null_labels"]
+            inp = inp[n]
+        if target is None:
+            return dict()
+        else:
+            return {k: m(inp, target)  for k,m in self.base_metrics.items()}
 
 class ElectraLegacy(ChebaiBaseNet):
     NAME = "ElectraLeg"

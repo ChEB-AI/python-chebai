@@ -11,13 +11,14 @@ from chebai.preprocessing import reader as dr
 class XYBaseDataModule(LightningDataModule):
     READER = dr.DataReader
 
-    def __init__(self, batch_size=1, train_split=0.85, reader_kwargs=None, **kwargs):
+    def __init__(self, batch_size=1, train_split=0.85, reader_kwargs=None, prediction_kind="test", **kwargs):
         super().__init__(**kwargs)
         if reader_kwargs is None:
             reader_kwargs = dict()
         self.reader = self.READER(**reader_kwargs)
         self.train_split = train_split
         self.batch_size = batch_size
+        self.prediction_kind = prediction_kind
         os.makedirs(self.raw_dir, exist_ok=True)
         os.makedirs(self.processed_dir, exist_ok=True)
 
@@ -78,10 +79,13 @@ class XYBaseDataModule(LightningDataModule):
         return self.dataloader("train", shuffle=True, **kwargs)
 
     def val_dataloader(self, *args, **kwargs) -> Union[DataLoader, List[DataLoader]]:
-        return self.dataloader("validation", shuffle=True, **kwargs)
+        return self.dataloader("validation", shuffle=False, **kwargs)
 
     def test_dataloader(self, *args, **kwargs) -> Union[DataLoader, List[DataLoader]]:
         return self.dataloader("test", shuffle=False, **kwargs)
+
+    def predict_dataloader(self, *args, **kwargs) -> Union[DataLoader, List[DataLoader]]:
+        return self.dataloader(self.prediction_kind, shuffle=False, **kwargs)
 
     def setup(self, **kwargs):
         if any(
