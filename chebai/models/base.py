@@ -11,13 +11,14 @@ class ChebaiBaseNet(LightningModule):
     NAME = None
     LOSS = torch.nn.BCEWithLogitsLoss
 
-    def __init__(self, criterion: torch.nn.Module = None, out_dim=None, metrics: Optional[Dict[str, torch.nn.Module]]=None, **kwargs):
+    def __init__(self, criterion: torch.nn.Module = None, out_dim=None, metrics: Optional[Dict[str, torch.nn.Module]]=None, pass_loss_kwargs=True, **kwargs):
         super().__init__()
         self.criterion = criterion
         self.save_hyperparameters()
         self.out_dim = out_dim
         self.optimizer_kwargs = kwargs.get("optimizer_kwargs", dict())
         self.metrics = metrics
+        self.pass_loss_kwargs = pass_loss_kwargs
 
     def __init_subclass__(cls, **kwargs):
         if cls.NAME in _MODEL_REGISTRY:
@@ -50,7 +51,10 @@ class ChebaiBaseNet(LightningModule):
         d = dict(data=data, labels=labels, output=model_output)
         if log:
             if self.criterion is not None:
-                loss = self.criterion(model_output, labels, **data["loss_kwargs"])
+                loss_kwargs = dict()
+                if self.pass_loss_kwargs:
+                    loss_kwargs = data["loss_kwargs"]
+                loss = self.criterion(model_output, labels, **loss_kwargs)
                 d["loss"] = loss
                 self.log(f"{prefix}loss", loss.item(),
                          batch_size=batch.x.shape[0], on_step=False, on_epoch=True,
