@@ -242,15 +242,16 @@ class ElectraChEBILoss(nn.Module):
         self.disjoint_filter_r = implication_filter[:, 1]
 
     def forward(self, input, target, **kwargs):
-        inp = input["logits"]
         if "non_null_labels" in kwargs:
             n = kwargs["non_null_labels"]
-            inp = inp[n]
+            inp = input[n]
+        else:
+            inp = input
         if target is not None:
             bce = self.bce(inp, target.float())
         else:
             bce = 0
-        pred = torch.sigmoid(input["logits"])
+        pred = torch.sigmoid(input)
         l = pred[:,self.disjoint_filter_l]
         r = pred[:,self.disjoint_filter_r]
         #implication_loss = torch.sqrt(torch.mean(torch.sum(l*(1-r), dim=-1), dim=0))
