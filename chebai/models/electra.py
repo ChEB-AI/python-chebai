@@ -253,7 +253,8 @@ class ElectraChEBILoss(nn.Module):
         pred = torch.sigmoid(input["logits"])
         l = pred[:,self.disjoint_filter_l]
         r = pred[:,self.disjoint_filter_r]
-        implication_loss = torch.sqrt(torch.mean(torch.sum(l*(1-r), dim=-1), dim=0))
+        #implication_loss = torch.sqrt(torch.mean(torch.sum(l*(1-r), dim=-1), dim=0))
+        implication_loss = torch.sqrt(torch.mean(torch.sum(torch.relu(l - r), dim=-1), dim=0))
         return bce + implication_loss
 
 
