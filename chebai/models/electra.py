@@ -189,6 +189,8 @@ class Electra(ChebaiBaseNet):
             d = model_output["logits"] * mask - 100 * ~mask
         else:
             d = model_output["logits"]
+        if labels is not None:
+            labels = labels.float()
         return d, labels, loss_kwargs
 
     def _get_prediction_and_labels(self, data, labels, model_output):
