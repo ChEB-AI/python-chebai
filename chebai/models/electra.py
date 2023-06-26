@@ -285,7 +285,7 @@ class ElectraChEBIDisjointLoss(ElectraChEBILoss):
 
     def forward(self, input, target, **kwargs):
         loss = super().forward(input, target, **kwargs)
-        pred = torch.sigmoid(input["logits"])
+        pred = torch.sigmoid(input)
         l = pred[:, self.disjoint_filter_l]
         r = pred[:, self.disjoint_filter_r]
         disjointness_loss = torch.sqrt(
