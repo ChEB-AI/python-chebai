@@ -287,7 +287,7 @@ class ElectraChEBIDisjointLoss(ElectraChEBILoss):
         l = pred[:, self.disjoint_filter_l]
         r = pred[:, self.disjoint_filter_r]
         disjointness_loss = torch.sqrt(
-            torch.mean(torch.sum((l*r), dim=-1), dim=0))
+            torch.mean(torch.sum(torch.relu(l - (1-r)), dim=-1), dim=0))
         return loss + disjointness_loss
 
 
