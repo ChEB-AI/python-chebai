@@ -275,7 +275,7 @@ class ElectraChEBIDisjointLoss(ElectraChEBILoss):
             for l1_raw,r1_raw in reader:
                 l1 = int(l1_raw)
                 r1 = int(r1_raw)
-                disjoints.update({(label_dict[l2], label_dict[r2]) for r2 in hierarchy.succ[r1] if r2 in label_names for l2 in hierarchy.succ[l1] if l2 in self.label_names and l2 < r2})
+                disjoints.update({(label_dict[l2], label_dict[r2]) for r2 in hierarchy.succ[r1] if r2 in label_names for l2 in hierarchy.succ[l1] if l2 in label_names and l2 < r2})
 
         implication_filter = torch.tensor(list(disjoints))
         self.disjoint_filter_l = implication_filter[:, 0]
