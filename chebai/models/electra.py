@@ -216,30 +216,35 @@ class Electra(ChebaiBaseNet):
             attentions=electra.attentions,
             target_mask=data.get("target_mask"),
         )
+IMPLICATION_CACHE_FILE = "chebi.cache"
+
+def _load_label_names(path_to_label_names):
+    with open(path_to_label_names) as fin:
+        label_names = [int(line.strip()) for line in fin]
+    return label_names
+
+def _load_implications(path_to_chebi, implication_cache=IMPLICATION_CACHE_FILE):
+    if os.path.isfile(implication_cache):
+        with open(implication_cache, "rb") as fin:
+            hierarchy = pickle.load(fin)
+    else:
+        hierarchy = extract_class_hierarchy(path_to_chebi)
+        with open(implication_cache, "wb") as fout:
+            pickle.dump(hierarchy, fout)
+    return hierarchy
+
+def _build_implication_filter(label_names, hierarchy):
+    return torch.tensor([(i1, i2) for i1, l1 in enumerate(label_names) for i2, l2 in enumerate(label_names) if l2 in hierarchy.pred[l1]])
 
 class ElectraChEBILoss(nn.Module):
-    CACHE_FILE = "chebi.cache"
 
-    def load_hierarchy(self, path_to_chebi, path_to_label_names):
-        with open(path_to_label_names) as fin:
-            label_names = [int(line.strip()) for line in fin]
-        if os.path.isfile(self.CACHE_FILE):
-            with open(self.CACHE_FILE, "rb") as fin:
-                hierarchy = pickle.load(fin)
-        else:
-            hierarchy = extract_class_hierarchy(path_to_chebi)
-            with open(self.CACHE_FILE, "wb") as fout:
-                pickle.dump(hierarchy, fout)
 
-        return label_names, hierarchy
-
-    def load_implication_filter(self, label_names, hierarchy):
-        return torch.tensor([(i1, i2) for i1, l1 in enumerate(label_names) for i2, l2 in enumerate(label_names) if l2 in hierarchy.pred[l1]])
     def __init__(self, path_to_chebi, path_to_label_names):
         super().__init__()
         self.bce = nn.BCEWithLogitsLoss()
-        label_names, hierarchy = self.load_hierarchy(path_to_chebi, path_to_label_names)
-        implication_filter = self.load_implication_filter(label_names, hierarchy)
+        label_names = _load_label_names(path_to_label_names)
+        hierarchy = _load_implications(path_to_chebi)
+        implication_filter = _build_implication_filter(label_names, hierarchy)
         self.disjoint_filter_l = implication_filter[:, 0]
         self.disjoint_filter_r = implication_filter[:, 1]
 
@@ -257,7 +262,7 @@ class ElectraChEBILoss(nn.Module):
         l = pred[:,self.disjoint_filter_l]
         r = pred[:,self.disjoint_filter_r]
         #implication_loss = torch.sqrt(torch.mean(torch.sum(l*(1-r), dim=-1), dim=0))
-        implication_loss = torch.sqrt(torch.mean(torch.sum(torch.relu(l - r), dim=-1), dim=0))
+        implication_loss = torch.mean(torch.sum(torch.relu(l - r), dim=-1), dim=0)
         return bce + implication_loss
 
 
@@ -288,8 +293,7 @@ class ElectraChEBIDisjointLoss(ElectraChEBILoss):
         pred = torch.sigmoid(input)
         l = pred[:, self.disjoint_filter_l]
         r = pred[:, self.disjoint_filter_r]
-        disjointness_loss = torch.sqrt(
-            torch.mean(torch.sum(torch.relu(l - (1-r)), dim=-1), dim=0))
+        disjointness_loss = torch.mean(torch.sum(torch.relu(l - (1-r)), dim=-1), dim=0)
         return loss + disjointness_loss
 
 
