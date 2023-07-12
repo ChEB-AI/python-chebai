@@ -269,13 +269,10 @@ class ElectraChEBILoss(nn.Module):
 class ElectraChEBIDisjointLoss(ElectraChEBILoss):
     def __init__(self, path_to_chebi, path_to_label_names, path_to_disjointedness):
         super().__init__(path_to_chebi, path_to_label_names)
-        label_names, hierarchy = self.load_hierarchy(path_to_chebi,
-                                                     path_to_label_names)
+        label_names = _load_label_names(path_to_label_names)
+        hierarchy = _load_implications(path_to_chebi)
         disjoints = set()
         label_dict = dict(map(reversed, enumerate(label_names)))
-
-        _, implication_filter = self.load_hierarchy(path_to_chebi,
-                                                    path_to_label_names)
 
         with open(path_to_disjointedness, "rt") as fin:
             reader = csv.reader(fin)
