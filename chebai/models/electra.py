@@ -245,8 +245,8 @@ class ElectraChEBILoss(nn.Module):
         label_names = _load_label_names(path_to_label_names)
         hierarchy = _load_implications(path_to_chebi)
         implication_filter = _build_implication_filter(label_names, hierarchy)
-        self.disjoint_filter_l = implication_filter[:, 0]
-        self.disjoint_filter_r = implication_filter[:, 1]
+        self.implication_filter_l = implication_filter[:, 0]
+        self.implication_filter_r = implication_filter[:, 1]
 
     def forward(self, input, target, **kwargs):
         if "non_null_labels" in kwargs:
@@ -259,8 +259,8 @@ class ElectraChEBILoss(nn.Module):
         else:
             bce = 0
         pred = torch.sigmoid(input)
-        l = pred[:,self.disjoint_filter_l]
-        r = pred[:,self.disjoint_filter_r]
+        l = pred[:,self.implication_filter_l]
+        r = pred[:,self.implication_filter_r]
         #implication_loss = torch.sqrt(torch.mean(torch.sum(l*(1-r), dim=-1), dim=0))
         implication_loss = torch.mean(torch.sum(torch.relu(l - r), dim=-1), dim=0)
         return bce + implication_loss
