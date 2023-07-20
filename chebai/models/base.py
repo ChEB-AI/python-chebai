@@ -39,15 +39,15 @@ class ChebaiBaseNet(LightningModule):
         return self._execute(batch, batch_idx, prefix="train_")
 
     def validation_step(self, batch, batch_idx):
-        return self._execute(batch, batch_idx, prefix="val_")
+        return self._execute(batch, batch_idx, prefix="val_", sync_dist=True)
 
     def test_step(self, batch, batch_idx):
-        return self._execute(batch, batch_idx, prefix="test_")
+        return self._execute(batch, batch_idx, prefix="test_", sync_dist=True)
 
     def predict_step(self, batch, batch_idx, **kwargs):
         return self._execute(batch, batch_idx, prefix="", log=False)
 
-    def _execute(self, batch, batch_idx, prefix="", log=True):
+    def _execute(self, batch, batch_idx, prefix="", log=True, sync_dist=False):
         data = self._process_batch(batch, batch_idx)
         labels = data["labels"]
         model_output = self(data, **data.get("model_kwargs", dict()))
@@ -62,7 +62,7 @@ class ChebaiBaseNet(LightningModule):
                 d["loss"] = loss
                 self.log(f"{prefix}loss", loss.item(),
                          batch_size=batch.x.shape[0], on_step=False, on_epoch=True,
-                         prog_bar=True, logger=True)
+                         prog_bar=True, logger=True, sync_dist=sync_dist)
             if self.metrics and labels is not None:
                 pr, tar = self._get_prediction_and_labels(data, labels, model_output)
                 for metric_name, metric in self.metrics.items():
@@ -72,11 +72,11 @@ class ChebaiBaseNet(LightningModule):
                         for k,m2 in m.items():
                             self.log(f"{prefix}{metric_name}{k}", m2,
                                      batch_size=batch.x.shape[0], on_step=False,
-                                     on_epoch=True, prog_bar=True, logger=True)
+                                     on_epoch=True, prog_bar=True, logger=True, sync_dist=sync_dist)
                     else:
                         self.log(f"{prefix}{metric_name}", m,
                                  batch_size=batch.x.shape[0], on_step=False,
-                                 on_epoch=True, prog_bar=True, logger=True)
+                                 on_epoch=True, prog_bar=True, logger=True, sync_dist=sync_dist)
         return d
 
     def forward(self, x):
