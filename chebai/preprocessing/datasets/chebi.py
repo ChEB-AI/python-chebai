@@ -217,18 +217,18 @@ class JCIExtendedBase(_ChEBIDataExtractor):
         return JCI_500_COLUMNS_INT
 
 
-class ChEBIOver100(_ChEBIDataExtractor):
+class ChEBIOverX(_ChEBIDataExtractor):
     LABEL_INDEX = 3
     SMILES_INDEX = 2
     READER = dr.ChemDataReader
-
+    THRESHOLD = None
     @property
     def label_number(self):
         return 854
 
     @property
     def _name(self):
-        return "ChEBI100"
+        return f"ChEBI{self.THRESHOLD}"
 
     def select_classes(self, g, *args, **kwargs):
         smiles = nx.get_node_attributes(g, "smiles")
@@ -240,13 +240,27 @@ class ChEBIOver100(_ChEBIDataExtractor):
                     if sum(
                         1 if smiles[s] is not None else 0 for s in g.successors(node)
                     )
-                    >= 100
+                    >= self.THRESHOLD
                 }
             )
         )
         with open(os.path.join(self.raw_dir, "classes.txt"), "wt") as fout:
             fout.writelines(str(node) + "\n" for node in nodes)
         return nodes
+
+
+class ChEBIOver100(_ChEBIDataExtractor):
+    THRESHOLD = 100
+
+    def label_number(self):
+        return 854
+
+
+class ChEBIOver50(_ChEBIDataExtractor):
+    THRESHOLD = 50
+
+    def label_number(self):
+        return -1
 
 
 class JCIExtendedBPEData(JCIExtendedBase):
