@@ -266,8 +266,8 @@ class ElectraChEBILoss(nn.Module):
 
 
 class ElectraChEBIDisjointLoss(ElectraChEBILoss):
-    def __init__(self, path_to_chebi, path_to_label_names, path_to_disjointedness):
-        super().__init__(path_to_chebi, path_to_label_names)
+    def __init__(self, path_to_chebi, path_to_label_names, path_to_disjointedness, base_loss: torch.nn.Module = None):
+        super().__init__(path_to_chebi, path_to_label_names, base_loss)
         label_names = _load_label_names(path_to_label_names)
         hierarchy = _load_implications(path_to_chebi)
         disjoints = set()
