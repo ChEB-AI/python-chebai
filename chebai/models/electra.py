@@ -238,10 +238,9 @@ def _build_implication_filter(label_names, hierarchy):
 
 class ElectraChEBILoss(nn.Module):
 
-
-    def __init__(self, path_to_chebi, path_to_label_names):
+    def __init__(self, path_to_chebi, path_to_label_names, base_loss: torch.nn.Module = None):
         super().__init__()
-        self.bce = nn.BCEWithLogitsLoss()
+        self.base_loss = base_loss
         label_names = _load_label_names(path_to_label_names)
         hierarchy = _load_implications(path_to_chebi)
         implication_filter = _build_implication_filter(label_names, hierarchy)
@@ -255,15 +254,15 @@ class ElectraChEBILoss(nn.Module):
         else:
             inp = input
         if target is not None:
-            bce = self.bce(inp, target.float())
+            base_loss = self.base_loss(inp, target.float())
         else:
-            bce = 0
+            base_loss = 0
         pred = torch.sigmoid(input)
         l = pred[:,self.implication_filter_l]
         r = pred[:,self.implication_filter_r]
         #implication_loss = torch.sqrt(torch.mean(torch.sum(l*(1-r), dim=-1), dim=0))
         implication_loss = torch.mean(torch.sum(torch.relu(l - r), dim=-1), dim=0)
-        return bce + implication_loss
+        return base_loss + implication_loss
 
 
 class ElectraChEBIDisjointLoss(ElectraChEBILoss):
