@@ -20,21 +20,24 @@ class DefaultCollater(Collater):
 
 class RaggedCollater(Collater):
     def __call__(self, data):
-        model_kwargs=dict()
-        loss_kwargs=dict()
+        model_kwargs = dict()
+        loss_kwargs = dict()
         if isinstance(data[0], tuple):
             # For legacy data
             x, y, idents = zip(*data)
         else:
-            x, y, idents = zip(*((d["features"], d["labels"], d.get("ident")) for d in data))
+            x, y, idents = zip(
+                *((d["features"], d["labels"], d.get("ident")) for d in data)
+            )
         if any(x is not None for x in y):
             loss_kwargs["target_mask"] = torch.tensor(
-                [[v is not None for v in row] for row
-                 in y if row is not None])
+                [[v is not None for v in row] for row in y if row is not None]
+            )
             if any(x is None for x in y):
-
                 non_null_labels = [i for i, r in enumerate(y) if r is not None]
-                y = self.process_label_rows(tuple(ye for i, ye in enumerate(y) if i in non_null_labels))
+                y = self.process_label_rows(
+                    tuple(ye for i, ye in enumerate(y) if i in non_null_labels)
+                )
                 loss_kwargs["non_null_labels"] = non_null_labels
             else:
                 y = self.process_label_rows(y)
@@ -49,7 +52,7 @@ class RaggedCollater(Collater):
             y,
             model_kwargs=model_kwargs,
             loss_kwargs=loss_kwargs,
-            idents=idents
+            idents=idents,
         )
 
     def process_label_rows(self, labels):

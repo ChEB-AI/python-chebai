@@ -22,6 +22,7 @@ from chebai.preprocessing import reader as dr
 from chebai.preprocessing.datasets.base import XYBaseDataModule, DataLoader
 from chebai.preprocessing.datasets.chebi import ChEBIOver100
 
+
 class PubChem(XYBaseDataModule):
     SMILES_INDEX = 0
     LABEL_INDEX = 1
@@ -218,25 +219,29 @@ class SWJPreChem(PubChem):
     def raw_dir(self):
         return os.path.join("data", self._name, "raw")
 
+
 class PubToxAndChEBI100(XYBaseDataModule):
     READER = dr.ChemDataReader
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.labeled = ChEBIOver100(*args, **kwargs)
         self.unlabeled = PubchemChem(*args, **kwargs)
-
 
     @property
     def _name(self):
         return "PubToxUChebi100"
 
     def dataloader(self, kind, **kwargs):
-
-        labeled_data = torch.load(os.path.join(self.labeled.processed_dir, f"{kind}.pt"))
-        unlabeled_data = torch.load(os.path.join(self.unlabeled.processed_dir, f"{kind}.pt"))
+        labeled_data = torch.load(
+            os.path.join(self.labeled.processed_dir, f"{kind}.pt")
+        )
+        unlabeled_data = torch.load(
+            os.path.join(self.unlabeled.processed_dir, f"{kind}.pt")
+        )
         if self.data_limit is not None:
-            labeled_data = labeled_data[:self.data_limit]
-            unlabeled_data = unlabeled_data[:self.data_limit]
+            labeled_data = labeled_data[: self.data_limit]
+            unlabeled_data = unlabeled_data[: self.data_limit]
         return DataLoader(
             labeled_data + unlabeled_data,
             collate_fn=self.reader.collater,

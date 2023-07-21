@@ -91,7 +91,6 @@ class JCITokenData(JCIBase):
     READER = dr.ChemDataReader
 
 
-
 def extract_class_hierarchy(chebi_path):
     with open(chebi_path) as chebi:
         chebi = "\n".join(l for l in chebi if not l.startswith("xref:"))
@@ -111,8 +110,6 @@ def extract_class_hierarchy(chebi_path):
 class _ChEBIDataExtractor(XYBaseDataModule, ABC):
     def select_classes(self, g, *args, **kwargs):
         raise NotImplementedError
-
-
 
     def save(self, g, train_split, test_split, validation_split):
         smiles = nx.get_node_attributes(g, "smiles")
@@ -222,6 +219,7 @@ class ChEBIOverX(_ChEBIDataExtractor):
     SMILES_INDEX = 2
     READER = dr.ChemDataReader
     THRESHOLD = None
+
     @property
     def label_number(self):
         return 854
@@ -304,6 +302,7 @@ def term_callback(doc):
         "name": name,
         "smiles": smiles,
     }
+
 
 atom_index = (
     "\*",
