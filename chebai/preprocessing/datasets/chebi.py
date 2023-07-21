@@ -260,7 +260,7 @@ class ChEBIOver50(ChEBIOverX):
     THRESHOLD = 50
 
     def label_number(self):
-        return -1
+        return 1332
 
 
 class JCIExtendedBPEData(JCIExtendedBase):
