@@ -36,18 +36,18 @@ class ChebaiBaseNet(LightningModule):
         return model_output, labels, loss_kwargs
 
     def training_step(self, batch, batch_idx):
-        return self._execute(batch, batch_idx, prefix="train_")
+        return self._execute(batch, batch_idx, self.metrics["train"], prefix="train_", sync_dist=True)
 
     def validation_step(self, batch, batch_idx):
-        return self._execute(batch, batch_idx, prefix="val_", sync_dist=True)
+        return self._execute(batch, batch_idx, self.metrics["validation"], prefix="val_", sync_dist=True)
 
     def test_step(self, batch, batch_idx):
-        return self._execute(batch, batch_idx, prefix="test_", sync_dist=True)
+        return self._execute(batch, batch_idx, self.metrics["test"], prefix="test_", sync_dist=True)
 
     def predict_step(self, batch, batch_idx, **kwargs):
-        return self._execute(batch, batch_idx, prefix="", log=False)
+        return self._execute(batch, batch_idx, self.metrics["test"], prefix="", log=False)
 
-    def _execute(self, batch, batch_idx, prefix="", log=True, sync_dist=False):
+    def _execute(self, batch, batch_idx, metrics, prefix="", log=True, sync_dist=False):
         data = self._process_batch(batch, batch_idx)
         labels = data["labels"]
         model_output = self(data, **data.get("model_kwargs", dict()))
@@ -63,9 +63,9 @@ class ChebaiBaseNet(LightningModule):
                 self.log(f"{prefix}loss", loss.item(),
                          batch_size=batch.x.shape[0], on_step=False, on_epoch=True,
                          prog_bar=True, logger=True, sync_dist=sync_dist)
-            if self.metrics and labels is not None:
+            if metrics and labels is not None:
                 pr, tar = self._get_prediction_and_labels(data, labels, model_output)
-                for metric_name, metric in self.metrics.items():
+                for metric_name, metric in metrics.items():
 
                     m = metric(pr, tar)
                     if isinstance(m, dict):
