@@ -32,7 +32,6 @@ setup(
         "torch",
         "typing-extensions",
         "urllib3",
-        "lightning",
         "transformers",
         "fastobo",
         "pysmiles",
@@ -40,7 +39,9 @@ setup(
         "svgutils",
         "matplotlib",
         "rdkit",
-        "selfies"
+        "selfies",
+        "lightning",
+        "jsonargparse[signatures]>=4.17.0"
     ],
     extras_require={"dev": ["black", "isort", "pre-commit"]},
 )
