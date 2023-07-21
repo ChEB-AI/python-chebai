@@ -1,11 +1,11 @@
 - class_path: lightning.pytorch.callbacks.ModelCheckpoint
   init_args:
     monitor: val_loss
-    filename: 'best_{epoch}_{val_loss:.2f}'
+    filename: 'best_{epoch}_{val_loss:.4f}'
     every_n_epochs: 1
     save_top_k: 5
 - class_path: lightning.pytorch.callbacks.ModelCheckpoint
   init_args:
-    filename: 'per_{epoch}_{val_loss:.2f}'
+    filename: 'per_{epoch}_{val_loss:.4f}'
     every_n_epochs: 5
     save_top_k: -1
