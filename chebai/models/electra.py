@@ -160,7 +160,6 @@ class Electra(ChebaiBaseNet):
             config = dict()
         if not "num_labels" in config and self.out_dim is not None:
             config["num_labels"] = self.out_dim
-        print(kwargs)
         self.config = ElectraConfig(**config, output_attentions=True)
         self.word_dropout = nn.Dropout(config.get("word_dropout", 0))
 
