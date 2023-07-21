@@ -11,7 +11,7 @@ from chebai.preprocessing import reader as dr
 class XYBaseDataModule(LightningDataModule):
     READER = dr.DataReader
 
-    def __init__(self, batch_size=1, train_split=0.85, reader_kwargs=None, prediction_kind="test", **kwargs):
+    def __init__(self, batch_size=1, train_split=0.85, reader_kwargs=None, prediction_kind="test", data_limit:int=None, **kwargs):
         super().__init__(**kwargs)
         if reader_kwargs is None:
             reader_kwargs = dict()
@@ -19,6 +19,7 @@ class XYBaseDataModule(LightningDataModule):
         self.train_split = train_split
         self.batch_size = batch_size
         self.prediction_kind = prediction_kind
+        self.data_limit = data_limit
         os.makedirs(self.raw_dir, exist_ok=True)
         os.makedirs(self.processed_dir, exist_ok=True)
 
@@ -45,7 +46,8 @@ class XYBaseDataModule(LightningDataModule):
     def dataloader(self, kind, **kwargs):
 
         dataset = torch.load(os.path.join(self.processed_dir, f"{kind}.pt"))
-
+        if self.data_limit is not None:
+            dataset = dataset[:self.data_limit]
         return DataLoader(
             dataset,
             collate_fn=self.reader.collater,
