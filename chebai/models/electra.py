@@ -260,7 +260,7 @@ class ElectraChEBILoss(nn.Module):
         l = pred[:,self.implication_filter_l]
         r = pred[:,self.implication_filter_r]
         #implication_loss = torch.sqrt(torch.mean(torch.sum(l*(1-r), dim=-1), dim=0))
-        implication_loss = torch.mean(torch.sum(torch.relu(l - r), dim=-1), dim=0)
+        implication_loss = torch.mean(torch.mean(torch.relu(l - r), dim=-1), dim=0)
         return base_loss + implication_loss
 
 
@@ -288,7 +288,7 @@ class ElectraChEBIDisjointLoss(ElectraChEBILoss):
         pred = torch.sigmoid(input)
         l = pred[:, self.disjoint_filter_l]
         r = pred[:, self.disjoint_filter_r]
-        disjointness_loss = torch.mean(torch.sum(torch.relu(l - (1-r)), dim=-1), dim=0)
+        disjointness_loss = torch.mean(torch.mean(torch.relu(l - (1-r)), dim=-1), dim=0)
         return loss + disjointness_loss
 
 
