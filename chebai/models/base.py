@@ -11,7 +11,7 @@ class ChebaiBaseNet(LightningModule):
     NAME = None
     LOSS = torch.nn.BCEWithLogitsLoss
 
-    def __init__(self, criterion: torch.nn.Module = None, out_dim=None, metrics: Optional[Dict[str, torch.nn.Module]]=None, pass_loss_kwargs=True, **kwargs):
+    def __init__(self, criterion: torch.nn.Module = None, out_dim=None, metrics: Optional[Dict[str,Dict[str, torch.nn.Module]]]=None, pass_loss_kwargs=True, **kwargs):
         super().__init__()
         self.criterion = criterion
         self.save_hyperparameters()
@@ -87,6 +87,8 @@ class ChebaiBaseNet(LightningModule):
 
     def to(self, *args, **kwargs):
         other = super().to(*args, **kwargs)
-        for k in self.metrics:
-            other.metrics[k] = other.metrics[k].to(other.device)
+        if self.metrics:
+            for k1, d in self.metrics.items():
+                for k2 in d:
+                    other.metrics[k1][k2] = d[k2].to(other.device)
         return other
