@@ -140,7 +140,7 @@ class _ChEBIDataExtractor(XYBaseDataModule, ABC):
 
             data = pd.DataFrame(data)
             data = data[~data["SMILES"].isnull()]
-            data = data[data.iloc[:, 3:].any(1)]
+            data = data[data.iloc[:, 3:].any(axis=1)]
             pickle.dump(data, open(os.path.join(self.raw_dir, f"{k}.pkl"), "wb"))
 
     @staticmethod
@@ -249,14 +249,14 @@ class ChEBIOverX(_ChEBIDataExtractor):
         return nodes
 
 
-class ChEBIOver100(_ChEBIDataExtractor):
+class ChEBIOver100(ChEBIOverX):
     THRESHOLD = 100
 
     def label_number(self):
         return 854
 
 
-class ChEBIOver50(_ChEBIDataExtractor):
+class ChEBIOver50(ChEBIOverX):
     THRESHOLD = 50
 
     def label_number(self):
