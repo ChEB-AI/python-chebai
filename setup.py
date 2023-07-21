@@ -41,7 +41,7 @@ setup(
         "rdkit",
         "selfies",
         "lightning",
-        "jsonargparse[signatures]>=4.17.0"
+        "jsonargparse[signatures]>=4.17.0",
     ],
     extras_require={"dev": ["black", "isort", "pre-commit"]},
 )
