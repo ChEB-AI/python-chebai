@@ -11,13 +11,15 @@ class ChebaiBaseNet(LightningModule):
     NAME = None
     LOSS = torch.nn.BCEWithLogitsLoss
 
-    def __init__(self, criterion: torch.nn.Module = None, out_dim=None, metrics: Optional[Dict[str,Dict[str, torch.nn.Module]]]=None, pass_loss_kwargs=True, **kwargs):
+    def __init__(self, criterion: torch.nn.Module = None, out_dim=None, metrics: Optional[Dict[str, torch.nn.Module]]=None, pass_loss_kwargs=True, **kwargs):
         super().__init__()
         self.criterion = criterion
         self.save_hyperparameters()
         self.out_dim = out_dim
         self.optimizer_kwargs = kwargs.get("optimizer_kwargs", dict())
-        self.metrics = metrics
+        self.train_metrics = metrics["train"]
+        self.validation_metrics = metrics["validation"]
+        self.test_metrics = metrics["test"]
         self.pass_loss_kwargs = pass_loss_kwargs
 
     def __init_subclass__(cls, **kwargs):
@@ -36,16 +38,16 @@ class ChebaiBaseNet(LightningModule):
         return model_output, labels, loss_kwargs
 
     def training_step(self, batch, batch_idx):
-        return self._execute(batch, batch_idx, self.metrics["train"], prefix="train_", sync_dist=True)
+        return self._execute(batch, batch_idx, self.train_metrics, prefix="train_", sync_dist=True)
 
     def validation_step(self, batch, batch_idx):
-        return self._execute(batch, batch_idx, self.metrics["validation"], prefix="val_", sync_dist=True)
+        return self._execute(batch, batch_idx, self.validation_metrics, prefix="val_", sync_dist=True)
 
     def test_step(self, batch, batch_idx):
-        return self._execute(batch, batch_idx, self.metrics["test"], prefix="test_", sync_dist=True)
+        return self._execute(batch, batch_idx, self.test_metrics, prefix="test_", sync_dist=True)
 
     def predict_step(self, batch, batch_idx, **kwargs):
-        return self._execute(batch, batch_idx, self.metrics["test"], prefix="", log=False)
+        return self._execute(batch, batch_idx, self.test_metrics, prefix="", log=False)
 
     def _execute(self, batch, batch_idx, metrics, prefix="", log=True, sync_dist=False):
         data = self._process_batch(batch, batch_idx)
@@ -84,11 +86,3 @@ class ChebaiBaseNet(LightningModule):
 
     def configure_optimizers(self, **kwargs):
         return torch.optim.Adamax(self.parameters(), **self.optimizer_kwargs)
-
-    def to(self, *args, **kwargs):
-        other = super().to(*args, **kwargs)
-        if self.metrics:
-            for k1, d in self.metrics.items():
-                for k2 in d:
-                    other.metrics[k1][k2] = d[k2].to(other.device)
-        return other
