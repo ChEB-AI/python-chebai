@@ -159,20 +159,37 @@ class Tox21Challenge(XYBaseDataModule):
 
     @property
     def raw_file_names(self):
-        return ["train.sdf", "validation.sdf", "validation.smiles", "test.smiles", "test_results.txt"]
+        return [
+            "train.sdf",
+            "validation.sdf",
+            "validation.smiles",
+            "test.smiles",
+            "test_results.txt",
+        ]
 
     @property
     def processed_file_names(self):
         return ["test.pt", "train.pt", "validation.pt"]
 
     def download(self):
-        self._retrieve_file("https://tripod.nih.gov/tox21/challenge/download?id=tox21_10k_data_allsdf&sec=", "train.sdf", compression="zip")
-        self._retrieve_file("https://tripod.nih.gov/tox21/challenge/download?id=tox21_10k_challenge_testsdf&sec=",
-                            "validation.sdf", compression="zip")
-        self._retrieve_file("https://tripod.nih.gov/tox21/challenge/download?id=tox21_10k_challenge_scoresmiles&sec=",
-                            "test.smiles")
-        self._retrieve_file("https://tripod.nih.gov/tox21/challenge/download?id=tox21_10k_challenge_scoretxt&sec=",
-                            "test_results.txt")
+        self._retrieve_file(
+            "https://tripod.nih.gov/tox21/challenge/download?id=tox21_10k_data_allsdf&sec=",
+            "train.sdf",
+            compression="zip",
+        )
+        self._retrieve_file(
+            "https://tripod.nih.gov/tox21/challenge/download?id=tox21_10k_challenge_testsdf&sec=",
+            "validation.sdf",
+            compression="zip",
+        )
+        self._retrieve_file(
+            "https://tripod.nih.gov/tox21/challenge/download?id=tox21_10k_challenge_scoresmiles&sec=",
+            "test.smiles",
+        )
+        self._retrieve_file(
+            "https://tripod.nih.gov/tox21/challenge/download?id=tox21_10k_challenge_scoretxt&sec=",
+            "test_results.txt",
+        )
 
     def _retrieve_file(self, url, target_file, compression=None):
         target_path = os.path.join(self.raw_dir, target_file)
@@ -188,7 +205,7 @@ class Tox21Challenge(XYBaseDataModule):
                 )
                 if compression == "zip":
                     td = TemporaryDirectory()
-                    with zipfile.ZipFile(download_path, 'r') as zip_ref:
+                    with zipfile.ZipFile(download_path, "r") as zip_ref:
                         zip_ref.extractall(td.name)
                         files_in_zip = os.listdir(td.name)
                         f = files_in_zip[0]
@@ -201,9 +218,17 @@ class Tox21Challenge(XYBaseDataModule):
         for mol in sdf:
             if mol is not None:
                 d = dict(
-                    labels=[int(mol.GetProp(h)) if h in mol.GetPropNames() else None for h in self.HEADERS],
-                    ident=[mol.GetProp(k) for k in ("DSSTox_CID", "Compound ID") if k in mol.GetPropNames() ][0],
-                    features=Chem.MolToSmiles(mol))
+                    labels=[
+                        int(mol.GetProp(h)) if h in mol.GetPropNames() else None
+                        for h in self.HEADERS
+                    ],
+                    ident=[
+                        mol.GetProp(k)
+                        for k in ("DSSTox_CID", "Compound ID")
+                        if k in mol.GetPropNames()
+                    ][0],
+                    features=Chem.MolToSmiles(mol),
+                )
                 data.append(self.reader.to_data(d))
         return data
 
@@ -217,8 +242,20 @@ class Tox21Challenge(XYBaseDataModule):
             test_smiles = dict(reversed(row.strip().split("\t")) for row in fin)
         with open(os.path.join(self.raw_dir, f"test_results.txt")) as fin:
             headers = next(fin).strip().split("\t")
-            test_results = {k["Sample ID"]:[int(k[h]) if k[h] != "x" else None for h in self.HEADERS] for k in (dict(zip(headers, row.strip().split("\t"))) for row in fin if row)}
-        test_data = [self.reader.to_data(dict(features=test_smiles[k], labels=test_results[k], ident=k)) for k in test_smiles]
+            test_results = {
+                k["Sample ID"]: [
+                    int(k[h]) if k[h] != "x" else None for h in self.HEADERS
+                ]
+                for k in (
+                    dict(zip(headers, row.strip().split("\t"))) for row in fin if row
+                )
+            }
+        test_data = [
+            self.reader.to_data(
+                dict(features=test_smiles[k], labels=test_results[k], ident=k)
+            )
+            for k in test_smiles
+        ]
         torch.save(test_data, os.path.join(self.processed_dir, f"test.pt"))
 
     def setup(self, **kwargs):

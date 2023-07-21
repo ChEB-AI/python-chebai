@@ -8,10 +8,19 @@ import tqdm
 
 from chebai.preprocessing import reader as dr
 
+
 class XYBaseDataModule(LightningDataModule):
     READER = dr.DataReader
 
-    def __init__(self, batch_size=1, train_split=0.85, reader_kwargs=None, prediction_kind="test", data_limit:int=None, **kwargs):
+    def __init__(
+        self,
+        batch_size=1,
+        train_split=0.85,
+        reader_kwargs=None,
+        prediction_kind="test",
+        data_limit: int = None,
+        **kwargs,
+    ):
         super().__init__(**kwargs)
         if reader_kwargs is None:
             reader_kwargs = dict()
@@ -44,10 +53,9 @@ class XYBaseDataModule(LightningDataModule):
         raise NotImplementedError
 
     def dataloader(self, kind, **kwargs):
-
         dataset = torch.load(os.path.join(self.processed_dir, f"{kind}.pt"))
         if self.data_limit is not None:
-            dataset = dataset[:self.data_limit]
+            dataset = dataset[: self.data_limit]
         return DataLoader(
             dataset,
             collate_fn=self.reader.collater,
@@ -86,7 +94,9 @@ class XYBaseDataModule(LightningDataModule):
     def test_dataloader(self, *args, **kwargs) -> Union[DataLoader, List[DataLoader]]:
         return self.dataloader("test", shuffle=False, **kwargs)
 
-    def predict_dataloader(self, *args, **kwargs) -> Union[DataLoader, List[DataLoader]]:
+    def predict_dataloader(
+        self, *args, **kwargs
+    ) -> Union[DataLoader, List[DataLoader]]:
         return self.dataloader(self.prediction_kind, shuffle=False, **kwargs)
 
     def setup(self, **kwargs):
@@ -114,7 +124,6 @@ class XYBaseDataModule(LightningDataModule):
 
 
 class MergedDataset(XYBaseDataModule):
-
     MERGED = []
 
     @property

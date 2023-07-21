@@ -21,7 +21,6 @@ from chebai.result.base import ResultProcessor
 
 
 class AttentionMolPlot:
-
     def draw_attention_molecule(self, smiles, attention):
         pmol = self.read_smiles_with_index(smiles)
         rdmol = Chem.MolFromSmiles(smiles)
@@ -43,13 +42,11 @@ class AttentionMolPlot:
             token_to_node_map[token_index]: tuple(
                 aggr_attention_colors[token_index].tolist()
             )
-            for node, token_index in
-            nx.get_node_attributes(pmol, "token_index").items()
+            for node, token_index in nx.get_node_attributes(pmol, "token_index").items()
         }
         highlight_atoms = [
             token_to_node_map[token_index]
-            for node, token_index in
-            nx.get_node_attributes(pmol, "token_index").items()
+            for node, token_index in nx.get_node_attributes(pmol, "token_index").items()
         ]
         rdMolDraw2D.PrepareAndDrawMolecule(
             d, rdmol, highlightAtoms=highlight_atoms, highlightAtomColors=cols

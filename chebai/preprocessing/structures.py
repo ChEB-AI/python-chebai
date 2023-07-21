@@ -2,6 +2,7 @@ from torch.utils.data.dataset import T_co
 import networkx as nx
 import torch
 
+
 class XYData(torch.utils.data.Dataset):
     def __getitem__(self, index) -> T_co:
         return self.x[index], self.y[index]
@@ -25,7 +26,7 @@ class XYData(torch.utils.data.Dataset):
         if isinstance(obj, torch.Tensor):
             return obj.to(device)
         elif isinstance(obj, dict):
-            return  {k: self._to_if_tensor(v, device) for k, v in obj.items()}
+            return {k: self._to_if_tensor(v, device) for k, v in obj.items()}
         elif isinstance(obj, list):
             return [self._to_if_tensor(v, device) for v in obj]
         else:

@@ -28,6 +28,7 @@ import torch
 import csv
 
 from chebai.models.base import ChebaiBaseNet
+
 logging.getLogger("pysmiles").setLevel(logging.CRITICAL)
 
 
@@ -47,7 +48,6 @@ class ElectraPre(ChebaiBaseNet):
         return self.discriminator
 
     def _process_batch(self, batch, batch_idx):
-
         return dict(features=batch.x, labels=None, mask=batch.mask)
 
     def forward(self, data):
@@ -117,9 +117,11 @@ class ElectraPreLoss(torch.nn.Module):
 
 
 def filter_dict(d, filter_key):
-    return {str(k)[len(filter_key):]: v for k, v in
-                  d.items() if
-                  str(k).startswith(filter_key)}
+    return {
+        str(k)[len(filter_key) :]: v
+        for k, v in d.items()
+        if str(k).startswith(filter_key)
+    }
 
 
 class Electra(ChebaiBaseNet):
@@ -130,7 +132,10 @@ class Electra(ChebaiBaseNet):
         loss_kwargs = batch.additional_fields["loss_kwargs"]
         if "lens" in batch.additional_fields["model_kwargs"]:
             model_kwargs["attention_mask"] = pad_sequence(
-                [torch.ones(l + 1, device=self.device) for l in batch.additional_fields["model_kwargs"]["lens"]],
+                [
+                    torch.ones(l + 1, device=self.device)
+                    for l in batch.additional_fields["model_kwargs"]["lens"]
+                ],
                 batch_first=True,
             )
         cls_tokens = (
@@ -144,14 +149,16 @@ class Electra(ChebaiBaseNet):
             labels=batch.y,
             model_kwargs=model_kwargs,
             loss_kwargs=loss_kwargs,
-            idents=batch.additional_fields["idents"]
+            idents=batch.additional_fields["idents"],
         )
 
     @property
     def as_pretrained(self):
         return self.electra.electra
 
-    def __init__(self, config=None, pretrained_checkpoint = None, load_prefix=None, **kwargs):
+    def __init__(
+        self, config=None, pretrained_checkpoint=None, load_prefix=None, **kwargs
+    ):
         # Remove this property in order to prevent it from being stored as a
         # hyper parameter
 
@@ -173,12 +180,14 @@ class Electra(ChebaiBaseNet):
         )
         if pretrained_checkpoint:
             with open(pretrained_checkpoint, "rb") as fin:
-                model_dict = torch.load(fin,map_location=self.device)
+                model_dict = torch.load(fin, map_location=self.device)
                 if load_prefix:
                     state_dict = filter_dict(model_dict["state_dict"], load_prefix)
                 else:
                     state_dict = model_dict["state_dict"]
-                self.electra = ElectraModel.from_pretrained(None,  state_dict=state_dict, config=self.config)
+                self.electra = ElectraModel.from_pretrained(
+                    None, state_dict=state_dict, config=self.config
+                )
         else:
             self.electra = ElectraModel(config=self.config)
 
@@ -215,12 +224,16 @@ class Electra(ChebaiBaseNet):
             attentions=electra.attentions,
             target_mask=data.get("target_mask"),
         )
+
+
 IMPLICATION_CACHE_FILE = "chebi.cache"
+
 
 def _load_label_names(path_to_label_names):
     with open(path_to_label_names) as fin:
         label_names = [int(line.strip()) for line in fin]
     return label_names
+
 
 def _load_implications(path_to_chebi, implication_cache=IMPLICATION_CACHE_FILE):
     if os.path.isfile(implication_cache):
@@ -232,12 +245,22 @@ def _load_implications(path_to_chebi, implication_cache=IMPLICATION_CACHE_FILE):
             pickle.dump(hierarchy, fout)
     return hierarchy
 
+
 def _build_implication_filter(label_names, hierarchy):
-    return torch.tensor([(i1, i2) for i1, l1 in enumerate(label_names) for i2, l2 in enumerate(label_names) if l2 in hierarchy.pred[l1]])
+    return torch.tensor(
+        [
+            (i1, i2)
+            for i1, l1 in enumerate(label_names)
+            for i2, l2 in enumerate(label_names)
+            if l2 in hierarchy.pred[l1]
+        ]
+    )
+
 
 class ElectraChEBILoss(nn.Module):
-
-    def __init__(self, path_to_chebi, path_to_label_names, base_loss: torch.nn.Module = None):
+    def __init__(
+        self, path_to_chebi, path_to_label_names, base_loss: torch.nn.Module = None
+    ):
         super().__init__()
         self.base_loss = base_loss
         label_names = _load_label_names(path_to_label_names)
@@ -257,15 +280,21 @@ class ElectraChEBILoss(nn.Module):
         else:
             base_loss = 0
         pred = torch.sigmoid(input)
-        l = pred[:,self.implication_filter_l]
-        r = pred[:,self.implication_filter_r]
-        #implication_loss = torch.sqrt(torch.mean(torch.sum(l*(1-r), dim=-1), dim=0))
+        l = pred[:, self.implication_filter_l]
+        r = pred[:, self.implication_filter_r]
+        # implication_loss = torch.sqrt(torch.mean(torch.sum(l*(1-r), dim=-1), dim=0))
         implication_loss = torch.mean(torch.mean(torch.relu(l - r), dim=-1), dim=0)
         return base_loss + implication_loss
 
 
 class ElectraChEBIDisjointLoss(ElectraChEBILoss):
-    def __init__(self, path_to_chebi, path_to_label_names, path_to_disjointedness, base_loss: torch.nn.Module = None):
+    def __init__(
+        self,
+        path_to_chebi,
+        path_to_label_names,
+        path_to_disjointedness,
+        base_loss: torch.nn.Module = None,
+    ):
         super().__init__(path_to_chebi, path_to_label_names, base_loss)
         label_names = _load_label_names(path_to_label_names)
         hierarchy = _load_implications(path_to_chebi)
@@ -274,10 +303,18 @@ class ElectraChEBIDisjointLoss(ElectraChEBILoss):
 
         with open(path_to_disjointedness, "rt") as fin:
             reader = csv.reader(fin)
-            for l1_raw,r1_raw in reader:
+            for l1_raw, r1_raw in reader:
                 l1 = int(l1_raw)
                 r1 = int(r1_raw)
-                disjoints.update({(label_dict[l2], label_dict[r2]) for r2 in hierarchy.succ[r1] if r2 in label_names for l2 in hierarchy.succ[l1] if l2 in label_names and l2 < r2})
+                disjoints.update(
+                    {
+                        (label_dict[l2], label_dict[r2])
+                        for r2 in hierarchy.succ[r1]
+                        if r2 in label_names
+                        for l2 in hierarchy.succ[l1]
+                        if l2 in label_names and l2 < r2
+                    }
+                )
 
         implication_filter = torch.tensor(list(disjoints))
         self.disjoint_filter_l = implication_filter[:, 0]
@@ -288,7 +325,9 @@ class ElectraChEBIDisjointLoss(ElectraChEBILoss):
         pred = torch.sigmoid(input)
         l = pred[:, self.disjoint_filter_l]
         r = pred[:, self.disjoint_filter_r]
-        disjointness_loss = torch.mean(torch.mean(torch.relu(l - (1-r)), dim=-1), dim=0)
+        disjointness_loss = torch.mean(
+            torch.mean(torch.relu(l - (1 - r)), dim=-1), dim=0
+        )
         return loss + disjointness_loss
 
 
@@ -324,6 +363,7 @@ class ElectraLegacy(ChebaiBaseNet):
         electra = self.electra(data)
         d = torch.sum(electra.last_hidden_state, dim=1)
         return dict(logits=self.output(d), attentions=electra.attentions)
+
 
 class ConeElectra(ChebaiBaseNet):
     NAME = "ConeElectra"
@@ -369,12 +409,18 @@ class ConeElectra(ChebaiBaseNet):
         model_prefix = kwargs.get("load_prefix", None)
         if pretrained_checkpoint:
             with open(pretrained_checkpoint, "rb") as fin:
-                model_dict = torch.load(fin,map_location=self.device)
+                model_dict = torch.load(fin, map_location=self.device)
                 if model_prefix:
-                    state_dict = {str(k)[len(model_prefix):]:v for k,v in model_dict["state_dict"].items() if str(k).startswith(model_prefix)}
+                    state_dict = {
+                        str(k)[len(model_prefix) :]: v
+                        for k, v in model_dict["state_dict"].items()
+                        if str(k).startswith(model_prefix)
+                    }
                 else:
                     state_dict = model_dict["state_dict"]
-                self.electra = ElectraModel.from_pretrained(None, state_dict=state_dict, config=self.config)
+                self.electra = ElectraModel.from_pretrained(
+                    None, state_dict=state_dict, config=self.config
+                )
         else:
             self.electra = ElectraModel(config=self.config)
 
@@ -388,16 +434,22 @@ class ConeElectra(ChebaiBaseNet):
             nn.Linear(in_d, self.cone_dimensions),
         )
 
-        self.cone_axes = nn.Parameter(2*pi*torch.rand((1, self.config.num_labels, self.cone_dimensions)))
-        self.cone_arcs = nn.Parameter(pi*(1-2*torch.rand((1, self.config.num_labels, self.cone_dimensions))))
+        self.cone_axes = nn.Parameter(
+            2 * pi * torch.rand((1, self.config.num_labels, self.cone_dimensions))
+        )
+        self.cone_arcs = nn.Parameter(
+            pi * (1 - 2 * torch.rand((1, self.config.num_labels, self.cone_dimensions)))
+        )
 
     def _get_data_for_loss(self, model_output, labels):
         mask = model_output.get("target_mask")
         d = model_output["predicted_vectors"]
-        return dict(input=dict(predicted_vectors=d,
-                               cone_axes = self.cone_axes,
-                               cone_arcs = self.cone_arcs),
-                    target=labels.float())
+        return dict(
+            input=dict(
+                predicted_vectors=d, cone_axes=self.cone_axes, cone_arcs=self.cone_arcs
+            ),
+            target=labels.float(),
+        )
 
     def _get_prediction_and_labels(self, data, labels, model_output):
         mask = model_output.get("target_mask")
@@ -419,46 +471,48 @@ class ConeElectra(ChebaiBaseNet):
             target_mask=data.get("target_mask"),
         )
 
+
 def softabs(x, eps=0.01):
-    return (x**2+eps)**0.5-eps**0.5
+    return (x**2 + eps) ** 0.5 - eps**0.5
+
 
 def anglify(x):
-    return torch.tanh(x)*pi
+    return torch.tanh(x) * pi
+
 
 def turn(vector, angle):
     v = vector - angle
-    return v - (v > pi)*2*pi + (v< -pi)*2*pi
+    return v - (v > pi) * 2 * pi + (v < -pi) * 2 * pi
+
 
 def in_cone_parts(vectors, cone_axes, cone_arcs):
+    """
+    # trap between -pi and pi
+    cone_ax_ang = anglify(cone_axes)
+    v = anglify(vectors)
 
-        """
-        # trap between -pi and pi
-        cone_ax_ang = anglify(cone_axes)
-        v = anglify(vectors)
-
-        # trap between 0 and pi
-        cone_arc_ang = (torch.tanh(cone_arcs)+1)*pi/2
-        theta_L = cone_ax_ang - cone_arc_ang/2
-        #theta_L = theta_L - (theta_L > 2*pi) * 2 * pi + (theta_L < 0) *2*pi
-        theta_R = cone_ax_ang + cone_arc_ang/2
-        #theta_R = theta_R - (theta_R > 2 * pi) * 2 * pi + (theta_R < 0) * 2 * pi
-        dis = (torch.abs(turn(v, theta_L)) + torch.abs(turn(v, theta_R)) - cone_arc_ang)/(2*pi-cone_arc_ang)
-        return dis
-        """
-        a = cone_axes - cone_arcs**2
-        b = cone_axes + cone_arcs**2
-        bigger_than_a = torch.sigmoid(vectors-a)
-        smaller_than_b = torch.sigmoid(b-vectors)
-        return bigger_than_a * smaller_than_b
+    # trap between 0 and pi
+    cone_arc_ang = (torch.tanh(cone_arcs)+1)*pi/2
+    theta_L = cone_ax_ang - cone_arc_ang/2
+    #theta_L = theta_L - (theta_L > 2*pi) * 2 * pi + (theta_L < 0) *2*pi
+    theta_R = cone_ax_ang + cone_arc_ang/2
+    #theta_R = theta_R - (theta_R > 2 * pi) * 2 * pi + (theta_R < 0) * 2 * pi
+    dis = (torch.abs(turn(v, theta_L)) + torch.abs(turn(v, theta_R)) - cone_arc_ang)/(2*pi-cone_arc_ang)
+    return dis
+    """
+    a = cone_axes - cone_arcs**2
+    b = cone_axes + cone_arcs**2
+    bigger_than_a = torch.sigmoid(vectors - a)
+    smaller_than_b = torch.sigmoid(b - vectors)
+    return bigger_than_a * smaller_than_b
 
 
 class ConeLoss:
-
     def __init__(self, center_scaling=0.1):
         self.center_scaling = center_scaling
 
     def negate(self, ax, arc):
-        offset = pi*torch.ones_like(ax)
+        offset = pi * torch.ones_like(ax)
         offset[ax >= 0] *= -1
         return ax + offset, pi - arc
 
@@ -466,6 +520,10 @@ class ConeLoss:
         predicted_vectors = input["predicted_vectors"].unsqueeze(1)
         cone_axes = input["cone_axes"]
         cone_arcs = input["cone_arcs"]
-        memberships =  (1-1e-6)*(in_cone_parts(predicted_vectors, cone_axes, cone_arcs))
-        loss = torch.nn.functional.binary_cross_entropy(memberships, target.unsqueeze(-1).expand(-1,-1,20))
+        memberships = (1 - 1e-6) * (
+            in_cone_parts(predicted_vectors, cone_axes, cone_arcs)
+        )
+        loss = torch.nn.functional.binary_cross_entropy(
+            memberships, target.unsqueeze(-1).expand(-1, -1, 20)
+        )
         return loss
