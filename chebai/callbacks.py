@@ -5,9 +5,10 @@ import json
 
 
 class ChebaiPredictionWriter(BasePredictionWriter):
-    def __init__(self, output_dir, write_interval):
+    def __init__(self, output_dir, write_interval, target_file="predictions.json"):
         super().__init__(write_interval)
         self.output_dir = output_dir
+        self.target_file = target_file
 
     def write_on_batch_end(
         self,
@@ -35,5 +36,5 @@ class ChebaiPredictionWriter(BasePredictionWriter):
             output = torch.sigmoid(p["output"]["logits"]).tolist()
             for i, l, p in zip(idents, labels, output):
                 pred_list.append(dict(ident=i, labels=l, predictions=p))
-        with open(os.path.join(self.output_dir, "predictions.json"), "wt") as fout:
+        with open(os.path.join(self.output_dir, self.target_file), "wt") as fout:
             json.dump(pred_list, fout)
