@@ -22,13 +22,14 @@ class ChebaiBaseNet(LightningModule):
     ):
         super().__init__()
         self.criterion = criterion
-        self.save_hyperparameters()
+        self.save_hyperparameters(ignore=['criterion'])
         self.out_dim = out_dim
         self.optimizer_kwargs = kwargs.get("optimizer_kwargs", dict())
         self.train_metrics = metrics["train"]
         self.validation_metrics = metrics["validation"]
         self.test_metrics = metrics["test"]
         self.pass_loss_kwargs = pass_loss_kwargs
+
 
     def __init_subclass__(cls, **kwargs):
         if cls.NAME in _MODEL_REGISTRY:
