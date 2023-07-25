@@ -20,9 +20,9 @@ class XYBaseDataModule(LightningDataModule):
         train_split=0.85,
         reader_kwargs=None,
         prediction_kind="test",
-        data_limit: int = None,
+        data_limit: typing.Optional[int] = None,
         label_filter: typing.Optional[int] = None,
-        balance_after_filter: float = False,
+        balance_after_filter: typing.Optional[float] = None,
         **kwargs,
     ):
         super().__init__(**kwargs)
@@ -34,7 +34,7 @@ class XYBaseDataModule(LightningDataModule):
         self.prediction_kind = prediction_kind
         self.data_limit = data_limit
         self.label_filter = label_filter
-        assert (balance_after_filter is not None) or (self.label_filter is not None), "Filter balancing requires a filter"
+        assert (balance_after_filter is not None) or (self.label_filter is None), "Filter balancing requires a filter"
         self.balance_after_filter = balance_after_filter
         os.makedirs(self.raw_dir, exist_ok=True)
         os.makedirs(self.processed_dir, exist_ok=True)
