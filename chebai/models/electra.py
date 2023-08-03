@@ -256,6 +256,7 @@ def _build_implication_filter(label_names, hierarchy):
         ]
     )
 
+
 def _build_disjointness_filter(path_to_disjointedness, label_names, hierarchy):
     disjoints = set()
     label_dict = dict(map(reversed, enumerate(label_names)))
@@ -320,7 +321,9 @@ class ElectraChEBIDisjointLoss(ElectraChEBILoss):
         super().__init__(path_to_chebi, path_to_label_names, base_loss)
         label_names = _load_label_names(path_to_label_names)
         hierarchy = _load_implications(path_to_chebi)
-        self.disjoint_filter_l, self.disjoint_filter_r = _build_disjointness_filter(path_to_disjointedness, label_names, hierarchy)
+        self.disjoint_filter_l, self.disjoint_filter_r = _build_disjointness_filter(
+            path_to_disjointedness, label_names, hierarchy
+        )
 
     def forward(self, input, target, **kwargs):
         loss = super().forward(input, target, **kwargs)

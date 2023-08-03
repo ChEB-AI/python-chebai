@@ -34,7 +34,9 @@ class XYBaseDataModule(LightningDataModule):
         self.prediction_kind = prediction_kind
         self.data_limit = data_limit
         self.label_filter = label_filter
-        assert (balance_after_filter is not None) or (self.label_filter is None), "Filter balancing requires a filter"
+        assert (balance_after_filter is not None) or (
+            self.label_filter is None
+        ), "Filter balancing requires a filter"
         self.balance_after_filter = balance_after_filter
         os.makedirs(self.raw_dir, exist_ok=True)
         os.makedirs(self.processed_dir, exist_ok=True)
@@ -62,6 +64,7 @@ class XYBaseDataModule(LightningDataModule):
     def _filter_labels(self, row):
         row["labels"] = [row["labels"][self.label_filter]]
         return row
+
     def dataloader(self, kind, **kwargs):
         dataset = torch.load(os.path.join(self.processed_dir, f"{kind}.pt"))
         if self.label_filter is not None:
@@ -70,7 +73,9 @@ class XYBaseDataModule(LightningDataModule):
             positives = [r for r in dataset if r["labels"][0]]
             negatives = [r for r in dataset if not r["labels"][0]]
             if self.balance_after_filter is not None:
-                negative_length = min(original_len, int(len(positives)*self.balance_after_filter))
+                negative_length = min(
+                    original_len, int(len(positives) * self.balance_after_filter)
+                )
                 dataset = positives + negatives[:negative_length]
             else:
                 dataset = positives + negatives
