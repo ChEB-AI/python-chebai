@@ -256,6 +256,28 @@ def _build_implication_filter(label_names, hierarchy):
         ]
     )
 
+def _build_disjointness_filter(path_to_disjointedness, label_names, hierarchy):
+    disjoints = set()
+    label_dict = dict(map(reversed, enumerate(label_names)))
+
+    with open(path_to_disjointedness, "rt") as fin:
+        reader = csv.reader(fin)
+        for l1_raw, r1_raw in reader:
+            l1 = int(l1_raw)
+            r1 = int(r1_raw)
+            disjoints.update(
+                {
+                    (label_dict[l2], label_dict[r2])
+                    for r2 in hierarchy.succ[r1]
+                    if r2 in label_names
+                    for l2 in hierarchy.succ[l1]
+                    if l2 in label_names and l2 < r2
+                }
+            )
+
+    dis_filter = torch.tensor(list(disjoints))
+    return dis_filter[:, 0], dis_filter[:, 1]
+
 
 class ElectraChEBILoss(nn.Module):
     def __init__(
@@ -298,27 +320,7 @@ class ElectraChEBIDisjointLoss(ElectraChEBILoss):
         super().__init__(path_to_chebi, path_to_label_names, base_loss)
         label_names = _load_label_names(path_to_label_names)
         hierarchy = _load_implications(path_to_chebi)
-        disjoints = set()
-        label_dict = dict(map(reversed, enumerate(label_names)))
-
-        with open(path_to_disjointedness, "rt") as fin:
-            reader = csv.reader(fin)
-            for l1_raw, r1_raw in reader:
-                l1 = int(l1_raw)
-                r1 = int(r1_raw)
-                disjoints.update(
-                    {
-                        (label_dict[l2], label_dict[r2])
-                        for r2 in hierarchy.succ[r1]
-                        if r2 in label_names
-                        for l2 in hierarchy.succ[l1]
-                        if l2 in label_names and l2 < r2
-                    }
-                )
-
-        implication_filter = torch.tensor(list(disjoints))
-        self.disjoint_filter_l = implication_filter[:, 0]
-        self.disjoint_filter_r = implication_filter[:, 1]
+        self.disjoint_filter_l, self.disjoint_filter_r = _build_disjointness_filter(path_to_disjointedness, label_names, hierarchy)
 
     def forward(self, input, target, **kwargs):
         loss = super().forward(input, target, **kwargs)
