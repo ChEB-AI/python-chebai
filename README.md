@@ -1,29 +1,27 @@
 # ChEBai
 
-Run predefined training setup using 
+ChEBai  is a deep learning library that allows the combination of deep learning methods with chemical ontologies
+(especially ChEBI). Special attention is given to the integration of the semantic qualities of the ontology into the learning process. This is done in two different ways:
 
+## Pretraining
 
 ```
-python -m chebai train [BATCH_SIZE]
+python -m chebai fit --config=[path-to-your-config] --trainer.callbacks=configs/training/default_callbacks.yml
 ```
 
-Add your own settings by altering run.py
+## Structure-based ontology extension
 
-## How to run electra
+```
+python -m chebai train --config=[path-to-your-electra_chebi100-config] --trainer.callbacks=configs/training/default_callbacks.yml  --model.pretrained_checkpoint=[path-to-pretrained-model] --model.load_prefix=generator.
+```
 
-The interaction between pre-training and fine-tuning are not implementet, yet. Therefore, this part requires some manual steps:
 
-### Pretraining
+## Fine-tuning for Toxicity prediction
 
-1. Create a folder `data/SWJpre/raw`
-2. Create a file `smiles.txt` that contains the unlabeled pretraining data.
-3. Run the pre-training:`python -m chebai train ElectraPre+SWJ [BATCH_SIZE]`
-4. A successful run should create a new log in `logs` as well as *checkpoints* that can be used for fine-tuning
+```
+python -m chebai train --config=[path-to-your-tox21-config] --trainer.callbacks=configs/training/default_callbacks.yml  --model.pretrained_checkpoint=[path-to-pretrained-model] --model.load_prefix=generator.
+```
 
-### Fine-tuning
-
-1. Create a folder `data/JCI/raw`
-2. Add raw `JCI`-data to this folder
-3. Run the fine-tuning with the checkpoint from point 4 of the pre-training:
-   ```python -m chebai train Electra+JCI [BATCH_SIZE] [PATH_TO_THE_CHECKPOINT]```
-
+```
+python -m chebai train --config=[path-to-your-tox21-config] --trainer.callbacks=configs/training/default_callbacks.yml  --ckpt_path=[path-to-model-with-ontology-pretraining]
+```
