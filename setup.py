@@ -7,7 +7,7 @@ setup(
     name="chebai",
     version="0.0.2.dev0",
     packages=packages,
-    package_data={"": ["*.txt", "*.json"]},
+    package_data={"": ["**/*.txt", "**/*.json"]},
     include_package_data=True,
     url="",
     license="",
