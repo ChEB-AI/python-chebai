@@ -5,9 +5,7 @@ init_args:
       class_path: torchmetrics.classification.MultilabelF1Score
       init_args:
         average: micro
-        num_labels: 854
     macro-f1:
       class_path: torchmetrics.classification.MultilabelF1Score
       init_args:
         average: macro
-        num_labels: 854
