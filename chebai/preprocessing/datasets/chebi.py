@@ -92,8 +92,11 @@ class JCITokenData(JCIBase):
 
 
 def extract_class_hierarchy(chebi_path):
+    # opens the raw chebi file without lines starting "xref:"
     with open(chebi_path) as chebi:
         chebi = "\n".join(l for l in chebi if not l.startswith("xref:"))
+
+    # create a list of elements using callback function on clauses containing ':'
     elements = [
         term_callback(clause)
         for clause in fastobo.loads(chebi)
@@ -246,6 +249,37 @@ class ChEBIOverX(_ChEBIDataExtractor):
             fout.writelines(str(node) + "\n" for node in nodes)
         return nodes
 
+class ChEBIOverX2(_ChEBIDataExtractor):
+    LABEL_INDEX = 3
+    SMILES_INDEX = 2
+    READER = dr.ChemDataReader
+    THRESHOLD = None
+
+    @property
+    def label_number(self):
+        return 854
+
+    @property
+    def _name(self):
+        return f"ChEBIRole{self.THRESHOLD}"
+
+    def select_classes(self, g, *args, **kwargs):
+        smiles = nx.get_node_attributes(g, "smiles")
+        nodes = list(
+            sorted(
+                {
+                    node
+                    for node in g.nodes
+                    if sum(
+                        1 if smiles[s] is not None else 0 for s in g.successors(node)
+                    )
+                    >= self.THRESHOLD
+                }
+            )
+        )
+        with open(os.path.join(self.raw_dir, "classes.txt"), "wt") as fout:
+            fout.writelines(str(node) + "\n" for node in nodes)
+        return nodes
 
 class ChEBIOver100(ChEBIOverX):
     THRESHOLD = 100
@@ -274,10 +308,44 @@ class JCIExtSelfies(JCIExtendedBase):
 
 
 def chebi_to_int(s):
+    # turns "CHEBI.17051" to 17051
     return int(s[s.index(":") + 1 :])
 
 
+# neue call back erstellt und nach Has_role suchen
+# when splits erstellt, wieder läschen damit neue erstellt werden können
 def term_callback(doc):
+    parts = set()
+    parents = []
+    name = None
+    smiles = None
+    for clause in doc:
+        if isinstance(clause, fastobo.term.PropertyValueClause):
+            t = clause.property_value
+            if str(t.relation) == "http://purl.obolibrary.org/obo/chebi/smiles":
+                assert smiles is None
+                smiles = t.value
+        elif isinstance(clause, fastobo.term.RelationshipClause):
+            if str(clause.typedef) == "has_part":
+                parts.add(chebi_to_int(str(clause.term)))
+            # searching for roles
+            """
+            if str(clause.typedef) == "has_role":
+                parents.append(chebi_to_int(str(clause.term)))
+            """
+        elif isinstance(clause, fastobo.term.IsAClause):
+            parents.append(chebi_to_int(str(clause.term)))
+        elif isinstance(clause, fastobo.term.NameClause):
+            name = str(clause.name)
+    return {
+        "id": chebi_to_int(str(doc.id)),
+        "parents": parents,
+        "has_part": parts,
+        "name": name,
+        "smiles": smiles,
+    }
+
+def term_callback_incl_roles(doc):
     parts = set()
     parents = []
     name = None
@@ -302,7 +370,6 @@ def term_callback(doc):
         "name": name,
         "smiles": smiles,
     }
-
 
 atom_index = (
     "\*",
