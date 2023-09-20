@@ -23,6 +23,7 @@ class XYBaseDataModule(LightningDataModule):
         data_limit: typing.Optional[int] = None,
         label_filter: typing.Optional[int] = None,
         balance_after_filter: typing.Optional[float] = None,
+        num_workers: int = 1,
         **kwargs,
     ):
         super().__init__(**kwargs)
@@ -38,6 +39,7 @@ class XYBaseDataModule(LightningDataModule):
             self.label_filter is None
         ), "Filter balancing requires a filter"
         self.balance_after_filter = balance_after_filter
+        self.num_workers = num_workers
         os.makedirs(self.raw_dir, exist_ok=True)
         os.makedirs(self.processed_dir, exist_ok=True)
 
@@ -112,7 +114,7 @@ class XYBaseDataModule(LightningDataModule):
         return data
 
     def train_dataloader(self, *args, **kwargs) -> DataLoader:
-        return self.dataloader("train", shuffle=True, **kwargs)
+        return self.dataloader("train", shuffle=True, num_workers=self.num_workers, **kwargs)
 
     def val_dataloader(self, *args, **kwargs) -> Union[DataLoader, List[DataLoader]]:
         return self.dataloader("validation", shuffle=False, **kwargs)
