@@ -20,7 +20,7 @@ import tqdm
 
 from chebai.preprocessing import reader as dr
 from chebai.preprocessing.datasets.base import XYBaseDataModule, DataLoader
-from chebai.preprocessing.datasets.chebi import ChEBIOver100
+from chebai.preprocessing.datasets.chebi import ChEBIOver100, ChEBIOver50, ChEBIOverX
 
 
 class PubChem(XYBaseDataModule):
@@ -220,17 +220,18 @@ class SWJPreChem(PubChem):
         return os.path.join("data", self._name, "raw")
 
 
-class PubToxAndChEBI100(XYBaseDataModule):
+class PubToxAndChebiX(XYBaseDataModule):
     READER = dr.ChemDataReader
+    CHEBI_X = ChEBIOverX
 
     def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.labeled = ChEBIOver100(*args, **kwargs)
+        self.labeled = self.CHEBI_X(*args, **kwargs)
         self.unlabeled = PubchemChem(*args, **kwargs)
+        super().__init__(*args, **kwargs)
 
     @property
     def _name(self):
-        return "PubToxUChebi100"
+        return "PubToxU" + self.labeled._name
 
     def dataloader(self, kind, **kwargs):
         labeled_data = torch.load(
@@ -260,3 +261,11 @@ class PubToxAndChEBI100(XYBaseDataModule):
     def setup_processed(self):
         self.labeled.setup()
         self.unlabeled.setup()
+
+
+class PubToxAndChebi100(PubToxAndChebiX):
+    CHEBI_X = ChEBIOver100
+
+
+class PubToxAndChebi50(PubToxAndChebiX):
+    CHEBI_X = ChEBIOver50
