@@ -107,6 +107,7 @@ def extract_class_hierarchy(chebi_path):
         g.add_node(n["id"], **n)
     g.add_edges_from([(p, q["id"]) for q in elements for p in q["parents"]])
     print("Compute transitive closure")
+    # turns E: {(A, B), (B, C)} to E+: {(A, B), (B, C), (A, C)}, thus direct edges from node to all descendants
     return nx.transitive_closure_dag(g)
 
 
@@ -253,7 +254,8 @@ class ChEBIOverX2(_ChEBIDataExtractor):
     LABEL_INDEX = 3
     SMILES_INDEX = 2
     READER = dr.ChemDataReader
-    THRESHOLD = None
+    # TODO: hier wurde zunächst ein zufälliger Wert genommen
+    THRESHOLD = 200
 
     @property
     def label_number(self):
@@ -268,9 +270,11 @@ class ChEBIOverX2(_ChEBIDataExtractor):
         nodes = list(
             sorted(
                 {
+                    # create a list of superordinate category nodes
                     node
                     for node in g.nodes
                     if sum(
+                        # check if node has enough molecule children (successors with smile strings)
                         1 if smiles[s] is not None else 0 for s in g.successors(node)
                     )
                     >= self.THRESHOLD
@@ -329,10 +333,8 @@ def term_callback(doc):
             if str(clause.typedef) == "has_part":
                 parts.add(chebi_to_int(str(clause.term)))
             # searching for roles
-            """
             if str(clause.typedef) == "has_role":
                 parents.append(chebi_to_int(str(clause.term)))
-            """
         elif isinstance(clause, fastobo.term.IsAClause):
             parents.append(chebi_to_int(str(clause.term)))
         elif isinstance(clause, fastobo.term.NameClause):
