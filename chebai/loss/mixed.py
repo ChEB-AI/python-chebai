@@ -2,7 +2,6 @@ from torch import nn
 
 
 class MixedDataLoss(nn.Module):
-
     def __init__(self, base_loss: nn.Module):
         super().__init__()
         self.base_loss = base_loss

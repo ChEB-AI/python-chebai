@@ -114,7 +114,9 @@ class XYBaseDataModule(LightningDataModule):
         return data
 
     def train_dataloader(self, *args, **kwargs) -> DataLoader:
-        return self.dataloader("train", shuffle=True, num_workers=self.num_workers, **kwargs)
+        return self.dataloader(
+            "train", shuffle=True, num_workers=self.num_workers, **kwargs
+        )
 
     def val_dataloader(self, *args, **kwargs) -> Union[DataLoader, List[DataLoader]]:
         return self.dataloader("validation", shuffle=False, **kwargs)
