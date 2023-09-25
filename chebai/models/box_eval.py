@@ -22,7 +22,8 @@ for i in range(n):
                   a = max(min_corners_box_1[d], min_corners_box_2[d])
                   b = min(max_corners_box_1[d], max_corners_box_2[d])
                   intersection = (a <= b) * (b - a)
-                  size_of_a = min_corners_box_1[d] + max_corners_box_1[d]
+                  size_of_a =  max_corners_box_1[d] - min_corners_box_1[d]
+                  #size_of_a = min_corners_box_1[d] + max_corners_box_1[d]
 
                   # if box_1 is not contained in box_2, then is_contained is zero
 
