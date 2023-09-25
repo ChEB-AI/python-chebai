@@ -27,7 +27,8 @@ for i in range(n):
 
                   # if box_1 is not contained in box_2, then is_contained is zero
 
-                  is_contained = abs(intersection / size_of_a)
+                  #is_contained = abs(intersection / size_of_a)
+                  is_contained = intersection == size_of_a
                   membership_per_dim.append(1 if is_contained else 0)
 
 
