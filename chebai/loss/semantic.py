@@ -33,7 +33,12 @@ class ImplicationLoss(torch.nn.Module):
 
     def _calculate_implication_loss(self, l, r):
         capped_difference = torch.relu(l - r)
-        return torch.mean(torch.sum((torch.softmax(capped_difference, dim=-1)*capped_difference), dim=-1), dim=0)
+        return torch.mean(
+            torch.sum(
+                (torch.softmax(capped_difference, dim=-1) * capped_difference), dim=-1
+            ),
+            dim=0,
+        )
 
 
 class DisjointLoss(ImplicationLoss):
@@ -56,7 +61,7 @@ class DisjointLoss(ImplicationLoss):
         pred = torch.sigmoid(input)
         l = pred[:, self.disjoint_filter_l]
         r = pred[:, self.disjoint_filter_r]
-        disjointness_loss = self._calculate_implication_loss(l, 1-r)
+        disjointness_loss = self._calculate_implication_loss(l, 1 - r)
         return loss + disjointness_loss
 
 
