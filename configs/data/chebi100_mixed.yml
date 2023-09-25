@@ -1,1 +1,1 @@
-class_path: chebai.preprocessing.datasets.chebi.PubToxAndChebi100
+class_path: chebai.preprocessing.datasets.pubchem.PubToxAndChebi100
