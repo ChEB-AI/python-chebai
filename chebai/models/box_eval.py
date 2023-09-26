@@ -23,17 +23,10 @@ for i in range(n):
                   b = min(max_corners_box_1[d], max_corners_box_2[d])
                   intersection = (a <= b) * (b - a)
                   size_of_a =  max_corners_box_1[d] - min_corners_box_1[d]
-                  #size_of_a = min_corners_box_1[d] + max_corners_box_1[d]
-
-                  # if box_1 is not contained in box_2, then is_contained is zero
-
-                  #is_contained = abs(intersection / size_of_a)
-                  #is_contained = intersection == size_of_a
-                  is_contained = abs(intersection - size_of_a) < 0.000003
+                  is_contained = abs(intersection / size_of_a) >= 1
 
                   membership_per_dim.append(1 if is_contained else 0)
 
-
             count = sum(1 for item in membership_per_dim if item == 1)
             box_1_is_contained_in_box_2 = (count == 10)
-            containment_matrix[i][j] = box_1_is_contained_in_box_2
+            containment_matrix[j][i] = box_1_is_contained_in_box_2
