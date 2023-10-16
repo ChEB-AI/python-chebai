@@ -193,7 +193,7 @@ class Electra(ChebaiBaseNet):
 
     def _process_for_loss(self, model_output, labels, loss_kwargs):
         kwargs_copy = dict(loss_kwargs)
-        mask = kwargs_copy.pop("target_mask")
+        mask = kwargs_copy.pop("target_mask", None)
         if mask is not None:
             d = model_output["logits"] * mask - 100 * ~mask
         else:

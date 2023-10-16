@@ -43,6 +43,7 @@ class RaggedCollater(Collater):
                 y = self.process_label_rows(y)
         else:
             y = None
+            loss_kwargs["non_null_labels"] = []
 
         lens = torch.tensor(list(map(len, x)))
         model_kwargs["mask"] = torch.arange(max(lens))[None, :] < lens[:, None]
