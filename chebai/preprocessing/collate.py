@@ -30,9 +30,9 @@ class RaggedCollater(Collater):
                 *((d["features"], d["labels"], d.get("ident")) for d in data)
             )
         if any(x is not None for x in y):
-            loss_kwargs["target_mask"] = torch.tensor(
-                [[v is not None for v in row] for row in y if row is not None]
-            )
+            target_mask_candidates = [[v is not None for v in row] for row in y if row is not None]
+            if any(map(any, target_mask_candidates)):
+                loss_kwargs["target_mask"] = torch.tensor(target_mask_candidates)
             if any(x is None for x in y):
                 non_null_labels = [i for i, r in enumerate(y) if r is not None]
                 y = self.process_label_rows(
