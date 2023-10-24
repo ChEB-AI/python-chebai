@@ -518,9 +518,12 @@ class ChebiBox(Electra):
         membership_per_dim = torch.max(torch.stack((nn.functional.relu(l - p), nn.functional.relu(p - r))), dim=0)[0]
         # min might be replaced
         #m = torch.min(membership_per_dim, dim=-1)[0]
-        m = torch.mean(membership_per_dim, dim=-1)
-        s = 2 - ( 2 * (torch.sigmoid(m)) )
-        logits = torch.logit( (s * 0.99) + 0.001)
+        #m = torch.mean(membership_per_dim, dim=-1)
+        #s = 2 - ( 2 * (torch.sigmoid(m)) )
+        #logits = torch.logit( (s * 0.99) + 0.001)
+
+        m = torch.sum(membership_per_dim, dim=-1)
+        logits = m
 
         return dict(
             boxes=b,
@@ -529,6 +532,19 @@ class ChebiBox(Electra):
             attentions=electra.attentions,
             target_mask=data.get("target_mask"),
         )
+
+class BoxLoss(pl.LightningModule):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+
+    def __call__(self, outputs, targets):
+        d = outputs
+        t = targets
+        theta = 0.00004
+        loss = ( ( torch.sqrt(d) * (d > theta) * t ) + ( (d <= theta) * (1 - d) * (1 - t) ) )
+
+        scalar_loss = torch.max(loss)
+        return scalar_loss
 
 def softabs(x, eps=0.01):
     return (x**2 + eps) ** 0.5 - eps**0.5
