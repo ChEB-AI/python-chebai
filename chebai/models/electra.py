@@ -543,7 +543,7 @@ class BoxLoss(pl.LightningModule):
         theta = 0.00004
         loss = ( ( torch.sqrt(d) * (d > theta) * t ) + ( (d <= theta) * (1 - d) * (1 - t) ) )
 
-        scalar_loss = torch.max(loss)
+        scalar_loss = torch.mean(loss)
         return scalar_loss
 
 def softabs(x, eps=0.01):
