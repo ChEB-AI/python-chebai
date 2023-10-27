@@ -48,8 +48,8 @@ class JCIBase(XYBaseDataModule):
     def prepare_data(self, *args, **kwargs):
         print("Check for raw data in", self.raw_dir)
         if any(
-            not os.path.isfile(os.path.join(self.raw_dir, f))
-            for f in self.raw_file_names
+                not os.path.isfile(os.path.join(self.raw_dir, f))
+                for f in self.raw_file_names
         ):
             raise ValueError("Raw data is missing")
 
@@ -98,7 +98,7 @@ def extract_class_hierarchy(chebi_path):
 
     # create a list of elements using callback function on clauses containing ':'
     elements = [
-        term_callback(clause)
+        term_callback_incl_roles(clause)  # term_callback(clause)
         for clause in fastobo.loads(chebi)
         if clause and ":" in str(clause.id)
     ]
@@ -121,7 +121,7 @@ class _ChEBIDataExtractor(XYBaseDataModule, ABC):
 
         print("build labels")
         for k, nodes in dict(
-            validation=validation_split, test=test_split, train=train_split
+                validation=validation_split, test=test_split, train=train_split
         ).items():
             print("Process", k)
             molecules, smiles_list = zip(
@@ -188,8 +188,8 @@ class _ChEBIDataExtractor(XYBaseDataModule, ABC):
     def prepare_data(self, *args, **kwargs):
         print("Check for raw data in", self.raw_dir)
         if any(
-            not os.path.isfile(os.path.join(self.raw_dir, f))
-            for f in self.raw_file_names
+                not os.path.isfile(os.path.join(self.raw_dir, f))
+                for f in self.raw_file_names
         ):
             os.makedirs(self.raw_dir, exist_ok=True)
             print("Missing raw data. Go fetch...")
@@ -240,9 +240,9 @@ class ChEBIOverX(_ChEBIDataExtractor):
                     node
                     for node in g.nodes
                     if sum(
-                        1 if smiles[s] is not None else 0 for s in g.successors(node)
-                    )
-                    >= self.THRESHOLD
+                    1 if smiles[s] is not None else 0 for s in g.successors(node)
+                )
+                       >= self.THRESHOLD
                 }
             )
         )
@@ -250,20 +250,20 @@ class ChEBIOverX(_ChEBIDataExtractor):
             fout.writelines(str(node) + "\n" for node in nodes)
         return nodes
 
-class ChEBIOverX2(_ChEBIDataExtractor):
+
+class ChEBIRolesOverX(_ChEBIDataExtractor):
     LABEL_INDEX = 3
     SMILES_INDEX = 2
     READER = dr.ChemDataReader
-    # TODO: hier wurde zunächst ein zufälliger Wert genommen
-    THRESHOLD = 200
+    THRESHOLD = 100  # chose 100 in order to compare to ChebiOver100
 
     @property
     def label_number(self):
-        return 854
+        return 1037  # label is defined through preprocessing
 
     @property
     def _name(self):
-        return f"ChEBIRole{self.THRESHOLD}"
+        return f"ChEBIRoles{self.THRESHOLD}"
 
     def select_classes(self, g, *args, **kwargs):
         smiles = nx.get_node_attributes(g, "smiles")
@@ -274,16 +274,17 @@ class ChEBIOverX2(_ChEBIDataExtractor):
                     node
                     for node in g.nodes
                     if sum(
-                        # check if node has enough molecule children (successors with smile strings)
-                        1 if smiles[s] is not None else 0 for s in g.successors(node)
-                    )
-                    >= self.THRESHOLD
+                    # check if node has enough molecule children (successors with smile strings)
+                    1 if smiles[s] is not None else 0 for s in g.successors(node)
+                )
+                       >= self.THRESHOLD
                 }
             )
         )
         with open(os.path.join(self.raw_dir, "classes.txt"), "wt") as fout:
             fout.writelines(str(node) + "\n" for node in nodes)
         return nodes
+
 
 class ChEBIOver100(ChEBIOverX):
     THRESHOLD = 100
@@ -313,12 +314,39 @@ class JCIExtSelfies(JCIExtendedBase):
 
 def chebi_to_int(s):
     # turns "CHEBI.17051" to 17051
-    return int(s[s.index(":") + 1 :])
+    return int(s[s.index(":") + 1:])
 
 
-# neue call back erstellt und nach Has_role suchen
-# when splits erstellt, wieder läschen damit neue erstellt werden können
 def term_callback(doc):
+    parts = set()
+    parents = []
+    name = None
+    smiles = None
+    for clause in doc:
+        if isinstance(clause, fastobo.term.PropertyValueClause):
+            t = clause.property_value
+            if str(t.relation) == "http://purl.obolibrary.org/obo/chebi/smiles":
+                assert smiles is None
+                smiles = t.value
+        elif isinstance(clause, fastobo.term.RelationshipClause):
+            if str(clause.typedef) == "has_part":
+                parts.add(chebi_to_int(str(clause.term)))
+        elif isinstance(clause, fastobo.term.IsAClause):
+            parents.append(chebi_to_int(str(clause.term)))
+        elif isinstance(clause, fastobo.term.NameClause):
+            name = str(clause.name)
+    return {
+        "id": chebi_to_int(str(doc.id)),
+        "parents": parents,
+        "has_part": parts,
+        "name": name,
+        "smiles": smiles,
+    }
+
+
+""" new call back that includes roles in form of parent relation
+to test behaviour: if necessary, previously created data splits find under data have to be removed"""
+def term_callback_incl_roles(doc):
     parts = set()
     parents = []
     name = None
@@ -347,31 +375,6 @@ def term_callback(doc):
         "smiles": smiles,
     }
 
-def term_callback_incl_roles(doc):
-    parts = set()
-    parents = []
-    name = None
-    smiles = None
-    for clause in doc:
-        if isinstance(clause, fastobo.term.PropertyValueClause):
-            t = clause.property_value
-            if str(t.relation) == "http://purl.obolibrary.org/obo/chebi/smiles":
-                assert smiles is None
-                smiles = t.value
-        elif isinstance(clause, fastobo.term.RelationshipClause):
-            if str(clause.typedef) == "has_part":
-                parts.add(chebi_to_int(str(clause.term)))
-        elif isinstance(clause, fastobo.term.IsAClause):
-            parents.append(chebi_to_int(str(clause.term)))
-        elif isinstance(clause, fastobo.term.NameClause):
-            name = str(clause.name)
-    return {
-        "id": chebi_to_int(str(doc.id)),
-        "parents": parents,
-        "has_part": parts,
-        "name": name,
-        "smiles": smiles,
-    }
 
 atom_index = (
     "\*",
