@@ -192,14 +192,15 @@ class Electra(ChebaiBaseNet):
             self.electra = ElectraModel(config=self.config)
 
     def _process_for_loss(self, model_output, labels, loss_kwargs):
-        mask = model_output.get("target_mask")
+        kwargs_copy = dict(loss_kwargs)
+        mask = kwargs_copy.pop("target_mask", None)
         if mask is not None:
             d = model_output["logits"] * mask - 100 * ~mask
         else:
             d = model_output["logits"]
         if labels is not None:
             labels = labels.float()
-        return d, labels, loss_kwargs
+        return d, labels, kwargs_copy
 
     def _get_prediction_and_labels(self, data, labels, model_output):
         mask = model_output.get("target_mask")

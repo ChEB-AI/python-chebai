@@ -20,8 +20,13 @@ class ImplicationLoss(torch.nn.Module):
         self.implication_filter_r = implication_filter[:, 1]
 
     def forward(self, input, target, **kwargs):
+        nnl = kwargs.pop("non_null_labels", None)
+        if nnl:
+            labeled_input = input[nnl]
+        else:
+            labeled_input = input
         if target is not None:
-            base_loss = self.base_loss(input, target.float())
+            base_loss = self.base_loss(labeled_input, target.float())
         else:
             base_loss = 0
         pred = torch.sigmoid(input)
