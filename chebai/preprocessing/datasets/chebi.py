@@ -92,7 +92,7 @@ class JCITokenData(JCIBase):
 
 
 def extract_class_hierarchy(chebi_path):
-    with open(chebi_path, encoding='utf-8') as chebi:  # for windows users
+    with open(chebi_path, encoding='utf-8') as chebi:  # encoding for windows users
         chebi = "\n".join(l for l in chebi if not l.startswith("xref:"))
     elements = [
         term_callback(clause)
@@ -183,7 +183,8 @@ class _ChEBIDataExtractor(XYBaseDataModule, ABC):
         """ Use test set from another chebi version the model does not train on, avoid overlap"""
         fixed_nodes = list(g.nodes)
         print(f"Split dataset for chebi_v{self.chebi_version_train}")
-        fixed_nodes = list(filter(lambda node: node not in test_split, fixed_nodes))
+        for node in test_split:
+            fixed_nodes.remove(node)
         random.shuffle(fixed_nodes)
         # assume that size of validation split should relate to train split as in get_splits()
         validation_split, train_split = train_test_split(
