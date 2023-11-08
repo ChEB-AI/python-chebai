@@ -48,8 +48,8 @@ class JCIBase(XYBaseDataModule):
     def prepare_data(self, *args, **kwargs):
         print("Check for raw data in", self.raw_dir)
         if any(
-            not os.path.isfile(os.path.join(self.raw_dir, f))
-            for f in self.raw_file_names
+                not os.path.isfile(os.path.join(self.raw_dir, f))
+                for f in self.raw_file_names
         ):
             raise ValueError("Raw data is missing")
 
@@ -92,7 +92,7 @@ class JCITokenData(JCIBase):
 
 
 def extract_class_hierarchy(chebi_path):
-    with open(chebi_path) as chebi:
+    with open(chebi_path, encoding='utf-8') as chebi:  # for windows users
         chebi = "\n".join(l for l in chebi if not l.startswith("xref:"))
     elements = [
         term_callback(clause)
@@ -108,6 +108,12 @@ def extract_class_hierarchy(chebi_path):
 
 
 class _ChEBIDataExtractor(XYBaseDataModule, ABC):
+
+    def __init__(self, chebi_version_train: int = None, **kwargs):
+        super(_ChEBIDataExtractor, self).__init__(**kwargs)
+        # use different version of chebi for training and validation (if not None)
+        self.chebi_version_train = chebi_version_train
+
     def select_classes(self, g, *args, **kwargs):
         raise NotImplementedError
 
@@ -117,7 +123,7 @@ class _ChEBIDataExtractor(XYBaseDataModule, ABC):
 
         print("build labels")
         for k, nodes in dict(
-            validation=validation_split, test=test_split, train=train_split
+                validation=validation_split, test=test_split, train=train_split
         ).items():
             print("Process", k)
             molecules, smiles_list = zip(
@@ -138,7 +144,7 @@ class _ChEBIDataExtractor(XYBaseDataModule, ABC):
             data = pd.DataFrame(data)
             data = data[~data["SMILES"].isnull()]
             data = data[data.iloc[:, 3:].any(axis=1)]
-            pickle.dump(data, open(os.path.join(self.raw_dir, f"{k}.pkl"), "wb"))
+            pickle.dump(data, open(os.path.join(self.raw_dir, self.raw_file_names_dict[k]), "wb"))
 
     @staticmethod
     def _load_dict(input_file_path):
@@ -157,8 +163,8 @@ class _ChEBIDataExtractor(XYBaseDataModule, ABC):
         for k in ["test", "train", "validation"]:
             print("transform", k)
             torch.save(
-                self._load_data_from_file(os.path.join(self.raw_dir, f"{k}.pkl")),
-                os.path.join(self.processed_dir, f"{k}.pt"),
+                self._load_data_from_file(os.path.join(self.raw_dir, self.raw_file_names_dict[k])),
+                os.path.join(self.processed_dir, self.processed_file_names_dict[k]),
             )
 
     def get_splits(self, g):
@@ -173,29 +179,80 @@ class _ChEBIDataExtractor(XYBaseDataModule, ABC):
         )
         return train_split, test_split, validation_split
 
+    def get_splits_given_test(self, g, test_split):
+        """ Use test set from another chebi version the model does not train on, avoid overlap"""
+        fixed_nodes = list(g.nodes)
+        print(f"Split dataset for chebi_v{self.chebi_version_train}")
+        fixed_nodes = list(filter(lambda node: node not in test_split, fixed_nodes))
+        random.shuffle(fixed_nodes)
+        # assume that size of validation split should relate to train split as in get_splits()
+        validation_split, train_split = train_test_split(
+            fixed_nodes, train_size=(1 - self.train_split) ** 2, shuffle=True
+        )
+        return train_split, validation_split
+
+    @property
+    def processed_file_names_dict(self) -> dict:
+        return {'test': f"test.pt",
+                'train': f"train_v{self.chebi_version_train}.pt" if self.chebi_version_train is not None else "train.pt",
+                'validation': f"validation_v{self.chebi_version_train}.pt" if self.chebi_version_train is not None else "validation.pt"}
+
+    @property
+    def raw_file_names_dict(self):
+        return {'test': f"test.pkl",
+                'train': f"train_v{self.chebi_version_train}.pkl" if self.chebi_version_train is not None else "train.pkl",
+                'validation': f"validation_v{self.chebi_version_train}.pkl" if self.chebi_version_train is not None else "validation.pkl"}
+
     @property
     def processed_file_names(self):
-        return ["test.pt", "train.pt", "validation.pt"]
+        return list(self.processed_file_names_dict.values())
 
     @property
     def raw_file_names(self):
-        return ["test.pkl", "train.pkl", "validation.pkl"]
+        return list(self.raw_file_names_dict.values())
 
     def prepare_data(self, *args, **kwargs):
         print("Check for raw data in", self.raw_dir)
         if any(
-            not os.path.isfile(os.path.join(self.raw_dir, f))
-            for f in self.raw_file_names
+                not os.path.isfile(os.path.join(self.raw_dir, f))
+                for f in self.raw_file_names
         ):
             os.makedirs(self.raw_dir, exist_ok=True)
             print("Missing raw data. Go fetch...")
-            if not os.path.isfile(os.path.join(self.raw_dir, "chebi.obo")):
-                print("Load ChEBI ontology")
-                url = "http://purl.obolibrary.org/obo/chebi/200/chebi.obo"
-                r = requests.get(url, allow_redirects=True)
-                open(os.path.join(self.raw_dir, "chebi.obo"), "wb").write(r.content)
-            g = extract_class_hierarchy(os.path.join(self.raw_dir, "chebi.obo"))
-            self.save(g, *self.get_splits(g))
+            if self.chebi_version_train is None:
+                # load chebi_v200, create splits
+                chebi_path = os.path.join(self.raw_dir, f"chebi.obo")
+                if not os.path.isfile(chebi_path):
+                    print("Load ChEBI ontology")
+                    url = f"http://purl.obolibrary.org/obo/chebi/200/chebi.obo"
+                    r = requests.get(url, allow_redirects=True)
+                    open(chebi_path, "wb").write(r.content)
+                g = extract_class_hierarchy(chebi_path)
+                self.save(g, *self.get_splits(g))
+            else:
+                # missing test set -> create
+                if not os.path.isfile(os.path.join(self.raw_dir, self.raw_file_names_dict['test'])):
+                    chebi_path = os.path.join(self.raw_dir, f"chebi.obo")
+                    if not os.path.isfile(chebi_path):
+                        print("Load ChEBI ontology")
+                        url = f"http://purl.obolibrary.org/obo/chebi/200/chebi.obo"
+                        r = requests.get(url, allow_redirects=True)
+                        open(chebi_path, "wb").write(r.content)
+                    g = extract_class_hierarchy(chebi_path)
+                    _, test_split, _ = self.get_splits(g)
+                else:
+                    # load test_split from file
+                    with open(os.path.join(self.raw_dir, self.raw_file_names_dict['test']), "rb") as input_file:
+                        test_split = [row[0] for row in pickle.load(input_file).values]
+                chebi_path = os.path.join(self.raw_dir, f"chebi_v{self.chebi_version_train}.obo")
+                if not os.path.isfile(chebi_path):
+                    print("Load ChEBI ontology")
+                    url = f"http://purl.obolibrary.org/obo/chebi/{self.chebi_version_train}/chebi.obo"
+                    r = requests.get(url, allow_redirects=True)
+                    open(chebi_path, "wb").write(r.content)
+                g = extract_class_hierarchy(chebi_path)
+                train_split, val_split = self.get_splits_given_test(g, test_split)
+                self.save(g, train_split, test_split, val_split)
 
 
 class JCIExtendedBase(_ChEBIDataExtractor):
@@ -236,13 +293,13 @@ class ChEBIOverX(_ChEBIDataExtractor):
                     node
                     for node in g.nodes
                     if sum(
-                        1 if smiles[s] is not None else 0 for s in g.successors(node)
-                    )
-                    >= self.THRESHOLD
+                    1 if smiles[s] is not None else 0 for s in g.successors(node)
+                )
+                       >= self.THRESHOLD
                 }
             )
         )
-        with open(os.path.join(self.raw_dir, "classes.txt"), "wt") as fout:
+        with open(os.path.join(self.raw_dir, f"classes.txt"), "wt") as fout:
             fout.writelines(str(node) + "\n" for node in nodes)
         return nodes
 
@@ -274,7 +331,7 @@ class JCIExtSelfies(JCIExtendedBase):
 
 
 def chebi_to_int(s):
-    return int(s[s.index(":") + 1 :])
+    return int(s[s.index(":") + 1:])
 
 
 def term_callback(doc):
