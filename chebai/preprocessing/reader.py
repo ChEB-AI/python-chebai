@@ -72,6 +72,9 @@ class DataReader:
             **d["additional_kwargs"],
         )
 
+    def save_token_cache(self):
+        return
+
 
 class ChemDataReader(DataReader):
     COLLATER = RaggedCollater
@@ -86,10 +89,22 @@ class ChemDataReader(DataReader):
         with open(os.path.join(dirname, "bin", "tokens.txt"), "r") as pk:
             self.cache = [x.strip() for x in pk]
 
+    def _get_token_index(self, token):
+        """Returns a unique number for each token, automatically adds new tokens"""
+        if not str(token) in self.cache.index:
+            self.cache.append(str(token))
+        return self.cache.index(str(token)) + EMBEDDING_OFFSET
+
     def _read_data(self, raw_data):
         return [
             self.cache.index(str(v[1])) + EMBEDDING_OFFSET for v in _tokenize(raw_data)
         ]
+
+    def save_token_cache(self):
+        """write contents of self.cache into tokens.txt"""
+        dirname = os.path.dirname(__file__)
+        with open(os.path.join(dirname, "bin", "tokens.txt"), "w") as pk:
+            pk.writelines(self.cache)
 
 
 class ChemDataUnlabeledReader(ChemDataReader):

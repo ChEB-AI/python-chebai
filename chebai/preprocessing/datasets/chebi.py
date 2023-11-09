@@ -123,9 +123,7 @@ class _ChEBIDataExtractor(XYBaseDataModule, ABC):
 
         print("build labels")
         print(f"Process {split_name}")
-        print(split[:3])
-        print([smiles.get(n) for n in split[:100]])
-        print(list(smiles)[:100])
+
         molecules, smiles_list = zip(
             *(
                 (n, smiles)
@@ -166,6 +164,7 @@ class _ChEBIDataExtractor(XYBaseDataModule, ABC):
                 self._load_data_from_file(os.path.join(self.raw_dir, self.raw_file_names_dict[k])),
                 os.path.join(self.processed_dir, self.processed_file_names_dict[k]),
             )
+        self.reader.save_token_cache()
 
     def get_splits(self, g):
         fixed_nodes = list(g.nodes)
