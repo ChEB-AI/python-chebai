@@ -307,7 +307,7 @@ class ChEBIOverX(_ChEBIDataExtractor):
         )
         filename = 'classes.txt'
         if self.chebi_version_train is not None and self.raw_file_names_dict['test'] != split_name:
-            filename = f'classes_v{self.chebi_version_train}'
+            filename = f'classes_v{self.chebi_version_train}.txt'
         with open(os.path.join(self.raw_dir, filename), "wt") as fout:
             fout.writelines(str(node) + "\n" for node in nodes)
         return nodes

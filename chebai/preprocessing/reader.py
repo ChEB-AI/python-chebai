@@ -91,13 +91,13 @@ class ChemDataReader(DataReader):
 
     def _get_token_index(self, token):
         """Returns a unique number for each token, automatically adds new tokens"""
-        if not str(token) in self.cache.index:
+        if not str(token) in self.cache:
             self.cache.append(str(token))
         return self.cache.index(str(token)) + EMBEDDING_OFFSET
 
     def _read_data(self, raw_data):
         return [
-            self.cache.index(str(v[1])) + EMBEDDING_OFFSET for v in _tokenize(raw_data)
+            self._get_token_index(v[1]) for v in _tokenize(raw_data)
         ]
 
     def save_token_cache(self):
