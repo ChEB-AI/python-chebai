@@ -123,6 +123,9 @@ class _ChEBIDataExtractor(XYBaseDataModule, ABC):
 
         print("build labels")
         print(f"Process {split_name}")
+        print(split[:3])
+        print([smiles.get(n) for n in split[:100]])
+        print(list(smiles)[:100])
         molecules, smiles_list = zip(
             *(
                 (n, smiles)
@@ -181,7 +184,8 @@ class _ChEBIDataExtractor(XYBaseDataModule, ABC):
         fixed_nodes = list(g.nodes)
         print(f"Split dataset for chebi_v{self.chebi_version_train}")
         for node in test_split:
-            fixed_nodes.remove(node)
+            if node in fixed_nodes:
+                fixed_nodes.remove(node)
         random.shuffle(fixed_nodes)
         # assume that size of validation split should relate to train split as in get_splits()
         validation_split, train_split = train_test_split(
@@ -248,7 +252,7 @@ class _ChEBIDataExtractor(XYBaseDataModule, ABC):
                         test_split = [row[0] for row in pickle.load(input_file).values]
                 chebi_path = os.path.join(self.raw_dir, f"chebi_v{self.chebi_version_train}.obo")
                 if not os.path.isfile(chebi_path):
-                    print("Load ChEBI ontology")
+                    print(f"Load ChEBI ontology (v_{self.chebi_version_train})")
                     url = f"http://purl.obolibrary.org/obo/chebi/{self.chebi_version_train}/chebi.obo"
                     r = requests.get(url, allow_redirects=True)
                     open(chebi_path, "wb").write(r.content)
@@ -351,6 +355,12 @@ def term_callback(doc):
             if str(t.relation) == "http://purl.obolibrary.org/obo/chebi/smiles":
                 assert smiles is None
                 smiles = t.value
+        # in older chebi versions, smiles strings are synonyms
+        # e.g. synonym: "[F-].[Na+]" RELATED SMILES [ChEBI]
+        elif isinstance(clause, fastobo.term.SynonymClause):
+            if "SMILES" in clause.raw_value():
+                assert smiles is None
+                smiles = clause.raw_value().split('"')[1]
         elif isinstance(clause, fastobo.term.RelationshipClause):
             if str(clause.typedef) == "has_part":
                 parts.add(chebi_to_int(str(clause.term)))
