@@ -4,7 +4,6 @@ from typing import List, Union
 import os
 
 from torch.utils.data import DataLoader
-from chebi import _ChEBIDataExtractor
 from lightning.pytorch.core.datamodule import LightningDataModule
 import torch
 import tqdm
@@ -69,9 +68,10 @@ class XYBaseDataModule(LightningDataModule):
         return row
 
     def dataloader(self, kind, **kwargs):
-        if isinstance(self, _ChEBIDataExtractor):
+        try:
+            # processed_file_names_dict is only implemented for _ChEBIDataExtractor
             filename = self.processed_file_names_dict[kind]
-        else:
+        except NotImplementedError:
             filename = f"{kind}.pt"
         dataset = torch.load(os.path.join(self.processed_dir, filename))
         if self.label_filter is not None:
@@ -146,6 +146,14 @@ class XYBaseDataModule(LightningDataModule):
 
     @property
     def processed_file_names(self):
+        raise NotImplementedError
+
+    @property
+    def processed_file_names_dict(self) -> dict:
+        raise NotImplementedError
+
+    @property
+    def raw_file_names_dict(self) -> dict:
         raise NotImplementedError
 
     @property
