@@ -114,37 +114,34 @@ class _ChEBIDataExtractor(XYBaseDataModule, ABC):
         # use different version of chebi for training and validation (if not None)
         self.chebi_version_train = chebi_version_train
 
-    def select_classes(self, g, *args, **kwargs):
+    def select_classes(self, g, split_name, *args, **kwargs):
         raise NotImplementedError
 
-    def save(self, g, train_split, test_split, validation_split):
+    def save(self, g, split, split_name: str):
         smiles = nx.get_node_attributes(g, "smiles")
         names = nx.get_node_attributes(g, "name")
 
         print("build labels")
-        for k, nodes in dict(
-                validation=validation_split, test=test_split, train=train_split
-        ).items():
-            print("Process", k)
-            molecules, smiles_list = zip(
-                *(
-                    (n, smiles)
-                    for n, smiles in ((n, smiles.get(n)) for n in nodes)
-                    if smiles
-                )
+        print(f"Process {split_name}")
+        molecules, smiles_list = zip(
+            *(
+                (n, smiles)
+                for n, smiles in ((n, smiles.get(n)) for n in split)
+                if smiles
             )
-            data = OrderedDict(id=molecules)
-            data["name"] = [names.get(node) for node in molecules]
-            data["SMILES"] = smiles_list
-            for n in self.select_classes(g):
-                data[n] = [
-                    ((n in g.predecessors(node)) or (n == node)) for node in molecules
-                ]
+        )
+        data = OrderedDict(id=molecules)
+        data["name"] = [names.get(node) for node in molecules]
+        data["SMILES"] = smiles_list
+        for n in self.select_classes(g, split_name):
+            data[n] = [
+                ((n in g.predecessors(node)) or (n == node)) for node in molecules
+            ]
 
-            data = pd.DataFrame(data)
-            data = data[~data["SMILES"].isnull()]
-            data = data[data.iloc[:, 3:].any(axis=1)]
-            pickle.dump(data, open(os.path.join(self.raw_dir, self.raw_file_names_dict[k]), "wb"))
+        data = pd.DataFrame(data)
+        data = data[~data["SMILES"].isnull()]
+        data = data[data.iloc[:, 3:].any(axis=1)]
+        pickle.dump(data, open(os.path.join(self.raw_dir, split_name), "wb"))
 
     @staticmethod
     def _load_dict(input_file_path):
@@ -229,7 +226,10 @@ class _ChEBIDataExtractor(XYBaseDataModule, ABC):
                     r = requests.get(url, allow_redirects=True)
                     open(chebi_path, "wb").write(r.content)
                 g = extract_class_hierarchy(chebi_path)
-                self.save(g, *self.get_splits(g))
+                splits = {}
+                splits['train'], splits['test'], splits['val'] = self.get_splits(g)
+                for label, split in splits.items():
+                    self.save(g, split, self.raw_file_names_dict[label])
             else:
                 # missing test set -> create
                 if not os.path.isfile(os.path.join(self.raw_dir, self.raw_file_names_dict['test'])):
@@ -241,6 +241,7 @@ class _ChEBIDataExtractor(XYBaseDataModule, ABC):
                         open(chebi_path, "wb").write(r.content)
                     g = extract_class_hierarchy(chebi_path)
                     _, test_split, _ = self.get_splits(g)
+                    self.save(g, test_split, self.raw_file_names_dict['test'])
                 else:
                     # load test_split from file
                     with open(os.path.join(self.raw_dir, self.raw_file_names_dict['test']), "rb") as input_file:
@@ -253,7 +254,8 @@ class _ChEBIDataExtractor(XYBaseDataModule, ABC):
                     open(chebi_path, "wb").write(r.content)
                 g = extract_class_hierarchy(chebi_path)
                 train_split, val_split = self.get_splits_given_test(g, test_split)
-                self.save(g, train_split, test_split, val_split)
+                self.save(g, train_split, self.raw_file_names_dict['train'])
+                self.save(g, val_split, self.raw_file_names_dict['validation'])
 
 
 class JCIExtendedBase(_ChEBIDataExtractor):
@@ -286,7 +288,7 @@ class ChEBIOverX(_ChEBIDataExtractor):
     def _name(self):
         return f"ChEBI{self.THRESHOLD}"
 
-    def select_classes(self, g, *args, **kwargs):
+    def select_classes(self, g, split_name, *args, **kwargs):
         smiles = nx.get_node_attributes(g, "smiles")
         nodes = list(
             sorted(
@@ -300,7 +302,10 @@ class ChEBIOverX(_ChEBIDataExtractor):
                 }
             )
         )
-        with open(os.path.join(self.raw_dir, f"classes.txt"), "wt") as fout:
+        filename = 'classes.txt'
+        if self.chebi_version_train is not None and self.raw_file_names_dict['test'] != split_name:
+            filename = f'classes_v{self.chebi_version_train}'
+        with open(os.path.join(self.raw_dir, filename), "wt") as fout:
             fout.writelines(str(node) + "\n" for node in nodes)
         return nodes
 
