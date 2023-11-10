@@ -15,6 +15,7 @@ import os
 import pickle
 import random
 
+import numpy as np
 from sklearn.model_selection import train_test_split
 import fastobo
 import networkx as nx
@@ -155,15 +156,40 @@ class _ChEBIDataExtractor(XYBaseDataModule, ABC):
         with open(input_file_path, "rb") as f:
             return len(pickle.load(f))
 
+    def _setup_pruned_test_set(self):
+        """Create test set with same leaf nodes, but use classes that appear in train set"""
+        # TODO: find a more efficient way to do this
+        filename_old = 'classes.txt'
+        filename_new = f'classes_v{self.chebi_version_train}.txt'
+        dataset = torch.load(os.path.join(self.processed_dir, 'test.pt'))
+        with open(os.path.join(self.raw_dir, filename_old), "r") as file:
+            orig_classes = file.readlines()
+        with open(os.path.join(self.raw_dir, filename_new), "r") as file:
+            new_classes = file.readlines()
+        mapping = [None if or_class not in new_classes else new_classes.index(or_class) for or_class in
+                   orig_classes]
+        for row in dataset:
+            new_labels = [False for _ in new_classes]
+            for ind, label in enumerate(row['labels']):
+                if mapping[ind] is not None and label:
+                    new_labels[mapping[ind]] = label
+            row['labels'] = new_labels
+        torch.save(dataset, os.path.join(self.processed_dir, self.processed_file_names_dict['test']))
+
     def setup_processed(self):
         print("Transform splits")
         os.makedirs(self.processed_dir, exist_ok=True)
         for k in ["test", "train", "validation"]:
             print("transform", k)
+            # create two test sets: one with the classes from the original test set, one with only classes used in train
+            processed_name = 'test.pt' if k == 'test' else self.processed_file_names_dict[k]
             torch.save(
                 self._load_data_from_file(os.path.join(self.raw_dir, self.raw_file_names_dict[k])),
-                os.path.join(self.processed_dir, self.processed_file_names_dict[k]),
+                os.path.join(self.processed_dir, processed_name),
             )
+        if self.chebi_version_train is not None:
+            print("transform", k, "(select classes)")
+            self._setup_pruned_test_set()
         self.reader.save_token_cache()
 
     def get_splits(self, g):
@@ -194,7 +220,7 @@ class _ChEBIDataExtractor(XYBaseDataModule, ABC):
 
     @property
     def processed_file_names_dict(self) -> dict:
-        return {'test': f"test.pt",
+        return {'test': f"test_v{self.chebi_version_train}.pt" if self.chebi_version_train is not None else "train.pt",
                 'train': f"train_v{self.chebi_version_train}.pt" if self.chebi_version_train is not None else "train.pt",
                 'validation': f"validation_v{self.chebi_version_train}.pt" if self.chebi_version_train is not None else "validation.pt"}
 
@@ -230,7 +256,7 @@ class _ChEBIDataExtractor(XYBaseDataModule, ABC):
                     open(chebi_path, "wb").write(r.content)
                 g = extract_class_hierarchy(chebi_path)
                 splits = {}
-                splits['train'], splits['test'], splits['val'] = self.get_splits(g)
+                splits['train'], splits['test'], splits['validation'] = self.get_splits(g)
                 for label, split in splits.items():
                     self.save(g, split, self.raw_file_names_dict[label])
             else:
