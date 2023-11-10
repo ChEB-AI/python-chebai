@@ -338,6 +338,9 @@ class ChEBIOverX(_ChEBIDataExtractor):
             fout.writelines(str(node) + "\n" for node in nodes)
         return nodes
 
+class ChEBIOverXDeepSMILES(ChEBIOverX):
+    READER = dr.DeepChemDataReader
+
 
 class ChEBIOver100(ChEBIOverX):
     THRESHOLD = 100
@@ -351,6 +354,9 @@ class ChEBIOver50(ChEBIOverX):
 
     def label_number(self):
         return 1332
+
+class ChEBIOver100DeepSMILES(ChEBIOverXDeepSMILES, ChEBIOver100):
+    pass
 
 
 class JCIExtendedBPEData(JCIExtendedBase):

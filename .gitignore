@@ -161,3 +161,5 @@ cython_debug/
 #.idea/
 
 configs/
+# the notebook I put in the wrong folder
+chebai/preprocessing/datasets/demo_old_chebi.ipynb

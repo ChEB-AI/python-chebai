@@ -3,6 +3,7 @@ import os
 from pysmiles.read_smiles import _tokenize
 from transformers import RobertaTokenizerFast
 import selfies as sf
+import deepsmiles
 
 from chebai.preprocessing.collate import (
     DefaultCollater,
@@ -105,6 +106,22 @@ class ChemDataReader(DataReader):
         dirname = os.path.dirname(__file__)
         with open(os.path.join(dirname, "bin", "tokens.txt"), "w") as pk:
             pk.writelines(self.cache)
+
+
+class DeepChemDataReader(ChemDataReader):
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.converter = deepsmiles.Converter(rings=True, branches=True)
+
+    @classmethod
+    def name(cls):
+        return "deepsmiles_token"
+
+    def _read_data(self, raw_data):
+        return [
+            self._get_token_index(v[1]) for v in _tokenize(self.converter.encode(raw_data))
+        ]
 
 
 class ChemDataUnlabeledReader(ChemDataReader):
