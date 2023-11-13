@@ -220,7 +220,7 @@ class _ChEBIDataExtractor(XYBaseDataModule, ABC):
 
     @property
     def processed_file_names_dict(self) -> dict:
-        return {'test': f"test_v{self.chebi_version_train}.pt" if self.chebi_version_train is not None else "train.pt",
+        return {'test': f"test_v{self.chebi_version_train}.pt" if self.chebi_version_train is not None else "test.pt",
                 'train': f"train_v{self.chebi_version_train}.pt" if self.chebi_version_train is not None else "train.pt",
                 'validation': f"validation_v{self.chebi_version_train}.pt" if self.chebi_version_train is not None else "validation.pt"}
 
