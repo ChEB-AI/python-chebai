@@ -180,15 +180,16 @@ class _ChEBIDataExtractor(XYBaseDataModule, ABC):
         print("Transform splits")
         os.makedirs(self.processed_dir, exist_ok=True)
         for k in ["test", "train", "validation"]:
-            print("transform", k)
-            # create two test sets: one with the classes from the original test set, one with only classes used in train
             processed_name = 'test.pt' if k == 'test' else self.processed_file_names_dict[k]
-            torch.save(
-                self._load_data_from_file(os.path.join(self.raw_dir, self.raw_file_names_dict[k])),
-                os.path.join(self.processed_dir, processed_name),
-            )
+            if not os.path.isfile(os.path.join(self.processed_dir, processed_name)):
+                print("transform", k)
+                # create two test sets: one with the classes from the original test set, one with only classes used in train
+                torch.save(
+                    self._load_data_from_file(os.path.join(self.raw_dir, self.raw_file_names_dict[k])),
+                    os.path.join(self.processed_dir, processed_name),
+                )
         if self.chebi_version_train is not None:
-            print("transform", k, "(select classes)")
+            print("transform test (select classes)")
             self._setup_pruned_test_set()
         self.reader.save_token_cache()
 
