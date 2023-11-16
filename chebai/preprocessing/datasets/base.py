@@ -7,6 +7,7 @@ from torch.utils.data import DataLoader
 from lightning.pytorch.core.datamodule import LightningDataModule
 import torch
 import tqdm
+import lightning as pl
 
 from chebai.preprocessing import reader as dr
 
@@ -24,6 +25,7 @@ class XYBaseDataModule(LightningDataModule):
         label_filter: typing.Optional[int] = None,
         balance_after_filter: typing.Optional[float] = None,
         num_workers: int = 1,
+        chebi_version: int = 200,
         **kwargs,
     ):
         super().__init__(**kwargs)
@@ -40,6 +42,7 @@ class XYBaseDataModule(LightningDataModule):
         ), "Filter balancing requires a filter"
         self.balance_after_filter = balance_after_filter
         self.num_workers = num_workers
+        self.chebi_version = chebi_version
         os.makedirs(self.raw_dir, exist_ok=True)
         os.makedirs(self.processed_dir, exist_ok=True)
 
@@ -53,11 +56,11 @@ class XYBaseDataModule(LightningDataModule):
 
     @property
     def processed_dir(self):
-        return os.path.join("data", self._name, "processed", *self.identifier)
+        return os.path.join("data", self._name, f'chebi_v{self.chebi_version}', "processed", *self.identifier)
 
     @property
     def raw_dir(self):
-        return os.path.join("data", self._name, "raw")
+        return os.path.join("data", self._name, f'chebi_v{self.chebi_version}', "raw")
 
     @property
     def _name(self):
@@ -68,7 +71,12 @@ class XYBaseDataModule(LightningDataModule):
         return row
 
     def dataloader(self, kind, **kwargs):
-        dataset = torch.load(os.path.join(self.processed_dir, f"{kind}.pt"))
+        try:
+            # processed_file_names_dict is only implemented for _ChEBIDataExtractor
+            filename = self.processed_file_names_dict[kind]
+        except NotImplementedError:
+            filename = f"{kind}.pt"
+        dataset = torch.load(os.path.join(self.processed_dir, filename))
         if self.label_filter is not None:
             original_len = len(dataset)
             dataset = [self._filter_labels(r) for r in dataset]
@@ -141,6 +149,14 @@ class XYBaseDataModule(LightningDataModule):
 
     @property
     def processed_file_names(self):
+        raise NotImplementedError
+
+    @property
+    def processed_file_names_dict(self) -> dict:
+        raise NotImplementedError
+
+    @property
+    def raw_file_names_dict(self) -> dict:
         raise NotImplementedError
 
     @property
