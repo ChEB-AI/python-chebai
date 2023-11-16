@@ -26,6 +26,7 @@ class XYBaseDataModule(LightningDataModule):
         balance_after_filter: typing.Optional[float] = None,
         num_workers: int = 1,
         chebi_version: int = 200,
+        inner_k_folds: int = 10, # use inner cross-validation
         **kwargs,
     ):
         super().__init__(**kwargs)
@@ -43,6 +44,9 @@ class XYBaseDataModule(LightningDataModule):
         self.balance_after_filter = balance_after_filter
         self.num_workers = num_workers
         self.chebi_version = chebi_version
+        assert(type(inner_k_folds) is int)
+        self.inner_k_folds = inner_k_folds
+        self.use_inner_cross_validation = inner_k_folds > 1 # only use cv if there are at least 2 folds
         os.makedirs(self.raw_dir, exist_ok=True)
         os.makedirs(self.processed_dir, exist_ok=True)
 

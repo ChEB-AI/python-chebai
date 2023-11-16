@@ -15,7 +15,6 @@ import os
 import pickle
 import random
 
-import numpy as np
 from sklearn.model_selection import train_test_split
 import fastobo
 import networkx as nx
@@ -179,7 +178,7 @@ class _ChEBIDataExtractor(XYBaseDataModule, ABC):
     def setup_processed(self):
         print("Transform splits")
         os.makedirs(self.processed_dir, exist_ok=True)
-        for k in ["test", "train", "validation"]:
+        for k in self.processed_file_names_dict.keys():
             processed_name = 'test.pt' if k == 'test' else self.processed_file_names_dict[k]
             if not os.path.isfile(os.path.join(self.processed_dir, processed_name)):
                 print("transform", k)
@@ -197,9 +196,13 @@ class _ChEBIDataExtractor(XYBaseDataModule, ABC):
         fixed_nodes = list(g.nodes)
         print("Split dataset")
         random.shuffle(fixed_nodes)
+
         train_split, test_split = train_test_split(
             fixed_nodes, train_size=self.train_split, shuffle=True
         )
+        if self.use_inner_cross_validation:
+            return train_split, test_split
+
         test_split, validation_split = train_test_split(
             test_split, train_size=self.train_split, shuffle=True
         )
@@ -213,6 +216,8 @@ class _ChEBIDataExtractor(XYBaseDataModule, ABC):
             if node in fixed_nodes:
                 fixed_nodes.remove(node)
         random.shuffle(fixed_nodes)
+        if self.use_inner_cross_validation:
+            return fixed_nodes
         # assume that size of validation split should relate to train split as in get_splits()
         validation_split, train_split = train_test_split(
             fixed_nodes, train_size=(1 - self.train_split) ** 2, shuffle=True
@@ -221,16 +226,27 @@ class _ChEBIDataExtractor(XYBaseDataModule, ABC):
 
     @property
     def processed_file_names_dict(self) -> dict:
-        return {'test': f"test_v{self.chebi_version_train}.pt" if self.chebi_version_train is not None else "test.pt",
-                'train': f"train_v{self.chebi_version_train}.pt" if self.chebi_version_train is not None else "train.pt",
-                'validation': f"validation_v{self.chebi_version_train}.pt" if self.chebi_version_train is not None else "validation.pt"}
+        train_v_str = f'_v{self.chebi_version_train}' if self.chebi_version_train else ''
+        res = {'test': f"test{train_v_str}.pt"}
+        if self.use_inner_cross_validation:
+            res['train_val'] = f'trainval{train_v_str}.pkl' # for cv, split train/val on runtime
+        else:
+            res['train'] = f"train{train_v_str}.pt",
+            res['validation'] = f"validation{train_v_str}.pt"
+        return res
 
     @property
     def raw_file_names_dict(self) -> dict:
-        return {'test': f"test.pkl", # no extra raw test version for chebi_version_train - use default test set and only
+        train_v_str = f'_v{self.chebi_version_train}' if self.chebi_version_train else ''
+        res = {'test': f"test.pkl"} # no extra raw test version for chebi_version_train - use default test set and only
                                      # adapt processed file
-                'train': f"train_v{self.chebi_version_train}.pkl" if self.chebi_version_train is not None else "train.pkl",
-                'validation': f"validation_v{self.chebi_version_train}.pkl" if self.chebi_version_train is not None else "validation.pkl"}
+        if self.use_inner_cross_validation:
+            res['train_val'] = f'trainval{train_v_str}.pkl' # for cv, split train/val on runtime
+        else:
+            res['train'] = f"train{train_v_str}.pkl"
+            res['validation'] = f"validation{train_v_str}.pkl"
+
+        return res
 
     @property
     def processed_file_names(self):
@@ -258,7 +274,10 @@ class _ChEBIDataExtractor(XYBaseDataModule, ABC):
                     open(chebi_path, "wb").write(r.content)
                 g = extract_class_hierarchy(chebi_path)
                 splits = {}
-                splits['train'], splits['test'], splits['validation'] = self.get_splits(g)
+                if self.use_inner_cross_validation:
+                    splits['train_val'], splits['test'] = self.get_splits(g)
+                else:
+                    splits['train'], splits['test'], splits['validation'] = self.get_splits(g)
                 for label, split in splits.items():
                     self.save(g, split, self.raw_file_names_dict[label])
             else:
@@ -284,9 +303,13 @@ class _ChEBIDataExtractor(XYBaseDataModule, ABC):
                     r = requests.get(url, allow_redirects=True)
                     open(chebi_path, "wb").write(r.content)
                 g = extract_class_hierarchy(chebi_path)
-                train_split, val_split = self.get_splits_given_test(g, test_split)
-                self.save(g, train_split, self.raw_file_names_dict['train'])
-                self.save(g, val_split, self.raw_file_names_dict['validation'])
+                if self.use_inner_cross_validation:
+                    train_val_data = self.get_splits_given_test(g, test_split)
+                    self.save(g, train_val_data, self.raw_file_names_dict['train_val'])
+                else:
+                    train_split, val_split = self.get_splits_given_test(g, test_split)
+                    self.save(g, train_split, self.raw_file_names_dict['train'])
+                    self.save(g, val_split, self.raw_file_names_dict['validation'])
 
 
 class JCIExtendedBase(_ChEBIDataExtractor):
