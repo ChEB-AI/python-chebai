@@ -112,7 +112,7 @@ class _ChEBIDataExtractor(XYBaseDataModule, ABC):
 
     def __init__(self, chebi_version_train: int = None, **kwargs):
         super(_ChEBIDataExtractor, self).__init__(**kwargs)
-        # use different version of chebi for training and validation (if not None)
+        # use different version of chebi for training and validation (if not None) - still use self.chebi_version for test set
         self.chebi_version_train = chebi_version_train
 
     def select_classes(self, g, split_name, *args, **kwargs):
@@ -227,7 +227,8 @@ class _ChEBIDataExtractor(XYBaseDataModule, ABC):
 
     @property
     def raw_file_names_dict(self) -> dict:
-        return {'test': f"test.pkl",
+        return {'test': f"test.pkl", # no extra raw test version for chebi_version_train - use default test set and only
+                                     # adapt processed file
                 'train': f"train_v{self.chebi_version_train}.pkl" if self.chebi_version_train is not None else "train.pkl",
                 'validation': f"validation_v{self.chebi_version_train}.pkl" if self.chebi_version_train is not None else "validation.pkl"}
 
@@ -248,11 +249,11 @@ class _ChEBIDataExtractor(XYBaseDataModule, ABC):
             os.makedirs(self.raw_dir, exist_ok=True)
             print("Missing raw data. Go fetch...")
             if self.chebi_version_train is None:
-                # load chebi_v200, create splits
+                # load chebi_v{chebi_version}, create splits
                 chebi_path = os.path.join(self.raw_dir, f"chebi.obo")
                 if not os.path.isfile(chebi_path):
                     print("Load ChEBI ontology")
-                    url = f"http://purl.obolibrary.org/obo/chebi/200/chebi.obo"
+                    url = f"http://purl.obolibrary.org/obo/chebi/{self.chebi_version}/chebi.obo"
                     r = requests.get(url, allow_redirects=True)
                     open(chebi_path, "wb").write(r.content)
                 g = extract_class_hierarchy(chebi_path)
@@ -266,7 +267,7 @@ class _ChEBIDataExtractor(XYBaseDataModule, ABC):
                     chebi_path = os.path.join(self.raw_dir, f"chebi.obo")
                     if not os.path.isfile(chebi_path):
                         print("Load ChEBI ontology")
-                        url = f"http://purl.obolibrary.org/obo/chebi/200/chebi.obo"
+                        url = f"http://purl.obolibrary.org/obo/chebi/{self.chebi_version}/chebi.obo"
                         r = requests.get(url, allow_redirects=True)
                         open(chebi_path, "wb").write(r.content)
                     g = extract_class_hierarchy(chebi_path)
