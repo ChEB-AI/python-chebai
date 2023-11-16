@@ -105,7 +105,9 @@ class ChemDataReader(DataReader):
         """write contents of self.cache into tokens.txt"""
         dirname = os.path.dirname(__file__)
         with open(os.path.join(dirname, "bin", "tokens.txt"), "w") as pk:
-            pk.writelines(self.cache)
+            print(f'saving tokens to {os.path.join(dirname, "bin", "tokens.txt")}...')
+            print(f'first 10 tokens: {self.cache[:10]}')
+            pk.writelines([f'{c}\n' for c in self.cache])
 
 
 class DeepChemDataReader(ChemDataReader):
