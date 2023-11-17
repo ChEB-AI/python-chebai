@@ -13,6 +13,7 @@ class InnerCVTrainer(Trainer):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
+
     def cv_fit(self, datamodule: XYBaseDataModule, n_splits: int = -1, *args, **kwargs):
         if n_splits < 2:
             self.fit(datamodule=datamodule, *args, **kwargs)
@@ -25,5 +26,6 @@ class InnerCVTrainer(Trainer):
             for fold, (train_ids, val_ids) in enumerate(kfold.split(datamodule.train_val_data)):
                 train_dataloader = datamodule.train_dataloader(ids=train_ids)
                 val_dataloader = datamodule.val_dataloader(ids=val_ids)
-                self.fit(train_dataloaders=train_dataloader, val_dataloaders=val_dataloader, *args, **kwargs)
+                new_trainer = Trainer(*args, **kwargs)
+                new_trainer.fit(train_dataloaders=train_dataloader, val_dataloaders=val_dataloader, *args, **kwargs)
 
