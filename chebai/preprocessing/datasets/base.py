@@ -26,7 +26,7 @@ class XYBaseDataModule(LightningDataModule):
         balance_after_filter: typing.Optional[float] = None,
         num_workers: int = 1,
         chebi_version: int = 200,
-        inner_k_folds: int = 10, # use inner cross-validation
+        inner_k_folds: int = -1, # use inner cross-validation if > 1
         **kwargs,
     ):
         super().__init__(**kwargs)
@@ -74,13 +74,20 @@ class XYBaseDataModule(LightningDataModule):
         row["labels"] = [row["labels"][self.label_filter]]
         return row
 
-    def dataloader(self, kind, **kwargs):
+    def dataloader(self, kind, **kwargs) -> DataLoader:
         try:
             # processed_file_names_dict is only implemented for _ChEBIDataExtractor
             filename = self.processed_file_names_dict[kind]
         except NotImplementedError:
             filename = f"{kind}.pt"
         dataset = torch.load(os.path.join(self.processed_dir, filename))
+        if 'ids' in kwargs:
+            ids = kwargs.pop('ids')
+            _dataset = []
+            for i in range(len(dataset)):
+                if i in ids:
+                    _dataset.append(dataset[i])
+            dataset = _dataset
         if self.label_filter is not None:
             original_len = len(dataset)
             dataset = [self._filter_labels(r) for r in dataset]
@@ -127,11 +134,11 @@ class XYBaseDataModule(LightningDataModule):
 
     def train_dataloader(self, *args, **kwargs) -> DataLoader:
         return self.dataloader(
-            "train", shuffle=True, num_workers=self.num_workers, **kwargs
+            "train" if not self.use_inner_cross_validation else "train_val", shuffle=True, num_workers=self.num_workers, **kwargs
         )
 
     def val_dataloader(self, *args, **kwargs) -> Union[DataLoader, List[DataLoader]]:
-        return self.dataloader("validation", shuffle=False, **kwargs)
+        return self.dataloader("validation" if not self.use_inner_cross_validation else "train_val", shuffle=False, **kwargs)
 
     def test_dataloader(self, *args, **kwargs) -> Union[DataLoader, List[DataLoader]]:
         return self.dataloader("test", shuffle=False, **kwargs)
@@ -142,11 +149,16 @@ class XYBaseDataModule(LightningDataModule):
         return self.dataloader(self.prediction_kind, shuffle=False, **kwargs)
 
     def setup(self, **kwargs):
+        print("Check for processed data in ", self.processed_dir)
+        print(f'Cross-validation enabled: {self.use_inner_cross_validation}')
         if any(
             not os.path.isfile(os.path.join(self.processed_dir, f))
             for f in self.processed_file_names
         ):
             self.setup_processed()
+
+        if self.use_inner_cross_validation:
+            self.train_val_data = torch.load(os.path.join(self.processed_dir, self.processed_file_names_dict['train_val']))
 
     def setup_processed(self):
         raise NotImplementedError

@@ -229,9 +229,9 @@ class _ChEBIDataExtractor(XYBaseDataModule, ABC):
         train_v_str = f'_v{self.chebi_version_train}' if self.chebi_version_train else ''
         res = {'test': f"test{train_v_str}.pt"}
         if self.use_inner_cross_validation:
-            res['train_val'] = f'trainval{train_v_str}.pkl' # for cv, split train/val on runtime
+            res['train_val'] = f'trainval{train_v_str}.pt' # for cv, split train/val on runtime
         else:
-            res['train'] = f"train{train_v_str}.pt",
+            res['train'] = f"train{train_v_str}.pt"
             res['validation'] = f"validation{train_v_str}.pt"
         return res
 
