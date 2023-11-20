@@ -1,13 +1,13 @@
-import inspect
-from typing import Optional, Union
 import logging
-from lightning import Trainer, LightningDataModule, LightningModule
-import lightning as pl
+import os
+
+from lightning import Trainer
 from sklearn import model_selection
 
 from chebai.preprocessing.datasets.base import XYBaseDataModule
 
 log = logging.getLogger(__name__)
+
 
 class InnerCVTrainer(Trainer):
 
@@ -15,7 +15,6 @@ class InnerCVTrainer(Trainer):
         self.init_args = args
         self.init_kwargs = kwargs
         super().__init__(*args, **kwargs)
-
 
     def cv_fit(self, datamodule: XYBaseDataModule, n_splits: int = -1, *args, **kwargs):
         if n_splits < 2:
@@ -31,5 +30,5 @@ class InnerCVTrainer(Trainer):
                 val_dataloader = datamodule.val_dataloader(ids=val_ids)
 
                 new_trainer = Trainer(*self.init_args, **self.init_kwargs)
+                new_trainer.logger.save_dir = os.path.join(new_trainer.logger.save_dir, f'fold_{fold}')
                 new_trainer.fit(train_dataloaders=train_dataloader, val_dataloaders=val_dataloader, *args, **kwargs)
-
