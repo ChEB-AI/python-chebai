@@ -98,7 +98,7 @@ def extract_class_hierarchy(chebi_path):
 
     # create a list of elements using callback function on clauses containing ':'
     elements = [
-        term_callback_incl_roles(clause)  # term_callback(clause)
+        term_callback(clause)  # term_callback(clause)
         for clause in fastobo.loads(chebi)
         if clause and ":" in str(clause.id)
     ]
@@ -267,6 +267,7 @@ class ChEBIRolesOverX(_ChEBIDataExtractor):
 
     def select_classes(self, g, *args, **kwargs):
         smiles = nx.get_node_attributes(g, "smiles")
+        """
         nodes = list(
             sorted(
                 {
@@ -281,8 +282,26 @@ class ChEBIRolesOverX(_ChEBIDataExtractor):
                 }
             )
         )
+        """
+
+        nodes = []
+        nodes_with_mol_count = []
+
+        for node in g.nodes:
+            node_molecule_count = sum(1 if smiles[s] is not None else 0 for s in g.successors(node))
+
+            if node_molecule_count >= self.THRESHOLD:
+                nodes.append(node)
+                nodes_with_mol_count.append((node, node_molecule_count))
+
+        nodes = sorted(nodes)
+        nodes_with_mol_count = sorted(nodes_with_mol_count, key=lambda x: x[1], reverse=True)
+
         with open(os.path.join(self.raw_dir, "classes.txt"), "wt") as fout:
             fout.writelines(str(node) + "\n" for node in nodes)
+
+        with open(os.path.join(self.raw_dir, "classesWithCount.txt"), "wt") as fout:
+            fout.writelines(f"{str(node)}, {node_molecule_count}\n" for (node, node_molecule_count) in nodes_with_mol_count)
         return nodes
 
 
@@ -343,7 +362,6 @@ def term_callback(doc):
         "smiles": smiles,
     }
 
-
 """ new call back that includes roles in form of parent relation
 to test behaviour: if necessary, previously created data splits find under data have to be removed"""
 def term_callback_incl_roles(doc):
@@ -374,7 +392,6 @@ def term_callback_incl_roles(doc):
         "name": name,
         "smiles": smiles,
     }
-
 
 atom_index = (
     "\*",
