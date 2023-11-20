@@ -225,6 +225,14 @@ class _ChEBIDataExtractor(XYBaseDataModule, ABC):
         return train_split, validation_split
 
     @property
+    def processed_dir(self):
+        return os.path.join("data", self._name, f'chebi_v{self.chebi_version}', "processed", *self.identifier)
+
+    @property
+    def raw_dir(self):
+        return os.path.join("data", self._name, f'chebi_v{self.chebi_version}', "raw")
+
+    @property
     def processed_file_names_dict(self) -> dict:
         train_v_str = f'_v{self.chebi_version_train}' if self.chebi_version_train else ''
         res = {'test': f"test{train_v_str}.pt"}

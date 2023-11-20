@@ -60,11 +60,11 @@ class XYBaseDataModule(LightningDataModule):
 
     @property
     def processed_dir(self):
-        return os.path.join("data", self._name, f'chebi_v{self.chebi_version}', "processed", *self.identifier)
+        return os.path.join("data", self._name, "processed", *self.identifier)
 
     @property
     def raw_dir(self):
-        return os.path.join("data", self._name, f'chebi_v{self.chebi_version}', "raw")
+        return os.path.join("data", self._name, "raw")
 
     @property
     def _name(self):
