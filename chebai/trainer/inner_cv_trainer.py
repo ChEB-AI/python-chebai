@@ -36,8 +36,7 @@ class InnerCVTrainer(Trainer):
                                                 version=self.logger.version, fold=fold)
                 init_kwargs['logger'] = new_logger
                 new_trainer = Trainer(*self.init_args, **init_kwargs)
-                print(f'Using logger.save_dir: {new_trainer.logger.save_dir}')
-                print(f'Using logger.log_dir: {new_trainer.logger.log_dir}')
+                print(f'Logging this fold at {new_trainer.logger.log_dir}')
                 new_trainer.fit(train_dataloaders=train_dataloader, val_dataloaders=val_dataloader, *args, **kwargs)
 
 
@@ -61,4 +60,4 @@ class CSVLoggerCVSupport(CSVLogger):
         version = self.version if isinstance(self.version, str) else f"version_{self.version}"
         if self.fold is None:
             return os.path.join(self.root_dir, version)
-        return os.path.join(self.root_dir, version, f'fold{self.fold}')
+        return os.path.join(self.root_dir, version, f'fold_{self.fold}')
