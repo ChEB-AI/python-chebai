@@ -1,7 +1,7 @@
 from typing import Dict, Set
 
 from lightning.pytorch.cli import LightningCLI
-from chebai.trainer.inner_cv_trainer import InnerCVTrainer
+from chebai.trainer.InnerCVTrainer import InnerCVTrainer
 
 class ChebaiCLI(LightningCLI):
 
