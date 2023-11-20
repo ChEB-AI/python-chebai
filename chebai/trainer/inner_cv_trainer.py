@@ -34,7 +34,7 @@ class InnerCVTrainer(Trainer):
                 logger_cls = self.logger.__class__
                 new_logger = logger_cls(save_dir=os.path.join(self.default_root_dir, f'fold_{fold}'))
                 init_kwargs['logger'] = new_logger
-                new_trainer = Trainer(*self.init_args, init_kwargs)
+                new_trainer = Trainer(*self.init_args, **init_kwargs)
                 print(f'new default_root_dir: {new_trainer.default_root_dir}')
                 print(f'new logger.save_dir: {new_trainer.logger.save_dir}')
                 new_trainer.fit(train_dataloaders=train_dataloader, val_dataloaders=val_dataloader, *args, **kwargs)
