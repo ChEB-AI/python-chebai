@@ -1,7 +1,9 @@
 import logging
 import os
+from typing import Optional, Union
 
 from lightning import Trainer
+from lightning.fabric.utilities.types import _PATH
 from lightning.pytorch.loggers import CSVLogger
 from sklearn import model_selection
 
@@ -30,9 +32,33 @@ class InnerCVTrainer(Trainer):
                 train_dataloader = datamodule.train_dataloader(ids=train_ids)
                 val_dataloader = datamodule.val_dataloader(ids=val_ids)
                 init_kwargs = self.init_kwargs
-                logger_cls = self.logger.__class__
-                new_logger = logger_cls(save_dir=os.path.join(self.logger.save_dir, f'fold_{fold}'))
+                new_logger = CSVLoggerCVSupport(save_dir=self.logger.save_dir, name=self.logger.name,
+                                                version=self.logger.version, fold=fold)
                 init_kwargs['logger'] = new_logger
                 new_trainer = Trainer(*self.init_args, **init_kwargs)
                 print(f'Using logger.save_dir: {new_trainer.logger.save_dir}')
+                print(f'Using logger.log_dir: {new_trainer.logger.log_dir}')
                 new_trainer.fit(train_dataloaders=train_dataloader, val_dataloaders=val_dataloader, *args, **kwargs)
+
+
+# extend CSVLogger to include fold number in log path
+class CSVLoggerCVSupport(CSVLogger):
+
+    def __init__(self, save_dir: _PATH, name: str = "lightning_logs", version: Optional[Union[int, str]] = None,
+                 prefix: str = "", flush_logs_every_n_steps: int = 100, fold: int = None):
+        super().__init__(save_dir, name, version, prefix, flush_logs_every_n_steps)
+        self.fold = fold
+
+    @property
+    def log_dir(self) -> str:
+        """The log directory for this run.
+
+        By default, it is named ``'version_${self.version}'`` but it can be overridden by passing a string value for the
+        constructor's version parameter instead of ``None`` or an int.
+        Additionally: Save data for each fold separately
+        """
+        # create a pseudo standard path
+        version = self.version if isinstance(self.version, str) else f"version_{self.version}"
+        if self.fold is None:
+            return os.path.join(self.root_dir, version)
+        return os.path.join(self.root_dir, version, f'fold{self.fold}')
