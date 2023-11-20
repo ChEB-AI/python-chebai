@@ -5,6 +5,7 @@ from typing import Optional, Union
 from lightning import Trainer
 from lightning.fabric.utilities.types import _PATH
 from lightning.pytorch.loggers import CSVLogger
+from lightning.pytorch.callbacks import ModelCheckpoint
 from sklearn import model_selection
 
 from chebai.preprocessing.datasets.base import XYBaseDataModule
@@ -61,3 +62,41 @@ class CSVLoggerCVSupport(CSVLogger):
         if self.fold is None:
             return os.path.join(self.root_dir, version)
         return os.path.join(self.root_dir, version, f'fold_{self.fold}')
+
+class ModelCheckpointCVSupport(ModelCheckpoint):
+
+    def __resolve_ckpt_dir(self, trainer: "Trainer") -> _PATH:
+        """Determines model checkpoint save directory at runtime. Reference attributes from the trainer's logger to
+        determine where to save checkpoints. The path for saving weights is set in this priority:
+
+        1.  The ``ModelCheckpoint``'s ``dirpath`` if passed in
+        2.  The ``Logger``'s ``log_dir`` if the trainer has loggers
+        3.  The ``Trainer``'s ``default_root_dir`` if the trainer has no loggers
+
+        The path gets extended with subdirectory "checkpoints".
+
+        """
+        print(f'Resolving checkpoint dir')
+        if self.dirpath is not None:
+            # short circuit if dirpath was passed to ModelCheckpoint
+            return self.dirpath
+
+        if len(trainer.loggers) > 0:
+            if trainer.loggers[0].save_dir is not None:
+                save_dir = trainer.loggers[0].save_dir
+            else:
+                save_dir = trainer.default_root_dir
+            name = trainer.loggers[0].name
+            version = trainer.loggers[0].version
+            version = version if isinstance(version, str) else f"version_{version}"
+            cv_logger = trainer.loggers[0]
+            if isinstance(cv_logger, CSVLoggerCVSupport) and cv_logger.fold is not None:
+                # log_dir includes fold
+                ckpt_path = os.path.join(cv_logger.log_dir, "checkpoints")
+            else:
+                ckpt_path = os.path.join(save_dir, str(name), version, "checkpoints")
+        else:
+            # if no loggers, use default_root_dir
+            ckpt_path = os.path.join(trainer.default_root_dir, "checkpoints")
+
+        return ckpt_path
