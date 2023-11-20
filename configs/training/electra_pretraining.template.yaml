@@ -1,4 +1,5 @@
 # lightning.pytorch==2.0.2
+# not up to date
 seed_everything: true
 model: chebai.models.electra.ElectraPre
 
@@ -25,7 +26,5 @@ model:
         num_attention_heads: 8
         num_hidden_layers: 6
         type_vocab_size: 1
-data:
-  class_path: chebai.preprocessing.datasets.pubchem.SWJChem
 
 ckpt_path: null
