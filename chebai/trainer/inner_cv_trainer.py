@@ -28,7 +28,10 @@ class InnerCVTrainer(Trainer):
             for fold, (train_ids, val_ids) in enumerate(kfold.split(datamodule.train_val_data)):
                 train_dataloader = datamodule.train_dataloader(ids=train_ids)
                 val_dataloader = datamodule.val_dataloader(ids=val_ids)
-
+                init_kwargs = self.init_kwargs
+                print(f'init_kwargs: {init_kwargs}')
+                init_kwargs['default_root_dir'] = os.path.join(self.default_root_dir, f'fold_{fold}')
                 new_trainer = Trainer(*self.init_args, **self.init_kwargs)
-                new_trainer.logger.save_dir = os.path.join(new_trainer.logger.save_dir, f'fold_{fold}')
+                print(f'new default_root_dir: {new_trainer.default_root_dir}')
+                print(f'new logger.save_dir: {new_trainer.logger.save_dir}')
                 new_trainer.fit(train_dataloaders=train_dataloader, val_dataloaders=val_dataloader, *args, **kwargs)
