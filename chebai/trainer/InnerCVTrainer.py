@@ -47,6 +47,8 @@ class InnerCVTrainer(Trainer):
                                                 version=self.logger.version, fold=fold)
                 init_kwargs['logger'] = new_logger
                 new_trainer = Trainer(*self.init_args, **init_kwargs)
+                self._logger_connector = _LoggerConnectorCVSupport(self)
+                self._logger_connector.on_trainer_init(self.logger, 1)
                 print(f'Logging this fold at {new_trainer.logger.log_dir}')
                 new_trainer.fit(train_dataloaders=train_dataloader, val_dataloaders=val_dataloader, *args, **kwargs)
 
