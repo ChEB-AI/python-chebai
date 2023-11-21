@@ -106,7 +106,7 @@ class ModelCheckpointCVSupport(ModelCheckpoint):
         if self.dirpath is not None:
             # short circuit if dirpath was passed to ModelCheckpoint
             return self.dirpath
-
+        print(f'Found {len(trainer.loggers)} loggers')
         if len(trainer.loggers) > 0:
             if trainer.loggers[0].save_dir is not None:
                 save_dir = trainer.loggers[0].save_dir
