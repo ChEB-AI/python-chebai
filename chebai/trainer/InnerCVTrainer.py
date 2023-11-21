@@ -80,6 +80,9 @@ class ModelCheckpointCVSupport(ModelCheckpoint):
 
     def setup(self, trainer: "Trainer", pl_module: "LightningModule", stage: str) -> None:
         """Same as in parent class, duplicated to be able to call self.__resolve_ckpt_dir"""
+        if self.dirpath is not None:
+            print(f'Eliminating existing dirpath {self.dirpath} at ModelCheckpoint setup')
+            self.dirpath = None
         dirpath = self.__resolve_ckpt_dir(trainer)
         dirpath = trainer.strategy.broadcast(dirpath)
         self.dirpath = dirpath
