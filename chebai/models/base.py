@@ -41,10 +41,13 @@ class ChebaiBaseNet(LightningModule):
     def _get_prediction_and_labels(self, data, labels, output):
         return output, labels
 
+    def _process_labels_in_batch(self, batch):
+        return batch.y.float()
+
     def _process_batch(self, batch, batch_idx):
         return dict(
             features=batch.x,
-            labels=batch.y.float(),
+            labels=self._process_labels_in_batch(batch),
             model_kwargs=batch.additional_fields["model_kwargs"],
             loss_kwargs=batch.additional_fields["loss_kwargs"],
             idents=batch.additional_fields["idents"],
