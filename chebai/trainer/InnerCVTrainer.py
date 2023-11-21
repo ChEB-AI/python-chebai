@@ -2,11 +2,12 @@ import logging
 import os
 from typing import Optional, Union
 
-from lightning import Trainer
+from lightning import Trainer, LightningModule
 from lightning.fabric.utilities.types import _PATH
 from lightning.pytorch.loggers import CSVLogger
 from lightning.pytorch.callbacks import ModelCheckpoint
 from sklearn import model_selection
+from lightning.pytorch.callbacks.model_checkpoint import _is_dir, rank_zero_warn
 
 from chebai.preprocessing.datasets.base import XYBaseDataModule
 
@@ -63,7 +64,21 @@ class CSVLoggerCVSupport(CSVLogger):
             return os.path.join(self.root_dir, version)
         return os.path.join(self.root_dir, version, f'fold_{self.fold}')
 
+
 class ModelCheckpointCVSupport(ModelCheckpoint):
+
+    def setup(self, trainer: "Trainer", pl_module: "LightningModule", stage: str) -> None:
+        """Same as in parent class, duplicated to be able to call self.__resolve_ckpt_dir"""
+        dirpath = self.__resolve_ckpt_dir(trainer)
+        dirpath = trainer.strategy.broadcast(dirpath)
+        self.dirpath = dirpath
+        if trainer.is_global_zero and stage == "fit":
+            self.__warn_if_dir_not_empty(self.dirpath)
+
+    def __warn_if_dir_not_empty(self, dirpath: _PATH) -> None:
+        """Same as in parent class, duplicated because method in parent class is not accessible"""
+        if self.save_top_k != 0 and _is_dir(self._fs, dirpath, strict=True) and len(self._fs.ls(dirpath)) > 0:
+            rank_zero_warn(f"Checkpoint directory {dirpath} exists and is not empty.")
 
     def __resolve_ckpt_dir(self, trainer: "Trainer") -> _PATH:
         """Determines model checkpoint save directory at runtime. Reference attributes from the trainer's logger to
