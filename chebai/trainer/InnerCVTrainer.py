@@ -91,7 +91,7 @@ class ModelCheckpointCVSupport(ModelCheckpoint):
         The path gets extended with subdirectory "checkpoints".
 
         """
-        print(f'Resolving checkpoint dir')
+        print(f'Resolving checkpoint dir (with cross-validation)')
         if self.dirpath is not None:
             # short circuit if dirpath was passed to ModelCheckpoint
             return self.dirpath
@@ -105,6 +105,7 @@ class ModelCheckpointCVSupport(ModelCheckpoint):
             version = trainer.loggers[0].version
             version = version if isinstance(version, str) else f"version_{version}"
             cv_logger = trainer.loggers[0]
+            print(f'Found logger {cv_logger.__class__}')
             if isinstance(cv_logger, CSVLoggerCVSupport) and cv_logger.fold is not None:
                 # log_dir includes fold
                 ckpt_path = os.path.join(cv_logger.log_dir, "checkpoints")
@@ -114,4 +115,5 @@ class ModelCheckpointCVSupport(ModelCheckpoint):
             # if no loggers, use default_root_dir
             ckpt_path = os.path.join(trainer.default_root_dir, "checkpoints")
 
+        print(f'Now using checkpoint path {ckpt_path}')
         return ckpt_path
