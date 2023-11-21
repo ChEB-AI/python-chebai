@@ -1,11 +1,16 @@
 import logging
 import os
-from typing import Optional, Union
+from typing import Optional, Union, Iterable
 
 from lightning import Trainer, LightningModule
 from lightning.fabric.utilities.types import _PATH
-from lightning.pytorch.loggers import CSVLogger
+from lightning.pytorch.trainer.connectors.logger_connector import _LoggerConnector
+from lightning.fabric.loggers.tensorboard import _TENSORBOARD_AVAILABLE, _TENSORBOARDX_AVAILABLE
+from lightning.pytorch.loggers import CSVLogger, Logger, TensorBoardLogger
 from lightning.pytorch.callbacks import ModelCheckpoint
+from lightning.fabric.plugins.environments import SLURMEnvironment
+from lightning_utilities.core.rank_zero import WarningCache
+
 from sklearn import model_selection
 from lightning.pytorch.callbacks.model_checkpoint import _is_dir, rank_zero_warn
 
@@ -20,6 +25,10 @@ class InnerCVTrainer(Trainer):
         self.init_args = args
         self.init_kwargs = kwargs
         super().__init__(*args, **kwargs)
+        # instantiation custom logger connector
+        self._logger_connector = _LoggerConnectorCVSupport(self)
+        self._logger_connector.on_trainer_init(self.logger, 1)
+
 
     def cv_fit(self, datamodule: XYBaseDataModule, n_splits: int = -1, *args, **kwargs):
         if n_splits < 2:
@@ -117,3 +126,33 @@ class ModelCheckpointCVSupport(ModelCheckpoint):
 
         print(f'Now using checkpoint path {ckpt_path}')
         return ckpt_path
+
+
+warning_cache = WarningCache()
+
+
+class _LoggerConnectorCVSupport(_LoggerConnector):
+    def configure_logger(self, logger: Union[bool, Logger, Iterable[Logger]]) -> None:
+        print(f'called configure_logger')
+        if not logger:
+            # logger is None or logger is False
+            self.trainer.loggers = []
+        elif logger is True:
+            # default logger
+            if _TENSORBOARD_AVAILABLE or _TENSORBOARDX_AVAILABLE:
+                logger_ = TensorBoardLogger(save_dir=self.trainer.default_root_dir, version=SLURMEnvironment.job_id())
+            else:
+                warning_cache.warn(
+                    "Starting from v1.9.0, `tensorboardX` has been removed as a dependency of the `lightning.pytorch`"
+                    " package, due to potential conflicts with other packages in the ML ecosystem. For this reason,"
+                    " `logger=True` will use `CSVLogger` as the default logger, unless the `tensorboard`"
+                    " or `tensorboardX` packages are found."
+                    " Please `pip install lightning[extra]` or one of them to enable TensorBoard support by default"
+                )
+                logger_ = CSVLogger(save_dir=self.trainer.default_root_dir)  # type: ignore[assignment]
+            self.trainer.loggers = [logger_]
+        elif isinstance(logger, Iterable):
+            self.trainer.loggers = list(logger)
+        else:
+            print(f'setting trainer.loggers to [logger]')
+            self.trainer.loggers = [logger]
