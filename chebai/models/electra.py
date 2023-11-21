@@ -47,15 +47,15 @@ class ElectraPre(ChebaiBaseNet):
     def as_pretrained(self):
         return self.discriminator
 
-    def _process_batch(self, batch, batch_idx):
-        return dict(features=batch.x, labels=None, mask=batch.mask)
+    def _process_labels_in_batch(self, batch):
+        return None
 
-    def forward(self, data):
+    def forward(self, data, **kwargs):
         features = data["features"]
         self.batch_size = batch_size = features.shape[0]
         max_seq_len = features.shape[1]
 
-        mask = data["mask"]
+        mask = kwargs["mask"]
         with torch.no_grad():
             dis_tar = (
                 torch.rand((batch_size,), device=self.device) * torch.sum(mask, dim=-1)
@@ -95,25 +95,6 @@ class ElectraPre(ChebaiBaseNet):
 
     def _get_prediction_and_labels(self, batch, labels, output):
         return torch.softmax(output[0][1], dim=-1), output[1][1].int()
-
-    def _get_data_for_loss(self, model_output, labels):
-        return dict(input=model_output, target=None)
-
-
-class ElectraPreLoss(torch.nn.Module):
-    def __init__(self):
-        super().__init__()
-        self.ce = torch.nn.CrossEntropyLoss()
-
-    def forward(self, input, target):
-        t, p = input
-        gen_pred, disc_pred = t
-        gen_tar, disc_tar = p
-        gen_loss = self.ce(target=torch.argmax(gen_tar.int(), dim=-1), input=gen_pred)
-        disc_loss = self.ce(
-            target=torch.argmax(disc_tar.int(), dim=-1), input=disc_pred
-        )
-        return gen_loss + disc_loss
 
 
 def filter_dict(d, filter_key):
