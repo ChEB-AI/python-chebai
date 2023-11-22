@@ -1,5 +1,5 @@
 min_epochs: 100
-max_epochs: 100
+max_epochs: 100 
 default_root_dir: &default_root_dir logs
 logger:
     class_path: lightning.pytorch.loggers.CSVLogger
