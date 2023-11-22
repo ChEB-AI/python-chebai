@@ -26,7 +26,6 @@ class InnerCVTrainer(Trainer):
         self.init_kwargs = kwargs
         super().__init__(*args, **kwargs)
         # instantiation custom logger connector
-        self._logger_connector = _LoggerConnectorCVSupport(self)
         self._logger_connector.on_trainer_init(self.logger, 1)
 
 
@@ -47,8 +46,6 @@ class InnerCVTrainer(Trainer):
                                                 version=self.logger.version, fold=fold)
                 init_kwargs['logger'] = new_logger
                 new_trainer = Trainer(*self.init_args, **init_kwargs)
-                self._logger_connector = _LoggerConnectorCVSupport(self)
-                self._logger_connector.on_trainer_init(self.logger, 1)
                 print(f'Logging this fold at {new_trainer.logger.log_dir}')
                 new_trainer.fit(train_dataloaders=train_dataloader, val_dataloaders=val_dataloader, *args, **kwargs)
 
@@ -109,7 +106,6 @@ class ModelCheckpointCVSupport(ModelCheckpoint):
         if self.dirpath is not None:
             # short circuit if dirpath was passed to ModelCheckpoint
             return self.dirpath
-        print(f'Found {len(trainer.loggers)} loggers')
         if len(trainer.loggers) > 0:
             if trainer.loggers[0].save_dir is not None:
                 save_dir = trainer.loggers[0].save_dir
@@ -119,7 +115,6 @@ class ModelCheckpointCVSupport(ModelCheckpoint):
             version = trainer.loggers[0].version
             version = version if isinstance(version, str) else f"version_{version}"
             cv_logger = trainer.loggers[0]
-            print(f'Found logger {cv_logger.__class__}')
             if isinstance(cv_logger, CSVLoggerCVSupport) and cv_logger.fold is not None:
                 # log_dir includes fold
                 ckpt_path = os.path.join(cv_logger.log_dir, "checkpoints")
@@ -133,31 +128,4 @@ class ModelCheckpointCVSupport(ModelCheckpoint):
         return ckpt_path
 
 
-warning_cache = WarningCache()
 
-
-class _LoggerConnectorCVSupport(_LoggerConnector):
-    def configure_logger(self, logger: Union[bool, Logger, Iterable[Logger]]) -> None:
-        print(f'called configure_logger')
-        if not logger:
-            # logger is None or logger is False
-            self.trainer.loggers = []
-        elif logger is True:
-            # default logger
-            if _TENSORBOARD_AVAILABLE or _TENSORBOARDX_AVAILABLE:
-                logger_ = TensorBoardLogger(save_dir=self.trainer.default_root_dir, version=SLURMEnvironment.job_id())
-            else:
-                warning_cache.warn(
-                    "Starting from v1.9.0, `tensorboardX` has been removed as a dependency of the `lightning.pytorch`"
-                    " package, due to potential conflicts with other packages in the ML ecosystem. For this reason,"
-                    " `logger=True` will use `CSVLogger` as the default logger, unless the `tensorboard`"
-                    " or `tensorboardX` packages are found."
-                    " Please `pip install lightning[extra]` or one of them to enable TensorBoard support by default"
-                )
-                logger_ = CSVLogger(save_dir=self.trainer.default_root_dir)  # type: ignore[assignment]
-            self.trainer.loggers = [logger_]
-        elif isinstance(logger, Iterable):
-            self.trainer.loggers = list(logger)
-        else:
-            print(f'setting trainer.loggers to [logger]')
-            self.trainer.loggers = [logger]
