@@ -11,7 +11,7 @@ from lightning.pytorch.callbacks import ModelCheckpoint
 from lightning.fabric.plugins.environments import SLURMEnvironment
 from lightning_utilities.core.rank_zero import WarningCache
 
-from sklearn import model_selection
+from iterstrat.ml_stratifiers import MultilabelStratifiedKFold
 from lightning.pytorch.callbacks.model_checkpoint import _is_dir, rank_zero_warn
 
 from chebai.preprocessing.datasets.base import XYBaseDataModule
@@ -28,7 +28,6 @@ class InnerCVTrainer(Trainer):
         # instantiation custom logger connector
         self._logger_connector.on_trainer_init(self.logger, 1)
 
-
     def cv_fit(self, datamodule: XYBaseDataModule, n_splits: int = -1, *args, **kwargs):
         if n_splits < 2:
             self.fit(datamodule=datamodule, *args, **kwargs)
@@ -36,9 +35,10 @@ class InnerCVTrainer(Trainer):
             datamodule.prepare_data()
             datamodule.setup()
 
-            kfold = model_selection.KFold(n_splits=n_splits)
+            kfold = MultilabelStratifiedKFold(n_splits=n_splits)
 
-            for fold, (train_ids, val_ids) in enumerate(kfold.split(datamodule.train_val_data)):
+            for fold, (train_ids, val_ids) in enumerate(
+                    kfold.split(datamodule.train_val_data, [data['labels'] for data in datamodule.train_val_data])):
                 train_dataloader = datamodule.train_dataloader(ids=train_ids)
                 val_dataloader = datamodule.val_dataloader(ids=val_ids)
                 init_kwargs = self.init_kwargs
@@ -78,7 +78,6 @@ class ModelCheckpointCVSupport(ModelCheckpoint):
     def setup(self, trainer: "Trainer", pl_module: "LightningModule", stage: str) -> None:
         """Same as in parent class, duplicated to be able to call self.__resolve_ckpt_dir"""
         if self.dirpath is not None:
-            print(f'Eliminating existing dirpath {self.dirpath} at ModelCheckpoint setup')
             self.dirpath = None
         dirpath = self.__resolve_ckpt_dir(trainer)
         dirpath = trainer.strategy.broadcast(dirpath)
@@ -126,6 +125,3 @@ class ModelCheckpointCVSupport(ModelCheckpoint):
 
         print(f'Now using checkpoint path {ckpt_path}')
         return ckpt_path
-
-
-

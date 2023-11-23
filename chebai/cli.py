@@ -3,10 +3,11 @@ from typing import Dict, Set
 from lightning.pytorch.cli import LightningCLI
 from chebai.trainer.InnerCVTrainer import InnerCVTrainer
 
+
 class ChebaiCLI(LightningCLI):
 
     def __init__(self, *args, **kwargs):
-        super().__init__(trainer_class = InnerCVTrainer, *args, **kwargs)
+        super().__init__(trainer_class=InnerCVTrainer, *args, **kwargs)
 
     def add_arguments_to_parser(self, parser):
         for kind in ("train", "val", "test"):
@@ -15,7 +16,7 @@ class ChebaiCLI(LightningCLI):
                     "model.init_args.out_dim",
                     f"model.init_args.{kind}_metrics.init_args.metrics.{average}-f1.init_args.num_labels",
                 )
-        #parser.link_arguments('n_splits', 'data.init_args.inner_k_folds') # doesn't work but I don't know why
+        # parser.link_arguments('n_splits', 'data.init_args.inner_k_folds') # doesn't work but I don't know why
 
     @staticmethod
     def subcommands() -> Dict[str, Set[str]]:
@@ -27,6 +28,7 @@ class ChebaiCLI(LightningCLI):
             "predict": {"model", "dataloaders", "datamodule"},
             "cv_fit": {"model", "train_dataloaders", "val_dataloaders", "datamodule"},
         }
+
 
 def cli():
     r = ChebaiCLI(save_config_callback=None, parser_kwargs={"parser_mode": "omegaconf"})

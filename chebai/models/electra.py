@@ -24,6 +24,7 @@ from transformers import (
 )
 from chebai.preprocessing.reader import MASK_TOKEN_INDEX, CLS_TOKEN
 from chebai.preprocessing.datasets.chebi import extract_class_hierarchy
+from chebai.loss.pretraining import ElectraPreLoss # noqa
 import torch
 import csv
 
@@ -404,3 +405,4 @@ class ConeLoss:
             memberships, target.unsqueeze(-1).expand(-1, -1, 20)
         )
         return loss
+

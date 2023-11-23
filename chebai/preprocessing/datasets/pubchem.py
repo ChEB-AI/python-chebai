@@ -31,6 +31,8 @@ class PubChem(XYBaseDataModule):
 
     def __init__(self, *args, k=100000, **kwargs):
         self._k = k
+        self.pubchem_url = "https://ftp.ncbi.nlm.nih.gov/pubchem/Compound/Monthly/2023-11-01/Extras/CID-SMILES.gz"
+
         super(PubChem, self).__init__(*args, **kwargs)
 
     @property
@@ -60,18 +62,17 @@ class PubChem(XYBaseDataModule):
                 yield dict(features=smiles, labels=None, ident=ident)
 
     def download(self):
-        url = f"https://ftp.ncbi.nlm.nih.gov/pubchem/Compound/Monthly/2021-10-01/Extras/CID-SMILES.gz"
         if self._k == PubChem.FULL:
             if not os.path.isfile(os.path.join(self.raw_dir, "smiles.txt")):
-                print("Download from", url)
-                r = requests.get(url, allow_redirects=True)
+                print("Download from", self.pubchem_url)
+                r = requests.get(self.pubchem_url, allow_redirects=True)
                 with tempfile.NamedTemporaryFile() as tf:
                     tf.write(r.content)
                     print("Unpacking...")
                     tf.seek(0)
                     with gzip.open(tf, "rb") as f_in:
                         with open(
-                            os.path.join(self.raw_dir, "smiles.txt"), "wb"
+                                os.path.join(self.raw_dir, "smiles.txt"), "wb"
                         ) as f_out:
                             shutil.copyfileobj(f_in, f_out)
         else:
@@ -114,8 +115,8 @@ class PubChem(XYBaseDataModule):
     def prepare_data(self, *args, **kwargs):
         print("Check for raw data in", self.raw_dir)
         if any(
-            not os.path.isfile(os.path.join(self.raw_dir, f))
-            for f in self.raw_file_names
+                not os.path.isfile(os.path.join(self.raw_dir, f))
+                for f in self.raw_file_names
         ):
             print("Downloading data. This may take some time...")
             self.download()
@@ -269,3 +270,6 @@ class PubToxAndChebi100(PubToxAndChebiX):
 
 class PubToxAndChebi50(PubToxAndChebiX):
     CHEBI_X = ChEBIOver50
+
+class PubChemDeepSMILES(PubChem):
+    READER = dr.DeepChemDataReader

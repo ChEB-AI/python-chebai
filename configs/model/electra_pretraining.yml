@@ -1,0 +1,18 @@
+class_path: chebai.models.ElectraPre
+init_args:
+  out_dim: null
+  optimizer_kwargs:
+    lr: 1e-4
+  config:
+    generator:
+      vocab_size: 1400
+      max_position_embeddings: 1800
+      num_attention_heads: 8
+      num_hidden_layers: 6
+      type_vocab_size: 1
+    discriminator:
+      vocab_size: 1400
+      max_position_embeddings: 1800
+      num_attention_heads: 8
+      num_hidden_layers: 6
+      type_vocab_size: 1
