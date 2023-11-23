@@ -7,4 +7,4 @@ logger:
     init_args:
       save_dir: *default_root_dir
 
-callbacks: default_callbacks.yml
+callbacks: pretraining_callbacks.yml
