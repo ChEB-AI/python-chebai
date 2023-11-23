@@ -15,7 +15,8 @@ import os
 import pickle
 import random
 
-from sklearn.model_selection import train_test_split
+from iterstrat.ml_stratifiers import MultilabelStratifiedShuffleSplit
+
 import fastobo
 import networkx as nx
 import pandas as pd
@@ -117,17 +118,19 @@ class _ChEBIDataExtractor(XYBaseDataModule, ABC):
     def select_classes(self, g, split_name, *args, **kwargs):
         raise NotImplementedError
 
-    def save(self, g, split, split_name: str):
+    def graph_to_raw_dataset(self, g, split_name=None):
+        """Preparation step before creating splits, uses graph created by extract_class_hierarchy()
+        split_name is only relevant, if a separate train_version is set"""
         smiles = nx.get_node_attributes(g, "smiles")
         names = nx.get_node_attributes(g, "name")
 
         print("build labels")
-        print(f"Process {split_name}")
+        print(f"Process graph")
 
         molecules, smiles_list = zip(
             *(
                 (n, smiles)
-                for n, smiles in ((n, smiles.get(n)) for n in split)
+                for n, smiles in ((n, smiles.get(n)) for n in smiles.keys())
                 if smiles
             )
         )
@@ -142,6 +145,10 @@ class _ChEBIDataExtractor(XYBaseDataModule, ABC):
         data = pd.DataFrame(data)
         data = data[~data["SMILES"].isnull()]
         data = data[data.iloc[:, 3:].any(axis=1)]
+        return data
+
+    def save(self, data: pd.DataFrame, split_name: str):
+
         pickle.dump(data, open(os.path.join(self.raw_dir, split_name), "wb"))
 
     @staticmethod
@@ -192,37 +199,75 @@ class _ChEBIDataExtractor(XYBaseDataModule, ABC):
             self._setup_pruned_test_set()
         self.reader.save_token_cache()
 
-    def get_splits(self, g):
-        fixed_nodes = list(g.nodes)
+    def get_splits(self, df: pd.DataFrame):
         print("Split dataset")
-        random.shuffle(fixed_nodes)
 
-        train_split, test_split = train_test_split(
-            fixed_nodes, train_size=self.train_split, shuffle=True
-        )
+        df_list = df.values.tolist()
+        df_list = [row[3:] for row in df_list]
+
+        msss = MultilabelStratifiedShuffleSplit(n_splits=1, test_size=1-self.train_split, random_state=0)
+
+        train_split = []
+        test_split = []
+        for (train_split, test_split) in msss.split(
+            df_list, df_list,
+        ):
+            train_split = train_split
+            test_split = test_split
+            break
+        df_train = df.iloc[train_split]
+        df_test = df.iloc[test_split]
         if self.use_inner_cross_validation:
-            return train_split, test_split
+            return df_train, df_test
 
-        test_split, validation_split = train_test_split(
-            test_split, train_size=self.train_split, shuffle=True
-        )
-        return train_split, test_split, validation_split
+        df_test_list = df_test.values.tolist()
+        df_test_list = [row[3:] for row in df_test_list]
+        validation_split = []
+        test_split = []
+        msss = MultilabelStratifiedShuffleSplit(n_splits=1, test_size=1-self.train_split, random_state=0)
+        for (test_split, validation_split) in msss.split(
+                df_test_list, df_test_list
+        ):
+            test_split = test_split
+            validation_split = validation_split
+            break
 
-    def get_splits_given_test(self, g, test_split):
+        df_validation = df_test.iloc[validation_split]
+        df_test = df_test.iloc[test_split]
+        return df_train, df_test, df_validation
+
+    def get_splits_given_test(self, df: pd.DataFrame, test_df: pd.DataFrame):
         """ Use test set from another chebi version the model does not train on, avoid overlap"""
-        fixed_nodes = list(g.nodes)
         print(f"Split dataset for chebi_v{self.chebi_version_train}")
-        for node in test_split:
-            if node in fixed_nodes:
-                fixed_nodes.remove(node)
-        random.shuffle(fixed_nodes)
+        df_trainval = df
+        test_smiles = test_df['SMILES'].tolist()
+        mask = []
+        for row in df_trainval:
+            if row['SMILES'] in test_smiles:
+                mask.append(False)
+            else:
+                mask.append(True)
+        df_trainval = df_trainval[mask]
+
         if self.use_inner_cross_validation:
-            return fixed_nodes
+            return df_trainval
+
         # assume that size of validation split should relate to train split as in get_splits()
-        validation_split, train_split = train_test_split(
-            fixed_nodes, train_size=(1 - self.train_split) ** 2, shuffle=True
-        )
-        return train_split, validation_split
+        msss = MultilabelStratifiedShuffleSplit(n_splits=1, test_size=self.train_split ** 2, random_state=0)
+
+        df_trainval_list = df_trainval.tolist()
+        df_trainval_list = [row[3:] for row in df_trainval_list]
+        train_split = []
+        validation_split = []
+        for (train_split, validation_split) in msss.split(
+            df_trainval_list, df_trainval_list
+        ):
+            train_split = train_split
+            validation_split = validation_split
+
+        df_validation = df_trainval.iloc[validation_split]
+        df_train = df_trainval.iloc[train_split]
+        return df_train, df_validation
 
     @property
     def processed_dir(self):
@@ -237,7 +282,7 @@ class _ChEBIDataExtractor(XYBaseDataModule, ABC):
         train_v_str = f'_v{self.chebi_version_train}' if self.chebi_version_train else ''
         res = {'test': f"test{train_v_str}.pt"}
         if self.use_inner_cross_validation:
-            res['train_val'] = f'trainval{train_v_str}.pt' # for cv, split train/val on runtime
+            res['train_val'] = f'trainval{train_v_str}.pt'  # for cv, split train/val on runtime
         else:
             res['train'] = f"train{train_v_str}.pt"
             res['validation'] = f"validation{train_v_str}.pt"
@@ -246,10 +291,10 @@ class _ChEBIDataExtractor(XYBaseDataModule, ABC):
     @property
     def raw_file_names_dict(self) -> dict:
         train_v_str = f'_v{self.chebi_version_train}' if self.chebi_version_train else ''
-        res = {'test': f"test.pkl"} # no extra raw test version for chebi_version_train - use default test set and only
-                                     # adapt processed file
+        res = {'test': f"test.pkl"}  # no extra raw test version for chebi_version_train - use default test set and only
+        # adapt processed file
         if self.use_inner_cross_validation:
-            res['train_val'] = f'trainval{train_v_str}.pkl' # for cv, split train/val on runtime
+            res['train_val'] = f'trainval{train_v_str}.pkl'  # for cv, split train/val on runtime
         else:
             res['train'] = f"train{train_v_str}.pkl"
             res['validation'] = f"validation{train_v_str}.pkl"
@@ -282,12 +327,13 @@ class _ChEBIDataExtractor(XYBaseDataModule, ABC):
                     open(chebi_path, "wb").write(r.content)
                 g = extract_class_hierarchy(chebi_path)
                 splits = {}
+                full_data = self.graph_to_raw_dataset(g)
                 if self.use_inner_cross_validation:
-                    splits['train_val'], splits['test'] = self.get_splits(g)
+                    splits['train_val'], splits['test'] = self.get_splits(full_data)
                 else:
-                    splits['train'], splits['test'], splits['validation'] = self.get_splits(g)
+                    splits['train'], splits['test'], splits['validation'] = self.get_splits(full_data)
                 for label, split in splits.items():
-                    self.save(g, split, self.raw_file_names_dict[label])
+                    self.save(split, self.raw_file_names_dict[label])
             else:
                 # missing test set -> create
                 if not os.path.isfile(os.path.join(self.raw_dir, self.raw_file_names_dict['test'])):
@@ -298,8 +344,9 @@ class _ChEBIDataExtractor(XYBaseDataModule, ABC):
                         r = requests.get(url, allow_redirects=True)
                         open(chebi_path, "wb").write(r.content)
                     g = extract_class_hierarchy(chebi_path)
-                    _, test_split, _ = self.get_splits(g)
-                    self.save(g, test_split, self.raw_file_names_dict['test'])
+                    df = self.graph_to_raw_dataset(g, self.raw_file_names_dict['test'])
+                    _, test_split, _ = self.get_splits(df)
+                    self.save(df, self.raw_file_names_dict['test'])
                 else:
                     # load test_split from file
                     with open(os.path.join(self.raw_dir, self.raw_file_names_dict['test']), "rb") as input_file:
@@ -312,12 +359,14 @@ class _ChEBIDataExtractor(XYBaseDataModule, ABC):
                     open(chebi_path, "wb").write(r.content)
                 g = extract_class_hierarchy(chebi_path)
                 if self.use_inner_cross_validation:
-                    train_val_data = self.get_splits_given_test(g, test_split)
-                    self.save(g, train_val_data, self.raw_file_names_dict['train_val'])
+                    df = self.graph_to_raw_dataset(g, self.raw_file_names_dict['train_val'])
+                    train_val_df = self.get_splits_given_test(df, test_split)
+                    self.save(train_val_df, self.raw_file_names_dict['train_val'])
                 else:
-                    train_split, val_split = self.get_splits_given_test(g, test_split)
-                    self.save(g, train_split, self.raw_file_names_dict['train'])
-                    self.save(g, val_split, self.raw_file_names_dict['validation'])
+                    df = self.graph_to_raw_dataset(g, self.raw_file_names_dict['train'])
+                    train_split, val_split = self.get_splits_given_test(df, test_split)
+                    self.save(train_split, self.raw_file_names_dict['train'])
+                    self.save(val_split, self.raw_file_names_dict['validation'])
 
 
 class JCIExtendedBase(_ChEBIDataExtractor):
@@ -371,6 +420,7 @@ class ChEBIOverX(_ChEBIDataExtractor):
             fout.writelines(str(node) + "\n" for node in nodes)
         return nodes
 
+
 class ChEBIOverXDeepSMILES(ChEBIOverX):
     READER = dr.DeepChemDataReader
 
@@ -387,6 +437,7 @@ class ChEBIOver50(ChEBIOverX):
 
     def label_number(self):
         return 1332
+
 
 class ChEBIOver100DeepSMILES(ChEBIOverXDeepSMILES, ChEBIOver100):
     pass
