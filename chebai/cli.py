@@ -16,7 +16,7 @@ class ChebaiCLI(LightningCLI):
                     "model.init_args.out_dim",
                     f"model.init_args.{kind}_metrics.init_args.metrics.{average}-f1.init_args.num_labels",
                 )
-        parser.link_arguments("model.init_args.out_dim", "trainer.callbacks.num_labels")
+        parser.link_arguments("model.init_args.out_dim", "trainer.callbacks.init_args.num_labels")
         # parser.link_arguments('n_splits', 'data.init_args.inner_k_folds') # doesn't work but I don't know why
 
     @staticmethod
