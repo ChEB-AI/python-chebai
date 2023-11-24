@@ -2,7 +2,8 @@ min_epochs: 100
 max_epochs: 100 
 default_root_dir: &default_root_dir logs
 logger:
-    class_path: lightning.pytorch.loggers.CSVLogger
+    class_path: lightning.pytorch.loggers.WandbLogger
     init_args:
       save_dir: *default_root_dir
+      project: 'chebai'
 callbacks: default_callbacks.yml
