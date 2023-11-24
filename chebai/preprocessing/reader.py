@@ -115,14 +115,23 @@ class DeepChemDataReader(ChemDataReader):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.converter = deepsmiles.Converter(rings=True, branches=True)
+        self.error_count = 0
 
     @classmethod
     def name(cls):
         return "deepsmiles_token"
 
     def _read_data(self, raw_data):
+        try:
+            tokenized = _tokenize(self.converter.encode(raw_data))
+        except ValueError as e:
+            print(f'could not process {raw_data}')
+            print(f'\t{e}')
+            self.error_count += 1
+            print(f'\terror count: {self.error_count}')
+            tokenized = []
         return [
-            self._get_token_index(v[1]) for v in _tokenize(self.converter.encode(raw_data))
+            self._get_token_index(v[1]) for v in tokenized
         ]
 
 
