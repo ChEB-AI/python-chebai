@@ -24,8 +24,9 @@ class _EpochLevelMetric(Callback):
         raise NotImplementedError
 
     def on_train_epoch_start(self, trainer: "pl.Trainer", pl_module: "pl.LightningModule") -> None:
-        self.train_labels = torch.empty(size=(0,), dtype=torch.int).cuda()
-        self.train_preds = torch.empty(size=(0,), dtype=torch.int).cuda()
+        device = pl_module.device
+        self.train_labels = torch.empty(size=(0,), dtype=torch.int, device=device)
+        self.train_preds = torch.empty(size=(0,), dtype=torch.int, device=device)
 
     def on_train_batch_end(self, trainer: "pl.Trainer", pl_module: "pl.LightningModule", outputs: STEP_OUTPUT,
                            batch: Any, batch_idx: int) -> None:
@@ -36,8 +37,8 @@ class _EpochLevelMetric(Callback):
         pl_module.log(f'train_{self.metric_name}', self.apply_metric(self.train_labels, self.train_preds))
 
     def on_validation_epoch_start(self, trainer: "pl.Trainer", pl_module: "pl.LightningModule") -> None:
-        self.val_labels = torch.empty(size=(0,), dtype=torch.int).cuda()
-        self.val_preds = torch.empty(size=(0,), dtype=torch.int).cuda()
+        self.val_labels = torch.empty(size=(0,), dtype=torch.int, device=pl_module.device)
+        self.val_preds = torch.empty(size=(0,), dtype=torch.int, device=pl_module.device)
 
     def on_validation_batch_end(self, trainer: "pl.Trainer", pl_module: "pl.LightningModule", outputs: STEP_OUTPUT,
                                 batch: Any, batch_idx: int, dataloader_idx: int = 0) -> None:
@@ -55,5 +56,7 @@ class EpochLevelMacroF1(_EpochLevelMetric):
         return 'ep_macro-f1'
 
     def apply_metric(self, target, pred):
-        f1 = MultilabelF1Score(num_labels=self.num_labels, average='macro').cuda()
+        f1 = MultilabelF1Score(num_labels=self.num_labels, average='macro')
+        if target.get_device() != -1: # -1 == CPU
+            f1 = f1.to(device=target.get_device())
         return f1(pred, target)
