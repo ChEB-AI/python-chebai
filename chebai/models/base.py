@@ -78,7 +78,8 @@ class ChebaiBaseNet(LightningModule):
         data = self._process_batch(batch, batch_idx)
         labels = data["labels"]
         model_output = self(data, **data.get("model_kwargs", dict()))
-        d = dict(data=data, labels=labels, output=model_output)
+        pr, tar = self._get_prediction_and_labels(data, labels, model_output)
+        d = dict(data=data, labels=labels, output=model_output, preds=pr)
         if log:
             if self.criterion is not None:
                 loss_data, loss_labels, loss_kwargs_candidates = self._process_for_loss(
@@ -100,7 +101,6 @@ class ChebaiBaseNet(LightningModule):
                     sync_dist=sync_dist,
                 )
             if metrics and labels is not None:
-                pr, tar = self._get_prediction_and_labels(data, labels, model_output)
                 for metric_name, metric in metrics.items():
                     m = metric(pr, tar)
                     if isinstance(m, dict):

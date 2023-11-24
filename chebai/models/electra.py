@@ -198,7 +198,13 @@ class Electra(ChebaiBaseNet):
 
     def forward(self, data, **kwargs):
         self.batch_size = data["features"].shape[0]
-        inp = self.electra.embeddings.forward(data["features"])
+        try:
+            inp = self.electra.embeddings.forward(data["features"])
+        except RuntimeError as e:
+            print(f'RuntimeError at forward')
+            print(f'data: {data}')
+            print(f'data[features]: {data["features"]}')
+            print(e)
         inp = self.word_dropout(inp)
         electra = self.electra(inputs_embeds=inp, **kwargs)
         d = electra.last_hidden_state[:, 0, :]
