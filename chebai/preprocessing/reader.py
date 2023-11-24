@@ -124,15 +124,15 @@ class DeepChemDataReader(ChemDataReader):
     def _read_data(self, raw_data):
         try:
             tokenized = _tokenize(self.converter.encode(raw_data))
+            tokenized = [self._get_token_index(v[1]) for v in tokenized]
         except ValueError as e:
             print(f'could not process {raw_data}')
+            print(f'Corresponding deepSMILES: {self.converter.encode(raw_data)}')
             print(f'\t{e}')
             self.error_count += 1
             print(f'\terror count: {self.error_count}')
             tokenized = []
-        return [
-            self._get_token_index(v[1]) for v in tokenized
-        ]
+        return tokenized
 
 
 class ChemDataUnlabeledReader(ChemDataReader):
