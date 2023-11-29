@@ -271,5 +271,10 @@ class PubToxAndChebi100(PubToxAndChebiX):
 class PubToxAndChebi50(PubToxAndChebiX):
     CHEBI_X = ChEBIOver50
 
+
 class PubChemDeepSMILES(PubChem):
     READER = dr.DeepChemDataReader
+
+
+class PubChemSELFIES(PubChem):
+    READER = dr.SelfiesReader
