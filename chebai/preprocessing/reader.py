@@ -162,8 +162,6 @@ class ChemBPEReader(DataReader):
             data_path, max_len=max_len
         )
 
-
-
     def _get_raw_data(self, row):
         return self.tokenizer(row["features"])["input_ids"]
 
