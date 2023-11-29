@@ -425,6 +425,10 @@ class ChEBIOverXDeepSMILES(ChEBIOverX):
     READER = dr.DeepChemDataReader
 
 
+class ChEBIOverXSELFIES(ChEBIOverX):
+    READER = dr.SelfiesReader
+
+
 class ChEBIOver100(ChEBIOverX):
     THRESHOLD = 100
 
@@ -440,6 +444,10 @@ class ChEBIOver50(ChEBIOverX):
 
 
 class ChEBIOver100DeepSMILES(ChEBIOverXDeepSMILES, ChEBIOver100):
+    pass
+
+
+class ChEBIOver100SELFIES(ChEBIOverXSELFIES, ChEBIOver100):
     pass
 
 
