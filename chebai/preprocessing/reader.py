@@ -182,7 +182,7 @@ class SelfiesReader(ChemDataReader):
         try:
             tokenized = sf.split_selfies(sf.encoder(raw_data, strict=True))
             tokenized = [self._get_token_index(v) for v in tokenized]
-        except ValueError as e:
+        except Exception as e:
             print(f'could not process {raw_data}')
             print(f'\t{e}')
             self.error_count += 1
