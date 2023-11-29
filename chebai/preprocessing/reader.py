@@ -87,6 +87,7 @@ class ChemDataReader(DataReader):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         dirname = os.path.dirname(__file__)
+        os.makedirs(os.path.join(dirname, "bin", self.name()), exist_ok=True)
         self.tokens_path = os.path.join(dirname, "bin", self.name(), "tokens.txt")
         with open(self.tokens_path, "r") as pk:
             self.cache = [x.strip() for x in pk]
