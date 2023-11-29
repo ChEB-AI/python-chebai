@@ -88,8 +88,9 @@ class ChemDataReader(DataReader):
         super().__init__(*args, **kwargs)
         dirname = os.path.dirname(__file__)
         os.makedirs(os.path.join(dirname, "bin", self.name()), exist_ok=True)
+
         self.tokens_path = os.path.join(dirname, "bin", self.name(), "tokens.txt")
-        with open(self.tokens_path, "r+") as pk:
+        with open(self.tokens_path, "a+") as pk:
             self.cache = [x.strip() for x in pk]
 
     def _get_token_index(self, token):
@@ -183,7 +184,7 @@ class SelfiesReader(ChemDataReader):
             tokenized = sf.split_selfies(sf.encoder(raw_data, strict=True))
             tokenized = [self._get_token_index(v) for v in tokenized]
         except Exception as e:
-            print(f'could not process {raw_data}')
+            print(f'could not process {raw_data} (type: {type(raw_data)}')
             print(f'\t{e}')
             self.error_count += 1
             print(f'\terror count: {self.error_count}')
