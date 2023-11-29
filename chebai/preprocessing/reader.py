@@ -87,7 +87,8 @@ class ChemDataReader(DataReader):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         dirname = os.path.dirname(__file__)
-        with open(os.path.join(dirname, "bin", "tokens.txt"), "r") as pk:
+        self.tokens_path = os.path.join(dirname, "bin", self.name(), "tokens.txt")
+        with open(self.tokens_path, "r") as pk:
             self.cache = [x.strip() for x in pk]
 
     def _get_token_index(self, token):
@@ -104,8 +105,8 @@ class ChemDataReader(DataReader):
     def save_token_cache(self):
         """write contents of self.cache into tokens.txt"""
         dirname = os.path.dirname(__file__)
-        with open(os.path.join(dirname, "bin", "tokens.txt"), "w") as pk:
-            print(f'saving tokens to {os.path.join(dirname, "bin", "tokens.txt")}...')
+        with open(self.tokens_path, "w") as pk:
+            print(f'saving {len(self.cache)} tokens to {self.tokens_path}...')
             print(f'first 10 tokens: {self.cache[:10]}')
             pk.writelines([f'{c}\n' for c in self.cache])
 
@@ -159,30 +160,34 @@ class ChemBPEReader(DataReader):
             data_path, max_len=max_len
         )
 
+
+
     def _get_raw_data(self, row):
         return self.tokenizer(row["features"])["input_ids"]
 
 
-class SelfiesReader(DataReader):
+class SelfiesReader(ChemDataReader):
     COLLATER = RaggedCollater
 
     def __init__(self, *args, data_path=None, max_len=1800, vsize=4000, **kwargs):
         super().__init__(*args, **kwargs)
-        with open("chebai/preprocessing/bin/selfies.txt", "rt") as pk:
-            self.cache = [l.strip() for l in pk]
+        self.error_count = 0
 
     @classmethod
     def name(cls):
         return "selfies"
 
-    def _get_raw_data(self, row):
+    def _read_data(self, raw_data):
         try:
-            splits = sf.split_selfies(sf.encoder(row["features"].strip(), strict=True))
-        except Exception as e:
-            print(e)
-            return
-        else:
-            return [self.cache.index(x) + EMBEDDING_OFFSET for x in splits]
+            tokenized = sf.split_selfies(sf.encoder(raw_data, strict=True))
+            tokenized = [self._get_token_index(v) for v in tokenized]
+        except ValueError as e:
+            print(f'could not process {raw_data}')
+            print(f'\t{e}')
+            self.error_count += 1
+            print(f'\terror count: {self.error_count}')
+            tokenized = []
+        return tokenized
 
 
 class OrdReader(DataReader):
