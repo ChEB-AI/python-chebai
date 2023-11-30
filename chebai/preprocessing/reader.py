@@ -172,6 +172,7 @@ class SelfiesReader(ChemDataReader):
     def __init__(self, *args, data_path=None, max_len=1800, vsize=4000, **kwargs):
         super().__init__(*args, **kwargs)
         self.error_count = 0
+        sf.set_semantic_constraints("hypervalent")
 
     @classmethod
     def name(cls):
@@ -183,10 +184,12 @@ class SelfiesReader(ChemDataReader):
             tokenized = [self._get_token_index(v) for v in tokenized]
         except Exception as e:
             print(f'could not process {raw_data}')
-            print(f'\t{e}')
+            #print(f'\t{e}')
             self.error_count += 1
             print(f'\terror count: {self.error_count}')
             tokenized = None
+            #if self.error_count > 20:
+            #    raise Exception('Too many errors')
         return tokenized
 
 
