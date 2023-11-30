@@ -134,7 +134,7 @@ class DeepChemDataReader(ChemDataReader):
             print(f'\t{e}')
             self.error_count += 1
             print(f'\terror count: {self.error_count}')
-            tokenized = []
+            tokenized = None
         return tokenized
 
 
@@ -186,7 +186,7 @@ class SelfiesReader(ChemDataReader):
             print(f'\t{e}')
             self.error_count += 1
             print(f'\terror count: {self.error_count}')
-            tokenized = []
+            tokenized = None
         return tokenized
 
 
