@@ -57,6 +57,7 @@ class InnerCVTrainer(Trainer):
         loaded_model= model.__class__.load_from_checkpoint(checkpoint_path)
         with open(input_path, 'r') as input:
             smiles_strings = [inp.strip() for inp in input.readlines()]
+        loaded_model.eval()
         predictions = self._predict_smiles(loaded_model, smiles_strings)
         predictions_df = pd.DataFrame(predictions.detach().numpy())
         if classes_path is not None:
