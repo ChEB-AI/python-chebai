@@ -6,7 +6,7 @@ from lightning import Trainer, LightningModule
 from lightning.fabric.utilities.types import _PATH
 from lightning.pytorch.trainer.connectors.logger_connector import _LoggerConnector
 from lightning.fabric.loggers.tensorboard import _TENSORBOARD_AVAILABLE, _TENSORBOARDX_AVAILABLE
-from lightning.pytorch.loggers import CSVLogger, Logger, TensorBoardLogger
+from lightning.pytorch.loggers import CSVLogger, Logger, TensorBoardLogger, WandbLogger
 from lightning.pytorch.callbacks import ModelCheckpoint
 from lightning.fabric.plugins.environments import SLURMEnvironment
 from lightning_utilities.core.rank_zero import WarningCache
@@ -14,6 +14,7 @@ from lightning_utilities.core.rank_zero import WarningCache
 from iterstrat.ml_stratifiers import MultilabelStratifiedKFold
 from lightning.pytorch.callbacks.model_checkpoint import _is_dir, rank_zero_warn
 
+from chebai.loggers.custom import CustomLogger
 from chebai.preprocessing.datasets.base import XYBaseDataModule
 
 log = logging.getLogger(__name__)
@@ -42,35 +43,28 @@ class InnerCVTrainer(Trainer):
                 train_dataloader = datamodule.train_dataloader(ids=train_ids)
                 val_dataloader = datamodule.val_dataloader(ids=val_ids)
                 init_kwargs = self.init_kwargs
-                new_logger = CSVLoggerCVSupport(save_dir=self.logger.save_dir, name=self.logger.name,
-                                                version=self.logger.version, fold=fold)
-                init_kwargs['logger'] = new_logger
                 new_trainer = Trainer(*self.init_args, **init_kwargs)
-                print(f'Logging this fold at {new_trainer.logger.log_dir}')
+                logger = new_trainer.logger
+                if isinstance(logger, CustomLogger):
+                    logger.set_fold(fold)
+                    print(f'Logging this fold at {logger.experiment.dir}')
+                else:
+                    rank_zero_warn(f"Using k-fold cross-validation without an adapted logger class")
                 new_trainer.fit(train_dataloaders=train_dataloader, val_dataloaders=val_dataloader, *args, **kwargs)
 
-
-# extend CSVLogger to include fold number in log path
-class CSVLoggerCVSupport(CSVLogger):
-
-    def __init__(self, save_dir: _PATH, name: str = "lightning_logs", version: Optional[Union[int, str]] = None,
-                 prefix: str = "", flush_logs_every_n_steps: int = 100, fold: int = None):
-        super().__init__(save_dir, name, version, prefix, flush_logs_every_n_steps)
-        self.fold = fold
-
     @property
-    def log_dir(self) -> str:
-        """The log directory for this run.
+    def log_dir(self) -> Optional[str]:
+        if len(self.loggers) > 0:
+            logger = self.loggers[0]
+            if isinstance(logger, WandbLogger):
+                dirpath = logger.experiment.dir
+            else:
+                dirpath = self.loggers[0].log_dir
+        else:
+            dirpath = self.default_root_dir
 
-        By default, it is named ``'version_${self.version}'`` but it can be overridden by passing a string value for the
-        constructor's version parameter instead of ``None`` or an int.
-        Additionally: Save data for each fold separately
-        """
-        # create a pseudo standard path
-        version = self.version if isinstance(self.version, str) else f"version_{self.version}"
-        if self.fold is None:
-            return os.path.join(self.root_dir, version)
-        return os.path.join(self.root_dir, version, f'fold_{self.fold}')
+        dirpath = self.strategy.broadcast(dirpath)
+        return dirpath
 
 
 class ModelCheckpointCVSupport(ModelCheckpoint):
@@ -114,7 +108,7 @@ class ModelCheckpointCVSupport(ModelCheckpoint):
             version = trainer.loggers[0].version
             version = version if isinstance(version, str) else f"version_{version}"
             cv_logger = trainer.loggers[0]
-            if isinstance(cv_logger, CSVLoggerCVSupport) and cv_logger.fold is not None:
+            if isinstance(cv_logger, CustomLogger) and cv_logger.fold is not None:
                 # log_dir includes fold
                 ckpt_path = os.path.join(cv_logger.log_dir, "checkpoints")
             else:
