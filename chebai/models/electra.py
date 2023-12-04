@@ -529,26 +529,27 @@ class BoxLoss(pl.LightningModule):
 
     def __call__(self, outputs, targets, model, **kwargs):
         boxes = model.boxes
+        dim = model.dimensions
+
         corner_1 = boxes[:, :, 0]
         corner_2 = boxes[:, :, 1]
+
         box_sizes_per_dim = torch.abs(corner_1 - corner_2)
         box_sizes = box_sizes_per_dim.prod(1)
 
-        mask_min_box_size = (box_sizes < 0.2)
-        min_box_size_penalty = torch.sum(box_sizes[mask_min_box_size])
+        min_box_size_value = 2
+        max_box_size_value = 10
 
-        mask_max_box_size = (box_sizes > 30)
-        max_box_size_penalty = torch.sum(box_sizes[mask_max_box_size])
+        diff_for_small_boxes = torch.relu(min_box_size_value - box_sizes)
+        min_box_size_penalty = torch.mean(diff_for_small_boxes) ** (1 / dim)
 
-        theta = 0.004
-        distance_based_penalty = torch.sum(((torch.sqrt(outputs) * (outputs > theta) * targets) + ((outputs <= theta) * (1 - outputs) * (1 - targets))))
+        diff_for_large_boxes = torch.relu(box_sizes - max_box_size_value)
+        max_box_size_penalty = torch.mean(diff_for_large_boxes) ** (1 / dim)
 
         criterion = nn.BCEWithLogitsLoss()
         bce_loss = criterion(outputs, targets)
 
-        total_loss = bce_loss + min_box_size_penalty
-        #total_loss = bce_loss + min_box_size_penalty + max_box_size_penalty
-        #total_loss = bce_loss + min_box_size_penalty + max_box_size_penalty + distance_based_penalty
+        total_loss = bce_loss + (0.001 * max_box_size_penalty)
 
 
         return total_loss
