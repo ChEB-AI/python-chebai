@@ -84,10 +84,13 @@ class ChemDataReader(DataReader):
     def name(cls):
         return "smiles_token"
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, token_path = None, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        dirname = os.path.dirname(__file__)
-        with open(os.path.join(dirname, "bin", "tokens.txt"), "r") as pk:
+        if token_path is None:
+            dirname = os.path.dirname(__file__)
+            token_path = os.path.join(dirname, "bin", "tokens.txt")
+        self.token_path = token_path
+        with open(self.token_path, "r") as pk:
             self.cache = [x.strip() for x in pk]
 
     def _get_token_index(self, token):
@@ -104,8 +107,8 @@ class ChemDataReader(DataReader):
     def save_token_cache(self):
         """write contents of self.cache into tokens.txt"""
         dirname = os.path.dirname(__file__)
-        with open(os.path.join(dirname, "bin", "tokens.txt"), "w") as pk:
-            print(f'saving tokens to {os.path.join(dirname, "bin", "tokens.txt")}...')
+        with open(self.token_path, "w") as pk:
+            print(f'saving tokens to {self.token_path}...')
             print(f'first 10 tokens: {self.cache[:10]}')
             pk.writelines([f'{c}\n' for c in self.cache])
 

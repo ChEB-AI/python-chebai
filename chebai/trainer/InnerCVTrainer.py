@@ -1,20 +1,23 @@
 import logging
 import os
-from typing import Optional, Union, Iterable
+from typing import Optional, Union
 
+import pandas as pd
 from lightning import Trainer, LightningModule
 from lightning.fabric.utilities.types import _PATH
-from lightning.pytorch.trainer.connectors.logger_connector import _LoggerConnector
-from lightning.fabric.loggers.tensorboard import _TENSORBOARD_AVAILABLE, _TENSORBOARDX_AVAILABLE
-from lightning.pytorch.loggers import CSVLogger, Logger, TensorBoardLogger
 from lightning.pytorch.callbacks import ModelCheckpoint
 from lightning.fabric.plugins.environments import SLURMEnvironment
 from lightning_utilities.core.rank_zero import WarningCache
-
+from lightning.pytorch.loggers import CSVLogger
 from iterstrat.ml_stratifiers import MultilabelStratifiedKFold
 from lightning.pytorch.callbacks.model_checkpoint import _is_dir, rank_zero_warn
 
 from chebai.preprocessing.datasets.base import XYBaseDataModule
+from chebai.preprocessing.collate import RaggedCollater
+from chebai.preprocessing.reader import CLS_TOKEN, ChemDataReader
+from torch.nn.utils.rnn import pad_sequence
+import torch
+import pandas as pd
 
 log = logging.getLogger(__name__)
 
@@ -48,6 +51,32 @@ class InnerCVTrainer(Trainer):
                 new_trainer = Trainer(*self.init_args, **init_kwargs)
                 print(f'Logging this fold at {new_trainer.logger.log_dir}')
                 new_trainer.fit(train_dataloaders=train_dataloader, val_dataloaders=val_dataloader, *args, **kwargs)
+
+    def predict_from_file(self, model: LightningModule, checkpoint_path: _PATH, input_path: _PATH,
+                          save_to: _PATH='predictions.csv', classes_path: Optional[_PATH] = None):
+        loaded_model= model.__class__.load_from_checkpoint(checkpoint_path)
+        with open(input_path, 'r') as input:
+            smiles_strings = [inp.strip() for inp in input.readlines()]
+        predictions = self._predict_smiles(loaded_model, smiles_strings)
+        predictions_df = pd.DataFrame(predictions.detach().numpy())
+        if classes_path is not None:
+            with open(classes_path, 'r') as f:
+                predictions_df.columns = [cls.strip() for cls in f.readlines()]
+        predictions_df.index = smiles_strings
+        predictions_df.to_csv(save_to)
+
+
+    def _predict_smiles(self, model: LightningModule, smiles: list[str]):
+        reader = ChemDataReader()
+        parsed_smiles = [reader._read_data(s) for s in smiles]
+        x = pad_sequence([torch.tensor(a) for a in parsed_smiles], batch_first=True)
+        cls_tokens = (torch.ones(x.shape[0], dtype=torch.int, device=model.device).unsqueeze(-1) * CLS_TOKEN)
+        features = torch.cat((cls_tokens, x), dim=1)
+        model_output = model({'features': features})
+        preds = torch.sigmoid(model_output['logits'])
+
+        print(preds.shape)
+        return preds
 
 
 # extend CSVLogger to include fold number in log path
