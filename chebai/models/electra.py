@@ -519,7 +519,7 @@ class ChebiBox(Electra):
         return dict(
             boxes=b,
             embedded_points=points,
-            logits=m,
+            logits=logits,
             attentions=electra.attentions,
             target_mask=data.get("target_mask"),
         )
