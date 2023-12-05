@@ -1,6 +1,6 @@
 import logging
 import os
-from typing import Optional, Union
+from typing import Optional, Union, List
 
 import pandas as pd
 from lightning import Trainer, LightningModule
