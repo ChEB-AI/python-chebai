@@ -39,7 +39,7 @@ class InnerCVTrainer(Trainer):
                 train_dataloader = datamodule.train_dataloader(ids=train_ids)
                 val_dataloader = datamodule.val_dataloader(ids=val_ids)
                 init_kwargs = self.init_kwargs
-                new_trainer = Trainer(*self.init_args, **init_kwargs)
+                new_trainer = InnerCVTrainer(*self.init_args, **init_kwargs)
                 logger = new_trainer.logger
                 if isinstance(logger, CustomLogger):
                     logger.set_fold(fold)
