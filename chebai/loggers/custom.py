@@ -49,6 +49,8 @@ class CustomLogger(WandbLogger):
             self._fold = fold
             # start new experiment
             wandb.finish()
+            self._wandb_init['name'] = self.name
+            self._name = self.name
             self._experiment = None
             _ = self.experiment
 
