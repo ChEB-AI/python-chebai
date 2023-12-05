@@ -9,9 +9,10 @@ import pandas as pd
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 import numpy as np
-import numpy as np
-import matplotlib.pyplot as plt
-
+from sklearn.metrics import f1_score
+from sklearn.metrics import precision_score
+from sklearn.metrics import recall_score
+from sklearn import metrics
 #-----------------------------------------------------------------
 
 
@@ -155,3 +156,13 @@ for idx_i, chebi_id_i in enumerate(chebi_labels):
       if CHEBI_ID_i in all_superclasses:
         chebi_containment_matrix[idx_j][idx_i] = True
 
+
+#------------------------------------
+#F1 score for hierarchy
+
+y_true = chebi_containment_matrix
+y_pred = containment_matrix.astype(bool)
+
+print(precision_score(y_true, y_pred, average="micro"))
+print(recall_score(y_true, y_pred, average="micro"))
+print(f1_score(y_true, y_pred, average="micro"))
