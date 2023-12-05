@@ -26,8 +26,9 @@ from chebai.preprocessing.reader import MASK_TOKEN_INDEX, CLS_TOKEN
 from chebai.preprocessing.datasets.chebi import extract_class_hierarchy
 import torch
 import csv
-
+import pytorch_lightning as pl
 from chebai.models.base import ChebaiBaseNet
+
 
 logging.getLogger("pysmiles").setLevel(logging.CRITICAL)
 
@@ -47,15 +48,15 @@ class ElectraPre(ChebaiBaseNet):
     def as_pretrained(self):
         return self.discriminator
 
-    def _process_labels_in_batch(self, batch):
-        return None
+    def _process_batch(self, batch, batch_idx):
+        return dict(features=batch.x, labels=None, mask=batch.mask)
 
-    def forward(self, data, **kwargs):
+    def forward(self, data):
         features = data["features"]
         self.batch_size = batch_size = features.shape[0]
         max_seq_len = features.shape[1]
 
-        mask = kwargs["mask"]
+        mask = data["mask"]
         with torch.no_grad():
             dis_tar = (
                 torch.rand((batch_size,), device=self.device) * torch.sum(mask, dim=-1)
@@ -95,6 +96,25 @@ class ElectraPre(ChebaiBaseNet):
 
     def _get_prediction_and_labels(self, batch, labels, output):
         return torch.softmax(output[0][1], dim=-1), output[1][1].int()
+
+    def _get_data_for_loss(self, model_output, labels):
+        return dict(input=model_output, target=None)
+
+
+class ElectraPreLoss(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.ce = torch.nn.CrossEntropyLoss()
+
+    def forward(self, input, target):
+        t, p = input
+        gen_pred, disc_pred = t
+        gen_tar, disc_tar = p
+        gen_loss = self.ce(target=torch.argmax(gen_tar.int(), dim=-1), input=gen_pred)
+        disc_loss = self.ce(
+            target=torch.argmax(disc_tar.int(), dim=-1), input=disc_pred
+        )
+        return gen_loss + disc_loss
 
 
 def filter_dict(d, filter_key):
@@ -173,15 +193,14 @@ class Electra(ChebaiBaseNet):
             self.electra = ElectraModel(config=self.config)
 
     def _process_for_loss(self, model_output, labels, loss_kwargs):
-        kwargs_copy = dict(loss_kwargs)
-        mask = kwargs_copy.pop("target_mask", None)
+        mask = model_output.get("target_mask")
         if mask is not None:
             d = model_output["logits"] * mask - 100 * ~mask
         else:
             d = model_output["logits"]
         if labels is not None:
             labels = labels.float()
-        return d, labels, kwargs_copy
+        return d, labels, loss_kwargs
 
     def _get_prediction_and_labels(self, data, labels, model_output):
         mask = model_output.get("target_mask")
@@ -206,6 +225,116 @@ class Electra(ChebaiBaseNet):
             attentions=electra.attentions,
             target_mask=data.get("target_mask"),
         )
+
+
+IMPLICATION_CACHE_FILE = "chebi.cache"
+
+
+def _load_label_names(path_to_label_names):
+    with open(path_to_label_names) as fin:
+        label_names = [int(line.strip()) for line in fin]
+    return label_names
+
+
+def _load_implications(path_to_chebi, implication_cache=IMPLICATION_CACHE_FILE):
+    if os.path.isfile(implication_cache):
+        with open(implication_cache, "rb") as fin:
+            hierarchy = pickle.load(fin)
+    else:
+        hierarchy = extract_class_hierarchy(path_to_chebi)
+        with open(implication_cache, "wb") as fout:
+            pickle.dump(hierarchy, fout)
+    return hierarchy
+
+
+def _build_implication_filter(label_names, hierarchy):
+    return torch.tensor(
+        [
+            (i1, i2)
+            for i1, l1 in enumerate(label_names)
+            for i2, l2 in enumerate(label_names)
+            if l2 in hierarchy.pred[l1]
+        ]
+    )
+
+
+def _build_disjointness_filter(path_to_disjointedness, label_names, hierarchy):
+    disjoints = set()
+    label_dict = dict(map(reversed, enumerate(label_names)))
+
+    with open(path_to_disjointedness, "rt") as fin:
+        reader = csv.reader(fin)
+        for l1_raw, r1_raw in reader:
+            l1 = int(l1_raw)
+            r1 = int(r1_raw)
+            disjoints.update(
+                {
+                    (label_dict[l2], label_dict[r2])
+                    for r2 in hierarchy.succ[r1]
+                    if r2 in label_names
+                    for l2 in hierarchy.succ[l1]
+                    if l2 in label_names and l2 < r2
+                }
+            )
+
+    dis_filter = torch.tensor(list(disjoints))
+    return dis_filter[:, 0], dis_filter[:, 1]
+
+
+class ElectraChEBILoss(nn.Module):
+    def __init__(
+        self, path_to_chebi, path_to_label_names, base_loss: torch.nn.Module = None
+    ):
+        super().__init__()
+        self.base_loss = base_loss
+        label_names = _load_label_names(path_to_label_names)
+        hierarchy = _load_implications(path_to_chebi)
+        implication_filter = _build_implication_filter(label_names, hierarchy)
+        self.implication_filter_l = implication_filter[:, 0]
+        self.implication_filter_r = implication_filter[:, 1]
+
+    def forward(self, input, target, **kwargs):
+        if "non_null_labels" in kwargs:
+            n = kwargs["non_null_labels"]
+            inp = input[n]
+        else:
+            inp = input
+        if target is not None:
+            base_loss = self.base_loss(inp, target.float())
+        else:
+            base_loss = 0
+        pred = torch.sigmoid(input)
+        l = pred[:, self.implication_filter_l]
+        r = pred[:, self.implication_filter_r]
+        # implication_loss = torch.sqrt(torch.mean(torch.sum(l*(1-r), dim=-1), dim=0))
+        implication_loss = torch.mean(torch.mean(torch.relu(l - r), dim=-1), dim=0)
+        return base_loss + implication_loss
+
+
+class ElectraChEBIDisjointLoss(ElectraChEBILoss):
+    def __init__(
+        self,
+        path_to_chebi,
+        path_to_label_names,
+        path_to_disjointedness,
+        base_loss: torch.nn.Module = None,
+    ):
+        super().__init__(path_to_chebi, path_to_label_names, base_loss)
+        label_names = _load_label_names(path_to_label_names)
+        hierarchy = _load_implications(path_to_chebi)
+        self.disjoint_filter_l, self.disjoint_filter_r = _build_disjointness_filter(
+            path_to_disjointedness, label_names, hierarchy
+        )
+
+    def forward(self, input, target, **kwargs):
+        loss = super().forward(input, target, **kwargs)
+        pred = torch.sigmoid(input)
+        l = pred[:, self.disjoint_filter_l]
+        r = pred[:, self.disjoint_filter_r]
+        disjointness_loss = torch.mean(
+            torch.mean(torch.relu(l - (1 - r)), dim=-1), dim=0
+        )
+        return loss + disjointness_loss
 
 
 class ElectraLegacy(ChebaiBaseNet):
@@ -348,6 +477,143 @@ class ConeElectra(ChebaiBaseNet):
             target_mask=data.get("target_mask"),
         )
 
+
+class ChebiBox(Electra):
+    NAME = "ChebiBox"
+
+    
+    def __init__(self, dimensions=3, hidden_size=2000, **kwargs):
+        super().__init__(**kwargs)
+        self.dimensions = dimensions
+
+        #self.boxes = nn.Parameter(
+        #   3 - torch.rand((self.config.num_labels, self.dimensions, 2)) * 6
+        #) 
+        
+        self.boxes = nn.Parameter( torch.rand((self.config.num_labels, self.dimensions, 2)) )
+
+        self.embeddings_to_points = nn.Sequential(
+            nn.Linear(self.electra.config.hidden_size, hidden_size),
+            nn.ReLU(),
+            nn.Linear(hidden_size, self.dimensions)
+        )
+
+        #self.criterion = BoxLoss()
+
+    def forward(self, data, **kwargs):
+        self.batch_size = data["features"].shape[0]
+        inp = self.electra.embeddings.forward(data["features"])
+        inp = self.word_dropout(inp)
+        electra = self.electra(inputs_embeds=inp, **kwargs)
+        d = electra.last_hidden_state[:, 0, :]
+
+        points = self.embeddings_to_points(d)
+
+        b = self.boxes.expand(self.batch_size, -1, -1, -1)
+        l = torch.min(b, dim=-1)[0]
+        r = torch.max(b, dim=-1)[0]
+        p = points.expand(self.config.num_labels, -1, -1).transpose(1, 0)
+        max_distance_per_dim = torch.max(torch.stack((nn.functional.relu(l - p), nn.functional.relu(p - r))), dim=0)[0]
+        
+        # min might be replaced
+        #m = torch.min(membership_per_dim, dim=-1)[0]
+        #m = torch.mean(membership_per_dim, dim=-1)
+        
+        m = torch.mean(max_distance_per_dim, dim=-1)
+        s = 2 - ( 2 * (torch.sigmoid(m)) )
+        l = torch.logit( (s * 0.99) + 0.001 )
+        
+        return dict(
+            boxes=b,
+            embedded_points=points,
+            logits=l,
+            attentions=electra.attentions,
+            target_mask=data.get("target_mask"),
+        )
+
+class BoxLoss(pl.LightningModule):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+
+    def __call__(self, outputs, targets, model, **kwargs):
+        """
+        boxes = model.boxes
+        dim = model.dimensions
+
+        corner_1 = boxes[:, :, 0]
+        corner_2 = boxes[:, :, 1]
+
+        box_sizes_per_dim = torch.abs(corner_1 - corner_2)
+        box_sizes = box_sizes_per_dim.prod(1)
+
+        min_box_size_value = 2
+        max_box_size_value = 100
+
+        mask_min_box_size = (box_sizes < min_box_size_value)
+        small_boxes = box_sizes[mask_min_box_size]
+        diff_for_small_boxes = min_box_size_value - small_boxes
+
+        min_box_size_penalty = 0
+        if diff_for_small_boxes.nelement() != 0:
+            min_box_size_penalty = torch.mean(diff_for_small_boxes) ** (1 / dim)
+
+        mask_max_box_size = (box_sizes > max_box_size_value)
+        large_boxes = box_sizes[mask_max_box_size]
+        diff_for_large_boxes = large_boxes - max_box_size_value
+        max_box_size_penalty = 0
+        if diff_for_large_boxes.nelement() != 0:
+            max_box_size_penalty = torch.mean(diff_for_large_boxes) ** (1 / dim)
+
+        criterion = nn.BCEWithLogitsLoss()
+        bce_loss = criterion(outputs, targets)
+
+        #total_loss = bce_loss + (0.1 * min_box_size_penalty) + (0.1 * max_box_size_penalty)
+        total_loss = bce_loss + (0.1 * max_box_size_penalty)
+        """
+
+        boxes = model.boxes
+        dim = model.dimensions
+
+        corner_1 = boxes[:, :, 0]
+        corner_2 = boxes[:, :, 1]
+
+        box_sizes_per_dim = torch.abs(corner_1 - corner_2)
+        box_sizes = box_sizes_per_dim.prod(1)
+
+        min_box_size_value = 1
+        max_box_size_value = 0 
+
+        diff_for_small_boxes = torch.relu(min_box_size_value - box_sizes)
+        min_box_size_penalty = torch.mean(diff_for_small_boxes) ** (1 / dim)
+
+        diff_for_large_boxes = torch.relu(box_sizes - max_box_size_value)
+        max_box_size_penalty = torch.mean(diff_for_large_boxes) ** (1 / dim) * 0.001
+
+        criterion = nn.BCEWithLogitsLoss()
+        bce_loss = criterion(outputs, targets)
+
+        total_loss = bce_loss + max_box_size_penalty 
+        
+        model.log(
+            "min_box_size_penalty",
+            (0.01 * min_box_size_penalty),
+            batch_size=10,
+            on_step=False,
+            on_epoch=True,
+            prog_bar=True,
+            logger=True,
+            )
+
+        model.log(
+            "max_box_size_penalty",
+            (0.01 * max_box_size_penalty),
+            batch_size=10,
+            on_step=False,
+            on_epoch=True,
+            prog_bar=True,
+            logger=True,
+            )
+        return total_loss
 
 def softabs(x, eps=0.01):
     return (x**2 + eps) ** 0.5 - eps**0.5
