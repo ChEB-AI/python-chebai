@@ -72,7 +72,7 @@ class InnerCVTrainer(Trainer):
         predictions_df.to_csv(save_to)
 
 
-    def _predict_smiles(self, model: LightningModule, smiles: list[str]):
+    def _predict_smiles(self, model: LightningModule, smiles: List[str]):
         reader = ChemDataReader()
         parsed_smiles = [reader._read_data(s) for s in smiles]
         x = pad_sequence([torch.tensor(a) for a in parsed_smiles], batch_first=True)
