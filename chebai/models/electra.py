@@ -24,7 +24,7 @@ from transformers import (
 )
 from chebai.preprocessing.reader import MASK_TOKEN_INDEX, CLS_TOKEN
 from chebai.preprocessing.datasets.chebi import extract_class_hierarchy
-from chebai.loss.pretraining import ElectraPreLoss # noqa
+from chebai.loss.pretraining import ElectraPreLoss  # noqa
 import torch
 import csv
 
@@ -53,13 +53,14 @@ class ElectraPre(ChebaiBaseNet):
 
     def forward(self, data, **kwargs):
         features = data["features"]
+        features = features.to(self.device).long()  # this has been added for selfies, i neither know why it is needed now, nor why it wasnt needed before
         self.batch_size = batch_size = features.shape[0]
         max_seq_len = features.shape[1]
 
         mask = kwargs["mask"]
         with torch.no_grad():
             dis_tar = (
-                torch.rand((batch_size,), device=self.device) * torch.sum(mask, dim=-1)
+                    torch.rand((batch_size,), device=self.device) * torch.sum(mask, dim=-1)
             ).int()
             disc_tar_one_hot = torch.eq(
                 torch.arange(max_seq_len, device=self.device)[None, :], dis_tar[:, None]
@@ -67,7 +68,7 @@ class ElectraPre(ChebaiBaseNet):
             gen_tar = features[disc_tar_one_hot]
             gen_tar_one_hot = torch.eq(
                 torch.arange(self.generator_config.vocab_size, device=self.device)[
-                    None, :
+                None, :
                 ],
                 gen_tar[:, None],
             )
@@ -100,7 +101,7 @@ class ElectraPre(ChebaiBaseNet):
 
 def filter_dict(d, filter_key):
     return {
-        str(k)[len(filter_key) :]: v
+        str(k)[len(filter_key):]: v
         for k, v in d.items()
         if str(k).startswith(filter_key)
     }
@@ -121,10 +122,10 @@ class Electra(ChebaiBaseNet):
                 batch_first=True,
             )
         cls_tokens = (
-            torch.ones(batch.x.shape[0], dtype=torch.int, device=self.device).unsqueeze(
-                -1
-            )
-            * CLS_TOKEN
+                torch.ones(batch.x.shape[0], dtype=torch.int, device=self.device).unsqueeze(
+                    -1
+                )
+                * CLS_TOKEN
         )
         return dict(
             features=torch.cat((cls_tokens, batch.x), dim=1),
@@ -139,7 +140,7 @@ class Electra(ChebaiBaseNet):
         return self.electra.electra
 
     def __init__(
-        self, config=None, pretrained_checkpoint=None, load_prefix=None, **kwargs
+            self, config=None, pretrained_checkpoint=None, load_prefix=None, **kwargs
     ):
         # Remove this property in order to prevent it from being stored as a
         # hyper parameter
@@ -257,10 +258,10 @@ class ConeElectra(ChebaiBaseNet):
             batch_first=True,
         )
         cls_tokens = (
-            torch.ones(batch.x.shape[0], dtype=torch.int, device=self.device).unsqueeze(
-                -1
-            )
-            * CLS_TOKEN
+                torch.ones(batch.x.shape[0], dtype=torch.int, device=self.device).unsqueeze(
+                    -1
+                )
+                * CLS_TOKEN
         )
         return dict(
             features=torch.cat((cls_tokens, batch.x), dim=1),
@@ -295,7 +296,7 @@ class ConeElectra(ChebaiBaseNet):
                 model_dict = torch.load(fin, map_location=self.device)
                 if model_prefix:
                     state_dict = {
-                        str(k)[len(model_prefix) :]: v
+                        str(k)[len(model_prefix):]: v
                         for k, v in model_dict["state_dict"].items()
                         if str(k).startswith(model_prefix)
                     }
@@ -356,7 +357,7 @@ class ConeElectra(ChebaiBaseNet):
 
 
 def softabs(x, eps=0.01):
-    return (x**2 + eps) ** 0.5 - eps**0.5
+    return (x ** 2 + eps) ** 0.5 - eps ** 0.5
 
 
 def anglify(x):
@@ -383,8 +384,8 @@ def in_cone_parts(vectors, cone_axes, cone_arcs):
     dis = (torch.abs(turn(v, theta_L)) + torch.abs(turn(v, theta_R)) - cone_arc_ang)/(2*pi-cone_arc_ang)
     return dis
     """
-    a = cone_axes - cone_arcs**2
-    b = cone_axes + cone_arcs**2
+    a = cone_axes - cone_arcs ** 2
+    b = cone_axes + cone_arcs ** 2
     bigger_than_a = torch.sigmoid(vectors - a)
     smaller_than_b = torch.sigmoid(b - vectors)
     return bigger_than_a * smaller_than_b
@@ -410,4 +411,3 @@ class ConeLoss:
             memberships, target.unsqueeze(-1).expand(-1, -1, 20)
         )
         return loss
-

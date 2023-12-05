@@ -26,7 +26,7 @@ class XYBaseDataModule(LightningDataModule):
         balance_after_filter: typing.Optional[float] = None,
         num_workers: int = 1,
         chebi_version: int = 200,
-        inner_k_folds: int = -1, # use inner cross-validation if > 1
+        inner_k_folds: int = -1,  # use inner cross-validation if > 1
         **kwargs,
     ):
         super().__init__(**kwargs)
@@ -46,7 +46,7 @@ class XYBaseDataModule(LightningDataModule):
         self.chebi_version = chebi_version
         assert(type(inner_k_folds) is int)
         self.inner_k_folds = inner_k_folds
-        self.use_inner_cross_validation = inner_k_folds > 1 # only use cv if there are at least 2 folds
+        self.use_inner_cross_validation = inner_k_folds > 1  # only use cv if there are at least 2 folds
         os.makedirs(self.raw_dir, exist_ok=True)
         os.makedirs(self.processed_dir, exist_ok=True)
 
@@ -130,6 +130,9 @@ class XYBaseDataModule(LightningDataModule):
             for d in tqdm.tqdm(self._load_dict(path), total=lines)
             if d["features"] is not None
         ]
+        # filter for missing features in resulting data
+        data = [val for val in data if val['features'] is not None]
+
         return data
 
     def train_dataloader(self, *args, **kwargs) -> DataLoader:
@@ -159,6 +162,11 @@ class XYBaseDataModule(LightningDataModule):
 
         if self.use_inner_cross_validation:
             self.train_val_data = torch.load(os.path.join(self.processed_dir, self.processed_file_names_dict['train_val']))
+
+    def teardown(self, stage: str) -> None:
+        # cant save hyperparams at setup because logger is not initialised yet
+        # not sure if this has an effect
+        self.save_hyperparameters()
 
     def setup_processed(self):
         raise NotImplementedError

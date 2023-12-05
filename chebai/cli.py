@@ -33,4 +33,5 @@ class ChebaiCLI(LightningCLI):
 
 
 def cli():
-    r = ChebaiCLI(save_config_callback=None, parser_kwargs={"parser_mode": "omegaconf"})
+    r = ChebaiCLI(save_config_kwargs={"config_filename": "lightning_config.yaml"},
+                  parser_kwargs={"parser_mode": "omegaconf"})

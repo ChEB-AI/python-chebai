@@ -1,13 +1,14 @@
-- class_path: chebai.trainer.InnerCVTrainer.ModelCheckpoint
+- class_path: chebai.callbacks.model_checkpoint.CustomModelCheckpoint
   init_args:
     monitor: val_micro-f1
     mode: 'max'
-    filename: 'best_{epoch}_{val_loss:.4f}_{val_micro-f1:.2f}'
+    filename: 'best_{epoch:02d}_{val_loss:.4f}_{val_ep_macro-f1:.4f}_{val_micro-f1:.4f}'
     every_n_epochs: 1
     save_top_k: 5
-- class_path: chebai.trainer.InnerCVTrainer.ModelCheckpointCVSupport
+- class_path: chebai.callbacks.model_checkpoint.CustomModelCheckpoint
   init_args:
-    filename: 'per_{epoch}_{val_loss:.4f}_{val_micro-f1:.2f}'
+    filename: 'per_{epoch:02d}_{val_loss:.4f}_{val_ep_macro-f1:.4f}_{val_micro-f1:.4f}'
     every_n_epochs: 5
     save_top_k: -1
 - class_path: chebai.callbacks.epoch_metrics.EpochLevelMacroF1
+#class_path: chebai.callbacks.save_config_callback.CustomSaveConfigCallback

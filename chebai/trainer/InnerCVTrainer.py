@@ -5,13 +5,16 @@ from typing import Optional, Union
 import pandas as pd
 from lightning import Trainer, LightningModule
 from lightning.fabric.utilities.types import _PATH
+from lightning.pytorch.loggers import WandbLogger
 from lightning.pytorch.callbacks import ModelCheckpoint
+
 from lightning.fabric.plugins.environments import SLURMEnvironment
 from lightning_utilities.core.rank_zero import WarningCache
 from lightning.pytorch.loggers import CSVLogger
 from iterstrat.ml_stratifiers import MultilabelStratifiedKFold
 from lightning.pytorch.callbacks.model_checkpoint import _is_dir, rank_zero_warn
 
+from chebai.loggers.custom import CustomLogger
 from chebai.preprocessing.datasets.base import XYBaseDataModule
 from chebai.preprocessing.collate import RaggedCollater
 from chebai.preprocessing.reader import CLS_TOKEN, ChemDataReader
@@ -45,11 +48,13 @@ class InnerCVTrainer(Trainer):
                 train_dataloader = datamodule.train_dataloader(ids=train_ids)
                 val_dataloader = datamodule.val_dataloader(ids=val_ids)
                 init_kwargs = self.init_kwargs
-                new_logger = CSVLoggerCVSupport(save_dir=self.logger.save_dir, name=self.logger.name,
-                                                version=self.logger.version, fold=fold)
-                init_kwargs['logger'] = new_logger
-                new_trainer = Trainer(*self.init_args, **init_kwargs)
-                print(f'Logging this fold at {new_trainer.logger.log_dir}')
+                new_trainer = InnerCVTrainer(*self.init_args, **init_kwargs)
+                logger = new_trainer.logger
+                if isinstance(logger, CustomLogger):
+                    logger.set_fold(fold)
+                    print(f'Logging this fold at {logger.experiment.dir}')
+                else:
+                    rank_zero_warn(f"Using k-fold cross-validation without an adapted logger class")
                 new_trainer.fit(train_dataloaders=train_dataloader, val_dataloaders=val_dataloader, *args, **kwargs)
 
     def predict_from_file(self, model: LightningModule, checkpoint_path: _PATH, input_path: _PATH,
@@ -79,79 +84,16 @@ class InnerCVTrainer(Trainer):
         print(preds.shape)
         return preds
 
-
-# extend CSVLogger to include fold number in log path
-class CSVLoggerCVSupport(CSVLogger):
-
-    def __init__(self, save_dir: _PATH, name: str = "lightning_logs", version: Optional[Union[int, str]] = None,
-                 prefix: str = "", flush_logs_every_n_steps: int = 100, fold: int = None):
-        super().__init__(save_dir, name, version, prefix, flush_logs_every_n_steps)
-        self.fold = fold
-
     @property
-    def log_dir(self) -> str:
-        """The log directory for this run.
-
-        By default, it is named ``'version_${self.version}'`` but it can be overridden by passing a string value for the
-        constructor's version parameter instead of ``None`` or an int.
-        Additionally: Save data for each fold separately
-        """
-        # create a pseudo standard path
-        version = self.version if isinstance(self.version, str) else f"version_{self.version}"
-        if self.fold is None:
-            return os.path.join(self.root_dir, version)
-        return os.path.join(self.root_dir, version, f'fold_{self.fold}')
-
-
-class ModelCheckpointCVSupport(ModelCheckpoint):
-
-    def setup(self, trainer: "Trainer", pl_module: "LightningModule", stage: str) -> None:
-        """Same as in parent class, duplicated to be able to call self.__resolve_ckpt_dir"""
-        if self.dirpath is not None:
-            self.dirpath = None
-        dirpath = self.__resolve_ckpt_dir(trainer)
-        dirpath = trainer.strategy.broadcast(dirpath)
-        self.dirpath = dirpath
-        if trainer.is_global_zero and stage == "fit":
-            self.__warn_if_dir_not_empty(self.dirpath)
-
-    def __warn_if_dir_not_empty(self, dirpath: _PATH) -> None:
-        """Same as in parent class, duplicated because method in parent class is not accessible"""
-        if self.save_top_k != 0 and _is_dir(self._fs, dirpath, strict=True) and len(self._fs.ls(dirpath)) > 0:
-            rank_zero_warn(f"Checkpoint directory {dirpath} exists and is not empty.")
-
-    def __resolve_ckpt_dir(self, trainer: "Trainer") -> _PATH:
-        """Determines model checkpoint save directory at runtime. Reference attributes from the trainer's logger to
-        determine where to save checkpoints. The path for saving weights is set in this priority:
-
-        1.  The ``ModelCheckpoint``'s ``dirpath`` if passed in
-        2.  The ``Logger``'s ``log_dir`` if the trainer has loggers
-        3.  The ``Trainer``'s ``default_root_dir`` if the trainer has no loggers
-
-        The path gets extended with subdirectory "checkpoints".
-
-        """
-        print(f'Resolving checkpoint dir (with cross-validation)')
-        if self.dirpath is not None:
-            # short circuit if dirpath was passed to ModelCheckpoint
-            return self.dirpath
-        if len(trainer.loggers) > 0:
-            if trainer.loggers[0].save_dir is not None:
-                save_dir = trainer.loggers[0].save_dir
+    def log_dir(self) -> Optional[str]:
+        if len(self.loggers) > 0:
+            logger = self.loggers[0]
+            if isinstance(logger, WandbLogger):
+                dirpath = logger.experiment.dir
             else:
-                save_dir = trainer.default_root_dir
-            name = trainer.loggers[0].name
-            version = trainer.loggers[0].version
-            version = version if isinstance(version, str) else f"version_{version}"
-            cv_logger = trainer.loggers[0]
-            if isinstance(cv_logger, CSVLoggerCVSupport) and cv_logger.fold is not None:
-                # log_dir includes fold
-                ckpt_path = os.path.join(cv_logger.log_dir, "checkpoints")
-            else:
-                ckpt_path = os.path.join(save_dir, str(name), version, "checkpoints")
+                dirpath = self.loggers[0].log_dir
         else:
-            # if no loggers, use default_root_dir
-            ckpt_path = os.path.join(trainer.default_root_dir, "checkpoints")
+            dirpath = self.default_root_dir
 
-        print(f'Now using checkpoint path {ckpt_path}')
-        return ckpt_path
+        dirpath = self.strategy.broadcast(dirpath)
+        return dirpath
