@@ -50,7 +50,6 @@ class CustomLogger(WandbLogger):
             # start new experiment
             wandb.finish()
             self._wandb_init['name'] = self.name
-            self._name = self.name
             self._experiment = None
             _ = self.experiment
 
