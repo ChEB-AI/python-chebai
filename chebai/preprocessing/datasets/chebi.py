@@ -49,8 +49,8 @@ class JCIBase(XYBaseDataModule):
     def prepare_data(self, *args, **kwargs):
         print("Check for raw data in", self.raw_dir)
         if any(
-                not os.path.isfile(os.path.join(self.raw_dir, f))
-                for f in self.raw_file_names
+            not os.path.isfile(os.path.join(self.raw_dir, f))
+            for f in self.raw_file_names
         ):
             raise ValueError("Raw data is missing")
 
@@ -93,7 +93,7 @@ class JCITokenData(JCIBase):
 
 
 def extract_class_hierarchy(chebi_path):
-    with open(chebi_path, encoding='utf-8') as chebi:  # encoding for windows users
+    with open(chebi_path, encoding="utf-8") as chebi:  # encoding for windows users
         chebi = "\n".join(l for l in chebi if not l.startswith("xref:"))
     elements = [
         term_callback(clause)
@@ -109,7 +109,6 @@ def extract_class_hierarchy(chebi_path):
 
 
 class _ChEBIDataExtractor(XYBaseDataModule, ABC):
-
     def __init__(self, chebi_version_train: int = None, **kwargs):
         super(_ChEBIDataExtractor, self).__init__(**kwargs)
         # use different version of chebi for training and validation (if not None) - still use self.chebi_version for test set
@@ -147,7 +146,6 @@ class _ChEBIDataExtractor(XYBaseDataModule, ABC):
         return data
 
     def save(self, data: pd.DataFrame, split_name: str):
-
         pickle.dump(data, open(os.path.join(self.raw_dir, split_name), "wb"))
 
     @staticmethod
@@ -164,33 +162,42 @@ class _ChEBIDataExtractor(XYBaseDataModule, ABC):
     def _setup_pruned_test_set(self):
         """Create test set with same leaf nodes, but use classes that appear in train set"""
         # TODO: find a more efficient way to do this
-        filename_old = 'classes.txt'
-        filename_new = f'classes_v{self.chebi_version_train}.txt'
-        dataset = torch.load(os.path.join(self.processed_dir, 'test.pt'))
+        filename_old = "classes.txt"
+        filename_new = f"classes_v{self.chebi_version_train}.txt"
+        dataset = torch.load(os.path.join(self.processed_dir, "test.pt"))
         with open(os.path.join(self.raw_dir, filename_old), "r") as file:
             orig_classes = file.readlines()
         with open(os.path.join(self.raw_dir, filename_new), "r") as file:
             new_classes = file.readlines()
-        mapping = [None if or_class not in new_classes else new_classes.index(or_class) for or_class in
-                   orig_classes]
+        mapping = [
+            None if or_class not in new_classes else new_classes.index(or_class)
+            for or_class in orig_classes
+        ]
         for row in dataset:
             new_labels = [False for _ in new_classes]
-            for ind, label in enumerate(row['labels']):
+            for ind, label in enumerate(row["labels"]):
                 if mapping[ind] is not None and label:
                     new_labels[mapping[ind]] = label
-            row['labels'] = new_labels
-        torch.save(dataset, os.path.join(self.processed_dir, self.processed_file_names_dict['test']))
+            row["labels"] = new_labels
+        torch.save(
+            dataset,
+            os.path.join(self.processed_dir, self.processed_file_names_dict["test"]),
+        )
 
     def setup_processed(self):
         print("Transform splits")
         os.makedirs(self.processed_dir, exist_ok=True)
         for k in self.processed_file_names_dict.keys():
-            processed_name = 'test.pt' if k == 'test' else self.processed_file_names_dict[k]
+            processed_name = (
+                "test.pt" if k == "test" else self.processed_file_names_dict[k]
+            )
             if not os.path.isfile(os.path.join(self.processed_dir, processed_name)):
                 print("transform", k)
                 # create two test sets: one with the classes from the original test set, one with only classes used in train
                 torch.save(
-                    self._load_data_from_file(os.path.join(self.raw_dir, self.raw_file_names_dict[k])),
+                    self._load_data_from_file(
+                        os.path.join(self.raw_dir, self.raw_file_names_dict[k])
+                    ),
                     os.path.join(self.processed_dir, processed_name),
                 )
         if self.chebi_version_train is not None:
@@ -205,12 +212,15 @@ class _ChEBIDataExtractor(XYBaseDataModule, ABC):
         df_list = [row[3:] for row in df_list]
 
         test_size = 1 - self.train_split - (1 - self.train_split) ** 2
-        msss = MultilabelStratifiedShuffleSplit(n_splits=1, test_size=test_size, random_state=0)
+        msss = MultilabelStratifiedShuffleSplit(
+            n_splits=1, test_size=test_size, random_state=0
+        )
 
         train_split = []
         test_split = []
-        for (train_split, test_split) in msss.split(
-                df_list, df_list,
+        for train_split, test_split in msss.split(
+            df_list,
+            df_list,
         ):
             train_split = train_split
             test_split = test_split
@@ -220,28 +230,29 @@ class _ChEBIDataExtractor(XYBaseDataModule, ABC):
         return df_train, df_test
 
     def get_train_val_splits_given_test(self, df: pd.DataFrame, test_df: pd.DataFrame):
-        """ Use test set (e.g., loaded from another chebi version or generated in get_test_split), avoid overlap"""
+        """Use test set (e.g., loaded from another chebi version or generated in get_test_split), avoid overlap"""
         print(f"Split dataset into train / val with given test set")
 
         df_trainval = df
-        test_smiles = test_df['SMILES'].tolist()
-        mask = [smiles not in test_smiles for smiles in df_trainval['SMILES']]
+        test_smiles = test_df["SMILES"].tolist()
+        mask = [smiles not in test_smiles for smiles in df_trainval["SMILES"]]
         df_trainval = df_trainval[mask]
-
 
         if self.use_inner_cross_validation:
             return df_trainval
 
         # scale val set size by 1/self.train_split to compensate for (hypothetical) test set size (1-self.train_split)
         test_size = ((1 - self.train_split) ** 2) / self.train_split
-        msss = MultilabelStratifiedShuffleSplit(n_splits=1, test_size=test_size, random_state=0)
+        msss = MultilabelStratifiedShuffleSplit(
+            n_splits=1, test_size=test_size, random_state=0
+        )
 
         df_trainval_list = df_trainval.values.tolist()
         df_trainval_list = [row[3:] for row in df_trainval_list]
         train_split = []
         validation_split = []
-        for (train_split, validation_split) in msss.split(
-                df_trainval_list, df_trainval_list
+        for train_split, validation_split in msss.split(
+            df_trainval_list, df_trainval_list
         ):
             train_split = train_split
             validation_split = validation_split
@@ -252,33 +263,49 @@ class _ChEBIDataExtractor(XYBaseDataModule, ABC):
 
     @property
     def processed_dir(self):
-        return os.path.join("data", self._name, f'chebi_v{self.chebi_version}', "processed", *self.identifier)
+        return os.path.join(
+            "data",
+            self._name,
+            f"chebi_v{self.chebi_version}",
+            "processed",
+            *self.identifier,
+        )
 
     @property
     def raw_dir(self):
-        return os.path.join("data", self._name, f'chebi_v{self.chebi_version}', "raw")
+        return os.path.join("data", self._name, f"chebi_v{self.chebi_version}", "raw")
 
     @property
     def processed_file_names_dict(self) -> dict:
-        train_v_str = f'_v{self.chebi_version_train}' if self.chebi_version_train else ''
-        res = {'test': f"test{train_v_str}.pt"}
+        train_v_str = (
+            f"_v{self.chebi_version_train}" if self.chebi_version_train else ""
+        )
+        res = {"test": f"test{train_v_str}.pt"}
         if self.use_inner_cross_validation:
-            res['train_val'] = f'trainval{train_v_str}.pt'  # for cv, split train/val on runtime
+            res[
+                "train_val"
+            ] = f"trainval{train_v_str}.pt"  # for cv, split train/val on runtime
         else:
-            res['train'] = f"train{train_v_str}.pt"
-            res['validation'] = f"validation{train_v_str}.pt"
+            res["train"] = f"train{train_v_str}.pt"
+            res["validation"] = f"validation{train_v_str}.pt"
         return res
 
     @property
     def raw_file_names_dict(self) -> dict:
-        train_v_str = f'_v{self.chebi_version_train}' if self.chebi_version_train else ''
-        res = {'test': f"test.pkl"}  # no extra raw test version for chebi_version_train - use default test set and only
+        train_v_str = (
+            f"_v{self.chebi_version_train}" if self.chebi_version_train else ""
+        )
+        res = {
+            "test": f"test.pkl"
+        }  # no extra raw test version for chebi_version_train - use default test set and only
         # adapt processed file
         if self.use_inner_cross_validation:
-            res['train_val'] = f'trainval{train_v_str}.pkl'  # for cv, split train/val on runtime
+            res[
+                "train_val"
+            ] = f"trainval{train_v_str}.pkl"  # for cv, split train/val on runtime
         else:
-            res['train'] = f"train{train_v_str}.pkl"
-            res['validation'] = f"validation{train_v_str}.pkl"
+            res["train"] = f"train{train_v_str}.pkl"
+            res["validation"] = f"validation{train_v_str}.pkl"
 
         return res
 
@@ -291,7 +318,9 @@ class _ChEBIDataExtractor(XYBaseDataModule, ABC):
         return list(self.raw_file_names_dict.values())
 
     def _load_chebi(self, version: int):
-        chebi_name = f'chebi.obo' if version == self.chebi_version else f'chebi_v{version}.obo'
+        chebi_name = (
+            f"chebi.obo" if version == self.chebi_version else f"chebi_v{version}.obo"
+        )
         chebi_path = os.path.join(self.raw_dir, chebi_name)
         if not os.path.isfile(chebi_path):
             print(f"Load ChEBI ontology (v_{version})")
@@ -303,35 +332,44 @@ class _ChEBIDataExtractor(XYBaseDataModule, ABC):
     def prepare_data(self, *args, **kwargs):
         print("Check for raw data in", self.raw_dir)
         if any(
-                not os.path.isfile(os.path.join(self.raw_dir, f))
-                for f in self.raw_file_names
+            not os.path.isfile(os.path.join(self.raw_dir, f))
+            for f in self.raw_file_names
         ):
             os.makedirs(self.raw_dir, exist_ok=True)
             print("Missing raw data. Go fetch...")
             # missing test set -> create
-            if not os.path.isfile(os.path.join(self.raw_dir, self.raw_file_names_dict['test'])):
+            if not os.path.isfile(
+                os.path.join(self.raw_dir, self.raw_file_names_dict["test"])
+            ):
                 chebi_path = self._load_chebi(self.chebi_version)
                 g = extract_class_hierarchy(chebi_path)
-                df = self.graph_to_raw_dataset(g, self.raw_file_names_dict['test'])
+                df = self.graph_to_raw_dataset(g, self.raw_file_names_dict["test"])
                 _, test_df = self.get_test_split(df)
-                self.save(test_df, self.raw_file_names_dict['test'])
+                self.save(test_df, self.raw_file_names_dict["test"])
             # load test_split from file
             else:
-                with open(os.path.join(self.raw_dir, self.raw_file_names_dict['test']), "rb") as input_file:
+                with open(
+                    os.path.join(self.raw_dir, self.raw_file_names_dict["test"]), "rb"
+                ) as input_file:
                     test_df = pickle.load(input_file)
             # create train/val split based on test set
             chebi_path = self._load_chebi(
-                self.chebi_version_train if self.chebi_version_train is not None else self.chebi_version)
+                self.chebi_version_train
+                if self.chebi_version_train is not None
+                else self.chebi_version
+            )
             g = extract_class_hierarchy(chebi_path)
             if self.use_inner_cross_validation:
-                df = self.graph_to_raw_dataset(g, self.raw_file_names_dict['train_val'])
+                df = self.graph_to_raw_dataset(g, self.raw_file_names_dict["train_val"])
                 train_val_df = self.get_train_val_splits_given_test(df, test_df)
-                self.save(train_val_df, self.raw_file_names_dict['train_val'])
+                self.save(train_val_df, self.raw_file_names_dict["train_val"])
             else:
-                df = self.graph_to_raw_dataset(g, self.raw_file_names_dict['train'])
-                train_split, val_split = self.get_train_val_splits_given_test(df, test_df)
-                self.save(train_split, self.raw_file_names_dict['train'])
-                self.save(val_split, self.raw_file_names_dict['validation'])
+                df = self.graph_to_raw_dataset(g, self.raw_file_names_dict["train"])
+                train_split, val_split = self.get_train_val_splits_given_test(
+                    df, test_df
+                )
+                self.save(train_split, self.raw_file_names_dict["train"])
+                self.save(val_split, self.raw_file_names_dict["validation"])
 
 
 class JCIExtendedBase(_ChEBIDataExtractor):
@@ -372,15 +410,18 @@ class ChEBIOverX(_ChEBIDataExtractor):
                     node
                     for node in g.nodes
                     if sum(
-                    1 if smiles[s] is not None else 0 for s in g.successors(node)
-                )
-                       >= self.THRESHOLD
+                        1 if smiles[s] is not None else 0 for s in g.successors(node)
+                    )
+                    >= self.THRESHOLD
                 }
             )
         )
-        filename = 'classes.txt'
-        if self.chebi_version_train is not None and self.raw_file_names_dict['test'] != split_name:
-            filename = f'classes_v{self.chebi_version_train}.txt'
+        filename = "classes.txt"
+        if (
+            self.chebi_version_train is not None
+            and self.raw_file_names_dict["test"] != split_name
+        ):
+            filename = f"classes_v{self.chebi_version_train}.txt"
         with open(os.path.join(self.raw_dir, filename), "wt") as fout:
             fout.writelines(str(node) + "\n" for node in nodes)
         return nodes
@@ -429,7 +470,7 @@ class JCIExtSelfies(JCIExtendedBase):
 
 
 def chebi_to_int(s):
-    return int(s[s.index(":") + 1:])
+    return int(s[s.index(":") + 1 :])
 
 
 def term_callback(doc):
