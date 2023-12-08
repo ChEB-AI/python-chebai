@@ -44,9 +44,11 @@ class XYBaseDataModule(LightningDataModule):
         self.balance_after_filter = balance_after_filter
         self.num_workers = num_workers
         self.chebi_version = chebi_version
-        assert(type(inner_k_folds) is int)
+        assert type(inner_k_folds) is int
         self.inner_k_folds = inner_k_folds
-        self.use_inner_cross_validation = inner_k_folds > 1  # only use cv if there are at least 2 folds
+        self.use_inner_cross_validation = (
+            inner_k_folds > 1
+        )  # only use cv if there are at least 2 folds
         os.makedirs(self.raw_dir, exist_ok=True)
         os.makedirs(self.processed_dir, exist_ok=True)
 
@@ -81,8 +83,8 @@ class XYBaseDataModule(LightningDataModule):
         except NotImplementedError:
             filename = f"{kind}.pt"
         dataset = torch.load(os.path.join(self.processed_dir, filename))
-        if 'ids' in kwargs:
-            ids = kwargs.pop('ids')
+        if "ids" in kwargs:
+            ids = kwargs.pop("ids")
             _dataset = []
             for i in range(len(dataset)):
                 if i in ids:
@@ -131,17 +133,24 @@ class XYBaseDataModule(LightningDataModule):
             if d["features"] is not None
         ]
         # filter for missing features in resulting data
-        data = [val for val in data if val['features'] is not None]
+        data = [val for val in data if val["features"] is not None]
 
         return data
 
     def train_dataloader(self, *args, **kwargs) -> DataLoader:
         return self.dataloader(
-            "train" if not self.use_inner_cross_validation else "train_val", shuffle=True, num_workers=self.num_workers, **kwargs
+            "train" if not self.use_inner_cross_validation else "train_val",
+            shuffle=True,
+            num_workers=self.num_workers,
+            **kwargs,
         )
 
     def val_dataloader(self, *args, **kwargs) -> Union[DataLoader, List[DataLoader]]:
-        return self.dataloader("validation" if not self.use_inner_cross_validation else "train_val", shuffle=False, **kwargs)
+        return self.dataloader(
+            "validation" if not self.use_inner_cross_validation else "train_val",
+            shuffle=False,
+            **kwargs,
+        )
 
     def test_dataloader(self, *args, **kwargs) -> Union[DataLoader, List[DataLoader]]:
         return self.dataloader("test", shuffle=False, **kwargs)
@@ -153,7 +162,7 @@ class XYBaseDataModule(LightningDataModule):
 
     def setup(self, **kwargs):
         print("Check for processed data in ", self.processed_dir)
-        print(f'Cross-validation enabled: {self.use_inner_cross_validation}')
+        print(f"Cross-validation enabled: {self.use_inner_cross_validation}")
         if any(
             not os.path.isfile(os.path.join(self.processed_dir, f))
             for f in self.processed_file_names
@@ -161,7 +170,11 @@ class XYBaseDataModule(LightningDataModule):
             self.setup_processed()
 
         if self.use_inner_cross_validation:
-            self.train_val_data = torch.load(os.path.join(self.processed_dir, self.processed_file_names_dict['train_val']))
+            self.train_val_data = torch.load(
+                os.path.join(
+                    self.processed_dir, self.processed_file_names_dict["train_val"]
+                )
+            )
 
     def teardown(self, stage: str) -> None:
         # cant save hyperparams at setup because logger is not initialised yet

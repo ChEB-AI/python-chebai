@@ -5,7 +5,6 @@ from chebai.trainer.InnerCVTrainer import InnerCVTrainer
 
 
 class ChebaiCLI(LightningCLI):
-
     def __init__(self, *args, **kwargs):
         super().__init__(trainer_class=InnerCVTrainer, *args, **kwargs)
 
@@ -16,7 +15,9 @@ class ChebaiCLI(LightningCLI):
                     "model.init_args.out_dim",
                     f"model.init_args.{kind}_metrics.init_args.metrics.{average}-f1.init_args.num_labels",
                 )
-        parser.link_arguments("model.init_args.out_dim", "trainer.callbacks.init_args.num_labels")
+        parser.link_arguments(
+            "model.init_args.out_dim", "trainer.callbacks.init_args.num_labels"
+        )
         # parser.link_arguments('n_splits', 'data.init_args.inner_k_folds') # doesn't work but I don't know why
 
     @staticmethod
@@ -28,10 +29,12 @@ class ChebaiCLI(LightningCLI):
             "test": {"model", "dataloaders", "datamodule"},
             "predict": {"model", "dataloaders", "datamodule"},
             "cv_fit": {"model", "train_dataloaders", "val_dataloaders", "datamodule"},
-            "predict_from_file": {"model"}
+            "predict_from_file": {"model"},
         }
 
 
 def cli():
-    r = ChebaiCLI(save_config_kwargs={"config_filename": "lightning_config.yaml"},
-                  parser_kwargs={"parser_mode": "omegaconf"})
+    r = ChebaiCLI(
+        save_config_kwargs={"config_filename": "lightning_config.yaml"},
+        parser_kwargs={"parser_mode": "omegaconf"},
+    )

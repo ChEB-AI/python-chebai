@@ -1,5 +1,6 @@
 import torch
 
+
 class ElectraPreLoss(torch.nn.Module):
     def __init__(self):
         super().__init__()
@@ -14,4 +15,3 @@ class ElectraPreLoss(torch.nn.Module):
             target=torch.argmax(disc_tar.int(), dim=-1), input=disc_pred
         )
         return gen_loss + disc_loss
-

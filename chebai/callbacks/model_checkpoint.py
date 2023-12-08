@@ -6,11 +6,14 @@ import os
 from lightning.fabric.utilities.cloud_io import _is_dir
 from lightning.pytorch.utilities.rank_zero import rank_zero_info
 
+
 class CustomModelCheckpoint(ModelCheckpoint):
     """Checkpoint class that resolves checkpoint paths s.t. for the CustomLogger, checkpoints get saved to the
     same directory as the other logs"""
 
-    def setup(self, trainer: "Trainer", pl_module: "LightningModule", stage: str) -> None:
+    def setup(
+        self, trainer: "Trainer", pl_module: "LightningModule", stage: str
+    ) -> None:
         """Same as in parent class, duplicated to be able to call self.__resolve_ckpt_dir"""
         if self.dirpath is not None:
             self.dirpath = None
@@ -22,7 +25,11 @@ class CustomModelCheckpoint(ModelCheckpoint):
 
     def __warn_if_dir_not_empty(self, dirpath: _PATH) -> None:
         """Same as in parent class, duplicated because method in parent class is not accessible"""
-        if self.save_top_k != 0 and _is_dir(self._fs, dirpath, strict=True) and len(self._fs.ls(dirpath)) > 0:
+        if (
+            self.save_top_k != 0
+            and _is_dir(self._fs, dirpath, strict=True)
+            and len(self._fs.ls(dirpath)) > 0
+        ):
             rank_zero_warn(f"Checkpoint directory {dirpath} exists and is not empty.")
 
     def __resolve_ckpt_dir(self, trainer: "Trainer") -> _PATH:
@@ -36,7 +43,7 @@ class CustomModelCheckpoint(ModelCheckpoint):
         The path gets extended with subdirectory "checkpoints".
 
         """
-        print(f'Resolving checkpoint dir (custom)')
+        print(f"Resolving checkpoint dir (custom)")
         if self.dirpath is not None:
             # short circuit if dirpath was passed to ModelCheckpoint
             return self.dirpath
@@ -57,5 +64,5 @@ class CustomModelCheckpoint(ModelCheckpoint):
             # if no loggers, use default_root_dir
             ckpt_path = os.path.join(trainer.default_root_dir, "checkpoints")
 
-        print(f'Now using checkpoint path {ckpt_path}')
+        print(f"Now using checkpoint path {ckpt_path}")
         return ckpt_path

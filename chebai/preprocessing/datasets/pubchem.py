@@ -72,7 +72,7 @@ class PubChem(XYBaseDataModule):
                     tf.seek(0)
                     with gzip.open(tf, "rb") as f_in:
                         with open(
-                                os.path.join(self.raw_dir, "smiles.txt"), "wb"
+                            os.path.join(self.raw_dir, "smiles.txt"), "wb"
                         ) as f_out:
                             shutil.copyfileobj(f_in, f_out)
         else:
@@ -115,8 +115,8 @@ class PubChem(XYBaseDataModule):
     def prepare_data(self, *args, **kwargs):
         print("Check for raw data in", self.raw_dir)
         if any(
-                not os.path.isfile(os.path.join(self.raw_dir, f))
-                for f in self.raw_file_names
+            not os.path.isfile(os.path.join(self.raw_dir, f))
+            for f in self.raw_file_names
         ):
             print("Downloading data. This may take some time...")
             self.download()

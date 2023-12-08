@@ -45,11 +45,15 @@ class DataReader:
 
     @property
     def token_path(self):
+        """Get token path, create file if it does not exist yet"""
         if self._token_path is not None:
             return self._token_path
         dirname = os.path.dirname(__file__)
         token_path = os.path.join(dirname, "bin", self.name(), "tokens.txt")
         os.makedirs(os.path.join(dirname, "bin", self.name()), exist_ok=True)
+        if not os.path.exists(token_path):
+            with open(token_path, "x"):
+                pass
         return token_path
 
     def _read_id(self, raw_data):
@@ -110,7 +114,6 @@ class ChemDataReader(DataReader):
 
     def save_token_cache(self):
         """write contents of self.cache into tokens.txt"""
-        dirname = os.path.dirname(__file__)
         with open(self.token_path, "w") as pk:
             print(f"saving {len(self.cache)} tokens to {self.token_path}...")
             print(f"first 10 tokens: {self.cache[:10]}")
