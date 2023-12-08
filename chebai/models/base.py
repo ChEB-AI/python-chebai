@@ -1,4 +1,6 @@
 import logging
+import typing
+
 from lightning.pytorch.core.module import LightningModule
 import torch
 from typing import Optional, Dict, Any
@@ -20,13 +22,19 @@ class ChebaiBaseNet(LightningModule):
         val_metrics: Optional[torch.nn.Module] = None,
         test_metrics: Optional[torch.nn.Module] = None,
         pass_loss_kwargs=True,
+        optimizer_kwargs: Optional[typing.Dict] = None,
         **kwargs,
     ):
         super().__init__()
         self.criterion = criterion
-        self.save_hyperparameters(ignore=["criterion", "train_metrics", "val_metrics", "test_metrics"])
+        self.save_hyperparameters(
+            ignore=["criterion", "train_metrics", "val_metrics", "test_metrics"]
+        )
         self.out_dim = out_dim
-        self.optimizer_kwargs = kwargs.get("optimizer_kwargs", dict())
+        if optimizer_kwargs:
+            self.optimizer_kwargs = optimizer_kwargs
+        else:
+            self.optimizer_kwargs = dict()
         self.train_metrics = train_metrics
         self.validation_metrics = val_metrics
         self.test_metrics = test_metrics

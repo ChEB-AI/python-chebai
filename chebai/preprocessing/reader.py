@@ -19,10 +19,11 @@ CLS_TOKEN = 2
 class DataReader:
     COLLATER = DefaultCollater
 
-    def __init__(self, collator_kwargs=None, **kwargs):
+    def __init__(self, collator_kwargs=None, token_path=None, **kwargs):
         if collator_kwargs is None:
             collator_kwargs = dict()
         self.collater = self.COLLATER(**collator_kwargs)
+        self._token_path = token_path
 
     def _get_raw_data(self, row):
         return row["features"]
@@ -41,6 +42,15 @@ class DataReader:
 
     def name(cls):
         raise NotImplementedError
+
+    @property
+    def token_path(self):
+        if self._token_path is not None:
+            return self._token_path
+        dirname = os.path.dirname(__file__)
+        token_path = os.path.join(dirname, "bin", self.name(), "tokens.txt")
+        os.makedirs(os.path.join(dirname, "bin", self.name()), exist_ok=True)
+        return token_path
 
     def _read_id(self, raw_data):
         return raw_data
@@ -84,13 +94,8 @@ class ChemDataReader(DataReader):
     def name(cls):
         return "smiles_token"
 
-    def __init__(self, token_path = None, *args, **kwargs):
+    def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        if token_path is None:
-            dirname = os.path.dirname(__file__)
-            token_path = os.path.join(dirname, "bin", self.name(), "tokens.txt")
-            os.makedirs(os.path.join(dirname, "bin", self.name()), exist_ok=True)
-        self.token_path = token_path
         with open(self.token_path, "r") as pk:
             self.cache = [x.strip() for x in pk]
 
@@ -101,21 +106,18 @@ class ChemDataReader(DataReader):
         return self.cache.index(str(token)) + EMBEDDING_OFFSET
 
     def _read_data(self, raw_data):
-        return [
-            self._get_token_index(v[1]) for v in _tokenize(raw_data)
-        ]
+        return [self._get_token_index(v[1]) for v in _tokenize(raw_data)]
 
     def save_token_cache(self):
         """write contents of self.cache into tokens.txt"""
         dirname = os.path.dirname(__file__)
         with open(self.token_path, "w") as pk:
-            print(f'saving {len(self.cache)} tokens to {self.token_path}...')
-            print(f'first 10 tokens: {self.cache[:10]}')
-            pk.writelines([f'{c}\n' for c in self.cache])
+            print(f"saving {len(self.cache)} tokens to {self.token_path}...")
+            print(f"first 10 tokens: {self.cache[:10]}")
+            pk.writelines([f"{c}\n" for c in self.cache])
 
 
 class DeepChemDataReader(ChemDataReader):
-
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.converter = deepsmiles.Converter(rings=True, branches=True)
@@ -130,11 +132,11 @@ class DeepChemDataReader(ChemDataReader):
             tokenized = _tokenize(self.converter.encode(raw_data))
             tokenized = [self._get_token_index(v[1]) for v in tokenized]
         except ValueError as e:
-            print(f'could not process {raw_data}')
-            print(f'Corresponding deepSMILES: {self.converter.encode(raw_data)}')
-            print(f'\t{e}')
+            print(f"could not process {raw_data}")
+            print(f"Corresponding deepSMILES: {self.converter.encode(raw_data)}")
+            print(f"\t{e}")
             self.error_count += 1
-            print(f'\terror count: {self.error_count}')
+            print(f"\terror count: {self.error_count}")
             tokenized = None
         return tokenized
 
@@ -184,12 +186,12 @@ class SelfiesReader(ChemDataReader):
             tokenized = sf.split_selfies(sf.encoder(raw_data.strip(), strict=True))
             tokenized = [self._get_token_index(v) for v in tokenized]
         except Exception as e:
-            print(f'could not process {raw_data}')
-            #print(f'\t{e}')
+            print(f"could not process {raw_data}")
+            # print(f'\t{e}')
             self.error_count += 1
-            print(f'\terror count: {self.error_count}')
+            print(f"\terror count: {self.error_count}")
             tokenized = None
-            #if self.error_count > 20:
+            # if self.error_count > 20:
             #    raise Exception('Too many errors')
         return tokenized
 
