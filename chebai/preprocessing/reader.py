@@ -23,6 +23,7 @@ class DataReader:
         if collator_kwargs is None:
             collator_kwargs = dict()
         self.collater = self.COLLATER(**collator_kwargs)
+        self.dirname = os.path.dirname(__file__)
         self._token_path = token_path
 
     def _get_raw_data(self, row):
@@ -48,9 +49,8 @@ class DataReader:
         """Get token path, create file if it does not exist yet"""
         if self._token_path is not None:
             return self._token_path
-        dirname = os.path.dirname(__file__)
-        token_path = os.path.join(dirname, "bin", self.name(), "tokens.txt")
-        os.makedirs(os.path.join(dirname, "bin", self.name()), exist_ok=True)
+        token_path = os.path.join(self.dirname, "bin", self.name(), "tokens.txt")
+        os.makedirs(os.path.join(self.dirname, "bin", self.name()), exist_ok=True)
         if not os.path.exists(token_path):
             with open(token_path, "x"):
                 pass

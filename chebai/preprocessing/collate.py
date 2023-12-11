@@ -8,7 +8,7 @@ class Collater:
     def __init__(self, **kwargs):
         pass
 
-    def __call__(self, data):
+    def __call__(self, data) -> XYData:
         raise NotImplementedError
 
 

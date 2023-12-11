@@ -8,6 +8,7 @@ class XYData(torch.utils.data.Dataset):
         return self.x[index], self.y[index]
 
     def __len__(self):
+        # return batch size
         return len(self.x)
 
     def __init__(self, x, y, **kwargs):

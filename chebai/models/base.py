@@ -4,6 +4,7 @@ import typing
 from lightning.pytorch.core.module import LightningModule
 import torch
 from typing import Optional, Dict, Any
+from chebai.preprocessing.structures import XYData
 
 logging.getLogger("pysmiles").setLevel(logging.CRITICAL)
 
@@ -83,6 +84,7 @@ class ChebaiBaseNet(LightningModule):
         return self._execute(batch, batch_idx, self.test_metrics, prefix="", log=False)
 
     def _execute(self, batch, batch_idx, metrics, prefix="", log=True, sync_dist=False):
+        assert isinstance(batch, XYData)
         data = self._process_batch(batch, batch_idx)
         labels = data["labels"]
         model_output = self(data, **data.get("model_kwargs", dict()))
@@ -101,7 +103,7 @@ class ChebaiBaseNet(LightningModule):
                 self.log(
                     f"{prefix}loss",
                     loss.item(),
-                    batch_size=batch.x.shape[0],
+                    batch_size=len(batch),
                     on_step=True,
                     on_epoch=True,
                     prog_bar=True,
@@ -116,7 +118,7 @@ class ChebaiBaseNet(LightningModule):
                             self.log(
                                 f"{prefix}{metric_name}{k}",
                                 m2,
-                                batch_size=batch.x.shape[0],
+                                batch_size=len(batch),
                                 on_step=False,
                                 on_epoch=True,
                                 prog_bar=True,
@@ -127,7 +129,7 @@ class ChebaiBaseNet(LightningModule):
                         self.log(
                             f"{prefix}{metric_name}",
                             m,
-                            batch_size=batch.x.shape[0],
+                            batch_size=len(batch),
                             on_step=False,
                             on_epoch=True,
                             prog_bar=True,
