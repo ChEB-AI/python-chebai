@@ -5,6 +5,7 @@ from lightning.pytorch import Trainer, LightningModule
 import os
 from lightning.fabric.utilities.cloud_io import _is_dir
 from lightning.pytorch.utilities.rank_zero import rank_zero_info
+from lightning_utilities.core.rank_zero import rank_zero_warn
 
 
 class CustomModelCheckpoint(ModelCheckpoint):
@@ -33,16 +34,7 @@ class CustomModelCheckpoint(ModelCheckpoint):
             rank_zero_warn(f"Checkpoint directory {dirpath} exists and is not empty.")
 
     def __resolve_ckpt_dir(self, trainer: "Trainer") -> _PATH:
-        """Determines model checkpoint save directory at runtime. Reference attributes from the trainer's logger to
-        determine where to save checkpoints. The path for saving weights is set in this priority:
-
-        1.  The ``ModelCheckpoint``'s ``dirpath`` if passed in
-        2.  The ``Logger``'s ``log_dir`` if the trainer has loggers
-        3.  The ``Trainer``'s ``default_root_dir`` if the trainer has no loggers
-
-        The path gets extended with subdirectory "checkpoints".
-
-        """
+        """Overwritten for compatibility with wandb -> saves checkpoints in same dir as wandb logs"""
         print(f"Resolving checkpoint dir (custom)")
         if self.dirpath is not None:
             # short circuit if dirpath was passed to ModelCheckpoint
@@ -56,7 +48,9 @@ class CustomModelCheckpoint(ModelCheckpoint):
             version = trainer.loggers[0].version
             version = version if isinstance(version, str) else f"version_{version}"
             logger = trainer.loggers[0]
-            if isinstance(logger, WandbLogger):
+            if isinstance(logger, WandbLogger) and isinstance(
+                logger.experiment.dir, str
+            ):
                 ckpt_path = os.path.join(logger.experiment.dir, "checkpoints")
             else:
                 ckpt_path = os.path.join(save_dir, str(name), version, "checkpoints")
