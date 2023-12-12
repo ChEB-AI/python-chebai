@@ -29,7 +29,6 @@ import csv
 import pytorch_lightning as pl
 from chebai.models.base import ChebaiBaseNet
 
-
 logging.getLogger("pysmiles").setLevel(logging.CRITICAL)
 
 
@@ -59,7 +58,7 @@ class ElectraPre(ChebaiBaseNet):
         mask = data["mask"]
         with torch.no_grad():
             dis_tar = (
-                torch.rand((batch_size,), device=self.device) * torch.sum(mask, dim=-1)
+                    torch.rand((batch_size,), device=self.device) * torch.sum(mask, dim=-1)
             ).int()
             disc_tar_one_hot = torch.eq(
                 torch.arange(max_seq_len, device=self.device)[None, :], dis_tar[:, None]
@@ -67,7 +66,7 @@ class ElectraPre(ChebaiBaseNet):
             gen_tar = features[disc_tar_one_hot]
             gen_tar_one_hot = torch.eq(
                 torch.arange(self.generator_config.vocab_size, device=self.device)[
-                    None, :
+                None, :
                 ],
                 gen_tar[:, None],
             )
@@ -119,7 +118,7 @@ class ElectraPreLoss(torch.nn.Module):
 
 def filter_dict(d, filter_key):
     return {
-        str(k)[len(filter_key) :]: v
+        str(k)[len(filter_key):]: v
         for k, v in d.items()
         if str(k).startswith(filter_key)
     }
@@ -140,10 +139,10 @@ class Electra(ChebaiBaseNet):
                 batch_first=True,
             )
         cls_tokens = (
-            torch.ones(batch.x.shape[0], dtype=torch.int, device=self.device).unsqueeze(
-                -1
-            )
-            * CLS_TOKEN
+                torch.ones(batch.x.shape[0], dtype=torch.int, device=self.device).unsqueeze(
+                    -1
+                )
+                * CLS_TOKEN
         )
         return dict(
             features=torch.cat((cls_tokens, batch.x), dim=1),
@@ -158,7 +157,7 @@ class Electra(ChebaiBaseNet):
         return self.electra.electra
 
     def __init__(
-        self, config=None, pretrained_checkpoint=None, load_prefix=None, **kwargs
+            self, config=None, pretrained_checkpoint=None, load_prefix=None, **kwargs
     ):
         # Remove this property in order to prevent it from being stored as a
         # hyper parameter
@@ -283,7 +282,7 @@ def _build_disjointness_filter(path_to_disjointedness, label_names, hierarchy):
 
 class ElectraChEBILoss(nn.Module):
     def __init__(
-        self, path_to_chebi, path_to_label_names, base_loss: torch.nn.Module = None
+            self, path_to_chebi, path_to_label_names, base_loss: torch.nn.Module = None
     ):
         super().__init__()
         self.base_loss = base_loss
@@ -313,11 +312,11 @@ class ElectraChEBILoss(nn.Module):
 
 class ElectraChEBIDisjointLoss(ElectraChEBILoss):
     def __init__(
-        self,
-        path_to_chebi,
-        path_to_label_names,
-        path_to_disjointedness,
-        base_loss: torch.nn.Module = None,
+            self,
+            path_to_chebi,
+            path_to_label_names,
+            path_to_disjointedness,
+            base_loss: torch.nn.Module = None,
     ):
         super().__init__(path_to_chebi, path_to_label_names, base_loss)
         label_names = _load_label_names(path_to_label_names)
@@ -380,10 +379,10 @@ class ConeElectra(ChebaiBaseNet):
             batch_first=True,
         )
         cls_tokens = (
-            torch.ones(batch.x.shape[0], dtype=torch.int, device=self.device).unsqueeze(
-                -1
-            )
-            * CLS_TOKEN
+                torch.ones(batch.x.shape[0], dtype=torch.int, device=self.device).unsqueeze(
+                    -1
+                )
+                * CLS_TOKEN
         )
         return dict(
             features=torch.cat((cls_tokens, batch.x), dim=1),
@@ -418,7 +417,7 @@ class ConeElectra(ChebaiBaseNet):
                 model_dict = torch.load(fin, map_location=self.device)
                 if model_prefix:
                     state_dict = {
-                        str(k)[len(model_prefix) :]: v
+                        str(k)[len(model_prefix):]: v
                         for k, v in model_dict["state_dict"].items()
                         if str(k).startswith(model_prefix)
                     }
@@ -477,28 +476,25 @@ class ConeElectra(ChebaiBaseNet):
             target_mask=data.get("target_mask"),
         )
 
+class ChebiBoxWithMemberships(Electra):
+    NAME = "ChebiBoxWithMemberships"
 
-class ChebiBox(Electra):
-    NAME = "ChebiBox"
-
-    
-    def __init__(self, dimensions=3, hidden_size=2000, **kwargs):
+    def __init__(self, hidden_size=None, embeddings_to_points_hidden_size=None, embeddings_dimensions=None, **kwargs):
         super().__init__(**kwargs)
-        self.dimensions = dimensions
 
-        #self.boxes = nn.Parameter(
-        #   3 - torch.rand((self.config.num_labels, self.dimensions, 2)) * 6
-        #) 
-        
-        self.boxes = nn.Parameter( torch.rand((self.config.num_labels, self.dimensions, 2)) )
+        self.config = ElectraConfig(**kwargs["config"], output_attentions=True)
+        in_dim = self.config.hidden_size
+        hidden_dim = self.config.embeddings_to_points_hidden_size
+        out_dim = self.config.embeddings_dimensions
+
+        #self.boxes = nn.Parameter(torch.rand((self.config.num_labels, out_dim, 2)))
+        self.boxes = nn.Parameter(torch.rand((self.config.num_labels, out_dim, 2)) * 3 )
 
         self.embeddings_to_points = nn.Sequential(
-            nn.Linear(self.electra.config.hidden_size, hidden_size),
+            nn.Linear(in_dim, hidden_dim),
             nn.ReLU(),
-            nn.Linear(hidden_size, self.dimensions)
+            nn.Linear(hidden_dim, out_dim)
         )
-
-        #self.criterion = BoxLoss()
 
     def forward(self, data, **kwargs):
         self.batch_size = data["features"].shape[0]
@@ -514,31 +510,69 @@ class ChebiBox(Electra):
         r = torch.max(b, dim=-1)[0]
         p = points.expand(self.config.num_labels, -1, -1).transpose(1, 0)
         max_distance_per_dim = torch.max(torch.stack((nn.functional.relu(l - p), nn.functional.relu(p - r))), dim=0)[0]
-        
-        # min might be replaced
-        #m = torch.min(membership_per_dim, dim=-1)[0]
-        #m = torch.mean(membership_per_dim, dim=-1)
-        
-        m = torch.mean(max_distance_per_dim, dim=-1)
-        s = 2 - ( 2 * (torch.sigmoid(m)) )
-        l = torch.logit( (s * 0.99) + 0.001 )
-        
+
+        m = torch.sum(max_distance_per_dim, dim=-1)
+        s = 2 - (2 * (torch.sigmoid(m)))
+        logits = torch.logit((s * 0.99) + 0.001)
+
         return dict(
             boxes=b,
             embedded_points=points,
-            logits=l,
+            logits=logits,
             attentions=electra.attentions,
             target_mask=data.get("target_mask"),
         )
 
-class BoxLoss(pl.LightningModule):
+class ChebiBoxWithDistances(Electra):
+    NAME = "ChebiBoxWithDistances"
+
+    def __init__(self, hidden_size=None, embeddings_to_points_hidden_size=None, embeddings_dimensions=None, **kwargs):
+        super().__init__(**kwargs)
+
+        self.config = ElectraConfig(**kwargs["config"], output_attentions=True)
+        in_dim = self.config.hidden_size
+        hidden_dim = self.config.embeddings_to_points_hidden_size
+        out_dim = self.config.embeddings_dimensions
+
+        self.boxes = nn.Parameter(torch.rand((self.config.num_labels, out_dim, 2)))
+
+        self.embeddings_to_points = nn.Sequential(
+            nn.Linear(in_dim, hidden_dim),
+            nn.ReLU(),
+            nn.Linear(hidden_dim, out_dim)
+        )
+
+    def forward(self, data, **kwargs):
+        self.batch_size = data["features"].shape[0]
+        inp = self.electra.embeddings.forward(data["features"])
+        inp = self.word_dropout(inp)
+        electra = self.electra(inputs_embeds=inp, **kwargs)
+        d = electra.last_hidden_state[:, 0, :]
+
+        points = self.embeddings_to_points(d)
+
+        b = self.boxes.expand(self.batch_size, -1, -1, -1)
+        l = torch.min(b, dim=-1)[0]
+        r = torch.max(b, dim=-1)[0]
+        p = points.expand(self.config.num_labels, -1, -1).transpose(1, 0)
+        max_distance_per_dim = torch.max(torch.stack((nn.functional.relu(l - p), nn.functional.relu(p - r))), dim=0)[0]
+
+        m = torch.sum(max_distance_per_dim, dim=-1)
+
+        return dict(
+            boxes=b,
+            embedded_points=points,
+            logits= m,
+            attentions=electra.attentions,
+            target_mask=data.get("target_mask"),
+        )
+class BoxLossWithSizePenalties(pl.LightningModule):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
 
-    def __call__(self, outputs, targets, model, **kwargs):
-        """
+    def forward(self, outputs, targets, model, **kwargs):
         boxes = model.boxes
-        dim = model.dimensions
+        dim = model.out_dim
 
         corner_1 = boxes[:, :, 0]
         corner_2 = boxes[:, :, 1]
@@ -546,77 +580,180 @@ class BoxLoss(pl.LightningModule):
         box_sizes_per_dim = torch.abs(corner_1 - corner_2)
         box_sizes = box_sizes_per_dim.prod(1)
 
-        min_box_size_value = 2
-        max_box_size_value = 100
 
-        mask_min_box_size = (box_sizes < min_box_size_value)
-        small_boxes = box_sizes[mask_min_box_size]
-        diff_for_small_boxes = min_box_size_value - small_boxes
+        min_mask = (box_sizes < (0.1) ** dim)
+        min_box_size_penalty = torch.sum(box_sizes[min_mask]) * 0.01
 
-        min_box_size_penalty = 0
-        if diff_for_small_boxes.nelement() != 0:
-            min_box_size_penalty = torch.mean(diff_for_small_boxes) ** (1 / dim)
-
-        mask_max_box_size = (box_sizes > max_box_size_value)
-        large_boxes = box_sizes[mask_max_box_size]
-        diff_for_large_boxes = large_boxes - max_box_size_value
-        max_box_size_penalty = 0
-        if diff_for_large_boxes.nelement() != 0:
-            max_box_size_penalty = torch.mean(diff_for_large_boxes) ** (1 / dim)
+        max_box_size_penalty = torch.sum(box_sizes) ** (1 / dim) * 0.001
 
         criterion = nn.BCEWithLogitsLoss()
         bce_loss = criterion(outputs, targets)
 
-        #total_loss = bce_loss + (0.1 * min_box_size_penalty) + (0.1 * max_box_size_penalty)
-        total_loss = bce_loss + (0.1 * max_box_size_penalty)
-        """
-
-        boxes = model.boxes
-        dim = model.dimensions
-
-        corner_1 = boxes[:, :, 0]
-        corner_2 = boxes[:, :, 1]
-
-        box_sizes_per_dim = torch.abs(corner_1 - corner_2)
-        box_sizes = box_sizes_per_dim.prod(1)
-
-        min_box_size_value = 1
-        max_box_size_value = 0 
-
-        diff_for_small_boxes = torch.relu(min_box_size_value - box_sizes)
-        min_box_size_penalty = torch.mean(diff_for_small_boxes) ** (1 / dim)
-
-        diff_for_large_boxes = torch.relu(box_sizes - max_box_size_value)
-        max_box_size_penalty = torch.mean(diff_for_large_boxes) ** (1 / dim) * 0.001
-
-        criterion = nn.BCEWithLogitsLoss()
-        bce_loss = criterion(outputs, targets)
-
-        total_loss = bce_loss + max_box_size_penalty 
-        
-        model.log(
-            "min_box_size_penalty",
-            (0.01 * min_box_size_penalty),
-            batch_size=10,
-            on_step=False,
-            on_epoch=True,
-            prog_bar=True,
-            logger=True,
-            )
+        total_loss = bce_loss + max_box_size_penalty + min_box_size_penalty
 
         model.log(
             "max_box_size_penalty",
-            (0.01 * max_box_size_penalty),
+            max_box_size_penalty,
             batch_size=10,
             on_step=False,
             on_epoch=True,
             prog_bar=True,
             logger=True,
-            )
+        )
+
+        model.log(
+            "min_box_size_penalty",
+            min_box_size_penalty,
+            batch_size=10,
+            on_step=False,
+            on_epoch=True,
+            prog_bar=True,
+            logger=True,
+        )
+
+        return total_loss
+
+class BoxLossWithMaxSizePenalty(pl.LightningModule):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+
+    def forward(self, outputs, targets, model, **kwargs):
+        boxes = model.boxes
+        dim = model.out_dim
+
+        corner_1 = boxes[:, :, 0]
+        corner_2 = boxes[:, :, 1]
+
+        box_sizes_per_dim = torch.abs(corner_1 - corner_2)
+        box_sizes = box_sizes_per_dim.prod(1)
+
+        max_box_size_penalty = torch.sum(box_sizes) ** (1 / dim) * 0.001
+
+        criterion = nn.BCEWithLogitsLoss()
+        bce_loss = criterion(outputs, targets)
+
+        total_loss = bce_loss + max_box_size_penalty
+
+        model.log(
+            "max_box_size_penalty",
+            max_box_size_penalty,
+            batch_size=10,
+            on_step=False,
+            on_epoch=True,
+            prog_bar=True,
+            logger=True,
+        )
+
+        return total_loss
+
+class BoxLossWithMinSizePenalty(pl.LightningModule):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+
+    def forward(self, outputs, targets, model, **kwargs):
+        boxes = model.boxes
+        dim = model.out_dim
+
+        corner_1 = boxes[:, :, 0]
+        corner_2 = boxes[:, :, 1]
+
+        box_sizes_per_dim = torch.abs(corner_1 - corner_2)
+        box_sizes = box_sizes_per_dim.prod(1)
+
+        min_mask = (box_sizes < (0.1) ** dim)
+        min_box_size_penalty = torch.sum(box_sizes[min_mask]) * 0.01
+
+        criterion = nn.BCEWithLogitsLoss()
+        bce_loss = criterion(outputs, targets)
+
+        total_loss = bce_loss + min_box_size_penalty
+
+        model.log(
+            "min_box_size_penalty",
+            min_box_size_penalty,
+            batch_size=10,
+            on_step=False,
+            on_epoch=True,
+            prog_bar=True,
+            logger=True,
+        )
+
+        return total_loss
+class BoxLossWithDistancePenalty(pl.LightningModule):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+
+    def forward(self, outputs, targets, model, **kwargs):
+
+        theta = model.electra.config.theta
+
+        distance_based_loss = torch.sum(((torch.sqrt(outputs) * (outputs > theta) * targets) + (
+                    (outputs <= theta) * (1 - outputs) * (1 - targets))))
+
+        return distance_based_loss
+
+class BoxLossWithSizePenaltiesAndDistancePenalty(pl.LightningModule):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+
+    def forward(self, outputs, targets, model, **kwargs):
+        boxes = model.boxes
+        dim = model.out_dim
+
+        corner_1 = boxes[:, :, 0]
+        corner_2 = boxes[:, :, 1]
+
+        box_sizes_per_dim = torch.abs(corner_1 - corner_2)
+        box_sizes = box_sizes_per_dim.prod(1)
+
+
+        min_mask = (box_sizes < (0.1) ** dim)
+        min_box_size_penalty = torch.sum(box_sizes[min_mask]) * 0.01
+
+        max_box_size_penalty = torch.sum(box_sizes) ** (1 / dim) * 0.001
+
+        theta = model.config.theta
+
+        distance_based_penalty = torch.sum(((torch.sqrt(outputs) * (outputs > theta) * targets) + (
+                (outputs <= theta) * (1 - outputs) * (1 - targets)))) * 0.001
+
+        criterion = nn.BCEWithLogitsLoss()
+        bce_loss = criterion(outputs, targets)
+
+        total_loss = bce_loss + max_box_size_penalty + min_box_size_penalty + distance_based_penalty
+
+        model.log(
+            "max_box_size_penalty",
+            max_box_size_penalty.item(),
+            batch_size=10,
+            on_step=False,
+            on_epoch=True,
+            prog_bar=True,
+            logger=True,
+        )
+        model.log(
+            "min_box_size_penalty",
+            min_box_size_penalty.item(),
+            batch_size=10,
+            on_step=False,
+            on_epoch=True,
+            prog_bar=True,
+            logger=True,
+        )
+        model.log(
+            "distance_based_penalty",
+            distance_based_penalty.item(),
+            batch_size=10,
+            on_step=False,
+            on_epoch=True,
+            prog_bar=True,
+            logger=True,
+        )
+
         return total_loss
 
 def softabs(x, eps=0.01):
-    return (x**2 + eps) ** 0.5 - eps**0.5
+    return (x ** 2 + eps) ** 0.5 - eps ** 0.5
 
 
 def anglify(x):
@@ -643,8 +780,8 @@ def in_cone_parts(vectors, cone_axes, cone_arcs):
     dis = (torch.abs(turn(v, theta_L)) + torch.abs(turn(v, theta_R)) - cone_arc_ang)/(2*pi-cone_arc_ang)
     return dis
     """
-    a = cone_axes - cone_arcs**2
-    b = cone_axes + cone_arcs**2
+    a = cone_axes - cone_arcs ** 2
+    b = cone_axes + cone_arcs ** 2
     bigger_than_a = torch.sigmoid(vectors - a)
     smaller_than_b = torch.sigmoid(b - vectors)
     return bigger_than_a * smaller_than_b

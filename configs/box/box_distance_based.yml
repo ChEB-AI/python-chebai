@@ -1,0 +1,58 @@
+seed_everything: true
+trainer:
+  strategy:
+    class_path: lightning.pytorch.strategies.DDPStrategy
+    init_args:
+      static_graph: true
+  min_epochs: 2
+  max_epochs: 6
+  default_root_dir: &default_root_dir logs
+  logger:
+    - class_path: lightning.pytorch.loggers.CSVLogger
+      init_args:
+        save_dir: *default_root_dir
+        name: ChebiBox
+model:
+  class_path: chebai.models.ChebiBoxWithDistances
+  init_args:
+    criterion:
+      class_path: chebai.models.BoxLossWithDistancePenalty
+      init_args:
+
+    out_dim: &num_labels 854
+    hidden_size: 2000
+    metrics:
+      train: &metrics
+        class_path: torchmetrics.MetricCollection
+        init_args:
+          metrics:
+            micro-f1:
+              class_path: torchmetrics.classification.MultilabelF1Score
+              init_args:
+                average: micro
+                num_labels: *num_labels
+            macro-f1:
+              class_path: torchmetrics.classification.MultilabelF1Score
+              init_args:
+                average: macro
+                num_labels: *num_labels
+      validation: *metrics
+      test: *metrics
+    pass_loss_kwargs: false
+    optimizer_kwargs:
+      lr: 1e-4
+      weight_decay: 1e-5
+    config:
+      vocab_size: 1400
+      max_position_embeddings: 1800
+      num_attention_heads: 8
+      num_hidden_layers: 6
+      type_vocab_size: 1
+      embeddings_to_points_hidden_size: 12000
+      embeddings_dimensions: 3
+      theta: 0.04
+data:
+  class_path: chebai.preprocessing.datasets.chebi.ChEBIOver100
+  init_args:
+    batch_size: 20
+    data_limit: 1000
