@@ -1,4 +1,8 @@
-from torchmetrics.classification import MultilabelF1Score
+from torchmetrics.classification import (
+    MultilabelF1Score,
+    MultilabelPrecision,
+    MultilabelRecall,
+)
 
 import pandas as pd
 import seaborn as sns
@@ -87,7 +91,7 @@ def evaluate_model(
     return test_preds, test_labels
 
 
-def load_results_from_buffer(buffer_dir):
+def load_results_from_buffer(buffer_dir, device):
     """Load results stored in evaluate_model()"""
     preds_list = []
     labels_list = []
@@ -98,7 +102,7 @@ def load_results_from_buffer(buffer_dir):
         preds_list.append(
             torch.load(
                 os.path.join(buffer_dir, filename),
-                map_location=torch.device(DEVICE),
+                map_location=torch.device(device),
             )
         )
         i += 1
@@ -110,7 +114,7 @@ def load_results_from_buffer(buffer_dir):
         labels_list.append(
             torch.load(
                 os.path.join(buffer_dir, filename),
-                map_location=torch.device(DEVICE),
+                map_location=torch.device(device),
             )
         )
         i += 1
