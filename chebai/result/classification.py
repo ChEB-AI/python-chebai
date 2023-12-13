@@ -11,7 +11,7 @@ import tqdm
 
 from chebai.models import ChebaiBaseNet
 from chebai.preprocessing.datasets import XYBaseDataModule
-from Typing import Optional
+from typing import Optional
 from lightning.fabric.utilities.types import _PATH
 
 
@@ -31,7 +31,6 @@ def visualise_f1(logs_path):
     plt.show()
 
 
-# get predictions from model
 def evaluate_model(
     model: ChebaiBaseNet,
     data_module: XYBaseDataModule,
@@ -42,9 +41,10 @@ def evaluate_model(
     If buffer_dir is set, results will be saved in buffer_dir. Returns tensors with predictions and labels."""
     model.eval()
     collate = data_module.reader.COLLATER()
-    if test_file is None:
-        test_file = data_module.processed_file_names_dict["test"]
-    data_path = os.path.join(data_module.processed_dir, test_file)
+    if data_path is None:
+        data_path = os.path.join(
+            data_module.processed_dir, data_module.processed_file_names_dict["test"]
+        )
     data_list = torch.load(data_path)
     preds_list = []
     labels_list = []
