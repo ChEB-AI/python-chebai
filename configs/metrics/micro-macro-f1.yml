@@ -5,8 +5,4 @@ init_args:
       class_path: torchmetrics.classification.MultilabelF1Score
       init_args:
         average: micro
-    # not functioning, results are calculated batch-wise instead of epoch-wise
-    #macro-f1:
-    #  class_path: torchmetrics.classification.MultilabelF1Score
-    #  init_args:
-    #    average: macro
+    # macro-f1 is a callback

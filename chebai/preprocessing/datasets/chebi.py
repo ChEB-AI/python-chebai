@@ -109,9 +109,14 @@ def extract_class_hierarchy(chebi_path):
 
 
 class _ChEBIDataExtractor(XYBaseDataModule, ABC):
-    def __init__(self, chebi_version_train: int = None, **kwargs):
+    def __init__(
+        self, chebi_version_train: int = None, single_class: int = None, **kwargs
+    ):
+        # predict only single class (given as id of one of the classes present in the raw data set)
+        self.single_class = single_class
         super(_ChEBIDataExtractor, self).__init__(**kwargs)
-        # use different version of chebi for training and validation (if not None) - still use self.chebi_version for test set
+        # use different version of chebi for training and validation (if not None)
+        # (still use self.chebi_version for test set)
         self.chebi_version_train = chebi_version_train
 
     def select_classes(self, g, split_name, *args, **kwargs):
@@ -148,11 +153,17 @@ class _ChEBIDataExtractor(XYBaseDataModule, ABC):
     def save(self, data: pd.DataFrame, split_name: str):
         pickle.dump(data, open(os.path.join(self.raw_dir, split_name), "wb"))
 
-    @staticmethod
-    def _load_dict(input_file_path):
+    def _load_dict(self, input_file_path):
         with open(input_file_path, "rb") as input_file:
-            for row in pickle.load(input_file).values:
-                yield dict(features=row[2], labels=row[3:].astype(bool), ident=row[0])
+            df = pickle.load(input_file)
+            if self.single_class is not None:
+                single_cls_index = list(df.columns).index(int(self.single_class))
+            for row in df.values:
+                if self.single_class is None:
+                    labels = row[3:].astype(bool)
+                else:
+                    labels = [bool(row[single_cls_index])]
+                yield dict(features=row[2], labels=labels, ident=row[0])
 
     @staticmethod
     def _get_data_size(input_file_path):
@@ -193,13 +204,13 @@ class _ChEBIDataExtractor(XYBaseDataModule, ABC):
             )
             if not os.path.isfile(os.path.join(self.processed_dir, processed_name)):
                 print("transform", k)
-                # create two test sets: one with the classes from the original test set, one with only classes used in train
                 torch.save(
                     self._load_data_from_file(
                         os.path.join(self.raw_dir, self.raw_file_names_dict[k])
                     ),
                     os.path.join(self.processed_dir, processed_name),
                 )
+        # create second test set with classes used in train
         if self.chebi_version_train is not None:
             print("transform test (select classes)")
             self._setup_pruned_test_set()
@@ -263,13 +274,17 @@ class _ChEBIDataExtractor(XYBaseDataModule, ABC):
 
     @property
     def processed_dir(self):
-        return os.path.join(
+        res = os.path.join(
             "data",
             self._name,
             f"chebi_v{self.chebi_version}",
             "processed",
             *self.identifier,
         )
+        if self.single_class is None:
+            return res
+        else:
+            return os.path.join(res, f"single_{self.single_class}")
 
     @property
     def raw_dir(self):

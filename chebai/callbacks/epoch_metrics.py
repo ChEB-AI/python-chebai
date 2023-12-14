@@ -58,7 +58,11 @@ class _EpochLevelMetric(Callback):
     def _calculate_macro_adjust(self, labels):
         classes_present = torch.sum(torch.sum(labels, dim=0) > 0).item()
         total_classes = labels.shape[1]
-        macro_adjust = total_classes / classes_present
+        if classes_present > 0:
+            macro_adjust = total_classes / classes_present
+        else:
+            macro_adjust = 1
+            print(f"Warning: true-label for any class in dataset")
         return macro_adjust
 
     def on_train_epoch_end(
