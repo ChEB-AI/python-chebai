@@ -130,8 +130,16 @@ def print_metrics(preds, labels, device, classes=None, top_k=10, markdown_output
     """Prints relevant metrics, including micro and macro F1, recall and precision, best k classes and worst classes."""
     f1_macro = MultilabelF1Score(preds.shape[1], average="macro").to(device=device)
     f1_micro = MultilabelF1Score(preds.shape[1], average="micro").to(device=device)
+
+    classes_present = torch.sum(torch.sum(labels, dim=0) > 0).item()
+    total_classes = labels.shape[1]
+    macro_adjust = total_classes / classes_present
+    if classes_present != total_classes:
+        print(
+            f"{total_classes - classes_present} are missing, calculating macro-scores with adjustment factor {macro_adjust}"
+        )
     print(
-        f"Macro-F1 on test set with {preds.shape[1]} classes: {f1_macro(preds, labels):3f}"
+        f"Macro-F1 on test set with {preds.shape[1]} classes: {f1_macro(preds, labels) * macro_adjust:3f}"
     )
     print(
         f"Micro-F1 on test set with {preds.shape[1]} classes: {f1_micro(preds, labels):3f}"
@@ -144,9 +152,9 @@ def print_metrics(preds, labels, device, classes=None, top_k=10, markdown_output
     )
     recall_macro = MultilabelRecall(preds.shape[1], average="macro").to(device=device)
     recall_micro = MultilabelRecall(preds.shape[1], average="micro").to(device=device)
-    print(f"Macro-Precision: {precision_macro(preds, labels):3f}")
+    print(f"Macro-Precision: {precision_macro(preds, labels) * macro_adjust:3f}")
     print(f"Micro-Precision: {precision_micro(preds, labels):3f}")
-    print(f"Macro-Recall: {recall_macro(preds, labels):3f}")
+    print(f"Macro-Recall: {recall_macro(preds, labels) * macro_adjust:3f}")
     print(f"Micro-Recall: {recall_micro(preds, labels):3f}")
     if markdown_output:
         print(
@@ -169,6 +177,6 @@ def print_metrics(preds, labels, device, classes=None, top_k=10, markdown_output
 
     zeros = []
     for i, f1 in enumerate(classwise_f1):
-        if f1 == 0.0:
+        if f1 == 0.0 and torch.sum(labels[:, i]):
             zeros.append(f"{classes[i] if classes is not None else i}")
-    print(f'Classes with F1-score = 0: {", ".join(zeros)}')
+    print(f'Classes with F1-score == 0 (and non-zero labels): {", ".join(zeros)}')
