@@ -85,10 +85,11 @@ def evaluate_model(
                 save_ind += 1
                 n_saved = 0
 
-    test_preds = torch.cat(preds_list)
-    test_labels = torch.cat(labels_list)
+    if buffer_dir is None:
+        test_preds = torch.cat(preds_list)
+        test_labels = torch.cat(labels_list)
 
-    return test_preds, test_labels
+        return test_preds, test_labels
 
 
 def load_results_from_buffer(buffer_dir, device):
