@@ -137,7 +137,7 @@ def print_metrics(preds, labels, device, classes=None, top_k=10, markdown_output
     macro_adjust = total_classes / classes_present
     if classes_present != total_classes:
         print(
-            f"{total_classes - classes_present} are missing, calculating macro-scores with adjustment factor {macro_adjust}"
+            f"{total_classes - classes_present} classes are missing, calculating macro-scores with adjustment factor {macro_adjust}"
         )
     print(
         f"Macro-F1 on test set with {preds.shape[1]} classes: {f1_macro(preds, labels) * macro_adjust:3f}"

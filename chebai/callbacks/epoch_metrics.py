@@ -72,7 +72,7 @@ class _EpochLevelMetric(Callback):
             self.train_macro_adjust = self._calculate_macro_adjust(self.train_labels)
             if self.train_macro_adjust != 1:
                 print(
-                    f"some classes are missing in train set, calculating macro-scores with adjustment factor {macro_adjust}"
+                    f"some classes are missing in train set, calculating macro-scores with adjustment factor {self.train_macro_adjust}"
                 )
 
         pl_module.log(
@@ -119,7 +119,7 @@ class _EpochLevelMetric(Callback):
             self.val_macro_adjust = self._calculate_macro_adjust(self.val_labels)
             if self.val_macro_adjust != 1:
                 print(
-                    f"some classes are missing in val set, calculating macro-scores with adjustment factor {macro_adjust}"
+                    f"some classes are missing in val set, calculating macro-scores with adjustment factor {self.val_macro_adjust}"
                 )
 
         pl_module.log(
