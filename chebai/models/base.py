@@ -2,6 +2,7 @@ import logging
 from lightning.pytorch.core.module import LightningModule
 import torch
 from typing import Optional, Dict, Any
+import pickle
 
 logging.getLogger("pysmiles").setLevel(logging.CRITICAL)
 
@@ -82,7 +83,12 @@ class ChebaiBaseNet(LightningModule):
                 loss_kwargs = dict()
                 if self.pass_loss_kwargs:
                     loss_kwargs = loss_kwargs_candidates
-                loss = self.criterion(loss_data, loss_labels,  model=self, **loss_kwargs)
+                loss_kwargs["model"] = self
+                #ToDo need to be in a config file
+                with open('./weights.pkl', 'rb') as f:
+                    weights = pickle.load(f)
+                loss_kwargs["weights"] = torch.tensor(weights)
+                loss = self.criterion(loss_data, loss_labels, **loss_kwargs)
                 d["loss"] = loss
                 self.log(
                     f"{prefix}loss",

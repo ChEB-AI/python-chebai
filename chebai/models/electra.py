@@ -679,6 +679,7 @@ class BoxLossWithMinSizePenalty(pl.LightningModule):
         )
 
         return total_loss
+
 class BoxLossWithDistancePenalty(pl.LightningModule):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -749,6 +750,20 @@ class BoxLossWithSizePenaltiesAndDistancePenalty(pl.LightningModule):
             prog_bar=True,
             logger=True,
         )
+
+        return total_loss
+
+class BoxLossBCEWithLogits(pl.LightningModule):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+
+    def forward(self, outputs, targets, **kwargs):
+        weights = kwargs['weights']
+
+        criterion = nn.BCEWithLogitsLoss(weight=weights)
+        bce_loss = criterion(outputs, targets)
+
+        total_loss = bce_loss
 
         return total_loss
 
