@@ -30,7 +30,7 @@ import pytorch_lightning as pl
 from chebai.models.base import ChebaiBaseNet
 
 logging.getLogger("pysmiles").setLevel(logging.CRITICAL)
-
+import pickle
 
 class ElectraPre(ChebaiBaseNet):
     NAME = "ElectraPre"
@@ -479,7 +479,7 @@ class ConeElectra(ChebaiBaseNet):
 class ChebiBoxWithMemberships(Electra):
     NAME = "ChebiBoxWithMemberships"
 
-    def __init__(self, hidden_size=None, embeddings_to_points_hidden_size=None, embeddings_dimensions=None, **kwargs):
+    def __init__(self, **kwargs):
         super().__init__(**kwargs)
 
         self.config = ElectraConfig(**kwargs["config"], output_attentions=True)
@@ -487,12 +487,13 @@ class ChebiBoxWithMemberships(Electra):
         self.hidden_dim = self.config.embeddings_to_points_hidden_size
         self.out_dim = self.config.embeddings_dimensions
 
-        #self.boxes = nn.Parameter(torch.rand((self.config.num_labels, out_dim, 2)))
-        self.boxes = nn.Parameter(torch.rand((self.config.num_labels, self.out_dim, 2)) * 3 )
+        self.boxes = nn.Parameter(torch.rand((self.config.num_labels, out_dim, 2)))
+        #self.boxes = nn.Parameter(torch.rand((self.config.num_labels, self.out_dim, 2)) * 3 )
 
         self.embeddings_to_points = nn.Sequential(
             nn.Linear(self.in_dim, self.hidden_dim),
             nn.ReLU(),
+            nn.Dropout(0.1),
             nn.Linear(self.hidden_dim, self.out_dim)
         )
 
@@ -502,7 +503,6 @@ class ChebiBoxWithMemberships(Electra):
         inp = self.word_dropout(inp)
         electra = self.electra(inputs_embeds=inp, **kwargs)
         d = electra.last_hidden_state[:, 0, :]
-
         points = self.embeddings_to_points(d)
 
         b = self.boxes.expand(self.batch_size, -1, -1, -1)
@@ -526,7 +526,7 @@ class ChebiBoxWithMemberships(Electra):
 class ChebiBoxWithDistances(Electra):
     NAME = "ChebiBoxWithDistances"
 
-    def __init__(self, hidden_size=None, embeddings_to_points_hidden_size=None, embeddings_dimensions=None, **kwargs):
+    def __init__(self, **kwargs):
         super().__init__(**kwargs)
 
         self.config = ElectraConfig(**kwargs["config"], output_attentions=True)
@@ -566,6 +566,21 @@ class ChebiBoxWithDistances(Electra):
             attentions=electra.attentions,
             target_mask=data.get("target_mask"),
         )
+
+class BoxLossBCEWithLogits(pl.LightningModule):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+
+    def forward(self, outputs, targets, **kwargs):
+        weights = kwargs['weights']
+
+        #criterion = nn.BCEWithLogitsLoss(weight=weights)
+        criterion = nn.BCEWithLogitsLoss()
+        bce_loss = criterion(outputs, targets)
+
+        total_loss = bce_loss
+
+        return total_loss
 class BoxLossWithSizePenalties(pl.LightningModule):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -650,9 +665,10 @@ class BoxLossWithMinSizePenalty(pl.LightningModule):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
 
-    def forward(self, outputs, targets, model, **kwargs):
-        boxes = model.boxes
-        dim = model.out_dim
+    def forward(self, outputs, targets, **kwargs):
+        model = kwargs['model']
+        boxes = kwargs['model'].boxes
+        dim = kwargs['model'].out_dim
 
         corner_1 = boxes[:, :, 0]
         corner_2 = boxes[:, :, 1]
@@ -661,6 +677,7 @@ class BoxLossWithMinSizePenalty(pl.LightningModule):
         box_sizes = box_sizes_per_dim.prod(1)
 
         min_mask = (box_sizes < (0.1) ** dim)
+        #min_mask = (box_sizes < 3)
         min_box_size_penalty = torch.sum(box_sizes[min_mask]) * 0.01
 
         criterion = nn.BCEWithLogitsLoss()
@@ -679,7 +696,6 @@ class BoxLossWithMinSizePenalty(pl.LightningModule):
         )
 
         return total_loss
-
 class BoxLossWithDistancePenalty(pl.LightningModule):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -750,20 +766,6 @@ class BoxLossWithSizePenaltiesAndDistancePenalty(pl.LightningModule):
             prog_bar=True,
             logger=True,
         )
-
-        return total_loss
-
-class BoxLossBCEWithLogits(pl.LightningModule):
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-
-    def forward(self, outputs, targets, **kwargs):
-        weights = kwargs['weights']
-
-        criterion = nn.BCEWithLogitsLoss(weight=weights)
-        bce_loss = criterion(outputs, targets)
-
-        total_loss = bce_loss
 
         return total_loss
 
