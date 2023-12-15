@@ -53,9 +53,7 @@ class ElectraPre(ChebaiBaseNet):
 
     def forward(self, data, **kwargs):
         features = data["features"]
-        features = features.to(
-            self.device
-        ).long()  # this has been added for selfies, i neither know why it is needed now, nor why it wasnt needed before
+        features = features.long()
         self.batch_size = batch_size = features.shape[0]
         max_seq_len = features.shape[1]
 

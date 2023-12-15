@@ -85,6 +85,7 @@ class ChebaiBaseNet(LightningModule):
 
     def _execute(self, batch, batch_idx, metrics, prefix="", log=True, sync_dist=False):
         assert isinstance(batch, XYData)
+        batch = batch.to(self.device)
         data = self._process_batch(batch, batch_idx)
         labels = data["labels"]
         model_output = self(data, **data.get("model_kwargs", dict()))
