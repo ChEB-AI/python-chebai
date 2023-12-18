@@ -163,7 +163,7 @@ class XYBaseDataModule(LightningDataModule):
         return self.dataloader(self.prediction_kind, shuffle=False, **kwargs)
 
     def setup(self, **kwargs):
-        rank_zero_info("Check for processed data in ", self.processed_dir)
+        rank_zero_info(f"Check for processed data in {self.processed_dir}")
         rank_zero_info(f"Cross-validation enabled: {self.use_inner_cross_validation}")
         if any(
             not os.path.isfile(os.path.join(self.processed_dir, f))
@@ -177,11 +177,6 @@ class XYBaseDataModule(LightningDataModule):
                     self.processed_dir, self.processed_file_names_dict["train_val"]
                 )
             )
-
-    def teardown(self, stage: str) -> None:
-        # cant save hyperparams at setup because logger is not initialised yet
-        # not sure if this has an effect
-        self.save_hyperparameters()
 
     def setup_processed(self):
         raise NotImplementedError
