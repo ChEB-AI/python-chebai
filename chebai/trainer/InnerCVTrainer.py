@@ -9,10 +9,14 @@ from lightning.pytorch.loggers import WandbLogger
 from lightning.pytorch.callbacks import ModelCheckpoint
 
 from lightning.fabric.plugins.environments import SLURMEnvironment
-from lightning_utilities.core.rank_zero import WarningCache
+from lightning_utilities.core.rank_zero import (
+    WarningCache,
+    rank_zero_warn,
+    rank_zero_info,
+)
 from lightning.pytorch.loggers import CSVLogger
 from iterstrat.ml_stratifiers import MultilabelStratifiedKFold
-from lightning.pytorch.callbacks.model_checkpoint import _is_dir, rank_zero_warn
+from lightning.pytorch.callbacks.model_checkpoint import _is_dir
 
 from chebai.loggers.custom import CustomLogger
 from chebai.preprocessing.datasets.base import XYBaseDataModule
@@ -55,7 +59,7 @@ class InnerCVTrainer(Trainer):
                 logger = new_trainer.logger
                 if isinstance(logger, CustomLogger):
                     logger.set_fold(fold)
-                    print(f"Logging this fold at {logger.experiment.dir}")
+                    rank_zero_info(f"Logging this fold at {logger.experiment.dir}")
                 else:
                     rank_zero_warn(
                         f"Using k-fold cross-validation without an adapted logger class"

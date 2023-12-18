@@ -35,7 +35,7 @@ class CustomModelCheckpoint(ModelCheckpoint):
 
     def __resolve_ckpt_dir(self, trainer: "Trainer") -> _PATH:
         """Overwritten for compatibility with wandb -> saves checkpoints in same dir as wandb logs"""
-        print(f"Resolving checkpoint dir (custom)")
+        rank_zero_info(f"Resolving checkpoint dir (custom)")
         if self.dirpath is not None:
             # short circuit if dirpath was passed to ModelCheckpoint
             return self.dirpath
@@ -58,5 +58,5 @@ class CustomModelCheckpoint(ModelCheckpoint):
             # if no loggers, use default_root_dir
             ckpt_path = os.path.join(trainer.default_root_dir, "checkpoints")
 
-        print(f"Now using checkpoint path {ckpt_path}")
+        rank_zero_info(f"Now using checkpoint path {ckpt_path}")
         return ckpt_path

@@ -10,6 +10,7 @@ import tqdm
 import lightning as pl
 
 from chebai.preprocessing import reader as dr
+from lightning_utilities.core.rank_zero import rank_zero_info
 
 
 class XYBaseDataModule(LightningDataModule):
@@ -149,6 +150,7 @@ class XYBaseDataModule(LightningDataModule):
         return self.dataloader(
             "validation" if not self.use_inner_cross_validation else "train_val",
             shuffle=False,
+            num_workers=self.num_workers,
             **kwargs,
         )
 
@@ -161,8 +163,8 @@ class XYBaseDataModule(LightningDataModule):
         return self.dataloader(self.prediction_kind, shuffle=False, **kwargs)
 
     def setup(self, **kwargs):
-        print("Check for processed data in ", self.processed_dir)
-        print(f"Cross-validation enabled: {self.use_inner_cross_validation}")
+        rank_zero_info("Check for processed data in ", self.processed_dir)
+        rank_zero_info(f"Cross-validation enabled: {self.use_inner_cross_validation}")
         if any(
             not os.path.isfile(os.path.join(self.processed_dir, f))
             for f in self.processed_file_names

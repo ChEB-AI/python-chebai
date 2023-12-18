@@ -78,6 +78,7 @@ class _EpochLevelMetric(Callback):
         pl_module.log(
             f"train_{self.metric_name}",
             self.apply_metric(self.train_labels, self.train_preds, mode="train"),
+            sync_dist=True,
         )
 
     def on_validation_epoch_start(
