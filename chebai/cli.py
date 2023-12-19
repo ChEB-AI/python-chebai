@@ -18,6 +18,10 @@ class ChebaiCLI(LightningCLI):
         parser.link_arguments(
             "model.init_args.out_dim", "trainer.callbacks.init_args.num_labels"
         )
+
+        # does any of this work? i wasnt able to find any evidence of cases where linked arguments are actually used
+        # why doesnt it work?
+        # parser.link_arguments("model.out_dim", "model.init_args.n_atom_properties")
         # parser.link_arguments('n_splits', 'data.init_args.inner_k_folds') # doesn't work but I don't know why
 
     @staticmethod

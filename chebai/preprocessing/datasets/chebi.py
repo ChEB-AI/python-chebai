@@ -214,7 +214,8 @@ class _ChEBIDataExtractor(XYBaseDataModule, ABC):
         if self.chebi_version_train is not None:
             print("transform test (select classes)")
             self._setup_pruned_test_set()
-        self.reader.save_token_cache()
+
+        self.reader.on_finish()
 
     def get_test_split(self, df: pd.DataFrame):
         print("Split dataset into train (including val) / test")

@@ -87,7 +87,7 @@ class DataReader:
             **d["additional_kwargs"],
         )
 
-    def save_token_cache(self):
+    def on_finish(self):
         return
 
 
@@ -112,7 +112,7 @@ class ChemDataReader(DataReader):
     def _read_data(self, raw_data):
         return [self._get_token_index(v[1]) for v in _tokenize(raw_data)]
 
-    def save_token_cache(self):
+    def on_finish(self):
         """write contents of self.cache into tokens.txt"""
         with open(self.token_path, "w") as pk:
             print(f"saving {len(self.cache)} tokens to {self.token_path}...")
