@@ -30,7 +30,7 @@ class XYBaseDataModule(LightningDataModule):
         inner_k_folds: int = -1,  # use inner cross-validation if > 1
         **kwargs,
     ):
-        super().__init__(**kwargs)
+        super().__init__()
         if reader_kwargs is None:
             reader_kwargs = dict()
         self.reader = self.READER(**reader_kwargs)
@@ -143,6 +143,7 @@ class XYBaseDataModule(LightningDataModule):
             "train" if not self.use_inner_cross_validation else "train_val",
             shuffle=True,
             num_workers=self.num_workers,
+            persistent_workers=True,
             **kwargs,
         )
 
@@ -151,6 +152,7 @@ class XYBaseDataModule(LightningDataModule):
             "validation" if not self.use_inner_cross_validation else "train_val",
             shuffle=False,
             num_workers=self.num_workers,
+            persistent_workers=True,
             **kwargs,
         )
 
