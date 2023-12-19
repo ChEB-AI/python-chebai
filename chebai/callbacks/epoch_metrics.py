@@ -68,18 +68,19 @@ class _EpochLevelMetric(Callback):
     def on_train_epoch_end(
         self, trainer: "pl.Trainer", pl_module: "pl.LightningModule"
     ) -> None:
-        if self.train_macro_adjust is None:
-            self.train_macro_adjust = self._calculate_macro_adjust(self.train_labels)
-            if self.train_macro_adjust != 1:
-                print(
-                    f"some classes are missing in train set, calculating macro-scores with adjustment factor {self.train_macro_adjust}"
-                )
+        # if self.train_macro_adjust is None:
+        self.train_macro_adjust = self._calculate_macro_adjust(self.train_labels)
+        if self.train_macro_adjust != 1:
+            print(
+                f"some classes are missing in train set, calculating macro-scores with adjustment factor {self.train_macro_adjust}"
+            )
 
         pl_module.log(
             f"train_{self.metric_name}",
             self.apply_metric(self.train_labels, self.train_preds, mode="train"),
             sync_dist=True,
         )
+        pl_module.log(f"train_macro_adjust", self.train_macro_adjust, sync_dist=True)
 
     def on_validation_epoch_start(
         self, trainer: "pl.Trainer", pl_module: "pl.LightningModule"
@@ -116,18 +117,18 @@ class _EpochLevelMetric(Callback):
     def on_validation_epoch_end(
         self, trainer: "pl.Trainer", pl_module: "pl.LightningModule"
     ) -> None:
-        if self.val_macro_adjust is None:
-            self.val_macro_adjust = self._calculate_macro_adjust(self.val_labels)
-            if self.val_macro_adjust != 1:
-                print(
-                    f"some classes are missing in val set, calculating macro-scores with adjustment factor {self.val_macro_adjust}"
-                )
+        self.val_macro_adjust = self._calculate_macro_adjust(self.val_labels)
+        if self.val_macro_adjust != 1:
+            print(
+                f"some classes are missing in val set, calculating macro-scores with adjustment factor {self.val_macro_adjust}"
+            )
 
         pl_module.log(
             f"val_{self.metric_name}",
             self.apply_metric(self.val_labels, self.val_preds, mode="val"),
             sync_dist=True,
         )
+        pl_module.log(f"val_macro_adjust", self.val_macro_adjust, sync_dist=True)
 
 
 class EpochLevelMacroF1(_EpochLevelMetric):
