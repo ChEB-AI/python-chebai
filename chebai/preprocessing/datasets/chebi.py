@@ -93,7 +93,7 @@ class JCITokenData(JCIBase):
 
 
 def extract_class_hierarchy(chebi_path):
-    with open(chebi_path, encoding="utf-8") as chebi:  # encoding for windows users
+    with open(chebi_path, encoding="utf-8") as chebi:
         chebi = "\n".join(l for l in chebi if not l.startswith("xref:"))
     elements = [
         term_callback(clause)
@@ -211,11 +211,11 @@ class _ChEBIDataExtractor(XYBaseDataModule, ABC):
                     os.path.join(self.processed_dir, processed_name),
                 )
         # create second test set with classes used in train
-        if self.chebi_version_train is not None:
+        if self.chebi_version_train is not None and not os.path.isfile(
+            os.path.join(self.processed_dir, self.processed_file_names_dict["test"])
+        ):
             print("transform test (select classes)")
             self._setup_pruned_test_set()
-
-        self.reader.on_finish()
 
     def get_test_split(self, df: pd.DataFrame):
         print("Split dataset into train (including val) / test")

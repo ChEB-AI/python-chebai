@@ -77,13 +77,16 @@ class XYBaseDataModule(LightningDataModule):
         row["labels"] = [row["labels"][self.label_filter]]
         return row
 
-    def dataloader(self, kind, **kwargs) -> DataLoader:
+    def _load_processed_data(self, kind: str) -> List:
         try:
             # processed_file_names_dict is only implemented for _ChEBIDataExtractor
             filename = self.processed_file_names_dict[kind]
         except NotImplementedError:
             filename = f"{kind}.pt"
-        dataset = torch.load(os.path.join(self.processed_dir, filename))
+        return torch.load(os.path.join(self.processed_dir, filename))
+
+    def dataloader(self, kind, **kwargs) -> DataLoader:
+        dataset = self._load_processed_data(kind)
         if "ids" in kwargs:
             ids = kwargs.pop("ids")
             _dataset = []
@@ -179,6 +182,9 @@ class XYBaseDataModule(LightningDataModule):
                     self.processed_dir, self.processed_file_names_dict["train_val"]
                 )
             )
+
+        if not ("keep_reader" in kwargs and kwargs["keep_reader"]):
+            self.reader.on_finish()
 
     def setup_processed(self):
         raise NotImplementedError

@@ -88,6 +88,7 @@ class DataReader:
         )
 
     def on_finish(self):
+        """Hook to run at the end of preprocessing."""
         return
 
 
