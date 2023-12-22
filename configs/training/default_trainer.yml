@@ -1,15 +1,5 @@
 min_epochs: 100
 max_epochs: 100 
 default_root_dir: &default_root_dir logs
-strategy: 'ddp_find_unused_parameters_true'
-logger:
-#  class_path: lightning.pytorch.loggers.CSVLogger
-#  init_args:
-#    save_dir: *default_root_dir
-  class_path: chebai.loggers.custom.CustomLogger # Extension of Wandb logger
-  init_args:
-    save_dir: *default_root_dir
-    project: 'chebai'
-    entity: 'chebai'
-    log_model: 'all'
+logger: csv_logger.yml
 callbacks: default_callbacks.yml

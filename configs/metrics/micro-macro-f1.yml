@@ -7,6 +7,3 @@ init_args:
         average: micro
     macro-f1:
       class_path: chebai.callbacks.epoch_metrics.MacroF1
-      init_args:
-        n_labels: 1446
-    # macro-f1 is a callback

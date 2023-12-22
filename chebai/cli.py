@@ -1,14 +1,16 @@
 from typing import Dict, Set
 
-from lightning.pytorch.cli import LightningCLI
-from chebai.trainer.InnerCVTrainer import InnerCVTrainer
+from lightning.pytorch.cli import LightningCLI, LightningArgumentParser
+from chebai.trainer.CustomTrainer import CustomTrainer
+from chebai.preprocessing.datasets.base import XYBaseDataModule
+from chebai.models.base import ChebaiBaseNet
 
 
 class ChebaiCLI(LightningCLI):
     def __init__(self, *args, **kwargs):
-        super().__init__(trainer_class=InnerCVTrainer, *args, **kwargs)
+        super().__init__(trainer_class=CustomTrainer, *args, **kwargs)
 
-    def add_arguments_to_parser(self, parser):
+    def add_arguments_to_parser(self, parser: LightningArgumentParser):
         for kind in ("train", "val", "test"):
             for average in ("micro", "macro"):
                 parser.link_arguments(
@@ -18,11 +20,6 @@ class ChebaiCLI(LightningCLI):
         parser.link_arguments(
             "model.init_args.out_dim", "trainer.callbacks.init_args.num_labels"
         )
-
-        # does any of this work? i wasnt able to find any evidence of cases where linked arguments are actually used
-        # why doesnt it work?
-        # parser.link_arguments("model.out_dim", "model.init_args.n_atom_properties")
-        # parser.link_arguments('n_splits', 'data.init_args.inner_k_folds') # doesn't work but I don't know why
 
     @staticmethod
     def subcommands() -> Dict[str, Set[str]]:

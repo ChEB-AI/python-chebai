@@ -29,7 +29,7 @@ import pandas as pd
 log = logging.getLogger(__name__)
 
 
-class InnerCVTrainer(Trainer):
+class CustomTrainer(Trainer):
     def __init__(self, *args, **kwargs):
         self.init_args = args
         self.init_kwargs = kwargs
@@ -37,7 +37,8 @@ class InnerCVTrainer(Trainer):
         # instantiation custom logger connector
         self._logger_connector.on_trainer_init(self.logger, 1)
 
-    def cv_fit(self, datamodule: XYBaseDataModule, n_splits: int = -1, *args, **kwargs):
+    def cv_fit(self, datamodule: XYBaseDataModule, *args, **kwargs):
+        n_splits = datamodule.inner_k_folds
         if n_splits < 2:
             self.fit(datamodule=datamodule, *args, **kwargs)
         else:
@@ -55,7 +56,7 @@ class InnerCVTrainer(Trainer):
                 train_dataloader = datamodule.train_dataloader(ids=train_ids)
                 val_dataloader = datamodule.val_dataloader(ids=val_ids)
                 init_kwargs = self.init_kwargs
-                new_trainer = InnerCVTrainer(*self.init_args, **init_kwargs)
+                new_trainer = CustomTrainer(*self.init_args, **init_kwargs)
                 logger = new_trainer.logger
                 if isinstance(logger, CustomLogger):
                     logger.set_fold(fold)

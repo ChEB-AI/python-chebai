@@ -149,19 +149,20 @@ class EpochLevelMacroF1(_EpochLevelMetric):
 
 
 class MacroF1(torchmetrics.Metric):
-    def __init__(self, n_labels, dist_sync_on_step=False, threshold=0.5):
+    def __init__(self, num_labels, dist_sync_on_step=False, threshold=0.5):
+        print(f"got a num_labels argument: {num_labels}")
         super().__init__(dist_sync_on_step=dist_sync_on_step)
 
         self.add_state(
-            "true_positives", default=torch.zeros((n_labels)), dist_reduce_fx="sum"
+            "true_positives", default=torch.zeros((num_labels)), dist_reduce_fx="sum"
         )
         self.add_state(
             "positive_predictions",
-            default=torch.empty((n_labels)),
+            default=torch.empty((num_labels)),
             dist_reduce_fx="sum",
         )
         self.add_state(
-            "positive_labels", default=torch.empty((n_labels)), dist_reduce_fx="sum"
+            "positive_labels", default=torch.empty((num_labels)), dist_reduce_fx="sum"
         )
         self.threshold = threshold
 
