@@ -1,7 +1,7 @@
 from typing import Any
 
+import torchmetrics
 from lightning.pytorch.callbacks import Callback
-import numpy as np
 from lightning.pytorch.utilities.types import STEP_OUTPUT
 import lightning as pl
 from torchmetrics.classification import MultilabelF1Score
@@ -146,3 +146,34 @@ class EpochLevelMacroF1(_EpochLevelMetric):
             return f1(pred, target) * self.val_macro_adjust
         else:
             return f1(pred, target)
+
+
+class MacroF1(torchmetrics.Metric):
+    def __init__(self, n_labels, dist_sync_on_step=False):
+        super().__init__(dist_sync_on_step=dist_sync_on_step)
+
+        self.add_state(
+            "true_positives", default=torch.empty((0, n_labels)), dist_reduce_fx="sum"
+        )
+        self.add_state(
+            "positive_predictions",
+            default=torch.empty((0, n_labels)),
+            dist_reduce_fx="sum",
+        )
+        self.add_state(
+            "positive_labels", default=torch.empty((0, n_labels)), dist_reduce_fx="sum"
+        )
+
+    def update(self, preds: torch.Tensor, labels: torch.Tensor):
+        self.true_positives += torch.sum(torch.logical_and(preds, labels), dim=1)
+        self.positive_predictions += torch.sum(preds, dim=1)
+        self.positive_labels += torch.sum(labels, dim=1)
+
+    def compute(self):
+        mask = torch.logical_and(
+            self.positive_predictions > 0, self.positive_labels > 0
+        )
+        precision = self.true_positives[mask] / self.positive_predictions[mask]
+        recall = self.true_positives[mask] / self.positive_labels[mask]
+        classwise_f1 = (2 * precision * recall / (precision + recall)).nan_to_num()
+        return torch.mean(classwise_f1)

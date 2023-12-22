@@ -3,20 +3,17 @@ from torchmetrics.classification import (
     MultilabelPrecision,
     MultilabelRecall,
 )
+from chebai.callbacks.epoch_metrics import MacroF1
 
 import pandas as pd
 import seaborn as sns
 import matplotlib.pyplot as plt
 import os
-import chebai.models.electra as electra
-from chebai.loss.pretraining import ElectraPreLoss
 import torch
 import tqdm
 
 from chebai.models import ChebaiBaseNet
 from chebai.preprocessing.datasets import XYBaseDataModule
-from typing import Optional
-from lightning.fabric.utilities.types import _PATH
 
 
 def visualise_f1(logs_path):
@@ -40,6 +37,7 @@ def evaluate_model(
     data_module: XYBaseDataModule,
     filename=None,
     buffer_dir=None,
+    batch_size: int = 32,
 ):
     """Runs model on test set of data_module (or, if filename is not None, on data set found in that file).
     If buffer_dir is set, results will be saved in buffer_dir. Returns tensors with predictions and labels."""
@@ -52,11 +50,11 @@ def evaluate_model(
     if buffer_dir is not None:
         os.makedirs(buffer_dir, exist_ok=True)
     save_ind = 0
-    save_batch_size = 128
+    save_batch_size = 4
     n_saved = 0
 
-    for row in tqdm.tqdm(data_list):
-        collated = collate([row])
+    for i in tqdm.tqdm(range(0, len(data_list), batch_size)):
+        collated = collate(data_list[i : min(i + batch_size, len(data_list) - 1)])
         collated.x = collated.to_x(model.device)
         collated.y = collated.to_y(model.device)
         processable_data = model._process_batch(collated, 0)
@@ -129,16 +127,12 @@ def print_metrics(preds, labels, device, classes=None, top_k=10, markdown_output
     f1_macro = MultilabelF1Score(preds.shape[1], average="macro").to(device=device)
     f1_micro = MultilabelF1Score(preds.shape[1], average="micro").to(device=device)
 
-    classes_present = torch.sum(torch.sum(labels, dim=0) > 0).item()
-    total_classes = labels.shape[1]
-    macro_adjust = total_classes / classes_present
-    if classes_present != total_classes:
-        print(
-            f"{total_classes - classes_present} classes are missing, calculating macro-scores with adjustment factor {macro_adjust}"
-        )
+    my_f1_macro = MacroF1(preds.shape[1])
+
     print(
-        f"Macro-F1 on test set with {preds.shape[1]} classes: {f1_macro(preds, labels) * macro_adjust:3f}"
+        f"Macro-F1 (torchmetrics, unadjusted) on test set with {preds.shape[1]} classes: {f1_macro(preds, labels):3f}"
     )
+    print(f"Macro-F1 (my implementation): {my_f1_macro(preds, labels)}")
     print(
         f"Micro-F1 on test set with {preds.shape[1]} classes: {f1_micro(preds, labels):3f}"
     )
