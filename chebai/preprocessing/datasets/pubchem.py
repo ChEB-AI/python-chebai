@@ -52,7 +52,7 @@ class PubChem(XYBaseDataModule):
 
     @property
     def raw_dir(self):
-        return os.path.join("data", self._name, "raw", self.split_label)
+        return os.path.join(self.base_dir, "raw", self.split_label)
 
     @staticmethod
     def _load_dict(input_file_path):
@@ -215,10 +215,6 @@ class SWJPreChem(PubChem):
     @property
     def identifier(self):
         return (self.reader.name(),)
-
-    @property
-    def raw_dir(self):
-        return os.path.join("data", self._name, "raw")
 
 
 class PubToxAndChebiX(XYBaseDataModule):

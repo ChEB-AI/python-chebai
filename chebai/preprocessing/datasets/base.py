@@ -28,6 +28,7 @@ class XYBaseDataModule(LightningDataModule):
         num_workers: int = 1,
         chebi_version: int = 200,
         inner_k_folds: int = -1,  # use inner cross-validation if > 1
+        base_dir=None,
         **kwargs,
     ):
         super().__init__()
@@ -50,6 +51,7 @@ class XYBaseDataModule(LightningDataModule):
         self.use_inner_cross_validation = (
             inner_k_folds > 1
         )  # only use cv if there are at least 2 folds
+        self._base_dir = base_dir
         os.makedirs(self.raw_dir, exist_ok=True)
         os.makedirs(self.processed_dir, exist_ok=True)
 
@@ -62,12 +64,19 @@ class XYBaseDataModule(LightningDataModule):
         return (self._name, *self.identifier)
 
     @property
+    def base_dir(self):
+        """Common base directory for processed and raw directories"""
+        if self._base_dir is not None:
+            return self._base_dir
+        return os.path.join("data", self._name)
+
+    @property
     def processed_dir(self):
-        return os.path.join("data", self._name, "processed", *self.identifier)
+        return os.path.join(self.base_dir, "processed", *self.identifier)
 
     @property
     def raw_dir(self):
-        return os.path.join("data", self._name, "raw")
+        return os.path.join(self.base_dir, "raw")
 
     @property
     def _name(self):
@@ -77,16 +86,22 @@ class XYBaseDataModule(LightningDataModule):
         row["labels"] = [row["labels"][self.label_filter]]
         return row
 
-    def _load_processed_data(self, kind: str) -> List:
-        try:
-            # processed_file_names_dict is only implemented for _ChEBIDataExtractor
-            filename = self.processed_file_names_dict[kind]
-        except NotImplementedError:
-            filename = f"{kind}.pt"
-        return torch.load(os.path.join(self.processed_dir, filename))
+    def load_processed_data(self, kind: str = None, filename: str = None) -> List:
+        if kind is None and filename is None:
+            raise ValueError(
+                "Either kind or filename is required to load the correct dataset, both are None"
+            )
+        # if both kind and filename are given, use filename
+        if kind is not None and filename is None:
+            try:
+                # processed_file_names_dict is only implemented for _ChEBIDataExtractor
+                filename = self.processed_file_names_dict[kind]
+            except NotImplementedError:
+                filename = f"{kind}.pt"
+        return torch.load(os.path.join(processed_dir, filename))
 
     def dataloader(self, kind, **kwargs) -> DataLoader:
-        dataset = self._load_processed_data(kind)
+        dataset = self.load_processed_data(kind)
         if "ids" in kwargs:
             ids = kwargs.pop("ids")
             _dataset = []

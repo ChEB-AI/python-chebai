@@ -38,18 +38,15 @@ def visualise_f1(logs_path):
 def evaluate_model(
     model: ChebaiBaseNet,
     data_module: XYBaseDataModule,
-    data_path: Optional[_PATH] = None,
+    filename=None,
     buffer_dir=None,
 ):
-    """Runs model on test set of data_module (or, if data_path is not None, on data set found at data_path).
+    """Runs model on test set of data_module (or, if filename is not None, on data set found in that file).
     If buffer_dir is set, results will be saved in buffer_dir. Returns tensors with predictions and labels."""
     model.eval()
     collate = data_module.reader.COLLATER()
-    if data_path is None:
-        data_path = os.path.join(
-            data_module.processed_dir, data_module.processed_file_names_dict["test"]
-        )
-    data_list = torch.load(data_path)
+
+    data_list = data_module.load_processed_data("test", filename)
     preds_list = []
     labels_list = []
     if buffer_dir is not None:

@@ -276,9 +276,7 @@ class _ChEBIDataExtractor(XYBaseDataModule, ABC):
     @property
     def processed_dir(self):
         res = os.path.join(
-            "data",
-            self._name,
-            f"chebi_v{self.chebi_version}",
+            self.base_dir,
             "processed",
             *self.identifier,
         )
@@ -288,8 +286,8 @@ class _ChEBIDataExtractor(XYBaseDataModule, ABC):
             return os.path.join(res, f"single_{self.single_class}")
 
     @property
-    def raw_dir(self):
-        return os.path.join("data", self._name, f"chebi_v{self.chebi_version}", "raw")
+    def base_dir(self):
+        return os.path.join("data", self._name, f"chebi_v{self.chebi_version}")
 
     @property
     def processed_file_names_dict(self) -> dict:
