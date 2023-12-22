@@ -98,7 +98,7 @@ class XYBaseDataModule(LightningDataModule):
                 filename = self.processed_file_names_dict[kind]
             except NotImplementedError:
                 filename = f"{kind}.pt"
-        return torch.load(os.path.join(processed_dir, filename))
+        return torch.load(os.path.join(self.processed_dir, filename))
 
     def dataloader(self, kind, **kwargs) -> DataLoader:
         dataset = self.load_processed_data(kind)
