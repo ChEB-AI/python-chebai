@@ -113,31 +113,39 @@ class ChebaiBaseNet(LightningModule):
                 )
             if metrics and labels is not None:
                 for metric_name, metric in metrics.items():
-                    m = metric(pr, tar)
-                    if isinstance(m, dict):
-                        for k, m2 in m.items():
-                            self.log(
-                                f"{prefix}{metric_name}{k}",
-                                m2,
-                                batch_size=len(batch),
-                                on_step=False,
-                                on_epoch=True,
-                                prog_bar=True,
-                                logger=True,
-                                sync_dist=sync_dist,
-                            )
-                    else:
-                        self.log(
-                            f"{prefix}{metric_name}",
-                            m,
-                            batch_size=len(batch),
-                            on_step=False,
-                            on_epoch=True,
-                            prog_bar=True,
-                            logger=True,
-                            sync_dist=sync_dist,
-                        )
+                    metric.update(pr, tar)
         return d
+
+    def _log_metrics(self, prefix, metrics, sync_dist=False):
+        for metric_name, metric in metrics.items():
+            m = metric.compute()
+            if isinstance(m, dict):
+                for k, m2 in m.items():
+                    self.log(
+                        f"{prefix}{metric_name}{k}",
+                        m2,
+                        on_step=False,
+                        on_epoch=True,
+                        prog_bar=True,
+                        logger=True,
+                        sync_dist=sync_dist,
+                    )
+            else:
+                self.log(
+                    f"{prefix}{metric_name}",
+                    metric,
+                    on_step=False,
+                    on_epoch=True,
+                    prog_bar=True,
+                    logger=True,
+                    sync_dist=sync_dist,
+                )
+
+    def on_train_epoch_end(self, logs=None):
+        self._log_metrics("train_", self.train_metrics, sync_dist=True)
+
+    def on_validation_epoch_end(self) -> None:
+        self._log_metrics("val_", self.validation_metrics, sync_dist=True)
 
     def forward(self, x):
         raise NotImplementedError
