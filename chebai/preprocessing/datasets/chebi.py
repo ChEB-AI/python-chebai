@@ -9,6 +9,7 @@ __all__ = [
     "JCI_500_COLUMNS_INT",
 ]
 
+import queue
 from abc import ABC
 from collections import OrderedDict
 import os
@@ -93,22 +94,6 @@ class JCITokenData(JCIBase):
     READER = dr.ChemDataReader
 
 
-def extract_class_hierarchy(chebi_path):
-    with open(chebi_path, encoding="utf-8") as chebi:
-        chebi = "\n".join(l for l in chebi if not l.startswith("xref:"))
-    elements = [
-        term_callback(clause)
-        for clause in fastobo.loads(chebi)
-        if clause and ":" in str(clause.id)
-    ]
-    g = nx.DiGraph()
-    for n in elements:
-        g.add_node(n["id"], **n)
-    g.add_edges_from([(p, q["id"]) for q in elements for p in q["parents"]])
-    print("Compute transitive closure")
-    return nx.transitive_closure_dag(g)
-
-
 class _ChEBIDataExtractor(XYBaseDataModule, ABC):
     def __init__(
         self, chebi_version_train: int = None, single_class: int = None, **kwargs
@@ -119,6 +104,21 @@ class _ChEBIDataExtractor(XYBaseDataModule, ABC):
         # use different version of chebi for training and validation (if not None)
         # (still uses self.chebi_version for test set)
         self.chebi_version_train = chebi_version_train
+
+    def extract_class_hierarchy(self, chebi_path):
+        with open(chebi_path, encoding="utf-8") as chebi:
+            chebi = "\n".join(l for l in chebi if not l.startswith("xref:"))
+        elements = [
+            term_callback(clause)
+            for clause in fastobo.loads(chebi)
+            if clause and ":" in str(clause.id)
+        ]
+        g = nx.DiGraph()
+        for n in elements:
+            g.add_node(n["id"], **n)
+        g.add_edges_from([(p, q["id"]) for q in elements for p in q["parents"]])
+        print("Compute transitive closure")
+        return nx.transitive_closure_dag(g)
 
     def select_classes(self, g, split_name, *args, **kwargs):
         raise NotImplementedError
@@ -375,7 +375,7 @@ class _ChEBIDataExtractor(XYBaseDataModule, ABC):
                 os.path.join(self.raw_dir, self.raw_file_names_dict["test"])
             ):
                 chebi_path = self._load_chebi(self.chebi_version)
-                g = extract_class_hierarchy(chebi_path)
+                g = self.extract_class_hierarchy(chebi_path)
                 df = self.graph_to_raw_dataset(g, self.raw_file_names_dict["test"])
                 _, test_df = self.get_test_split(df)
                 self.save_raw(test_df, self.raw_file_names_dict["test"])
@@ -391,7 +391,7 @@ class _ChEBIDataExtractor(XYBaseDataModule, ABC):
                 if self.chebi_version_train is not None
                 else self.chebi_version
             )
-            g = extract_class_hierarchy(chebi_path)
+            g = self.extract_class_hierarchy(chebi_path)
             if self.use_inner_cross_validation:
                 df = self.graph_to_raw_dataset(
                     g, self.raw_file_names_dict[f"fold_0_train"]
@@ -485,6 +485,40 @@ class ChEBIOver100DeepSMILES(ChEBIOverXDeepSMILES, ChEBIOver100):
 
 
 class ChEBIOver100SELFIES(ChEBIOverXSELFIES, ChEBIOver100):
+    pass
+
+
+class ChEBIOverXPartial(ChEBIOverX):
+    """Dataset that doesn't use the full ChEBI, but extracts are part of ChEBI"""
+
+    def __init__(self, top_class_id: int, **kwargs):
+        self.top_class_id = top_class_id
+        super().__init__(**kwargs)
+
+    @property
+    def base_dir(self):
+        return os.path.join(super().base_dir, f"partial_{self.top_class_id}")
+
+    def extract_class_hierarchy(self, chebi_path):
+        with open(chebi_path, encoding="utf-8") as chebi:
+            chebi = "\n".join(l for l in chebi if not l.startswith("xref:"))
+        elements = [
+            term_callback(clause)
+            for clause in fastobo.loads(chebi)
+            if clause and ":" in str(clause.id)
+        ]
+        g = nx.DiGraph()
+        for n in elements:
+            g.add_node(n["id"], **n)
+        g.add_edges_from([(p, q["id"]) for q in elements for p in q["parents"]])
+
+        g = nx.transitive_closure_dag(g)
+        g = g.subgraph(nx.descendants(g, self.top_class_id))
+        print("Compute transitive closure")
+        return g
+
+
+class ChEBIOver50Partial(ChEBIOverXPartial, ChEBIOver50):
     pass
 
 
