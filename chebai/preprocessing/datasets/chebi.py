@@ -15,7 +15,10 @@ import os
 import pickle
 import random
 
-from iterstrat.ml_stratifiers import MultilabelStratifiedShuffleSplit
+from iterstrat.ml_stratifiers import (
+    MultilabelStratifiedShuffleSplit,
+    MultilabelStratifiedKFold,
+)
 
 import fastobo
 import networkx as nx
@@ -116,7 +119,7 @@ class _ChEBIDataExtractor(XYBaseDataModule, ABC):
         self.single_class = single_class
         super(_ChEBIDataExtractor, self).__init__(**kwargs)
         # use different version of chebi for training and validation (if not None)
-        # (still use self.chebi_version for test set)
+        # (still uses self.chebi_version for test set)
         self.chebi_version_train = chebi_version_train
 
     def select_classes(self, g, split_name, *args, **kwargs):
@@ -150,8 +153,8 @@ class _ChEBIDataExtractor(XYBaseDataModule, ABC):
         data = data[data.iloc[:, 3:].any(axis=1)]
         return data
 
-    def save(self, data: pd.DataFrame, split_name: str):
-        pickle.dump(data, open(os.path.join(self.raw_dir, split_name), "wb"))
+    def save_raw(self, data: pd.DataFrame, filename: str):
+        pickle.dump(data, open(os.path.join(self.raw_dir, filename), "wb"))
 
     def _load_dict(self, input_file_path):
         with open(input_file_path, "rb") as input_file:
@@ -249,18 +252,32 @@ class _ChEBIDataExtractor(XYBaseDataModule, ABC):
         test_smiles = test_df["SMILES"].tolist()
         mask = [smiles not in test_smiles for smiles in df_trainval["SMILES"]]
         df_trainval = df_trainval[mask]
+        df_trainval_list = df_trainval.values.tolist()
+        df_trainval_list = [row[3:] for row in df_trainval_list]
 
         if self.use_inner_cross_validation:
-            return df_trainval
+            folds = {}
+            kfold = MultilabelStratifiedKFold(n_splits=self.inner_k_folds)
+            for fold, (train_ids, val_ids) in enumerate(
+                kfold.split(
+                    df_trainval_list,
+                    df_trainval_list,
+                )
+            ):
+                df_validation = df_trainval.iloc[val_ids]
+                df_train = df_trainval.iloc[train_ids]
+                folds[self.raw_file_names_dict[f"fold_{fold}_train"]] = df_train
+                folds[
+                    self.raw_file_names_dict[f"fold_{fold}_validation"]
+                ] = df_validation
+
+            return folds
 
         # scale val set size by 1/self.train_split to compensate for (hypothetical) test set size (1-self.train_split)
         test_size = ((1 - self.train_split) ** 2) / self.train_split
         msss = MultilabelStratifiedShuffleSplit(
             n_splits=1, test_size=test_size, random_state=0
         )
-
-        df_trainval_list = df_trainval.values.tolist()
-        df_trainval_list = [row[3:] for row in df_trainval_list]
         train_split = []
         validation_split = []
         for train_split, validation_split in msss.split(
@@ -271,7 +288,10 @@ class _ChEBIDataExtractor(XYBaseDataModule, ABC):
 
         df_validation = df_trainval.iloc[validation_split]
         df_train = df_trainval.iloc[train_split]
-        return df_train, df_validation
+        return {
+            self.raw_file_names_dict["train"]: df_train,
+            self.raw_file_names_dict["validation"]: df_validation,
+        }
 
     @property
     def processed_dir(self):
@@ -295,13 +315,14 @@ class _ChEBIDataExtractor(XYBaseDataModule, ABC):
             f"_v{self.chebi_version_train}" if self.chebi_version_train else ""
         )
         res = {"test": f"test{train_v_str}.pt"}
-        if self.use_inner_cross_validation:
-            res[
-                "train_val"
-            ] = f"trainval{train_v_str}.pt"  # for cv, split train/val on runtime
-        else:
-            res["train"] = f"train{train_v_str}.pt"
-            res["validation"] = f"validation{train_v_str}.pt"
+        for set in ["train", "validation"]:
+            if self.use_inner_cross_validation:
+                for i in range(self.inner_k_folds):
+                    res[f"fold_{i}_{set}"] = os.path.join(
+                        self.fold_dir, f"fold_{i}_{set}{train_v_str}.pt"
+                    )
+            else:
+                res[set] = f"{set}{train_v_str}.pt"
         return res
 
     @property
@@ -313,14 +334,14 @@ class _ChEBIDataExtractor(XYBaseDataModule, ABC):
             "test": f"test.pkl"
         }  # no extra raw test version for chebi_version_train - use default test set and only
         # adapt processed file
-        if self.use_inner_cross_validation:
-            res[
-                "train_val"
-            ] = f"trainval{train_v_str}.pkl"  # for cv, split train/val on runtime
-        else:
-            res["train"] = f"train{train_v_str}.pkl"
-            res["validation"] = f"validation{train_v_str}.pkl"
-
+        for set in ["train", "validation"]:
+            if self.use_inner_cross_validation:
+                for i in range(self.inner_k_folds):
+                    res[f"fold_{i}_{set}"] = os.path.join(
+                        self.fold_dir, f"fold_{i}_{set}{train_v_str}.pkl"
+                    )
+            else:
+                res[set] = f"{set}{train_v_str}.pkl"
         return res
 
     @property
@@ -359,7 +380,7 @@ class _ChEBIDataExtractor(XYBaseDataModule, ABC):
                 g = extract_class_hierarchy(chebi_path)
                 df = self.graph_to_raw_dataset(g, self.raw_file_names_dict["test"])
                 _, test_df = self.get_test_split(df)
-                self.save(test_df, self.raw_file_names_dict["test"])
+                self.save_raw(test_df, self.raw_file_names_dict["test"])
             # load test_split from file
             else:
                 with open(
@@ -374,16 +395,14 @@ class _ChEBIDataExtractor(XYBaseDataModule, ABC):
             )
             g = extract_class_hierarchy(chebi_path)
             if self.use_inner_cross_validation:
-                df = self.graph_to_raw_dataset(g, self.raw_file_names_dict["train_val"])
-                train_val_df = self.get_train_val_splits_given_test(df, test_df)
-                self.save(train_val_df, self.raw_file_names_dict["train_val"])
+                df = self.graph_to_raw_dataset(
+                    g, self.raw_file_names_dict[f"fold_0_train"]
+                )
             else:
                 df = self.graph_to_raw_dataset(g, self.raw_file_names_dict["train"])
-                train_split, val_split = self.get_train_val_splits_given_test(
-                    df, test_df
-                )
-                self.save(train_split, self.raw_file_names_dict["train"])
-                self.save(val_split, self.raw_file_names_dict["validation"])
+            train_val_dict = self.get_train_val_splits_given_test(df, test_df)
+            for name, df in train_val_dict.items():
+                self.save_raw(df, name)
 
 
 class JCIExtendedBase(_ChEBIDataExtractor):

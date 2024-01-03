@@ -37,41 +37,6 @@ class CustomTrainer(Trainer):
         # instantiation custom logger connector
         self._logger_connector.on_trainer_init(self.logger, 1)
 
-    def cv_fit(self, datamodule: XYBaseDataModule, *args, **kwargs):
-        n_splits = datamodule.inner_k_folds
-        if n_splits < 2:
-            self.fit(datamodule=datamodule, *args, **kwargs)
-        else:
-            datamodule.prepare_data()
-            datamodule.setup()
-
-            kfold = MultilabelStratifiedKFold(n_splits=n_splits)
-
-            for fold, (train_ids, val_ids) in enumerate(
-                kfold.split(
-                    datamodule.train_val_data,
-                    [data["labels"] for data in datamodule.train_val_data],
-                )
-            ):
-                train_dataloader = datamodule.train_dataloader(ids=train_ids)
-                val_dataloader = datamodule.val_dataloader(ids=val_ids)
-                init_kwargs = self.init_kwargs
-                new_trainer = CustomTrainer(*self.init_args, **init_kwargs)
-                logger = new_trainer.logger
-                if isinstance(logger, CustomLogger):
-                    logger.set_fold(fold)
-                    rank_zero_info(f"Logging this fold at {logger.experiment.dir}")
-                else:
-                    rank_zero_warn(
-                        f"Using k-fold cross-validation without an adapted logger class"
-                    )
-                new_trainer.fit(
-                    train_dataloaders=train_dataloader,
-                    val_dataloaders=val_dataloader,
-                    *args,
-                    **kwargs,
-                )
-
     def predict_from_file(
         self,
         model: LightningModule,
