@@ -1,9 +1,8 @@
 from typing import Dict, Set
 
-from lightning.pytorch.cli import LightningCLI, LightningArgumentParser
+from lightning.pytorch.cli import LightningArgumentParser, LightningCLI
+
 from chebai.trainer.CustomTrainer import CustomTrainer
-from chebai.preprocessing.datasets.base import XYBaseDataModule
-from chebai.models.base import ChebaiBaseNet
 
 
 class ChebaiCLI(LightningCLI):

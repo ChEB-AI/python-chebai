@@ -1,8 +1,10 @@
-import torch
-from chebai.models.electra import extract_class_hierarchy
-import os
 import csv
+import os
 import pickle
+
+import torch
+
+from chebai.models.electra import extract_class_hierarchy
 
 IMPLICATION_CACHE_FILE = "chebi.cache"
 

@@ -1,12 +1,14 @@
-from chebai.result.base import ResultProcessor
+import os
+
+import matplotlib.pyplot as plt
 import pandas as pd
 import seaborn as sns
-import matplotlib.pyplot as plt
-import os
-import chebai.models.electra as electra
-from chebai.loss.pretraining import ElectraPreLoss
 import torch
 import tqdm
+
+from chebai.loss.pretraining import ElectraPreLoss
+from chebai.result.base import ResultProcessor
+import chebai.models.electra as electra
 
 
 def visualise_loss(logs_path):

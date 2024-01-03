@@ -13,13 +13,11 @@ from abc import ABC
 from collections import OrderedDict
 import os
 import pickle
-import random
 
 from iterstrat.ml_stratifiers import (
-    MultilabelStratifiedShuffleSplit,
     MultilabelStratifiedKFold,
+    MultilabelStratifiedShuffleSplit,
 )
-
 import fastobo
 import networkx as nx
 import pandas as pd

@@ -1,10 +1,10 @@
 from datetime import datetime
-from typing import Optional, Union, Literal
+from typing import Literal, Optional, Union
+import os
 
-import wandb
 from lightning.fabric.utilities.types import _PATH
 from lightning.pytorch.loggers import WandbLogger
-import os
+import wandb
 
 
 class CustomLogger(WandbLogger):

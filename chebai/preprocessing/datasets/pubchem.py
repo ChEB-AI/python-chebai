@@ -19,8 +19,12 @@ import torch
 import tqdm
 
 from chebai.preprocessing import reader as dr
-from chebai.preprocessing.datasets.base import XYBaseDataModule, DataLoader
-from chebai.preprocessing.datasets.chebi import ChEBIOver100, ChEBIOver50, ChEBIOverX
+from chebai.preprocessing.datasets.base import DataLoader, XYBaseDataModule
+from chebai.preprocessing.datasets.chebi import (
+    ChEBIOver50,
+    ChEBIOver100,
+    ChEBIOverX,
+)
 
 
 class PubChem(XYBaseDataModule):

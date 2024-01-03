@@ -1,34 +1,20 @@
-import os.path
-import pickle
-import random
+from math import pi
 from tempfile import TemporaryDirectory
 import logging
-from typing import Dict
-from math import pi
 
-import torchmetrics
 from torch import nn
-from torch.nn.utils.rnn import (
-    pack_padded_sequence,
-    pad_packed_sequence,
-    pad_sequence,
-)
+from torch.nn.utils.rnn import pad_sequence
 from transformers import (
     ElectraConfig,
     ElectraForMaskedLM,
-    ElectraForMultipleChoice,
     ElectraForPreTraining,
-    ElectraForSequenceClassification,
     ElectraModel,
-    PretrainedConfig,
 )
-from chebai.preprocessing.reader import MASK_TOKEN_INDEX, CLS_TOKEN
-from chebai.preprocessing.datasets.chebi import extract_class_hierarchy
-from chebai.loss.pretraining import ElectraPreLoss  # noqa
 import torch
-import csv
 
+from chebai.loss.pretraining import ElectraPreLoss  # noqa
 from chebai.models.base import ChebaiBaseNet
+from chebai.preprocessing.reader import CLS_TOKEN, MASK_TOKEN_INDEX
 
 logging.getLogger("pysmiles").setLevel(logging.CRITICAL)
 

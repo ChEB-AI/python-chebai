@@ -1,17 +1,17 @@
+import os
+
 from torchmetrics.classification import (
     MultilabelF1Score,
     MultilabelPrecision,
     MultilabelRecall,
 )
-from chebai.callbacks.epoch_metrics import MacroF1
-
+import matplotlib.pyplot as plt
 import pandas as pd
 import seaborn as sns
-import matplotlib.pyplot as plt
-import os
 import torch
 import tqdm
 
+from chebai.callbacks.epoch_metrics import MacroF1
 from chebai.models import ChebaiBaseNet
 from chebai.preprocessing.datasets import XYBaseDataModule
 
@@ -40,7 +40,8 @@ def evaluate_model(
     batch_size: int = 32,
 ):
     """Runs model on test set of data_module (or, if filename is not None, on data set found in that file).
-    If buffer_dir is set, results will be saved in buffer_dir. Returns tensors with predictions and labels."""
+    If buffer_dir is set, results will be saved in buffer_dir. Returns tensors with predictions and labels.
+    """
     model.eval()
     collate = data_module.reader.COLLATER()
 
@@ -142,6 +143,7 @@ def print_metrics(preds, labels, device, classes=None, top_k=10, markdown_output
     precision_micro = MultilabelPrecision(preds.shape[1], average="micro").to(
         device=device
     )
+    macro_adjust = 1
     recall_macro = MultilabelRecall(preds.shape[1], average="macro").to(device=device)
     recall_micro = MultilabelRecall(preds.shape[1], average="micro").to(device=device)
     print(f"Macro-Precision: {precision_macro(preds, labels) * macro_adjust:3f}")
@@ -154,13 +156,14 @@ def print_metrics(preds, labels, device, classes=None, top_k=10, markdown_output
         )
         print(f"| --- | --- | --- | --- | --- | --- | --- |")
         print(
-            f"| | {f1_macro(preds, labels):3f} | {f1_micro(preds, labels):3f} | {precision_macro(preds, labels):3f} | {precision_micro(preds, labels):3f} | {recall_macro(preds, labels):3f} | {recall_micro(preds, labels):3f} |"
+            f"| | {f1_macro(preds, labels):3f} | {f1_micro(preds, labels):3f} | {precision_macro(preds, labels):3f} | "
+            f"{precision_micro(preds, labels):3f} | {recall_macro(preds, labels):3f} | "
+            f"{recall_micro(preds, labels):3f} |"
         )
 
     classwise_f1_fn = MultilabelF1Score(preds.shape[1], average=None).to(device=device)
     classwise_f1 = classwise_f1_fn(preds, labels)
     best_classwise_f1 = torch.topk(classwise_f1, top_k).indices
-    worst_classwise_f1 = torch.topk(classwise_f1, top_k, largest=False).indices
     print(f"Top {top_k} classes (F1-score):")
     for i, best in enumerate(best_classwise_f1):
         print(

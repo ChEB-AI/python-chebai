@@ -1,21 +1,22 @@
-import random
-
-from chebai.preprocessing.datasets.chebi import JCIExtendedTokenData
-from chebai.preprocessing.datasets.pubchem import Hazardous
-from chebai.preprocessing.datasets.base import XYBaseDataModule, MergedDataset
 from tempfile import NamedTemporaryFile, TemporaryDirectory
 from urllib import request
-from sklearn.model_selection import train_test_split, GroupShuffleSplit
+import csv
 import gzip
 import os
-import csv
-import torch
-from chebai.preprocessing import reader as dr
-import pysmiles
-import numpy as np
-from rdkit import Chem
-import zipfile
+import random
 import shutil
+import zipfile
+
+from rdkit import Chem
+from sklearn.model_selection import GroupShuffleSplit, train_test_split
+import numpy as np
+import pysmiles
+import torch
+
+from chebai.preprocessing import reader as dr
+from chebai.preprocessing.datasets.base import MergedDataset, XYBaseDataModule
+from chebai.preprocessing.datasets.chebi import JCIExtendedTokenData
+from chebai.preprocessing.datasets.pubchem import Hazardous
 
 
 class Tox21MolNet(XYBaseDataModule):
