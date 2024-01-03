@@ -1,11 +1,10 @@
-from typing import Any
-
-import torchmetrics
-from lightning.pytorch.callbacks import Callback
-from lightning.pytorch.utilities.types import STEP_OUTPUT
-import lightning as pl
-from torchmetrics.classification import MultilabelF1Score
 import torch
+import torchmetrics
+
+
+def custom_reduce_fx(input):
+    print(f"called reduce (device: {input.device})")
+    return torch.sum(input, dim=0)
 
 
 class MacroF1(torchmetrics.Metric):
@@ -14,17 +13,17 @@ class MacroF1(torchmetrics.Metric):
 
         self.add_state(
             "true_positives",
-            default=torch.zeros((num_labels), dtype=torch.int),
+            default=torch.zeros(num_labels, dtype=torch.int),
             dist_reduce_fx="sum",
         )
         self.add_state(
             "positive_predictions",
-            default=torch.zeros((num_labels), dtype=torch.int),
+            default=torch.zeros(num_labels, dtype=torch.int),
             dist_reduce_fx="sum",
         )
         self.add_state(
             "positive_labels",
-            default=torch.zeros((num_labels), dtype=torch.int),
+            default=torch.zeros(num_labels, dtype=torch.int),
             dist_reduce_fx="sum",
         )
         self.threshold = threshold

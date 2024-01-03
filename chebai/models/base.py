@@ -1,9 +1,10 @@
+from typing import Optional
 import logging
 import typing
 
 from lightning.pytorch.core.module import LightningModule
 import torch
-from typing import Optional, Dict, Any
+
 from chebai.preprocessing.structures import XYData
 
 logging.getLogger("pysmiles").setLevel(logging.CRITICAL)
@@ -114,9 +115,12 @@ class ChebaiBaseNet(LightningModule):
             if metrics and labels is not None:
                 for metric_name, metric in metrics.items():
                     metric.update(pr, tar)
+                self._log_metrics(prefix, metrics, len(batch))
         return d
 
-    def _log_metrics(self, prefix, metrics, sync_dist=False):
+    def _log_metrics(self, prefix, metrics, batch_size):
+        # don't use sync_dist=True if the metric is a torchmetrics-metric
+        # (see https://github.com/Lightning-AI/pytorch-lightning/discussions/6501#discussioncomment-569757)
         for metric_name, metric in metrics.items():
             m = metric.compute()
             if isinstance(m, dict):
@@ -124,28 +128,22 @@ class ChebaiBaseNet(LightningModule):
                     self.log(
                         f"{prefix}{metric_name}{k}",
                         m2,
+                        batch_size=batch_size,
                         on_step=False,
                         on_epoch=True,
                         prog_bar=True,
                         logger=True,
-                        sync_dist=sync_dist,
                     )
             else:
                 self.log(
                     f"{prefix}{metric_name}",
-                    metric,
+                    m,
+                    batch_size=batch_size,
                     on_step=False,
                     on_epoch=True,
                     prog_bar=True,
                     logger=True,
-                    sync_dist=sync_dist,
                 )
-
-    def on_train_epoch_end(self, logs=None):
-        self._log_metrics("train_", self.train_metrics, sync_dist=True)
-
-    def on_validation_epoch_end(self) -> None:
-        self._log_metrics("val_", self.validation_metrics, sync_dist=True)
 
     def forward(self, x):
         raise NotImplementedError
