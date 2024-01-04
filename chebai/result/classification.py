@@ -128,7 +128,7 @@ def print_metrics(preds, labels, device, classes=None, top_k=10, markdown_output
     f1_macro = MultilabelF1Score(preds.shape[1], average="macro").to(device=device)
     f1_micro = MultilabelF1Score(preds.shape[1], average="micro").to(device=device)
 
-    my_f1_macro = MacroF1(preds.shape[1])
+    my_f1_macro = MacroF1(preds.shape[1]).to(device=device)
 
     print(
         f"Macro-F1 (torchmetrics, unadjusted) on test set with {preds.shape[1]} classes: {f1_macro(preds, labels):3f}"
