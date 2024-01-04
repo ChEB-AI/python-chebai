@@ -3,6 +3,7 @@ from typing import Literal, Optional, Union
 import os
 
 from lightning.fabric.utilities.types import _PATH
+from lightning.pytorch.callbacks import ModelCheckpoint
 from lightning.pytorch.loggers import WandbLogger
 import wandb
 
@@ -76,3 +77,7 @@ class CustomLogger(WandbLogger):
     @property
     def fold(self):
         return self._fold
+
+    def after_save_checkpoint(self, checkpoint_callback: ModelCheckpoint) -> None:
+        # don't save checkpoint as wandb artifact
+        pass
