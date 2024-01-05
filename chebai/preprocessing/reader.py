@@ -2,12 +2,10 @@ import os
 
 from pysmiles.read_smiles import _tokenize
 from transformers import RobertaTokenizerFast
+import deepsmiles
 import selfies as sf
 
-from chebai.preprocessing.collate import (
-    DefaultCollater,
-    RaggedCollater,
-)
+from chebai.preprocessing.collate import DefaultCollater, RaggedCollater
 
 EMBEDDING_OFFSET = 10
 PADDING_TOKEN_INDEX = 0
@@ -18,10 +16,12 @@ CLS_TOKEN = 2
 class DataReader:
     COLLATER = DefaultCollater
 
-    def __init__(self, collator_kwargs=None, **kwargs):
+    def __init__(self, collator_kwargs=None, token_path=None, **kwargs):
         if collator_kwargs is None:
             collator_kwargs = dict()
         self.collater = self.COLLATER(**collator_kwargs)
+        self.dirname = os.path.dirname(__file__)
+        self._token_path = token_path
 
     def _get_raw_data(self, row):
         return row["features"]
@@ -40,6 +40,18 @@ class DataReader:
 
     def name(cls):
         raise NotImplementedError
+
+    @property
+    def token_path(self):
+        """Get token path, create file if it does not exist yet"""
+        if self._token_path is not None:
+            return self._token_path
+        token_path = os.path.join(self.dirname, "bin", self.name(), "tokens.txt")
+        os.makedirs(os.path.join(self.dirname, "bin", self.name()), exist_ok=True)
+        if not os.path.exists(token_path):
+            with open(token_path, "x"):
+                pass
+        return token_path
 
     def _read_id(self, raw_data):
         return raw_data
@@ -72,6 +84,10 @@ class DataReader:
             **d["additional_kwargs"],
         )
 
+    def on_finish(self):
+        """Hook to run at the end of preprocessing."""
+        return
+
 
 class ChemDataReader(DataReader):
     COLLATER = RaggedCollater
@@ -82,14 +98,48 @@ class ChemDataReader(DataReader):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        dirname = os.path.dirname(__file__)
-        with open(os.path.join(dirname, "bin", "tokens.txt"), "r") as pk:
+        with open(self.token_path, "r") as pk:
             self.cache = [x.strip() for x in pk]
 
+    def _get_token_index(self, token):
+        """Returns a unique number for each token, automatically adds new tokens"""
+        if not str(token) in self.cache:
+            self.cache.append(str(token))
+        return self.cache.index(str(token)) + EMBEDDING_OFFSET
+
     def _read_data(self, raw_data):
-        return [
-            self.cache.index(str(v[1])) + EMBEDDING_OFFSET for v in _tokenize(raw_data)
-        ]
+        return [self._get_token_index(v[1]) for v in _tokenize(raw_data)]
+
+    def on_finish(self):
+        """write contents of self.cache into tokens.txt"""
+        with open(self.token_path, "w") as pk:
+            print(f"saving {len(self.cache)} tokens to {self.token_path}...")
+            print(f"first 10 tokens: {self.cache[:10]}")
+            pk.writelines([f"{c}\n" for c in self.cache])
+
+
+class DeepChemDataReader(ChemDataReader):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.converter = deepsmiles.Converter(rings=True, branches=True)
+        self.error_count = 0
+
+    @classmethod
+    def name(cls):
+        return "deepsmiles_token"
+
+    def _read_data(self, raw_data):
+        try:
+            tokenized = _tokenize(self.converter.encode(raw_data))
+            tokenized = [self._get_token_index(v[1]) for v in tokenized]
+        except ValueError as e:
+            print(f"could not process {raw_data}")
+            print(f"Corresponding deepSMILES: {self.converter.encode(raw_data)}")
+            print(f"\t{e}")
+            self.error_count += 1
+            print(f"\terror count: {self.error_count}")
+            tokenized = None
+        return tokenized
 
 
 class ChemDataUnlabeledReader(ChemDataReader):
@@ -120,26 +170,31 @@ class ChemBPEReader(DataReader):
         return self.tokenizer(row["features"])["input_ids"]
 
 
-class SelfiesReader(DataReader):
+class SelfiesReader(ChemDataReader):
     COLLATER = RaggedCollater
 
     def __init__(self, *args, data_path=None, max_len=1800, vsize=4000, **kwargs):
         super().__init__(*args, **kwargs)
-        with open("chebai/preprocessing/bin/selfies.txt", "rt") as pk:
-            self.cache = [l.strip() for l in pk]
+        self.error_count = 0
+        sf.set_semantic_constraints("hypervalent")
 
     @classmethod
     def name(cls):
         return "selfies"
 
-    def _get_raw_data(self, row):
+    def _read_data(self, raw_data):
         try:
-            splits = sf.split_selfies(sf.encoder(row["features"].strip(), strict=True))
+            tokenized = sf.split_selfies(sf.encoder(raw_data.strip(), strict=True))
+            tokenized = [self._get_token_index(v) for v in tokenized]
         except Exception as e:
-            print(e)
-            return
-        else:
-            return [self.cache.index(x) + EMBEDDING_OFFSET for x in splits]
+            print(f"could not process {raw_data}")
+            # print(f'\t{e}')
+            self.error_count += 1
+            print(f"\terror count: {self.error_count}")
+            tokenized = None
+            # if self.error_count > 20:
+            #    raise Exception('Too many errors')
+        return tokenized
 
 
 class OrdReader(DataReader):

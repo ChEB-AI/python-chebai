@@ -1,0 +1,6 @@
+class_path: chebai.loggers.custom.CustomLogger # Extension of Wandb logger
+init_args:
+  save_dir: logs
+  project: 'chebai'
+  entity: 'chebai'
+  log_model: 'all'

@@ -1,33 +1,20 @@
-import os.path
-import pickle
-import random
+from math import pi
 from tempfile import TemporaryDirectory
 import logging
-from typing import Dict
-from math import pi
 
-import torchmetrics
 from torch import nn
-from torch.nn.utils.rnn import (
-    pack_padded_sequence,
-    pad_packed_sequence,
-    pad_sequence,
-)
+from torch.nn.utils.rnn import pad_sequence
 from transformers import (
     ElectraConfig,
     ElectraForMaskedLM,
-    ElectraForMultipleChoice,
     ElectraForPreTraining,
-    ElectraForSequenceClassification,
     ElectraModel,
-    PretrainedConfig,
 )
-from chebai.preprocessing.reader import MASK_TOKEN_INDEX, CLS_TOKEN
-from chebai.preprocessing.datasets.chebi import extract_class_hierarchy
 import torch
-import csv
 
+from chebai.loss.pretraining import ElectraPreLoss  # noqa
 from chebai.models.base import ChebaiBaseNet
+from chebai.preprocessing.reader import CLS_TOKEN, MASK_TOKEN_INDEX
 
 logging.getLogger("pysmiles").setLevel(logging.CRITICAL)
 
@@ -52,6 +39,7 @@ class ElectraPre(ChebaiBaseNet):
 
     def forward(self, data, **kwargs):
         features = data["features"]
+        features = features.long()
         self.batch_size = batch_size = features.shape[0]
         max_seq_len = features.shape[1]
 
@@ -197,7 +185,12 @@ class Electra(ChebaiBaseNet):
 
     def forward(self, data, **kwargs):
         self.batch_size = data["features"].shape[0]
-        inp = self.electra.embeddings.forward(data["features"])
+        try:
+            inp = self.electra.embeddings.forward(data["features"].int())
+        except RuntimeError as e:
+            print(f"RuntimeError at forward: {e}")
+            print(f'data[features]: {data["features"]}')
+            raise Exception
         inp = self.word_dropout(inp)
         electra = self.electra(inputs_embeds=inp, **kwargs)
         d = electra.last_hidden_state[:, 0, :]

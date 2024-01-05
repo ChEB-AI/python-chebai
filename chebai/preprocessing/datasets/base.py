@@ -1,10 +1,12 @@
-import random
-import typing
 from typing import List, Union
 import os
+import random
+import typing
 
-from torch.utils.data import DataLoader
 from lightning.pytorch.core.datamodule import LightningDataModule
+from lightning_utilities.core.rank_zero import rank_zero_info
+from torch.utils.data import DataLoader
+import lightning as pl
 import torch
 import tqdm
 
@@ -24,9 +26,13 @@ class XYBaseDataModule(LightningDataModule):
         label_filter: typing.Optional[int] = None,
         balance_after_filter: typing.Optional[float] = None,
         num_workers: int = 1,
+        chebi_version: int = 200,
+        inner_k_folds: int = -1,  # use inner cross-validation if > 1
+        fold_index: typing.Optional[int] = None,
+        base_dir=None,
         **kwargs,
     ):
-        super().__init__(**kwargs)
+        super().__init__()
         if reader_kwargs is None:
             reader_kwargs = dict()
         self.reader = self.READER(**reader_kwargs)
@@ -40,8 +46,26 @@ class XYBaseDataModule(LightningDataModule):
         ), "Filter balancing requires a filter"
         self.balance_after_filter = balance_after_filter
         self.num_workers = num_workers
+        self.chebi_version = chebi_version
+        assert type(inner_k_folds) is int
+        self.inner_k_folds = inner_k_folds
+        self.use_inner_cross_validation = (
+            inner_k_folds > 1
+        )  # only use cv if there are at least 2 folds
+        assert (
+            fold_index is None or self.use_inner_cross_validation is not None
+        ), "fold_index can only be set if cross validation is used"
+        if fold_index is not None and self.inner_k_folds is not None:
+            assert (
+                fold_index < self.inner_k_folds
+            ), "fold_index can't be larger than the total number of folds"
+        self.fold_index = fold_index
+        self._base_dir = base_dir
         os.makedirs(self.raw_dir, exist_ok=True)
         os.makedirs(self.processed_dir, exist_ok=True)
+        if self.use_inner_cross_validation:
+            os.makedirs(os.path.join(self.raw_dir, self.fold_dir), exist_ok=True)
+            os.makedirs(os.path.join(self.processed_dir, self.fold_dir), exist_ok=True)
 
     @property
     def identifier(self):
@@ -52,12 +76,24 @@ class XYBaseDataModule(LightningDataModule):
         return (self._name, *self.identifier)
 
     @property
+    def base_dir(self):
+        """Common base directory for processed and raw directories"""
+        if self._base_dir is not None:
+            return self._base_dir
+        return os.path.join("data", self._name)
+
+    @property
     def processed_dir(self):
-        return os.path.join("data", self._name, "processed", *self.identifier)
+        return os.path.join(self.base_dir, "processed", *self.identifier)
 
     @property
     def raw_dir(self):
-        return os.path.join("data", self._name, "raw")
+        return os.path.join(self.base_dir, "raw")
+
+    @property
+    def fold_dir(self):
+        """name of dir where the folds from inner cross-validation (i.e., the train and val sets) are stored"""
+        return f"cv_{self.inner_k_folds}_fold"
 
     @property
     def _name(self):
@@ -67,8 +103,34 @@ class XYBaseDataModule(LightningDataModule):
         row["labels"] = [row["labels"][self.label_filter]]
         return row
 
-    def dataloader(self, kind, **kwargs):
-        dataset = torch.load(os.path.join(self.processed_dir, f"{kind}.pt"))
+    def load_processed_data(self, kind: str = None, filename: str = None) -> List:
+        if kind is None and filename is None:
+            raise ValueError(
+                "Either kind or filename is required to load the correct dataset, both are None"
+            )
+        # if both kind and filename are given, use filename
+        if kind is not None and filename is None:
+            try:
+                # processed_file_names_dict is only implemented for _ChEBIDataExtractor
+                if self.use_inner_cross_validation and kind != "test":
+                    filename = self.processed_file_names_dict[
+                        f"fold_{self.fold_index}_{kind}"
+                    ]
+                else:
+                    filename = self.processed_file_names_dict[kind]
+            except NotImplementedError:
+                filename = f"{kind}.pt"
+        return torch.load(os.path.join(self.processed_dir, filename))
+
+    def dataloader(self, kind, **kwargs) -> DataLoader:
+        dataset = self.load_processed_data(kind)
+        if "ids" in kwargs:
+            ids = kwargs.pop("ids")
+            _dataset = []
+            for i in range(len(dataset)):
+                if i in ids:
+                    _dataset.append(dataset[i])
+            dataset = _dataset
         if self.label_filter is not None:
             original_len = len(dataset)
             dataset = [self._filter_labels(r) for r in dataset]
@@ -111,15 +173,28 @@ class XYBaseDataModule(LightningDataModule):
             for d in tqdm.tqdm(self._load_dict(path), total=lines)
             if d["features"] is not None
         ]
+        # filter for missing features in resulting data
+        data = [val for val in data if val["features"] is not None]
+
         return data
 
     def train_dataloader(self, *args, **kwargs) -> DataLoader:
         return self.dataloader(
-            "train", shuffle=True, num_workers=self.num_workers, **kwargs
+            "train",
+            shuffle=True,
+            num_workers=self.num_workers,
+            persistent_workers=True,
+            **kwargs,
         )
 
     def val_dataloader(self, *args, **kwargs) -> Union[DataLoader, List[DataLoader]]:
-        return self.dataloader("validation", shuffle=False, **kwargs)
+        return self.dataloader(
+            "validation",
+            shuffle=False,
+            num_workers=self.num_workers,
+            persistent_workers=True,
+            **kwargs,
+        )
 
     def test_dataloader(self, *args, **kwargs) -> Union[DataLoader, List[DataLoader]]:
         return self.dataloader("test", shuffle=False, **kwargs)
@@ -130,17 +205,30 @@ class XYBaseDataModule(LightningDataModule):
         return self.dataloader(self.prediction_kind, shuffle=False, **kwargs)
 
     def setup(self, **kwargs):
+        rank_zero_info(f"Check for processed data in {self.processed_dir}")
+        rank_zero_info(f"Cross-validation enabled: {self.use_inner_cross_validation}")
         if any(
             not os.path.isfile(os.path.join(self.processed_dir, f))
             for f in self.processed_file_names
         ):
             self.setup_processed()
 
+        if not ("keep_reader" in kwargs and kwargs["keep_reader"]):
+            self.reader.on_finish()
+
     def setup_processed(self):
         raise NotImplementedError
 
     @property
     def processed_file_names(self):
+        raise NotImplementedError
+
+    @property
+    def processed_file_names_dict(self) -> dict:
+        raise NotImplementedError
+
+    @property
+    def raw_file_names_dict(self) -> dict:
         raise NotImplementedError
 
     @property

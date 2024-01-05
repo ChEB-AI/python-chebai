@@ -6,7 +6,6 @@ import torch
 import tqdm
 
 from chebai.models.base import ChebaiBaseNet
-from chebai.preprocessing.reader import DataReader
 
 PROCESSORS = dict()
 
