@@ -509,12 +509,26 @@ class ChebiBoxWithMemberships(Electra):
         l = torch.min(b, dim=-1)[0]
         r = torch.max(b, dim=-1)[0]
         p = points.expand(self.config.num_labels, -1, -1).transpose(1, 0)
-        max_distance_per_dim = torch.max(torch.stack((nn.functional.relu(l - p), nn.functional.relu(p - r))), dim=0)[0]
+        #max_distance_per_dim = torch.max(torch.stack((nn.functional.relu(l - p), nn.functional.relu(p - r))), dim=0)[0]
 
-        m = torch.sum(max_distance_per_dim, dim=-1)
-        s = 2 - (2 * (torch.sigmoid(m)))
-        logits = torch.logit((s * 0.99) + 0.001)
+        center = torch.mean(torch.stack([l, r]), dim=0)
+        width = 0.6 * (r - l)
+        slope = torch.sqrt(torch.abs(r - l))
 
+        membership = 1 / (1 + ((torch.abs(p - center) / width) ** (2 * slope)))
+        m = torch.prod(membership, dim=-1)
+        m2 = torch.mean(membership, dim=-1)
+
+
+        product_of_membership = 1.0
+        for i in range(self.batch_size):
+            product_of_membership *= 1 / (1 + torch.abs((p[i] - center[i]) / width[i]) ** (2 * slope[i]))
+
+        #m = torch.sum(max_distance_per_dim, dim=-1)
+        #s = 2 - (2 * (torch.sigmoid(m)))
+        #logits = torch.logit((s * 0.99) + 0.001)
+
+        logits = torch.logit(m2)
         return dict(
             boxes=b,
             embedded_points=points,
