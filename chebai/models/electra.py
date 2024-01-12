@@ -497,13 +497,21 @@ class ChebiBoxWithMemberships(Electra):
             nn.Linear(self.hidden_dim, self.out_dim)
         )
 
-    def gbmf2d(self, x, left_boundary, right_boundary):
+    def gbmf2d(self, p, left_boundary, right_boundary):
         c = left_boundary + ((right_boundary - left_boundary) / 2)
         a = 0.6 * (right_boundary - left_boundary)
         b = torch.sqrt(torch.abs(right_boundary - left_boundary))
-        gbmf_values = 1 / (1 + torch.abs((x - c) / a) ** (2 * b))
+        gbmf_values = 1 / (1 + torch.abs((p - c) / a) ** (2 * b))
         membership_values = gbmf_values
         return membership_values
+
+    def gbmfnd(self, p, center, width, slope):
+        product_of_membership = 1.0
+        for i in range(len(p)):
+            product_of_membership *= 1 / (1 + torch.abs((p[i] - center[i]) / width[i]) ** (2 * slope[i]))
+        return product_of_membership
+
+
     def forward(self, data, **kwargs):
         self.batch_size = data["features"].shape[0]
         inp = self.electra.embeddings.forward(data["features"])
