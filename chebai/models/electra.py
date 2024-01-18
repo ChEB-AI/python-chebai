@@ -95,7 +95,6 @@ def filter_dict(d, filter_key):
 
 
 class ElectraBasedModel(ChebaiBaseNet):
-
     def _process_batch(self, batch, batch_idx):
         model_kwargs = dict()
         loss_kwargs = batch.additional_fields["loss_kwargs"]
@@ -216,8 +215,9 @@ class Electra(ElectraBasedModel):
         return dict(
             logits=self.output(d["output"]),
             attentions=d["attentions"],
-            target_mask=d["target_mask"]
+            target_mask=d["target_mask"],
         )
+
 
 class ElectraLegacy(ChebaiBaseNet):
     NAME = "ElectraLeg"
@@ -253,49 +253,62 @@ class ElectraLegacy(ChebaiBaseNet):
         return dict(logits=self.output(d), attentions=electra.attentions)
 
 
-def gbmf(x, l, r, b = 6):
-    a = (r-l)+1e-3
-    c = l+(r-l)/2
+def gbmf(x, l, r, b=6):
+    a = (r - l) + 1e-3
+    c = l + (r - l) / 2
     return 1 / (1 + (torch.abs((x - c) / a) ** (2 * b)))
 
 
 def normal(sigma, mu, x):
-    v = (x-mu)/sigma
-    return torch.exp(-0.5 * v*v)
+    v = (x - mu) / sigma
+    return torch.exp(-0.5 * v * v)
 
 
 class ChebiBoxWithMemberships(ElectraBasedModel):
     NAME = "ChebiBoxWithMemberships"
 
-    def __init__(self, membership_method="normal", dimension_aggregation="lukaziewisz", **kwargs):
+    def __init__(
+        self, membership_method="normal", dimension_aggregation="lukaziewisz", **kwargs
+    ):
         super().__init__(**kwargs)
         self.in_dim = self.config.hidden_size
         self.hidden_dim = self.config.embeddings_to_points_hidden_size
         self.out_dim = self.config.embeddings_dimensions
-        self.boxes = nn.Parameter(torch.rand((self.config.num_labels, self.out_dim, 2)) * 3 )
+        self.boxes = nn.Parameter(
+            torch.rand((self.config.num_labels, self.out_dim, 2)) * 3
+        )
         self.membership_method = membership_method
         self.dimension_aggregation = dimension_aggregation
 
         self.embeddings_to_points = nn.Sequential(
             nn.Linear(self.in_dim, self.hidden_dim),
             nn.ReLU(),
-            nn.Linear(self.hidden_dim, self.out_dim)
+            nn.Linear(self.hidden_dim, self.out_dim),
         )
 
     def _prod_agg(self, memberships, dim=-1):
-        return torch.relu(torch.sum(memberships, dim=dim)-(memberships.shape[dim]-1))
+        return torch.relu(
+            torch.sum(memberships, dim=dim) - (memberships.shape[dim] - 1)
+        )
 
     def _min_agg(self, memberships, dim=-1):
-        return torch.relu(torch.sum(memberships, dim=dim)-(memberships.shape[dim]-1))
+        return torch.relu(
+            torch.sum(memberships, dim=dim) - (memberships.shape[dim] - 1)
+        )
+
     def _lukaziewisz_agg(self, memberships, dim=-1):
-        return torch.relu(torch.sum(memberships, dim=dim)-(memberships.shape[dim]-1))
+        return torch.relu(
+            torch.sum(memberships, dim=dim) - (memberships.shape[dim] - 1)
+        )
 
     def _forward_gbmf_membership(self, points, left_corners, right_corners, **kwargs):
         return gbmf(points, left_corners, right_corners)
 
     def _forward_normal_membership(self, points, left_corners, right_corners, **kwargs):
         widths = 0.1 * (right_corners - left_corners)
-        max_distance_per_dim = nn.functional.relu(left_corners - points + widths**0.5) + nn.functional.relu(points - right_corners + widths**0.5)
+        max_distance_per_dim = nn.functional.relu(
+            left_corners - points + widths**0.5
+        ) + nn.functional.relu(points - right_corners + widths**0.5)
         return normal(widths**0.5, 0, max_distance_per_dim)
 
     def forward(self, data, **kwargs):
