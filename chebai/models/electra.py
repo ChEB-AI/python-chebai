@@ -153,9 +153,9 @@ class ElectraBasedModel(ChebaiBaseNet):
         kwargs_copy = dict(loss_kwargs)
         mask = kwargs_copy.pop("target_mask", None)
         if mask is not None:
-            d = model_output["logits"] * mask - 100 * ~mask
+            d = model_output["output"] * mask - 100 * ~mask
         else:
-            d = model_output["logits"]
+            d = model_output["output"]
         if labels is not None:
             labels = labels.float()
         return d, labels, kwargs_copy
@@ -163,14 +163,14 @@ class ElectraBasedModel(ChebaiBaseNet):
     def _get_prediction_and_labels(self, data, labels, model_output):
         mask = model_output.get("target_mask")
         if mask is not None:
-            d = model_output["logits"] * mask - 100 * ~mask
+            d = model_output["output"] * mask - 100 * ~mask
         else:
-            d = model_output["logits"]
+            d = model_output["output"]
         loss_kwargs = data.get("loss_kwargs", dict())
         if "non_null_labels" in loss_kwargs:
             n = loss_kwargs["non_null_labels"]
             d = d[n]
-        return torch.sigmoid(d), labels.int()
+        return d, labels.int()
 
     def forward(self, data, **kwargs):
         self.batch_size = data["features"].shape[0]
@@ -210,10 +210,14 @@ class Electra(ElectraBasedModel):
             nn.Linear(in_d, self.config.num_labels),
         )
 
+    def _get_prediction_and_labels(self, data, labels, model_output):
+        preds, lbls = super()._get_prediction_and_labels(data, labels, model_output)
+        return torch.sigmoid(preds), lbls
+
     def forward(self, data, **kwargs):
         d = super().forward(data, **kwargs)
         return dict(
-            logits=self.output(d["output"]),
+            output=self.output(d["output"]),
             attentions=d["attentions"],
             target_mask=d["target_mask"],
         )
@@ -250,7 +254,7 @@ class ElectraLegacy(ChebaiBaseNet):
     def forward(self, data):
         electra = self.electra(data)
         d = torch.sum(electra.last_hidden_state, dim=1)
-        return dict(logits=self.output(d), attentions=electra.attentions)
+        return dict(output=self.output(d), attentions=electra.attentions)
 
 
 def gbmf(x, l, r, b=6):
@@ -338,7 +342,7 @@ class ChebiBoxWithMemberships(ElectraBasedModel):
         return dict(
             boxes=b,
             embedded_points=points,
-            logits=m,
+            output=m,
             attentions=d["attentions"],
             target_mask=d["target_mask"],
         )
