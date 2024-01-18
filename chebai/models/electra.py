@@ -219,16 +219,28 @@ class Electra(ElectraBasedModel):
             target_mask=d["target_mask"]
         )
 
+def gbmf(x, l, r, b = 6):
+    a = (r-l)+1e-3
+    c = l+(r-l)/2
+    return 1 / (1 + (torch.abs((x - c) / a) ** (2 * b)))
+
+
+def normal(sigma, mu, x):
+    v = (x-mu)/sigma
+    return torch.exp(-0.5 * v*v)
+
 
 class ChebiBoxWithMemberships(ElectraBasedModel):
     NAME = "ChebiBoxWithMemberships"
 
-    def __init__(self, **kwargs):
+    def __init__(self, membership_method="normal", dimension_aggregation="lukaziewisz", **kwargs):
         super().__init__(**kwargs)
         self.in_dim = self.config.hidden_size
         self.hidden_dim = self.config.embeddings_to_points_hidden_size
         self.out_dim = self.config.embeddings_dimensions
         self.boxes = nn.Parameter(torch.rand((self.config.num_labels, self.out_dim, 2)) * 3 )
+        self.membership_method = membership_method
+        self.dimension_aggregation = dimension_aggregation
 
         self.embeddings_to_points = nn.Sequential(
             nn.Linear(self.in_dim, self.hidden_dim),
@@ -236,21 +248,45 @@ class ChebiBoxWithMemberships(ElectraBasedModel):
             nn.Linear(self.hidden_dim, self.out_dim)
         )
 
+    def _prod_agg(self, memberships, dim=-1):
+        return torch.relu(torch.sum(memberships, dim=dim)-(memberships.shape[dim]-1))
+
+    def _min_agg(self, memberships, dim=-1):
+        return torch.relu(torch.sum(memberships, dim=dim)-(memberships.shape[dim]-1))
+    def _lukaziewisz_agg(self, memberships, dim=-1):
+        return torch.relu(torch.sum(memberships, dim=dim)-(memberships.shape[dim]-1))
+
+    def _forward_gbmf_membership(self, points, left_corners, right_corners, **kwargs):
+        return gbmf(points, left_corners, right_corners)
+
+    def _forward_normal_membership(self, points, left_corners, right_corners, **kwargs):
+        widths = 0.1 * (right_corners - left_corners)
+        max_distance_per_dim = nn.functional.relu(left_corners - points + widths**0.5) + nn.functional.relu(points - right_corners + widths**0.5)
+        return normal(widths**0.5, 0, max_distance_per_dim)
+
     def forward(self, data, **kwargs):
         d = super().forward(data, **kwargs)
-        points = self.embeddings_to_points(d["output"])
+        points = self.embeddings_to_points(d["output"]).unsqueeze(1)
 
-        b = self.boxes.expand(self.batch_size, -1, -1, -1)
+        b = self.boxes.unsqueeze(0)
         l = torch.min(b, dim=-1)[0]
         r = torch.max(b, dim=-1)[0]
-        p = points.expand(self.config.num_labels, -1, -1).transpose(1, 0)
 
-        center = torch.mean(torch.stack([l, r]), dim=0)
-        width = 0.6 * (r - l)
-        slope = torch.sqrt(torch.abs(r - l))
+        if self.membership_method == "normal":
+            m = self._forward_normal_membership(points, l, r)
+        elif self.membership_method == "gbmf":
+            m = self._forward_gbmf_membership(points, l, r)
+        else:
+            raise Exception("Unknown membership function:", self.membership_method)
 
-        membership = 1 / (1 + ((torch.abs(p - center) / width) ** (2 * slope)))
-        m = torch.mean(membership, dim=-1)
+        if self.dimension_aggregation == "prod":
+            m = self._prod_agg(m)
+        elif self.dimension_aggregation == "lukaziewisz":
+            m = self._lukaziewisz_agg(m)
+        elif self.dimension_aggregation == "min":
+            m = self._prod_min(m)
+        else:
+            raise Exception("Unknown aggregation function:", self.dimension_aggregation)
 
         return dict(
             boxes=b,
