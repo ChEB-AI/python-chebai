@@ -16,6 +16,7 @@ from chebai.loss.pretraining import ElectraPreLoss  # noqa
 from chebai.models.base import ChebaiBaseNet
 from chebai.preprocessing.reader import CLS_TOKEN, MASK_TOKEN_INDEX
 import pytorch_lightning as pl
+import math
 
 logging.getLogger("pysmiles").setLevel(logging.CRITICAL)
 
@@ -279,7 +280,7 @@ class ChebiBoxWithMemberships(ElectraBasedModel):
         self.hidden_dim = self.config.embeddings_to_points_hidden_size
         self.out_dim = self.config.embeddings_dimensions
         self.boxes = nn.Parameter(
-            torch.rand((self.config.num_labels, self.out_dim, 2)) * 3
+            3 - torch.rand((self.config.num_labels, self.out_dim, 2)) * 6
         )
         self.membership_method = membership_method
         self.dimension_aggregation = dimension_aggregation
@@ -291,19 +292,16 @@ class ChebiBoxWithMemberships(ElectraBasedModel):
         )
 
     def _prod_agg(self, memberships, dim=-1):
-        return torch.relu(
-            torch.sum(memberships, dim=dim) - (memberships.shape[dim] - 1)
-        )
+        return torch.prod(memberships, dim=dim)
 
     def _min_agg(self, memberships, dim=-1):
-        return torch.relu(
-            torch.sum(memberships, dim=dim) - (memberships.shape[dim] - 1)
-        )
+        return torch.min(memberships, dim=dim)[0]
 
-    def _lukaziewisz_agg(self, memberships, dim=-1):
-        return torch.relu(
-            torch.sum(memberships, dim=dim) - (memberships.shape[dim] - 1)
-        )
+    def _soft_lukaziewisz_agg(self, memberships, dim=-1, scale=10):
+        """
+        This is a version of the Łukaziewish-T-norm using a modified softplus instead of max
+        """
+        return 1/scale * torch.log(1+torch.exp(math.log(math.exp(scale)-1)*(torch.sum(memberships, dim=dim) - (memberships.shape[dim] - 1))))
 
     def _forward_gbmf_membership(self, points, left_corners, right_corners, **kwargs):
         return gbmf(points, left_corners, right_corners)
@@ -324,25 +322,25 @@ class ChebiBoxWithMemberships(ElectraBasedModel):
         r = torch.max(b, dim=-1)[0]
 
         if self.membership_method == "normal":
-            m = self._forward_normal_membership(points, l, r)
+            memberships_per_dim = self._forward_normal_membership(points, l, r)
         elif self.membership_method == "gbmf":
-            m = self._forward_gbmf_membership(points, l, r)
+            memberships_per_dim = self._forward_gbmf_membership(points, l, r)
         else:
             raise Exception("Unknown membership function:", self.membership_method)
 
         if self.dimension_aggregation == "prod":
-            m = self._prod_agg(m)
+            aggregated_memberships = self._prod_agg(memberships_per_dim)
         elif self.dimension_aggregation == "lukaziewisz":
-            m = self._lukaziewisz_agg(m)
+            aggregated_memberships = self._soft_lukaziewisz_agg(memberships_per_dim)
         elif self.dimension_aggregation == "min":
-            m = self._prod_min(m)
+            aggregated_memberships = self._min_agg(memberships_per_dim)
         else:
             raise Exception("Unknown aggregation function:", self.dimension_aggregation)
 
         return dict(
             boxes=b,
             embedded_points=points,
-            output=m,
+            output=aggregated_memberships,
             attentions=d["attentions"],
             target_mask=d["target_mask"],
         )
