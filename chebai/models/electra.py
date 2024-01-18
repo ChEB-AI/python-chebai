@@ -94,8 +94,7 @@ def filter_dict(d, filter_key):
     }
 
 
-class Electra(ChebaiBaseNet):
-    NAME = "Electra"
+class ElectraBasedModel(ChebaiBaseNet):
 
     def _process_batch(self, batch, batch_idx):
         model_kwargs = dict()
@@ -122,10 +121,6 @@ class Electra(ChebaiBaseNet):
             idents=batch.additional_fields["idents"],
         )
 
-    @property
-    def as_pretrained(self):
-        return self.electra.electra
-
     def __init__(
         self, config=None, pretrained_checkpoint=None, load_prefix=None, **kwargs
     ):
@@ -141,13 +136,7 @@ class Electra(ChebaiBaseNet):
         self.word_dropout = nn.Dropout(config.get("word_dropout", 0))
 
         in_d = self.config.hidden_size
-        self.output = nn.Sequential(
-            nn.Dropout(self.config.hidden_dropout_prob),
-            nn.Linear(in_d, in_d),
-            nn.GELU(),
-            nn.Dropout(self.config.hidden_dropout_prob),
-            nn.Linear(in_d, self.config.num_labels),
-        )
+
         if pretrained_checkpoint:
             with open(pretrained_checkpoint, "rb") as fin:
                 model_dict = torch.load(fin, map_location=self.device)
@@ -196,54 +185,46 @@ class Electra(ChebaiBaseNet):
         electra = self.electra(inputs_embeds=inp, **kwargs)
         d = electra.last_hidden_state[:, 0, :]
         return dict(
-            logits=self.output(d),
+            output=d,
             attentions=electra.attentions,
             target_mask=data.get("target_mask"),
         )
 
 
-class ElectraLegacy(ChebaiBaseNet):
-    NAME = "ElectraLeg"
+class Electra(ElectraBasedModel):
+    NAME = "Electra"
 
-    def __init__(self, **kwargs):
+    def __init__(
+        self, config=None, pretrained_checkpoint=None, load_prefix=None, **kwargs
+    ):
+        # Remove this property in order to prevent it from being stored as a
+        # hyper parameter
+
         super().__init__(**kwargs)
-        self.config = ElectraConfig(**kwargs["config"], output_attentions=True)
 
-        if "pretrained_checkpoint" in kwargs:
-            elpre = ElectraPre.load_from_checkpoint(kwargs["pretrained_checkpoint"])
-            with TemporaryDirectory() as td:
-                elpre.electra.save_pretrained(td)
-                self.electra = ElectraModel.from_pretrained(td, config=self.config)
-                in_d = elpre.config.hidden_size
-        else:
-            self.electra = ElectraModel(config=self.config)
-            in_d = self.config.hidden_size
-
+        in_d = self.config.hidden_size
         self.output = nn.Sequential(
+            nn.Dropout(self.config.hidden_dropout_prob),
             nn.Linear(in_d, in_d),
-            nn.ReLU(),
-            nn.Linear(in_d, in_d),
-            nn.ReLU(),
-            nn.Linear(in_d, in_d),
-            nn.ReLU(),
-            nn.Dropout(0.2),
-            nn.Linear(in_d, 500),
+            nn.GELU(),
+            nn.Dropout(self.config.hidden_dropout_prob),
+            nn.Linear(in_d, self.config.num_labels),
         )
 
-    def forward(self, data):
-        electra = self.electra(data)
-        d = torch.sum(electra.last_hidden_state, dim=1)
-        return dict(logits=self.output(d), attentions=electra.attentions)
+    def forward(self, data, **kwargs):
+        d = super().forward(data, **kwargs)
+        return dict(
+            logits=self.output(d["output"]),
+            attentions=d["attentions"],
+            target_mask=d["target_mask"]
+        )
 
 
-
-class ChebiBoxWithMemberships(Electra):
+class ChebiBoxWithMemberships(ElectraBasedModel):
     NAME = "ChebiBoxWithMemberships"
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-
-        self.config = ElectraConfig(**kwargs["config"], output_attentions=True)
         self.in_dim = self.config.hidden_size
         self.hidden_dim = self.config.embeddings_to_points_hidden_size
         self.out_dim = self.config.embeddings_dimensions
@@ -256,13 +237,8 @@ class ChebiBoxWithMemberships(Electra):
         )
 
     def forward(self, data, **kwargs):
-        self.batch_size = data["features"].shape[0]
-        inp = self.electra.embeddings.forward(data["features"])
-        inp = self.word_dropout(inp)
-        electra = self.electra(inputs_embeds=inp, **kwargs)
-        d = electra.last_hidden_state[:, 0, :]
-        points = self.embeddings_to_points(d)
-        self.points = points
+        d = super().forward(data, **kwargs)
+        points = self.embeddings_to_points(d["output"])
 
         b = self.boxes.expand(self.batch_size, -1, -1, -1)
         l = torch.min(b, dim=-1)[0]
@@ -280,8 +256,8 @@ class ChebiBoxWithMemberships(Electra):
             boxes=b,
             embedded_points=points,
             logits=m,
-            attentions=electra.attentions,
-            target_mask=data.get("target_mask"),
+            attentions=d["attentions"],
+            target_mask=d["target_mask"],
         )
 
 
