@@ -94,8 +94,7 @@ def filter_dict(d, filter_key):
     }
 
 
-class Electra(ChebaiBaseNet):
-    NAME = "Electra"
+class ElectraBasedModel(ChebaiBaseNet):
 
     def _process_batch(self, batch, batch_idx):
         model_kwargs = dict()
@@ -122,10 +121,6 @@ class Electra(ChebaiBaseNet):
             idents=batch.additional_fields["idents"],
         )
 
-    @property
-    def as_pretrained(self):
-        return self.electra.electra
-
     def __init__(
         self, config=None, pretrained_checkpoint=None, load_prefix=None, **kwargs
     ):
@@ -141,13 +136,7 @@ class Electra(ChebaiBaseNet):
         self.word_dropout = nn.Dropout(config.get("word_dropout", 0))
 
         in_d = self.config.hidden_size
-        self.output = nn.Sequential(
-            nn.Dropout(self.config.hidden_dropout_prob),
-            nn.Linear(in_d, in_d),
-            nn.GELU(),
-            nn.Dropout(self.config.hidden_dropout_prob),
-            nn.Linear(in_d, self.config.num_labels),
-        )
+
         if pretrained_checkpoint:
             with open(pretrained_checkpoint, "rb") as fin:
                 model_dict = torch.load(fin, map_location=self.device)
@@ -196,11 +185,39 @@ class Electra(ChebaiBaseNet):
         electra = self.electra(inputs_embeds=inp, **kwargs)
         d = electra.last_hidden_state[:, 0, :]
         return dict(
-            logits=self.output(d),
+            output=d,
             attentions=electra.attentions,
             target_mask=data.get("target_mask"),
         )
 
+
+class Electra(ElectraBasedModel):
+    NAME = "Electra"
+
+    def __init__(
+        self, config=None, pretrained_checkpoint=None, load_prefix=None, **kwargs
+    ):
+        # Remove this property in order to prevent it from being stored as a
+        # hyper parameter
+
+        super().__init__(**kwargs)
+
+        in_d = self.config.hidden_size
+        self.output = nn.Sequential(
+            nn.Dropout(self.config.hidden_dropout_prob),
+            nn.Linear(in_d, in_d),
+            nn.GELU(),
+            nn.Dropout(self.config.hidden_dropout_prob),
+            nn.Linear(in_d, self.config.num_labels),
+        )
+
+    def forward(self, data, **kwargs):
+        d = super().forward(data, **kwargs)
+        return dict(
+            logits=self.output(d["output"]),
+            attentions=d["attentions"],
+            target_mask=d["target_mask"]
+        )
 
 class ElectraLegacy(ChebaiBaseNet):
     NAME = "ElectraLeg"
@@ -236,65 +253,28 @@ class ElectraLegacy(ChebaiBaseNet):
         return dict(logits=self.output(d), attentions=electra.attentions)
 
 
+def gbmf(x, l, r, b = 6):
+    a = (r-l)+1e-3
+    c = l+(r-l)/2
+    return 1 / (1 + (torch.abs((x - c) / a) ** (2 * b)))
 
-class ChebiBoxWithMemberships(ChebaiBaseNet):
+
+def normal(sigma, mu, x):
+    v = (x-mu)/sigma
+    return torch.exp(-0.5 * v*v)
+
+
+class ChebiBoxWithMemberships(ElectraBasedModel):
     NAME = "ChebiBoxWithMemberships"
 
-    def _process_batch(self, batch, batch_idx):
-        model_kwargs = dict()
-        loss_kwargs = batch.additional_fields["loss_kwargs"]
-        if "lens" in batch.additional_fields["model_kwargs"]:
-            model_kwargs["attention_mask"] = pad_sequence(
-                [
-                    torch.ones(l + 1, device=self.device)
-                    for l in batch.additional_fields["model_kwargs"]["lens"]
-                ],
-                batch_first=True,
-            )
-        cls_tokens = (
-                torch.ones(batch.x.shape[0], dtype=torch.int, device=self.device).unsqueeze(
-                    -1
-                )
-                * CLS_TOKEN
-        )
-        return dict(
-            features=torch.cat((cls_tokens, batch.x), dim=1),
-            labels=batch.y,
-            model_kwargs=model_kwargs,
-            loss_kwargs=loss_kwargs,
-            idents=batch.additional_fields["idents"],
-        )
-
-    def __init__(
-        self, config=None, pretrained_checkpoint=None, load_prefix=None, **kwargs
-    ):
+    def __init__(self, membership_method="normal", dimension_aggregation="lukaziewisz", **kwargs):
         super().__init__(**kwargs)
-
-        if config is None:
-            config = dict()
-        if not "num_labels" in config and self.out_dim is not None:
-            config["num_labels"] = self.out_dim
-        self.config = ElectraConfig(**config, output_attentions=True)
-        self.word_dropout = nn.Dropout(config.get("word_dropout", 0))
-
-        if pretrained_checkpoint:
-            with open(pretrained_checkpoint, "rb") as fin:
-                model_dict = torch.load(fin, map_location=self.device)
-                if load_prefix:
-                    state_dict = filter_dict(model_dict["state_dict"], load_prefix)
-                else:
-                    state_dict = model_dict["state_dict"]
-                self.electra = ElectraModel.from_pretrained(
-                    None, state_dict=state_dict, config=self.config
-                )
-        else:
-            self.electra = ElectraModel(config=self.config)
-
-        self.config = ElectraConfig(**config, output_attentions=True)
         self.in_dim = self.config.hidden_size
         self.hidden_dim = self.config.embeddings_to_points_hidden_size
         self.out_dim = self.config.embeddings_dimensions
         self.boxes = nn.Parameter(torch.rand((self.config.num_labels, self.out_dim, 2)) * 3 )
+        self.membership_method = membership_method
+        self.dimension_aggregation = dimension_aggregation
 
         self.embeddings_to_points = nn.Sequential(
             nn.Linear(self.in_dim, self.hidden_dim),
@@ -302,56 +282,52 @@ class ChebiBoxWithMemberships(ChebaiBaseNet):
             nn.Linear(self.hidden_dim, self.out_dim)
         )
 
-    def _process_for_loss(self, model_output, labels, loss_kwargs):
-        kwargs_copy = dict(loss_kwargs)
-        mask = kwargs_copy.pop("target_mask", None)
-        if mask is not None:
-            d = model_output["logits"] * mask - 100 * ~mask
-        else:
-            d = model_output["logits"]
-        if labels is not None:
-            labels = labels.float()
-        return d, labels, kwargs_copy
+    def _prod_agg(self, memberships, dim=-1):
+        return torch.relu(torch.sum(memberships, dim=dim)-(memberships.shape[dim]-1))
 
-    def _get_prediction_and_labels(self, data, labels, model_output):
-        mask = model_output.get("target_mask")
-        if mask is not None:
-            d = model_output["logits"] * mask - 100 * ~mask
-        else:
-            d = model_output["logits"]
-        loss_kwargs = data.get("loss_kwargs", dict())
-        if "non_null_labels" in loss_kwargs:
-            n = loss_kwargs["non_null_labels"]
-            d = d[n]
-        return torch.sigmoid(d), labels.int()
+    def _min_agg(self, memberships, dim=-1):
+        return torch.relu(torch.sum(memberships, dim=dim)-(memberships.shape[dim]-1))
+    def _lukaziewisz_agg(self, memberships, dim=-1):
+        return torch.relu(torch.sum(memberships, dim=dim)-(memberships.shape[dim]-1))
+
+    def _forward_gbmf_membership(self, points, left_corners, right_corners, **kwargs):
+        return gbmf(points, left_corners, right_corners)
+
+    def _forward_normal_membership(self, points, left_corners, right_corners, **kwargs):
+        widths = 0.1 * (right_corners - left_corners)
+        max_distance_per_dim = nn.functional.relu(left_corners - points + widths**0.5) + nn.functional.relu(points - right_corners + widths**0.5)
+        return normal(widths**0.5, 0, max_distance_per_dim)
 
     def forward(self, data, **kwargs):
-        self.batch_size = data["features"].shape[0]
-        inp = self.electra.embeddings.forward(data["features"])
-        inp = self.word_dropout(inp)
-        electra = self.electra(inputs_embeds=inp, **kwargs)
-        d = electra.last_hidden_state[:, 0, :]
-        points = self.embeddings_to_points(d)
-        self.points = points
+        d = super().forward(data, **kwargs)
+        points = self.embeddings_to_points(d["output"]).unsqueeze(1)
 
-        b = self.boxes.expand(self.batch_size, -1, -1, -1)
+        b = self.boxes.unsqueeze(0)
         l = torch.min(b, dim=-1)[0]
         r = torch.max(b, dim=-1)[0]
-        p = points.expand(self.config.num_labels, -1, -1).transpose(1, 0)
 
-        center = torch.mean(torch.stack([l, r]), dim=0)
-        width = 0.6 * (r - l)
-        slope = torch.sqrt(torch.abs(r - l))
+        if self.membership_method == "normal":
+            m = self._forward_normal_membership(points, l, r)
+        elif self.membership_method == "gbmf":
+            m = self._forward_gbmf_membership(points, l, r)
+        else:
+            raise Exception("Unknown membership function:", self.membership_method)
 
-        membership = 1 / (1 + ((torch.abs(p - center) / width) ** (2 * slope)))
-        m = torch.mean(membership, dim=-1)
+        if self.dimension_aggregation == "prod":
+            m = self._prod_agg(m)
+        elif self.dimension_aggregation == "lukaziewisz":
+            m = self._lukaziewisz_agg(m)
+        elif self.dimension_aggregation == "min":
+            m = self._prod_min(m)
+        else:
+            raise Exception("Unknown aggregation function:", self.dimension_aggregation)
 
         return dict(
             boxes=b,
             embedded_points=points,
             logits=m,
-            attentions=electra.attentions,
-            target_mask=data.get("target_mask"),
+            attentions=d["attentions"],
+            target_mask=d["target_mask"],
         )
 
 
