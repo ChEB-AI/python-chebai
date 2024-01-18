@@ -301,7 +301,17 @@ class ChebiBoxWithMemberships(ElectraBasedModel):
         """
         This is a version of the Łukaziewish-T-norm using a modified softplus instead of max
         """
-        return 1/scale * torch.log(1+torch.exp(math.log(math.exp(scale)-1)*(torch.sum(memberships, dim=dim) - (memberships.shape[dim] - 1))))
+        return (
+            1
+            / scale
+            * torch.log(
+                1
+                + torch.exp(
+                    math.log(math.exp(scale) - 1)
+                    * (torch.sum(memberships, dim=dim) - (memberships.shape[dim] - 1))
+                )
+            )
+        )
 
     def _forward_gbmf_membership(self, points, left_corners, right_corners, **kwargs):
         return gbmf(points, left_corners, right_corners)
