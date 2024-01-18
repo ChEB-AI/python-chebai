@@ -15,6 +15,7 @@ import torch
 from chebai.loss.pretraining import ElectraPreLoss  # noqa
 from chebai.models.base import ChebaiBaseNet
 from chebai.preprocessing.reader import CLS_TOKEN, MASK_TOKEN_INDEX
+import pytorch_lightning as pl
 
 logging.getLogger("pysmiles").setLevel(logging.CRITICAL)
 
@@ -233,6 +234,70 @@ class ElectraLegacy(ChebaiBaseNet):
         electra = self.electra(data)
         d = torch.sum(electra.last_hidden_state, dim=1)
         return dict(logits=self.output(d), attentions=electra.attentions)
+
+
+
+class ChebiBoxWithMemberships(Electra):
+    NAME = "ChebiBoxWithMemberships"
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+
+        self.config = ElectraConfig(**kwargs["config"], output_attentions=True)
+        self.in_dim = self.config.hidden_size
+        self.hidden_dim = self.config.embeddings_to_points_hidden_size
+        self.out_dim = self.config.embeddings_dimensions
+        self.boxes = nn.Parameter(torch.rand((self.config.num_labels, self.out_dim, 2)) * 3 )
+
+        self.embeddings_to_points = nn.Sequential(
+            nn.Linear(self.in_dim, self.hidden_dim),
+            nn.ReLU(),
+            nn.Linear(self.hidden_dim, self.out_dim)
+        )
+
+    def forward(self, data, **kwargs):
+        self.batch_size = data["features"].shape[0]
+        inp = self.electra.embeddings.forward(data["features"])
+        inp = self.word_dropout(inp)
+        electra = self.electra(inputs_embeds=inp, **kwargs)
+        d = electra.last_hidden_state[:, 0, :]
+        points = self.embeddings_to_points(d)
+        self.points = points
+
+        b = self.boxes.expand(self.batch_size, -1, -1, -1)
+        l = torch.min(b, dim=-1)[0]
+        r = torch.max(b, dim=-1)[0]
+        p = points.expand(self.config.num_labels, -1, -1).transpose(1, 0)
+
+        center = torch.mean(torch.stack([l, r]), dim=0)
+        width = 0.6 * (r - l)
+        slope = torch.sqrt(torch.abs(r - l))
+
+        membership = 1 / (1 + ((torch.abs(p - center) / width) ** (2 * slope)))
+        m = torch.mean(membership, dim=-1)
+
+        return dict(
+            boxes=b,
+            embedded_points=points,
+            logits=m,
+            attentions=electra.attentions,
+            target_mask=data.get("target_mask"),
+        )
+
+
+class BoxLoss(pl.LightningModule):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.criteria = nn.BCELoss()
+
+    def forward(self, outputs, targets, **kwargs):
+
+        criterion = self.criteria
+        bce_loss = criterion(outputs, targets)
+
+        total_loss = bce_loss
+
+        return total_loss
 
 
 class ConeElectra(ChebaiBaseNet):
