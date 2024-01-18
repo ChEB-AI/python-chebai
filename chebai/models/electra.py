@@ -350,7 +350,6 @@ class BoxLoss(pl.LightningModule):
         self.criteria = nn.BCELoss()
 
     def forward(self, outputs, targets, **kwargs):
-
         criterion = self.criteria
         bce_loss = criterion(outputs, targets)
 
