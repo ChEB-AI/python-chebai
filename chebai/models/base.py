@@ -4,7 +4,7 @@ import typing
 
 from lightning.pytorch.core.module import LightningModule
 import torch
-
+import pickle
 from chebai.preprocessing.structures import XYData
 
 logging.getLogger("pysmiles").setLevel(logging.CRITICAL)

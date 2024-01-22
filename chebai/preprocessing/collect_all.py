@@ -191,11 +191,11 @@ def train(train_loader, validation_loader):
     checkpoint_callback = ModelCheckpoint(
         dirpath=os.path.join(tb_logger.log_dir, "checkpoints"),
         filename="{epoch}-{step}-{val_loss:.7f}",
-        save_top_k=5,
         save_last=True,
         verbose=True,
         monitor="val_loss",
         mode="min",
+        every_n_epochs=1
     )
     trainer = pl.Trainer(
         logger=tb_logger,
