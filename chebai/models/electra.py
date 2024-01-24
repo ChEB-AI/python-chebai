@@ -96,6 +96,8 @@ def filter_dict(d, filter_key):
 
 
 class ElectraBasedModel(ChebaiBaseNet):
+    NAME = "ElectraBase"
+
     def _process_batch(self, batch, batch_idx):
         model_kwargs = dict()
         loss_kwargs = batch.additional_fields["loss_kwargs"]
@@ -127,7 +129,11 @@ class ElectraBasedModel(ChebaiBaseNet):
         # Remove this property in order to prevent it from being stored as a
         # hyper parameter
 
+
         super().__init__(**kwargs)
+
+
+
         if config is None:
             config = dict()
         if not "num_labels" in config and self.out_dim is not None:
@@ -149,6 +155,9 @@ class ElectraBasedModel(ChebaiBaseNet):
                 )
         else:
             self.electra = ElectraModel(config=self.config)
+
+        if self.out_dim is None:
+            self.out_dim = self.electra.config.hidden_size
 
     def _process_for_loss(self, model_output, labels, loss_kwargs):
         kwargs_copy = dict(loss_kwargs)
@@ -189,7 +198,6 @@ class ElectraBasedModel(ChebaiBaseNet):
             attentions=electra.attentions,
             target_mask=data.get("target_mask"),
         )
-
 
 class Electra(ElectraBasedModel):
     NAME = "Electra"
@@ -398,6 +406,44 @@ class BoxLoss(pl.LightningModule):
 
         return total_loss
 
+class CrispBoxClassifier(ElectraBasedModel):
+    NAME = "CripsBox"
+
+    def __init__(self, box_dimensions=3, **kwargs):
+        super().__init__(**kwargs)
+
+        self.point_embedding = nn.Linear(self.config.hidden_size, box_dimensions)
+
+        self.num_boxes = kwargs["out_dim"]
+        b = torch.randn((self.num_boxes, box_dimensions, 2))
+        self.boxes = nn.Parameter(b, requires_grad=True)
+
+    def forward(self, x, **kwargs):
+        d = super().forward(x, **kwargs)
+        points = self.point_embedding(d["output"]).unsqueeze(1)
+        b = self.boxes.unsqueeze(0)
+        l, lind = torch.min(b, dim=-1)
+        r, rind = torch.max(b, dim=-1)
+        inside = torch.all((l < points) * (points < r), dim=-1).float()
+        return dict(
+            boxes=b,
+            embedded_points=points,
+            output=inside,
+            attentions=d["attentions"],
+            target_mask=d["target_mask"],
+        )
+
+    def _process_for_loss(self, model_output, labels, loss_kwargs):
+        kwargs_copy = dict(loss_kwargs)
+        mask = kwargs_copy.pop("target_mask", None)
+        if mask is not None:
+            d = model_output["output"] * mask - 100 * ~mask
+        else:
+            d = model_output["output"]
+        if labels is not None:
+            labels = labels.float()
+        model_output["output"] = d
+        return model_output, labels, kwargs_copy
 
 class ConeElectra(ChebaiBaseNet):
     NAME = "ConeElectra"
