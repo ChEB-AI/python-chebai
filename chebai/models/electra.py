@@ -265,7 +265,6 @@ class ElectraLegacy(ChebaiBaseNet):
         d = torch.sum(electra.last_hidden_state, dim=1)
         return dict(output=self.output(d), attentions=electra.attentions)
 
-
 def gbmf(x, l, r, b=6):
     a = (r - l) + 1e-3
     c = l + (r - l) / 2
@@ -276,7 +275,7 @@ def gbmf_adjusted_slope(x, l, r):
     r = r.to(torch.float32)
     segment = torch.abs(r - l)
     is_close = torch.allclose(l, r, rtol=1e-2, atol=1e-3)
-    a =  torch.abs(r - l) - 1e-3 if is_close else 0.7 * torch.abs(r - l)
+    a =  torch.abs(r - l) - 1e-3 if is_close else 1 + (0.7 * torch.abs(r - l))
     c = l + (r - l) / 2
     b =  2 / (1 + torch.exp(-(segment - 5) / 5))
     membership = 1 / (1 + (torch.abs((x - c) / a) ** (2 * b)))
@@ -301,7 +300,18 @@ class ChebiBoxWithMemberships(ElectraBasedModel):
         self.in_dim = self.config.hidden_size
         self.hidden_dim = self.config.embeddings_to_points_hidden_size
         self.out_dim = self.config.embeddings_dimensions
+
+        # Random boxes
         self.boxes = nn.Parameter(torch.rand((self.config.num_labels, self.out_dim, 2)))
+
+        # Boxes with (relatively) same sizes
+        """
+        base_box = torch.rand((2, self.out_dim))
+        similar_boxes = base_box.repeat((self.config.num_labels, 1, 1))
+        small_differences = 0.05 * torch.randn_like(similar_boxes)
+        similar_boxes += small_differences
+        self.boxes = nn.Parameter(similar_boxes)
+        """
 
         self.embeddings_to_points = nn.Sequential(
             nn.Linear(self.in_dim, self.hidden_dim),
@@ -312,14 +322,14 @@ class ChebiBoxWithMemberships(ElectraBasedModel):
     def _prod_agg(self, memberships, dim=-1):
         return torch.prod(memberships, dim=dim)
 
-    def _min_agg(self, memberships, dim=-1):
-        return torch.min(memberships, dim=dim)[0]
-
-    def _mean_agg(self, memberships, dim=-1):
-        return torch.mean(memberships, dim=dim)
-
-    def _sum_agg(self, memberships, dim=-1):
-        return torch.sum(memberships, dim=dim)
+    def _soft_lukaziewicz_agg_2(self, memberships, scale=10):
+        # TORCH.LOG1P is more accurate than torch.log() for small values of input
+        # https://pytorch.org/docs/stable/generated/torch.log1p.html
+        return torch.log1p(
+            torch.exp(
+                scale * (torch.sum(memberships, dim=-1) - (memberships.shape[-1] - 1))
+            )
+        ) / scale
 
     def _soft_lukaziewisz_agg(self, memberships, dim=-1, scale=10):
         """
@@ -368,10 +378,9 @@ class ChebiBoxWithMemberships(ElectraBasedModel):
             aggregated_memberships = self._soft_lukaziewisz_agg(memberships_per_dim)
         elif self.dimension_aggregation == "min":
             aggregated_memberships = self._min_agg(memberships_per_dim)
-        elif self.dimension_aggregation == "mean":
-            aggregated_memberships = self._mean_agg(memberships_per_dim)
-        elif self.dimension_aggregation == "sum":
-            aggregated_memberships = self._sum_agg(memberships_per_dim)
+        elif self.dimension_aggregation == "lukaziewisz2":
+            aggregated_memberships = self._soft_lukaziewicz_agg_2(memberships_per_dim)
+
         else:
             raise Exception("Unknown aggregation function:", self.dimension_aggregation)
 
