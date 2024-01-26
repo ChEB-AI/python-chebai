@@ -29,11 +29,11 @@ class BoxLoss(torch.nn.Module):
         fn_per_dim = ~inside_fn * target
         fp_per_dim = inside_fp * (1 - target)
 
-        # We also want to penalise wrong memberships in multiple dimensions. This
+        # We also want to penalise wrong memberships in different dimensions. This
         # is important, because a false positive in a single dimension is not wrong,
         # if at least one dimension is true negative.
         false_per_dim = fn_per_dim + fp_per_dim
-        number_of_false_dims = torch.sum(false_per_dim, dim=-1, keepdim=True)
+        all_dimensions_wrong = torch.min(false_per_dim, dim=-1, keepdim=True)[0]
 
 
         # We calculate the gradient for left and right border simultaneously, but we only need the one
@@ -44,17 +44,27 @@ class BoxLoss(torch.nn.Module):
 
         # The scaling factor encodes the conjunction of whether the respective dimension is false and whether the respective
         # border is the closest to the point.
-        r_scale_fp = number_of_false_dims * torch.rand_like(fp_per_dim) * (fp_per_dim * ~closer_to_l_than_r)
-        l_scale_fp = number_of_false_dims * torch.rand_like(fp_per_dim) * (fp_per_dim * closer_to_l_than_r)
-        r_scale_fn = number_of_false_dims * torch.rand_like(fn_per_dim) * (fn_per_dim * ~closer_to_l_than_r)
-        l_scale_fn = number_of_false_dims * torch.rand_like(fn_per_dim) * (fn_per_dim * closer_to_l_than_r)
+
+        r_scale_fp = all_dimensions_wrong * (fp_per_dim * ~closer_to_l_than_r)
+        l_scale_fp = all_dimensions_wrong * (fp_per_dim * closer_to_l_than_r)
+
+        r_scale_fn = (fn_per_dim * ~closer_to_l_than_r)
+        l_scale_fn = (fn_per_dim * closer_to_l_than_r)
+
+        d_r_fp = r_scale_fp * torch.abs(r_fp - points)
+        d_l_fp = l_scale_fp * torch.abs(l_fp - points)
+        d_r_fn = r_scale_fn * torch.abs(r_fn - points)
+        d_l_fn = l_scale_fn * torch.abs(l_fn - points)
+
+        w_r_fp = torch.nn.functional.softmin(d_r_fp, dim=-1)
+        w_r_fn = torch.nn.functional.softmin(d_r_fn, dim=-1)
+        w_l_fp = torch.nn.functional.softmin(d_l_fp, dim=-1)
+        w_l_fn = torch.nn.functional.softmin(d_l_fn, dim=-1)
 
         # The loss for a border is then the mean of the scaled vector between the points for which the model would
         # produce a wrong prediction and the closest border of the box
-        r_loss = torch.mean(torch.sum(torch.abs(r_scale_fp * (r_fp - points)), dim=-1) + torch.sum(
-            torch.abs(r_scale_fn * (r_fn - points)), dim=-1))
-        l_loss = torch.mean(torch.sum(torch.abs(l_scale_fp * (l_fp - points)), dim=-1) + torch.sum(
-            torch.abs(l_scale_fn * (l_fn - points)), dim=-1))
+        r_loss = torch.mean(torch.sum(w_r_fp * d_r_fp, dim=(1, 2)) + torch.sum(w_r_fn * d_r_fn, dim=(1, 2)))
+        l_loss = torch.mean(torch.sum(w_l_fp * d_l_fp, dim=(1, 2)) + torch.sum(w_l_fn * d_l_fn, dim=(1, 2)))
         return l_loss + r_loss
 
     def _calculate_implication_loss(self, l, r):
