@@ -51,8 +51,8 @@ class JCIBase(XYBaseDataModule):
     def prepare_data(self, *args, **kwargs):
         print("Check for raw data in", self.raw_dir)
         if any(
-            not os.path.isfile(os.path.join(self.raw_dir, f))
-            for f in self.raw_file_names
+                not os.path.isfile(os.path.join(self.raw_dir, f))
+                for f in self.raw_file_names
         ):
             raise ValueError("Raw data is missing")
 
@@ -96,7 +96,7 @@ class JCITokenData(JCIBase):
 
 class _ChEBIDataExtractor(XYBaseDataModule, ABC):
     def __init__(
-        self, chebi_version_train: int = None, single_class: int = None, **kwargs
+            self, chebi_version_train: int = None, single_class: int = None, **kwargs
     ):
         # predict only single class (given as id of one of the classes present in the raw data set)
         self.single_class = single_class
@@ -213,7 +213,7 @@ class _ChEBIDataExtractor(XYBaseDataModule, ABC):
                 )
         # create second test set with classes used in train
         if self.chebi_version_train is not None and not os.path.isfile(
-            os.path.join(self.processed_dir, self.processed_file_names_dict["test"])
+                os.path.join(self.processed_dir, self.processed_file_names_dict["test"])
         ):
             print("transform test (select classes)")
             self._setup_pruned_test_set()
@@ -232,8 +232,8 @@ class _ChEBIDataExtractor(XYBaseDataModule, ABC):
         train_split = []
         test_split = []
         for train_split, test_split in msss.split(
-            df_list,
-            df_list,
+                df_list,
+                df_list,
         ):
             train_split = train_split
             test_split = test_split
@@ -257,10 +257,10 @@ class _ChEBIDataExtractor(XYBaseDataModule, ABC):
             folds = {}
             kfold = MultilabelStratifiedKFold(n_splits=self.inner_k_folds)
             for fold, (train_ids, val_ids) in enumerate(
-                kfold.split(
-                    df_trainval_list,
-                    df_trainval_list,
-                )
+                    kfold.split(
+                        df_trainval_list,
+                        df_trainval_list,
+                    )
             ):
                 df_validation = df_trainval.iloc[val_ids]
                 df_train = df_trainval.iloc[train_ids]
@@ -279,7 +279,7 @@ class _ChEBIDataExtractor(XYBaseDataModule, ABC):
         train_split = []
         validation_split = []
         for train_split, validation_split in msss.split(
-            df_trainval_list, df_trainval_list
+                df_trainval_list, df_trainval_list
         ):
             train_split = train_split
             validation_split = validation_split
@@ -365,14 +365,14 @@ class _ChEBIDataExtractor(XYBaseDataModule, ABC):
     def prepare_data(self, *args, **kwargs):
         print("Check for raw data in", self.raw_dir)
         if any(
-            not os.path.isfile(os.path.join(self.raw_dir, f))
-            for f in self.raw_file_names
+                not os.path.isfile(os.path.join(self.raw_dir, f))
+                for f in self.raw_file_names
         ):
             os.makedirs(self.raw_dir, exist_ok=True)
             print("Missing raw data. Go fetch...")
             # missing test set -> create
             if not os.path.isfile(
-                os.path.join(self.raw_dir, self.raw_file_names_dict["test"])
+                    os.path.join(self.raw_dir, self.raw_file_names_dict["test"])
             ):
                 chebi_path = self._load_chebi(self.chebi_version)
                 g = self.extract_class_hierarchy(chebi_path)
@@ -382,7 +382,7 @@ class _ChEBIDataExtractor(XYBaseDataModule, ABC):
             # load test_split from file
             else:
                 with open(
-                    os.path.join(self.raw_dir, self.raw_file_names_dict["test"]), "rb"
+                        os.path.join(self.raw_dir, self.raw_file_names_dict["test"]), "rb"
                 ) as input_file:
                     test_df = pickle.load(input_file)
             # create train/val split based on test set
@@ -441,16 +441,16 @@ class ChEBIOverX(_ChEBIDataExtractor):
                     node
                     for node in g.nodes
                     if sum(
-                        1 if smiles[s] is not None else 0 for s in g.successors(node)
-                    )
-                    >= self.THRESHOLD
+                    1 if smiles[s] is not None else 0 for s in g.successors(node)
+                )
+                       >= self.THRESHOLD
                 }
             )
         )
         filename = "classes.txt"
         if (
-            self.chebi_version_train is not None
-            and self.raw_file_names_dict["test"] != split_name
+                self.chebi_version_train is not None
+                and self.raw_file_names_dict["test"] != split_name
         ):
             filename = f"classes_v{self.chebi_version_train}.txt"
         with open(os.path.join(self.raw_dir, filename), "wt") as fout:
@@ -464,6 +464,99 @@ class ChEBIOverXDeepSMILES(ChEBIOverX):
 
 class ChEBIOverXSELFIES(ChEBIOverX):
     READER = dr.SelfiesReader
+
+
+class ChEBIRolesOver100(ChEBIOverX):
+    THRESHOLD = 100
+
+    def label_number(self):
+        return 1037
+
+    @property
+    def _name(self):
+        return f"ChEBIRoles{self.THRESHOLD}"
+
+
+class ChEBIFlatOver100(ChEBIOverX):
+    THRESHOLD = 100
+
+    def label_number(self):
+        return 336
+
+    @property
+    def _name(self):
+        return f"ChEBIFlat{self.THRESHOLD}"
+
+    def select_classes(self, g, split_name, *args, **kwargs):
+        smiles = nx.get_node_attributes(g, "smiles")
+        nodes_tmp = list(
+            sorted(
+                {
+                    node
+                    for node in g.nodes
+                    if sum(
+                    1 if smiles[s] is not None else 0 for s in g.successors(node)
+                )
+                       >= self.THRESHOLD
+                }
+            )
+        )
+
+        # extract leaf nodes of finished graph (no successors inside the filtered nodes)
+        nodes = [n for n in nodes_tmp if not any(s in nodes_tmp for s in g.successors(n))]
+
+        filename = "classes.txt"
+        if (
+                self.chebi_version_train is not None
+                and self.raw_file_names_dict["test"] != split_name
+        ):
+            filename = f"classes_v{self.chebi_version_train}.txt"
+        with open(os.path.join(self.raw_dir, filename), "wt") as fout:
+            fout.writelines(str(node) + "\n" for node in nodes)
+        return nodes
+
+
+class ChEBIDistOver100(ChEBIOverX):
+    THRESHOLD = 100
+
+    def label_number(self):
+        return 854
+
+    @property
+    def _name(self):
+        return f"ChEBIDist{self.THRESHOLD}"
+
+    """
+    def graph_to_raw_dataset(self, g, split_name=None):
+        //Preparation step before creating splits, uses graph created by extract_class_hierarchy(),
+        //split_name is only relevant, if a separate train_version is set
+        smiles = nx.get_node_attributes(g, "smiles")
+        names = nx.get_node_attributes(g, "name")
+
+        print(f"Process graph")
+
+        molecules, smiles_list = zip(
+            *(
+                (n, smiles)
+                for n, smiles in ((n, smiles.get(n)) for n in smiles.keys())
+                if smiles
+            )
+        )
+        data = OrderedDict(id=molecules)
+        data["name"] = [names.get(node) for node in molecules]
+        data["SMILES"] = smiles_list
+
+
+        for n in self.select_classes(g, split_name):
+            data[n] = [
+                ((n in g.predecessors(node)) or (n == node)) for node in molecules
+            ]
+
+        data = pd.DataFrame(data)
+        data = data[~data["SMILES"].isnull()]
+        data = data[data.iloc[:, 3:].any(axis=1)]
+        return data
+    """
 
 
 class ChEBIOver100(ChEBIOverX):
@@ -535,7 +628,7 @@ class JCIExtSelfies(JCIExtendedBase):
 
 
 def chebi_to_int(s):
-    return int(s[s.index(":") + 1 :])
+    return int(s[s.index(":") + 1:])
 
 
 def term_callback(doc):

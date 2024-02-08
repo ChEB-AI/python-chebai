@@ -42,6 +42,7 @@ setup(
         "lightning",
         "jsonargparse[signatures]>=4.17.0",
         "omegaconf",
+        "iterative-stratification"  # added missing module
     ],
     extras_require={"dev": ["black", "isort", "pre-commit"]},
 )

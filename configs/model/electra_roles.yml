@@ -1,0 +1,14 @@
+class_path: chebai.models.Electra
+init_args:
+  criterion:
+    class_path: torch.nn.BCEWithLogitsLoss
+  out_dim: 1037
+  pass_loss_kwargs: false
+  optimizer_kwargs:
+    lr: 1e-4
+  config:
+    vocab_size: 1400
+    max_position_embeddings: 1800
+    num_attention_heads: 8
+    num_hidden_layers: 6
+    type_vocab_size: 1
