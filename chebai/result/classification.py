@@ -166,6 +166,8 @@ def print_metrics(preds, labels, device, classes=None, top_k=10, markdown_output
 
     zeros = []
     for i, f1 in enumerate(classwise_f1):
-        if f1 == 0.0 and torch.sum(labels[:, i]):
+        if f1 == 0.0 and torch.sum(labels[:, i]) != 0:
             zeros.append(f"{classes[i] if classes is not None else i}")
-    print(f'Classes with F1-score == 0 (and non-zero labels): {", ".join(zeros)}')
+    print(
+        f'Found {len(zeros)} classes with F1-score == 0 (and non-zero labels): {", ".join(zeros)}'
+    )

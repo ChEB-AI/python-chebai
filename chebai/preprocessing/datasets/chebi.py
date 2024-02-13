@@ -219,7 +219,7 @@ class _ChEBIDataExtractor(XYBaseDataModule, ABC):
             self._setup_pruned_test_set()
 
     def get_test_split(self, df: pd.DataFrame):
-        print("Split dataset into train (including val) / test")
+        print("Get test data split")
 
         df_list = df.values.tolist()
         df_list = [row[3:] for row in df_list]
@@ -513,7 +513,7 @@ class ChEBIOverXPartial(ChEBIOverX):
         g.add_edges_from([(p, q["id"]) for q in elements for p in q["parents"]])
 
         g = nx.transitive_closure_dag(g)
-        g = g.subgraph(nx.descendants(g, self.top_class_id))
+        g = g.subgraph(list(nx.descendants(g, self.top_class_id)) + [self.top_class_id])
         print("Compute transitive closure")
         return g
 
