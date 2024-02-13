@@ -247,8 +247,8 @@ class _ChEBIDataExtractor(XYBaseDataModule, ABC):
         print(f"Split dataset into train / val with given test set")
 
         df_trainval = df
-        test_smiles = test_df["SMILES"].tolist()
-        mask = [smiles not in test_smiles for smiles in df_trainval["SMILES"]]
+        test_ids = test_df["id"].tolist()
+        mask = [trainval_id not in test_ids for trainval_id in df_trainval["id"]]
         df_trainval = df_trainval[mask]
         df_trainval_list = df_trainval.values.tolist()
         df_trainval_list = [row[3:] for row in df_trainval_list]
