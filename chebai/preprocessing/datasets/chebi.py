@@ -9,11 +9,11 @@ __all__ = [
     "JCI_500_COLUMNS_INT",
 ]
 
-import queue
 from abc import ABC
 from collections import OrderedDict
 import os
 import pickle
+import queue
 
 from iterstrat.ml_stratifiers import (
     MultilabelStratifiedKFold,
