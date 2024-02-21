@@ -60,7 +60,7 @@ def evaluate_model(
         collated.x = collated.to_x(model.device)
         collated.y = collated.to_y(model.device)
         processable_data = model._process_batch(collated, 0)
-        model_output = model(processable_data)
+        model_output = model(processable_data, **processable_data["model_kwargs"])
         preds, labels = model._get_prediction_and_labels(
             processable_data, processable_data["labels"], model_output
         )
