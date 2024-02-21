@@ -9,11 +9,11 @@ __all__ = [
     "JCI_500_COLUMNS_INT",
 ]
 
-import queue
 from abc import ABC
 from collections import OrderedDict
 import os
 import pickle
+import queue
 
 from iterstrat.ml_stratifiers import (
     MultilabelStratifiedKFold,
@@ -219,7 +219,7 @@ class _ChEBIDataExtractor(XYBaseDataModule, ABC):
             self._setup_pruned_test_set()
 
     def get_test_split(self, df: pd.DataFrame):
-        print("Split dataset into train (including val) / test")
+        print("Get test data split")
 
         df_list = df.values.tolist()
         df_list = [row[3:] for row in df_list]
@@ -247,8 +247,8 @@ class _ChEBIDataExtractor(XYBaseDataModule, ABC):
         print(f"Split dataset into train / val with given test set")
 
         df_trainval = df
-        test_smiles = test_df["SMILES"].tolist()
-        mask = [smiles not in test_smiles for smiles in df_trainval["SMILES"]]
+        test_ids = test_df["id"].tolist()
+        mask = [trainval_id not in test_ids for trainval_id in df_trainval["id"]]
         df_trainval = df_trainval[mask]
         df_trainval_list = df_trainval.values.tolist()
         df_trainval_list = [row[3:] for row in df_trainval_list]
@@ -265,9 +265,9 @@ class _ChEBIDataExtractor(XYBaseDataModule, ABC):
                 df_validation = df_trainval.iloc[val_ids]
                 df_train = df_trainval.iloc[train_ids]
                 folds[self.raw_file_names_dict[f"fold_{fold}_train"]] = df_train
-                folds[
-                    self.raw_file_names_dict[f"fold_{fold}_validation"]
-                ] = df_validation
+                folds[self.raw_file_names_dict[f"fold_{fold}_validation"]] = (
+                    df_validation
+                )
 
             return folds
 
@@ -513,7 +513,7 @@ class ChEBIOverXPartial(ChEBIOverX):
         g.add_edges_from([(p, q["id"]) for q in elements for p in q["parents"]])
 
         g = nx.transitive_closure_dag(g)
-        g = g.subgraph(nx.descendants(g, self.top_class_id))
+        g = g.subgraph(list(nx.descendants(g, self.top_class_id)) + [self.top_class_id])
         print("Compute transitive closure")
         return g
 

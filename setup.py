@@ -42,6 +42,9 @@ setup(
         "lightning",
         "jsonargparse[signatures]>=4.17.0",
         "omegaconf",
+        "seaborn",
+        "deepsmiles",
+        "iterative-stratification",
     ],
     extras_require={"dev": ["black", "isort", "pre-commit"]},
 )
