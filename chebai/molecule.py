@@ -87,18 +87,18 @@ class Molecule:
         for idx in range(self.no_of_atoms):
             sorted_path = self.directed_graphs[idx, :, :]
 
-            self.local_input_vector[
-                idx, idx, :length_of_atom_features
-            ] = self.get_atom_features(idx)
+            self.local_input_vector[idx, idx, :length_of_atom_features] = (
+                self.get_atom_features(idx)
+            )
 
             no_of_incoming_edges = {}
             for i in range(self.no_of_atoms - 1):
                 node1 = sorted_path[i, 0]
                 node2 = sorted_path[i, 1]
 
-                self.local_input_vector[
-                    idx, node1, :length_of_atom_features
-                ] = self.get_atom_features(node1)
+                self.local_input_vector[idx, node1, :length_of_atom_features] = (
+                    self.get_atom_features(node1)
+                )
 
                 if node2 in no_of_incoming_edges:
                     index = no_of_incoming_edges[node2]

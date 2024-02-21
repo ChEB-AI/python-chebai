@@ -265,9 +265,9 @@ class _ChEBIDataExtractor(XYBaseDataModule, ABC):
                 df_validation = df_trainval.iloc[val_ids]
                 df_train = df_trainval.iloc[train_ids]
                 folds[self.raw_file_names_dict[f"fold_{fold}_train"]] = df_train
-                folds[
-                    self.raw_file_names_dict[f"fold_{fold}_validation"]
-                ] = df_validation
+                folds[self.raw_file_names_dict[f"fold_{fold}_validation"]] = (
+                    df_validation
+                )
 
             return folds
 
