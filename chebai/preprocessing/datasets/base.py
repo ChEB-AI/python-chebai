@@ -18,9 +18,9 @@ class XYBaseDataModule(LightningDataModule):
 
     def __init__(
         self,
+        reader: dr.DataReader,
         batch_size=1,
         train_split=0.85,
-        reader_kwargs=None,
         prediction_kind="test",
         data_limit: typing.Optional[int] = None,
         label_filter: typing.Optional[int] = None,
@@ -33,9 +33,7 @@ class XYBaseDataModule(LightningDataModule):
         **kwargs,
     ):
         super().__init__()
-        if reader_kwargs is None:
-            reader_kwargs = dict()
-        self.reader = self.READER(**reader_kwargs)
+        self.reader = reader
         self.train_split = train_split
         self.batch_size = batch_size
         self.prediction_kind = prediction_kind

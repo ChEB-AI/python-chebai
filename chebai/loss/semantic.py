@@ -4,19 +4,20 @@ import pickle
 
 import torch
 
-from chebai.models.electra import extract_class_hierarchy
+from chebai.preprocessing.datasets.chebi import _ChEBIDataExtractor
 
 IMPLICATION_CACHE_FILE = "chebi.cache"
 
 
 class ImplicationLoss(torch.nn.Module):
     def __init__(
-        self, path_to_chebi, path_to_label_names, base_loss: torch.nn.Module = None
+        self, dataset: _ChEBIDataExtractor, path_to_chebi, path_to_label_names, base_loss: torch.nn.Module = None
     ):
         super().__init__()
         self.base_loss = base_loss
-        label_names = _load_label_names(path_to_label_names)
-        hierarchy = _load_implications(path_to_chebi)
+        self.dataset = dataset
+        label_names = dataset.load_label_names()
+        hierarchy = dataset.load_implications()
         implication_filter = _build_implication_filter(label_names, hierarchy)
         self.implication_filter_l = implication_filter[:, 0]
         self.implication_filter_r = implication_filter[:, 1]
@@ -51,14 +52,14 @@ class ImplicationLoss(torch.nn.Module):
 class DisjointLoss(ImplicationLoss):
     def __init__(
         self,
-        path_to_chebi,
+        dataset: _ChEBIDataExtractor,
         path_to_label_names,
         path_to_disjointedness,
         base_loss: torch.nn.Module = None,
     ):
-        super().__init__(path_to_chebi, path_to_label_names, base_loss)
-        label_names = _load_label_names(path_to_label_names)
-        hierarchy = _load_implications(path_to_chebi)
+        super().__init__(base_loss)
+        label_names = dataset.load_label_names()
+        hierarchy = _load_implications(dataset)
         self.disjoint_filter_l, self.disjoint_filter_r = _build_disjointness_filter(
             path_to_disjointedness, label_names, hierarchy
         )
@@ -72,21 +73,6 @@ class DisjointLoss(ImplicationLoss):
         return loss + disjointness_loss
 
 
-def _load_label_names(path_to_label_names):
-    with open(path_to_label_names) as fin:
-        label_names = [int(line.strip()) for line in fin]
-    return label_names
-
-
-def _load_implications(path_to_chebi, implication_cache=IMPLICATION_CACHE_FILE):
-    if os.path.isfile(implication_cache):
-        with open(implication_cache, "rb") as fin:
-            hierarchy = pickle.load(fin)
-    else:
-        hierarchy = extract_class_hierarchy(path_to_chebi)
-        with open(implication_cache, "wb") as fout:
-            pickle.dump(hierarchy, fout)
-    return hierarchy
 
 
 def _build_implication_filter(label_names, hierarchy):

@@ -15,8 +15,6 @@ import torch
 
 from chebai.preprocessing import reader as dr
 from chebai.preprocessing.datasets.base import MergedDataset, XYBaseDataModule
-from chebai.preprocessing.datasets.chebi import JCIExtendedTokenData
-from chebai.preprocessing.datasets.pubchem import Hazardous
 
 
 class Tox21MolNet(XYBaseDataModule):

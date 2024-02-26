@@ -1,10 +1,6 @@
 __all__ = [
     "JCIData",
-    "JCIExtendedTokenData",
-    "JCIExtendedBPEData",
-    "JCIExtSelfies",
     "JCITokenData",
-    "ChEBIOver100",
     "JCI_500_COLUMNS",
     "JCI_500_COLUMNS_INT",
 ]
@@ -96,16 +92,18 @@ class JCITokenData(JCIBase):
 
 class _ChEBIDataExtractor(XYBaseDataModule, ABC):
     def __init__(
-        self, chebi_version_train: int = None, single_class: int = None, **kwargs
+        self, *args, chebi_version_train: int = None, single_class: int = None, **kwargs
     ):
         # predict only single class (given as id of one of the classes present in the raw data set)
         self.single_class = single_class
-        super(_ChEBIDataExtractor, self).__init__(**kwargs)
+        super(_ChEBIDataExtractor, self).__init__(*args, **kwargs)
         # use different version of chebi for training and validation (if not None)
         # (still uses self.chebi_version for test set)
         self.chebi_version_train = chebi_version_train
 
-    def extract_class_hierarchy(self, chebi_path):
+    def extract_class_hierarchy(self, chebi_path=None):
+        if chebi_path is None:
+            chebi_path = self.chebi_path
         with open(chebi_path, encoding="utf-8") as chebi:
             chebi = "\n".join(l for l in chebi if not l.startswith("xref:"))
         elements = [
@@ -119,6 +117,22 @@ class _ChEBIDataExtractor(XYBaseDataModule, ABC):
         g.add_edges_from([(p, q["id"]) for q in elements for p in q["parents"]])
         print("Compute transitive closure")
         return nx.transitive_closure_dag(g)
+
+    def load_label_names(self):
+        with open(self.path_to_label_names) as fin:
+            label_names = [int(line.strip()) for line in fin]
+        return label_names
+
+    def load_implications(self, implication_cache="impl.cache"):
+        implication_cache = os.path.join(self.processed_dir, implication_cache)
+        if os.path.isfile(implication_cache):
+            with open(implication_cache, "rb") as fin:
+                hierarchy = pickle.load(fin)
+        else:
+            hierarchy = self.extract_class_hierarchy()
+            with open(implication_cache, "wb") as fout:
+                pickle.dump(hierarchy, fout)
+        return hierarchy
 
     def select_classes(self, g, split_name, *args, **kwargs):
         raise NotImplementedError
@@ -362,6 +376,14 @@ class _ChEBIDataExtractor(XYBaseDataModule, ABC):
             open(chebi_path, "wb").write(r.content)
         return chebi_path
 
+    @property
+    def chebi_path(self):
+        return self._load_chebi(
+                self.chebi_version_train
+                if self.chebi_version_train is not None
+                else self.chebi_version
+            )
+
     def prepare_data(self, *args, **kwargs):
         print("Check for raw data in", self.raw_dir)
         if any(
@@ -386,12 +408,8 @@ class _ChEBIDataExtractor(XYBaseDataModule, ABC):
                 ) as input_file:
                     test_df = pickle.load(input_file)
             # create train/val split based on test set
-            chebi_path = self._load_chebi(
-                self.chebi_version_train
-                if self.chebi_version_train is not None
-                else self.chebi_version
-            )
-            g = self.extract_class_hierarchy(chebi_path)
+
+            g = self.extract_class_hierarchy()
             if self.use_inner_cross_validation:
                 df = self.graph_to_raw_dataset(
                     g, self.raw_file_names_dict[f"fold_0_train"]
@@ -420,18 +438,22 @@ class JCIExtendedBase(_ChEBIDataExtractor):
 
 
 class ChEBIOverX(_ChEBIDataExtractor):
-    LABEL_INDEX = 3
-    SMILES_INDEX = 2
-    READER = dr.ChemDataReader
-    THRESHOLD = None
+    def __init__(self, threshold: int, label_number: int, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.threshold = threshold
+        self._label_number = label_number
 
     @property
     def label_number(self):
-        return 854
+        return self._label_number
 
     @property
     def _name(self):
-        return f"ChEBI{self.THRESHOLD}"
+        return f"ChEBI{self.threshold}"
+
+    @property
+    def label_names_path(self):
+        return os.path.join(self.processed_dir, "classes.txt"), "wt"
 
     def select_classes(self, g, split_name, *args, **kwargs):
         smiles = nx.get_node_attributes(g, "smiles")
@@ -443,7 +465,7 @@ class ChEBIOverX(_ChEBIDataExtractor):
                     if sum(
                         1 if smiles[s] is not None else 0 for s in g.successors(node)
                     )
-                    >= self.THRESHOLD
+                    >= self.threshold
                 }
             )
         )
@@ -452,40 +474,10 @@ class ChEBIOverX(_ChEBIDataExtractor):
             self.chebi_version_train is not None
             and self.raw_file_names_dict["test"] != split_name
         ):
-            filename = f"classes_v{self.chebi_version_train}.txt"
-        with open(os.path.join(self.raw_dir, filename), "wt") as fout:
+            filename = f"classes.txt"
+        with open(os.path.join(self.processed_dir, filename), "wt") as fout:
             fout.writelines(str(node) + "\n" for node in nodes)
         return nodes
-
-
-class ChEBIOverXDeepSMILES(ChEBIOverX):
-    READER = dr.DeepChemDataReader
-
-
-class ChEBIOverXSELFIES(ChEBIOverX):
-    READER = dr.SelfiesReader
-
-
-class ChEBIOver100(ChEBIOverX):
-    THRESHOLD = 100
-
-    def label_number(self):
-        return 854
-
-
-class ChEBIOver50(ChEBIOverX):
-    THRESHOLD = 50
-
-    def label_number(self):
-        return 1332
-
-
-class ChEBIOver100DeepSMILES(ChEBIOverXDeepSMILES, ChEBIOver100):
-    pass
-
-
-class ChEBIOver100SELFIES(ChEBIOverXSELFIES, ChEBIOver100):
-    pass
 
 
 class ChEBIOverXPartial(ChEBIOverX):
@@ -516,23 +508,6 @@ class ChEBIOverXPartial(ChEBIOverX):
         g = g.subgraph(nx.descendants(g, self.top_class_id))
         print("Compute transitive closure")
         return g
-
-
-class ChEBIOver50Partial(ChEBIOverXPartial, ChEBIOver50):
-    pass
-
-
-class JCIExtendedBPEData(JCIExtendedBase):
-    READER = dr.ChemBPEReader
-
-
-class JCIExtendedTokenData(JCIExtendedBase):
-    READER = dr.ChemDataReader
-
-
-class JCIExtSelfies(JCIExtendedBase):
-    READER = dr.SelfiesReader
-
 
 def chebi_to_int(s):
     return int(s[s.index(":") + 1 :])

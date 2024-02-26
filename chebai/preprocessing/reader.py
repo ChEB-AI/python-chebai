@@ -1,11 +1,12 @@
 import os
+import typing
 
 from pysmiles.read_smiles import _tokenize
 from transformers import RobertaTokenizerFast
 import deepsmiles
 import selfies as sf
 
-from chebai.preprocessing.collate import DefaultCollater, RaggedCollater
+from chebai.preprocessing.collate import DefaultCollater, RaggedCollater, Collater
 
 EMBEDDING_OFFSET = 10
 PADDING_TOKEN_INDEX = 0
@@ -16,10 +17,11 @@ CLS_TOKEN = 2
 class DataReader:
     COLLATER = DefaultCollater
 
-    def __init__(self, collator_kwargs=None, token_path=None, **kwargs):
-        if collator_kwargs is None:
-            collator_kwargs = dict()
-        self.collater = self.COLLATER(**collator_kwargs)
+    def __init__(self, collator: typing.Optional[Collater] = None, token_path=None, **kwargs):
+        if collator is None:
+            self.collater = DefaultCollater()
+        else:
+            self.collater = collator
         self.dirname = os.path.dirname(__file__)
         self._token_path = token_path
 
@@ -90,7 +92,6 @@ class DataReader:
 
 
 class ChemDataReader(DataReader):
-    COLLATER = RaggedCollater
 
     @classmethod
     def name(cls):
@@ -143,7 +144,6 @@ class DeepChemDataReader(ChemDataReader):
 
 
 class ChemDataUnlabeledReader(ChemDataReader):
-    COLLATER = RaggedCollater
 
     @classmethod
     def name(cls):
@@ -154,7 +154,6 @@ class ChemDataUnlabeledReader(ChemDataReader):
 
 
 class ChemBPEReader(DataReader):
-    COLLATER = RaggedCollater
 
     @classmethod
     def name(cls):
@@ -171,7 +170,6 @@ class ChemBPEReader(DataReader):
 
 
 class SelfiesReader(ChemDataReader):
-    COLLATER = RaggedCollater
 
     def __init__(self, *args, data_path=None, max_len=1800, vsize=4000, **kwargs):
         super().__init__(*args, **kwargs)
@@ -198,11 +196,28 @@ class SelfiesReader(ChemDataReader):
 
 
 class OrdReader(DataReader):
-    COLLATER = RaggedCollater
-
     @classmethod
     def name(cls):
         return "ord"
 
     def _read_data(self, raw_data):
         return [ord(s) for s in raw_data]
+
+
+class FingerprintReader(DataReader):
+
+    @classmethod
+    def name(cls):
+        return "fingerprint"
+
+    def __init__(self, *args, fingerpint_size=1024, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fingerpint_size = fingerpint_size
+
+    def _read_data(self, raw_data):
+        ms = Chem.MolFromSmiles(raw_data)
+        if ms is not None:
+            fp = Chem.RDKFingerprint(ms, fpSize=self.fingerpint_size)
+            return [int(v) for v in fp.ToBitString()]
+        else:
+            return None

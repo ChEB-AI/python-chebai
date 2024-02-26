@@ -1,1 +1,6 @@
-class_path: chebai.preprocessing.datasets.chebi.ChEBIOver50
+class_path: chebai.preprocessing.datasets.chebi.ChEBIOverX
+init_args:
+  threshold: 50
+  label_number: 1332
+  reader:
+    class_path: chebai.preprocessing.reader.ChemDataReader

@@ -42,6 +42,7 @@ setup(
         "lightning",
         "jsonargparse[signatures]>=4.17.0",
         "omegaconf",
+        "wandb"
     ],
     extras_require={"dev": ["black", "isort", "pre-commit"]},
 )

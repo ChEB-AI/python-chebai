@@ -21,8 +21,6 @@ import tqdm
 from chebai.preprocessing import reader as dr
 from chebai.preprocessing.datasets.base import DataLoader, XYBaseDataModule
 from chebai.preprocessing.datasets.chebi import (
-    ChEBIOver50,
-    ChEBIOver100,
     ChEBIOverX,
 )
 
@@ -223,10 +221,9 @@ class SWJPreChem(PubChem):
 
 class PubToxAndChebiX(XYBaseDataModule):
     READER = dr.ChemDataReader
-    CHEBI_X = ChEBIOverX
 
-    def __init__(self, *args, **kwargs):
-        self.labeled = self.CHEBI_X(*args, **kwargs)
+    def __init__(self, chebi_x: ChEBIOverX, *args, **kwargs):
+        self.labeled = chebi_x
         self.unlabeled = PubchemChem(*args, **kwargs)
         super().__init__(*args, **kwargs)
 
@@ -262,14 +259,6 @@ class PubToxAndChebiX(XYBaseDataModule):
     def setup_processed(self):
         self.labeled.setup()
         self.unlabeled.setup()
-
-
-class PubToxAndChebi100(PubToxAndChebiX):
-    CHEBI_X = ChEBIOver100
-
-
-class PubToxAndChebi50(PubToxAndChebiX):
-    CHEBI_X = ChEBIOver50
 
 
 class PubChemDeepSMILES(PubChem):
