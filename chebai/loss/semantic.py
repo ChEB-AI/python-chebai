@@ -11,7 +11,7 @@ IMPLICATION_CACHE_FILE = "chebi.cache"
 
 class ImplicationLoss(torch.nn.Module):
     def __init__(
-        self, path_to_chebi, path_to_label_names, base_loss: torch.nn.Module = None
+        self, path_to_chebi, path_to_label_names, base_loss: torch.nn.Module = None, aggregation=""
     ):
         super().__init__()
         self.base_loss = base_loss
@@ -41,9 +41,7 @@ class ImplicationLoss(torch.nn.Module):
     def _calculate_implication_loss(self, l, r):
         capped_difference = torch.relu(l - r)
         return torch.mean(
-            torch.sum(
-                (torch.softmax(capped_difference, dim=-1) * capped_difference), dim=-1
-            ),
+            torch.sum(capped_difference, dim=-1),
             dim=0,
         )
 
