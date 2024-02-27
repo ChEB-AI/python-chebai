@@ -516,6 +516,48 @@ class ChEBIFlatOver100(ChEBIOverX):
         return nodes
 
 
+class ChEBITest(ChEBIOverX):
+    THRESHOLD = 100
+
+    def label_number(self):
+        return 336
+
+    @property
+    def _name(self):
+        return f"ChEBITest{self.THRESHOLD}"
+
+    def select_classes(self, g, split_name, *args, **kwargs):
+        smiles = nx.get_node_attributes(g, "smiles")
+        nodes_tmp = list(
+            sorted(
+                {
+                    node
+                    for node in g.nodes
+                    if sum(
+                    1 if smiles[s] is not None else 0 for s in g.successors(node)
+                )
+                       >= self.THRESHOLD
+                }
+            )
+        )
+
+        # extract leaf nodes of finished graph (no successors inside the filtered nodes)
+        nodes = [n for n in nodes_tmp if not any(s in nodes_tmp for s in g.successors(n))]
+
+        # use just 20 of these classes to create a tiny test set
+        nodes = nodes[:3]
+
+        filename = "classes.txt"
+        if (
+                self.chebi_version_train is not None
+                and self.raw_file_names_dict["test"] != split_name
+        ):
+            filename = f"classes_v{self.chebi_version_train}.txt"
+        with open(os.path.join(self.raw_dir, filename), "wt") as fout:
+            fout.writelines(str(node) + "\n" for node in nodes)
+        return nodes
+
+
 class ChEBIDistOver100(ChEBIOverX):
     THRESHOLD = 100
 
