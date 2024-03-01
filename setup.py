@@ -45,6 +45,7 @@ setup(
         "seaborn",
         "deepsmiles",
         "iterative-stratification",
+        "wandb"
     ],
     extras_require={"dev": ["black", "isort", "pre-commit"]},
 )
