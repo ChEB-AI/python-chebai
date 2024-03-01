@@ -181,7 +181,7 @@ class Electra(ChebaiBaseNet):
         if "non_null_labels" in loss_kwargs:
             n = loss_kwargs["non_null_labels"]
             d = d[n]
-        return torch.sigmoid(d), labels.int()
+        return torch.sigmoid(d), labels.int() if labels is not None else None
 
     def forward(self, data, **kwargs):
         self.batch_size = data["features"].shape[0]
