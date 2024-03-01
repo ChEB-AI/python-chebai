@@ -63,9 +63,10 @@ class DisjointLoss(ImplicationLoss):
         path_to_chebi,
         path_to_label_names,
         path_to_disjointedness,
+        data_extractor: _ChEBIDataExtractor,
         base_loss: torch.nn.Module = None,
     ):
-        super().__init__(path_to_chebi, path_to_label_names, base_loss)
+        super().__init__(path_to_chebi, path_to_label_names, data_extractor, base_loss)
         label_names = _load_label_names(path_to_label_names)
         hierarchy = self._load_implications(path_to_chebi)
         self.disjoint_filter_l, self.disjoint_filter_r = _build_disjointness_filter(
