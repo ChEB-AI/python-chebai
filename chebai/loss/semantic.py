@@ -4,10 +4,10 @@ import pickle
 
 import torch
 
-from chebai.models.electra import extract_class_hierarchy
+from chebai.preprocessing.datasets.chebi import _ChEBIDataExtractor
 
 IMPLICATION_CACHE_FILE = "chebi.cache"
-
+DE = _ChEBIDataExtractor()
 
 class ImplicationLoss(torch.nn.Module):
     def __init__(
@@ -81,7 +81,7 @@ def _load_implications(path_to_chebi, implication_cache=IMPLICATION_CACHE_FILE):
         with open(implication_cache, "rb") as fin:
             hierarchy = pickle.load(fin)
     else:
-        hierarchy = extract_class_hierarchy(path_to_chebi)
+        hierarchy = DE.extract_class_hierarchy(path_to_chebi)
         with open(implication_cache, "wb") as fout:
             pickle.dump(hierarchy, fout)
     return hierarchy
