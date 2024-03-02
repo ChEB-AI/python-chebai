@@ -37,7 +37,7 @@ class ImplicationLoss(torch.nn.Module):
         r = pred[:, self.implication_filter_r]
         # implication_loss = torch.sqrt(torch.mean(torch.sum(l*(1-r), dim=-1), dim=0))
         implication_loss = self._calculate_implication_loss(l, r)
-        return base_loss + implication_loss
+        return base_loss + 0.01*implication_loss
 
     def _calculate_implication_loss(self, l, r):
         capped_difference = torch.relu(l - r)
