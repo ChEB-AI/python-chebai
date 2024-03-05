@@ -106,7 +106,7 @@ class ChebaiBaseNet(LightningModule):
                     f"{prefix}loss",
                     loss.item(),
                     batch_size=len(batch),
-                    on_step=True,
+                    on_step=False,  # avoid crowded metrics file (before True)
                     on_epoch=True,
                     prog_bar=True,
                     logger=True,
