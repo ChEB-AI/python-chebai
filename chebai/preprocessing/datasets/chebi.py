@@ -14,6 +14,7 @@ from abc import ABC
 from collections import OrderedDict
 import os
 import pickle
+import random
 
 from iterstrat.ml_stratifiers import (
     MultilabelStratifiedKFold,
@@ -516,6 +517,89 @@ class ChEBIFlatOver100(ChEBIOverX):
         return nodes
 
 
+def longest_path(graph, source, target):
+    return max(nx.all_simple_paths(graph, source, target), key=lambda x: len(x))
+
+
+def mix_edges(digraph, source, parent_depth):
+    # find nodes and edges of parent depth
+    parents = [node for node in set(digraph.nodes) - {source}
+               if len(longest_path(digraph, source, node)) == parent_depth]
+
+    edges = []
+    for p in parents:
+        edges += [edge for edge in digraph.out_edges(p)]
+
+    # mix edges
+    digraph.remove_edges_from(edges)
+    new_edges = []
+
+    # show edges
+    print("old edges:")
+    for e in edges:
+        print(e)
+
+    while True:
+        # choose two random edges and switch children
+        if len(edges) >= 2:
+            # two edges left
+            (pA, cA) = random.choice(edges)
+            edges.remove((pA, cA))
+
+            (pB, cB) = random.choice(edges)
+            edges.remove((pB, cB))
+
+            new_edges.append((pA, cB))
+            new_edges.append((pB, cA))
+
+        elif len(edges) == 1:
+            # one edge left
+            remaining_edge = random.choice(edges)
+            edges.remove(remaining_edge)
+            new_edges.append(remaining_edge)
+        else:
+            # no edges left
+            break
+
+    # show new edges
+    print("new edges")
+    for e in new_edges:
+        print(e)
+
+    digraph.add_edges_from(new_edges)
+    return digraph
+
+
+class ChEBIDistOver100(ChEBIOverX):
+    THRESHOLD = 100
+
+    def label_number(self):
+        return 854
+
+    @property
+    def _name(self):
+        return f"ChEBIDist{self.THRESHOLD}"
+
+    def extract_class_hierarchy(self, chebi_path):
+        with open(chebi_path, encoding="utf-8") as chebi:
+            chebi = "\n".join(l for l in chebi if not l.startswith("xref:"))
+        elements = [
+            term_callback(clause)
+            for clause in fastobo.loads(chebi)
+            if clause and ":" in str(clause.id)
+        ]
+        g = nx.DiGraph()
+        for n in elements:
+            g.add_node(n["id"], **n)
+        g.add_edges_from([(p, q["id"]) for q in elements for p in q["parents"]])
+
+        # mix the edge of depth 10
+        g = mix_edges(digraph=g, source=24431, parent_depth=10)
+
+        print("Compute transitive closure")
+        return nx.transitive_closure_dag(g)
+
+
 class ChEBITest(ChEBIOverX):
     THRESHOLD = 100
 
@@ -557,7 +641,7 @@ class ChEBITest(ChEBIOverX):
             fout.writelines(str(node) + "\n" for node in nodes)
         return nodes
 
-
+"""
 class ChEBIDistOver100(ChEBIOverX):
     THRESHOLD = 100
 
@@ -568,7 +652,6 @@ class ChEBIDistOver100(ChEBIOverX):
     def _name(self):
         return f"ChEBIDist{self.THRESHOLD}"
 
-    """
     def graph_to_raw_dataset(self, g, split_name=None):
         //Preparation step before creating splits, uses graph created by extract_class_hierarchy(),
         //split_name is only relevant, if a separate train_version is set
@@ -598,8 +681,7 @@ class ChEBIDistOver100(ChEBIOverX):
         data = data[~data["SMILES"].isnull()]
         data = data[data.iloc[:, 3:].any(axis=1)]
         return data
-    """
-
+"""
 
 class ChEBIOver100(ChEBIOverX):
     THRESHOLD = 100
