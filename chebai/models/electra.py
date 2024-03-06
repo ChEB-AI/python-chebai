@@ -163,21 +163,12 @@ class Electra(ChebaiBaseNet):
 
     def _process_for_loss(self, model_output, labels, loss_kwargs):
         kwargs_copy = dict(loss_kwargs)
-        mask = kwargs_copy.pop("target_mask", None)
-        if mask is not None:
-            d = model_output["logits"] * mask - 100 * ~mask
-        else:
-            d = model_output["logits"]
         if labels is not None:
             labels = labels.float()
-        return d, labels, kwargs_copy
+        return model_output["logits"], labels, kwargs_copy
 
     def _get_prediction_and_labels(self, data, labels, model_output):
-        mask = model_output.get("target_mask")
-        if mask is not None:
-            d = model_output["logits"] * mask - 100 * ~mask
-        else:
-            d = model_output["logits"]
+        d = model_output["logits"]
         loss_kwargs = data.get("loss_kwargs", dict())
         if "non_null_labels" in loss_kwargs:
             n = loss_kwargs["non_null_labels"]
@@ -198,7 +189,6 @@ class Electra(ChebaiBaseNet):
         return dict(
             logits=self.output(d),
             attentions=electra.attentions,
-            target_mask=data.get("target_mask"),
         )
 
 
@@ -254,7 +244,6 @@ class ConeElectra(ChebaiBaseNet):
             features=torch.cat((cls_tokens, batch.x), dim=1),
             labels=batch.y,
             model_kwargs=dict(attention_mask=mask),
-            target_mask=batch.target_mask,
         )
 
     @property
@@ -313,7 +302,6 @@ class ConeElectra(ChebaiBaseNet):
         )
 
     def _get_data_for_loss(self, model_output, labels):
-        mask = model_output.get("target_mask")
         d = model_output["predicted_vectors"]
         return dict(
             input=dict(
@@ -323,7 +311,6 @@ class ConeElectra(ChebaiBaseNet):
         )
 
     def _get_prediction_and_labels(self, data, labels, model_output):
-        mask = model_output.get("target_mask")
         d = model_output["predicted_vectors"].unsqueeze(1)
 
         d = in_cone_parts(d, self.cone_axes, self.cone_arcs)
@@ -339,7 +326,6 @@ class ConeElectra(ChebaiBaseNet):
         return dict(
             predicted_vectors=self.line_embedding(d),
             attentions=electra.attentions,
-            target_mask=data.get("target_mask"),
         )
 
 
