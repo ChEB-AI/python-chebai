@@ -3,14 +3,20 @@ import os
 import pickle
 
 import torch
+from typing import Literal
 
 from chebai.preprocessing.datasets.chebi import _ChEBIDataExtractor
 
 
-
 class ImplicationLoss(torch.nn.Module):
     def __init__(
-        self, path_to_chebi, path_to_label_names, data_extractor: _ChEBIDataExtractor, base_loss: torch.nn.Module = None, aggregation=""
+        self,
+        path_to_chebi,
+        path_to_label_names,
+        data_extractor: _ChEBIDataExtractor,
+        base_loss: torch.nn.Module = None,
+        aggregation="",
+        tnorm: Literal["product", "lukasiewicz"] = "product",
     ):
         super().__init__()
         self.data_extractor = data_extractor
@@ -21,6 +27,7 @@ class ImplicationLoss(torch.nn.Module):
         implication_filter = _build_implication_filter(label_names, hierarchy)
         self.implication_filter_l = implication_filter[:, 0]
         self.implication_filter_r = implication_filter[:, 1]
+        self.tnorm = tnorm
 
     def forward(self, input, target, **kwargs):
         nnl = kwargs.pop("non_null_labels", None)
@@ -37,12 +44,15 @@ class ImplicationLoss(torch.nn.Module):
         r = pred[:, self.implication_filter_r]
         # implication_loss = torch.sqrt(torch.mean(torch.sum(l*(1-r), dim=-1), dim=0))
         implication_loss = self._calculate_implication_loss(l, r)
-        return base_loss + 0.01*implication_loss
+        return base_loss + 0.01 * implication_loss
 
     def _calculate_implication_loss(self, l, r):
-        capped_difference = torch.relu(l - r)
+        if self.tnorm == "product":
+            individual_loss = l * (1 - r)
+        else:  # lukasiewicz
+            individual_loss = torch.relu(l - r)
         return torch.mean(
-            torch.sum(capped_difference, dim=-1),
+            torch.sum(individual_loss, dim=-1),
             dim=0,
         )
 
@@ -65,8 +75,11 @@ class DisjointLoss(ImplicationLoss):
         path_to_disjointedness,
         data_extractor: _ChEBIDataExtractor,
         base_loss: torch.nn.Module = None,
+        tnorm: Literal["product", "lukasiewicz"] = "product",
     ):
-        super().__init__(path_to_chebi, path_to_label_names, data_extractor, base_loss)
+        super().__init__(
+            path_to_chebi, path_to_label_names, data_extractor, base_loss, tnorm
+        )
         label_names = _load_label_names(path_to_label_names)
         hierarchy = self._load_implications(path_to_chebi)
         self.disjoint_filter_l, self.disjoint_filter_r = _build_disjointness_filter(
@@ -86,8 +99,6 @@ def _load_label_names(path_to_label_names):
     with open(path_to_label_names) as fin:
         label_names = [int(line.strip()) for line in fin]
     return label_names
-
-
 
 
 def _build_implication_filter(label_names, hierarchy):
