@@ -517,14 +517,25 @@ class ChEBIFlatOver100(ChEBIOverX):
         return nodes
 
 
-def longest_path(graph, source, target):
-    return max(nx.all_simple_paths(graph, source, target), key=lambda x: len(x))
+def find_parents(dag, source, parent_depth):
+    # calc the longest path for all nodes, assuming a DAG and no edge weights
+    topo_order = list(nx.topological_sort(dag))
+
+    dist = {node: -1 for node in topo_order}
+    dist[source] = 0
+
+    for node in topo_order:
+        for neighbor in dag.neighbors(node):
+            if dist[node] + 1 > dist[neighbor]:
+                dist[neighbor] = dist[node] + 1
+
+    # return nodes with the longest path equal to parent depth
+    return [node for node, dist in dist.items() if dist == parent_depth]
 
 
 def mix_edges(digraph, source, parent_depth):
     # find nodes and edges of parent depth
-    parents = [node for node in set(digraph.nodes) - {source}
-               if len(longest_path(digraph, source, node)) == parent_depth]
+    parents = find_parents(digraph, source, parent_depth)
 
     edges = []
     for p in parents:
@@ -533,11 +544,6 @@ def mix_edges(digraph, source, parent_depth):
     # mix edges
     digraph.remove_edges_from(edges)
     new_edges = []
-
-    # show edges
-    print("old edges:")
-    for e in edges:
-        print(e)
 
     while True:
         # choose two random edges and switch children
@@ -561,11 +567,6 @@ def mix_edges(digraph, source, parent_depth):
             # no edges left
             break
 
-    # show new edges
-    print("new edges")
-    for e in new_edges:
-        print(e)
-
     digraph.add_edges_from(new_edges)
     return digraph
 
@@ -574,7 +575,7 @@ class ChEBIDistOver100(ChEBIOverX):
     THRESHOLD = 100
 
     def label_number(self):
-        return 854
+        return 877
 
     @property
     def _name(self):
@@ -594,7 +595,7 @@ class ChEBIDistOver100(ChEBIOverX):
         g.add_edges_from([(p, q["id"]) for q in elements for p in q["parents"]])
 
         # mix the edge of depth 10
-        g = mix_edges(digraph=g, source=24431, parent_depth=10)
+        g = mix_edges(digraph=g, source=24431, parent_depth=3)
 
         print("Compute transitive closure")
         return nx.transitive_closure_dag(g)
