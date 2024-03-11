@@ -32,6 +32,6 @@ class BCEWeighted(torch.nn.BCEWithLogitsLoss):
             weights = [(1 - beta) / (1 - pow(beta, value)) for value in value_counts]
             mean = sum(weights) / len(weights)
             weights = torch.Tensor([w / mean for w in weights])
-            super(BCEWeighted).__init__(pos_weight=weights)
+            super().__init__(pos_weight=weights)
         else:
-            super(BCEWeighted)
+            super().__init__()

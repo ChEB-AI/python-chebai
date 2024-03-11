@@ -46,9 +46,7 @@ class ImplicationLoss(torch.nn.Module):
         # implication_loss = torch.sqrt(torch.mean(torch.sum(l*(1-r), dim=-1), dim=0))
         implication_loss = self._calculate_implication_loss(l, r)
 
-        self.log(f"base_loss", base_loss.item())
-        self.log(f"implication_loss", implication_loss.item())
-        return base_loss + 0.01 * implication_loss
+        return base_loss + 0.01 * implication_loss, base_loss, implication_loss
 
     def _calculate_implication_loss(self, l, r):
         if self.tnorm == "product":
@@ -74,24 +72,23 @@ class ImplicationLoss(torch.nn.Module):
 class DisjointLoss(ImplicationLoss):
     def __init__(
         self,
-        path_to_disjointedness,
+        path_to_disjointness,
         data_extractor: _ChEBIDataExtractor,
         base_loss: torch.nn.Module = None,
         tnorm: Literal["product", "lukasiewicz"] = "product",
     ):
         super().__init__(data_extractor, base_loss, tnorm=tnorm)
         self.disjoint_filter_l, self.disjoint_filter_r = _build_disjointness_filter(
-            path_to_disjointedness, self.label_names, self.hierarchy
+            path_to_disjointness, self.label_names, self.hierarchy
         )
 
     def forward(self, input, target, **kwargs):
-        loss = super().forward(input, target, **kwargs)
+        loss, base_loss, impl_loss = super().forward(input, target, **kwargs)
         pred = torch.sigmoid(input)
         l = pred[:, self.disjoint_filter_l]
         r = pred[:, self.disjoint_filter_r]
         disjointness_loss = self._calculate_implication_loss(l, 1 - r)
-        self.log("disjointness_loss", disjointness_loss.item())
-        return loss + disjointness_loss
+        return loss + disjointness_loss, base_loss, impl_loss, disjointness_loss
 
 
 def _load_label_names(path_to_label_names):
@@ -111,11 +108,11 @@ def _build_implication_filter(label_names, hierarchy):
     )
 
 
-def _build_disjointness_filter(path_to_disjointedness, label_names, hierarchy):
+def _build_disjointness_filter(path_to_disjointness, label_names, hierarchy):
     disjoints = set()
     label_dict = dict(map(reversed, enumerate(label_names)))
 
-    with open(path_to_disjointedness, "rt") as fin:
+    with open(path_to_disjointness, "rt") as fin:
         reader = csv.reader(fin)
         for l1_raw, r1_raw in reader:
             l1 = int(l1_raw)

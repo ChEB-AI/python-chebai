@@ -101,6 +101,21 @@ class ChebaiBaseNet(LightningModule):
                 if self.pass_loss_kwargs:
                     loss_kwargs = loss_kwargs_candidates
                 loss = self.criterion(loss_data, loss_labels, **loss_kwargs)
+                if isinstance(loss, tuple):
+                    loss_additional = loss[1:]
+                    for i, loss_add in enumerate(loss_additional):
+                        self.log(
+                            f"{prefix}loss_{i}",
+                            loss.item(),
+                            batch_size=len(batch),
+                            on_step=True,
+                            on_epoch=True,
+                            prog_bar=True,
+                            logger=True,
+                            sync_dist=sync_dist,
+                        )
+                    loss = loss[0]
+
                 d["loss"] = loss
                 self.log(
                     f"{prefix}loss",

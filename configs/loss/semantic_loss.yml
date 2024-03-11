@@ -1,7 +1,7 @@
 class_path: chebai.loss.semantic.DisjointLoss
 init_args:
   path_to_disjointedness: data/disjoint.csv
-  data_extractor: &extractor chebai.preprocessing.datasets.chebi.ChEBIOver100
+  data_extractor: &extractor ../data/chebi100.yml
   base_loss:
     class_path: chebai.loss.bce_weighted.BCEWeighted
     init_args:
