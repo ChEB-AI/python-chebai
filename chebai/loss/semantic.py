@@ -14,6 +14,7 @@ class ImplicationLoss(torch.nn.Module):
         data_extractor: _ChEBIDataExtractor,
         base_loss: torch.nn.Module = None,
         tnorm: Literal["product", "lukasiewicz"] = "product",
+        impl_loss_weight=0.1,  # weight of implication loss in relation to base_loss
     ):
         super().__init__()
         self.data_extractor = data_extractor
@@ -29,6 +30,7 @@ class ImplicationLoss(torch.nn.Module):
         self.implication_filter_l = implication_filter[:, 0]
         self.implication_filter_r = implication_filter[:, 1]
         self.tnorm = tnorm
+        self.impl_weight = impl_loss_weight
 
     def forward(self, input, target, **kwargs):
         nnl = kwargs.pop("non_null_labels", None)
@@ -46,7 +48,11 @@ class ImplicationLoss(torch.nn.Module):
         # implication_loss = torch.sqrt(torch.mean(torch.sum(l*(1-r), dim=-1), dim=0))
         implication_loss = self._calculate_implication_loss(l, r)
 
-        return base_loss + 0.01 * implication_loss, base_loss, implication_loss
+        return (
+            base_loss + self.impl_weight * implication_loss,
+            base_loss,
+            implication_loss,
+        )
 
     def _calculate_implication_loss(self, l, r):
         if self.tnorm == "product":
@@ -76,11 +82,16 @@ class DisjointLoss(ImplicationLoss):
         data_extractor: _ChEBIDataExtractor,
         base_loss: torch.nn.Module = None,
         tnorm: Literal["product", "lukasiewicz"] = "product",
+        impl_loss_weight=0.1,
+        disjoint_loss_weight=100,
     ):
-        super().__init__(data_extractor, base_loss, tnorm=tnorm)
+        super().__init__(
+            data_extractor, base_loss, impl_loss_weight=impl_loss_weight, tnorm=tnorm
+        )
         self.disjoint_filter_l, self.disjoint_filter_r = _build_disjointness_filter(
             path_to_disjointness, self.label_names, self.hierarchy
         )
+        self.disjoint_weight = disjoint_loss_weight
 
     def forward(self, input, target, **kwargs):
         loss, base_loss, impl_loss = super().forward(input, target, **kwargs)
@@ -88,7 +99,12 @@ class DisjointLoss(ImplicationLoss):
         l = pred[:, self.disjoint_filter_l]
         r = pred[:, self.disjoint_filter_r]
         disjointness_loss = self._calculate_implication_loss(l, 1 - r)
-        return loss + disjointness_loss, base_loss, impl_loss, disjointness_loss
+        return (
+            loss + self.disjoint_weight * disjointness_loss,
+            base_loss,
+            impl_loss,
+            disjointness_loss,
+        )
 
 
 def _load_label_names(path_to_label_names):

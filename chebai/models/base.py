@@ -106,11 +106,11 @@ class ChebaiBaseNet(LightningModule):
                     for i, loss_add in enumerate(loss_additional):
                         self.log(
                             f"{prefix}loss_{i}",
-                            loss.item(),
+                            loss_add.item(),
                             batch_size=len(batch),
                             on_step=True,
-                            on_epoch=True,
-                            prog_bar=True,
+                            on_epoch=False,
+                            prog_bar=False,
                             logger=True,
                             sync_dist=sync_dist,
                         )
