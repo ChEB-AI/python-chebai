@@ -1,5 +1,8 @@
 import torch
 from chebai.preprocessing.datasets.chebi import _ChEBIDataExtractor
+import pandas as pd
+import os
+import pickle
 
 
 class BCEWeighted(torch.nn.BCEWithLogitsLoss):
@@ -28,7 +31,7 @@ class BCEWeighted(torch.nn.BCEWithLogitsLoss):
                 value_counts.append(len([v for v in complete_data[c] if v]))
             weights = [(1 - beta) / (1 - pow(beta, value)) for value in value_counts]
             mean = sum(weights) / len(weights)
-            weights = [w / mean for w in weights]
-            super(BCEWeighted, weights)
+            weights = torch.Tensor([w / mean for w in weights])
+            super(BCEWeighted).__init__(pos_weight=weights)
         else:
             super(BCEWeighted)
