@@ -5,26 +5,27 @@ import pickle
 import torch
 from typing import Literal
 
-from chebai.preprocessing.datasets.chebi import _ChEBIDataExtractor
+from chebai.preprocessing.datasets.chebi import _ChEBIDataExtractor, ChEBIOver100
 
 
 class ImplicationLoss(torch.nn.Module):
     def __init__(
         self,
-        path_to_chebi,
-        path_to_label_names,
         data_extractor: _ChEBIDataExtractor,
         base_loss: torch.nn.Module = None,
-        aggregation="",
         tnorm: Literal["product", "lukasiewicz"] = "product",
     ):
         super().__init__()
         self.data_extractor = data_extractor
         self.base_loss = base_loss
         self.implication_cache_file = f"implications_{self.data_extractor.name}.cache"
-        label_names = _load_label_names(path_to_label_names)
-        hierarchy = self._load_implications(path_to_chebi)
-        implication_filter = _build_implication_filter(label_names, hierarchy)
+        self.label_names = _load_label_names(
+            os.path.join(data_extractor.raw_dir, "classes.txt")
+        )
+        self.hierarchy = self._load_implications(
+            os.path.join(data_extractor.raw_dir, "chebi.obo")
+        )
+        implication_filter = _build_implication_filter(self.label_names, self.hierarchy)
         self.implication_filter_l = implication_filter[:, 0]
         self.implication_filter_r = implication_filter[:, 1]
         self.tnorm = tnorm
@@ -44,6 +45,9 @@ class ImplicationLoss(torch.nn.Module):
         r = pred[:, self.implication_filter_r]
         # implication_loss = torch.sqrt(torch.mean(torch.sum(l*(1-r), dim=-1), dim=0))
         implication_loss = self._calculate_implication_loss(l, r)
+
+        self.log(f"base_loss", base_loss.item())
+        self.log(f"implication_loss", implication_loss.item())
         return base_loss + 0.01 * implication_loss
 
     def _calculate_implication_loss(self, l, r):
@@ -70,20 +74,14 @@ class ImplicationLoss(torch.nn.Module):
 class DisjointLoss(ImplicationLoss):
     def __init__(
         self,
-        path_to_chebi,
-        path_to_label_names,
         path_to_disjointedness,
         data_extractor: _ChEBIDataExtractor,
         base_loss: torch.nn.Module = None,
         tnorm: Literal["product", "lukasiewicz"] = "product",
     ):
-        super().__init__(
-            path_to_chebi, path_to_label_names, data_extractor, base_loss, tnorm
-        )
-        label_names = _load_label_names(path_to_label_names)
-        hierarchy = self._load_implications(path_to_chebi)
+        super().__init__(data_extractor, base_loss, tnorm=tnorm)
         self.disjoint_filter_l, self.disjoint_filter_r = _build_disjointness_filter(
-            path_to_disjointedness, label_names, hierarchy
+            path_to_disjointedness, self.label_names, self.hierarchy
         )
 
     def forward(self, input, target, **kwargs):
@@ -92,6 +90,7 @@ class DisjointLoss(ImplicationLoss):
         l = pred[:, self.disjoint_filter_l]
         r = pred[:, self.disjoint_filter_r]
         disjointness_loss = self._calculate_implication_loss(l, 1 - r)
+        self.log("disjointness_loss", disjointness_loss.item())
         return loss + disjointness_loss
 
 
@@ -124,12 +123,18 @@ def _build_disjointness_filter(path_to_disjointedness, label_names, hierarchy):
             disjoints.update(
                 {
                     (label_dict[l2], label_dict[r2])
-                    for r2 in hierarchy.succ[r1]
+                    for r2 in list(hierarchy.succ[r1]) + [r1]
                     if r2 in label_names
-                    for l2 in hierarchy.succ[l1]
-                    if l2 in label_names and l2 < r2
+                    for l2 in list(hierarchy.succ[l1]) + [l1]
+                    if l2 in label_names
                 }
             )
 
     dis_filter = torch.tensor(list(disjoints))
     return dis_filter[:, 0], dis_filter[:, 1]
+
+
+if __name__ == "__main__":
+    loss = DisjointLoss(
+        os.path.join("data", "disjoint.csv"), ChEBIOver100(chebi_version=227)
+    )

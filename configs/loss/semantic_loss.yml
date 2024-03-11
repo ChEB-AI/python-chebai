@@ -1,5 +1,9 @@
 class_path: chebai.loss.semantic.DisjointLoss
 init_args:
-  path_to_chebi: data/ChEBI100/chebi_v227/raw/chebi.obo
-  path_to_label_names: data/ChEBI100/chebi_v227/raw/classes.txt
   path_to_disjointedness: data/disjoint.csv
+  data_extractor: &extractor configs/data/chebi100.yml
+  base_loss: configs/loss/bce.yml
+    init_args:
+      beta: 0.999
+      data_extractor: *extractor
+
