@@ -13,6 +13,7 @@ import random
 import shutil
 import tempfile
 
+import pandas as pd
 from sklearn.model_selection import train_test_split
 import requests
 import torch
@@ -25,6 +26,8 @@ from chebai.preprocessing.datasets.chebi import (
     ChEBIOver100,
     ChEBIOverX,
 )
+from rdkit import Chem, DataStructs
+from rdkit.Chem import AllChem
 
 
 class PubChem(XYBaseDataModule):
@@ -32,10 +35,11 @@ class PubChem(XYBaseDataModule):
     LABEL_INDEX = 1
     FULL = 0
     UNLABELED = True
+    READER = dr.ChemDataReader
 
     def __init__(self, *args, k=100000, **kwargs):
         self._k = k
-        self.pubchem_url = "https://ftp.ncbi.nlm.nih.gov/pubchem/Compound/Monthly/2023-11-01/Extras/CID-SMILES.gz"
+        self.pubchem_url = "https://ftp.ncbi.nlm.nih.gov/pubchem/Compound/Monthly/2024-03-01/Extras/CID-SMILES.gz"
 
         super(PubChem, self).__init__(*args, **kwargs)
 
@@ -66,8 +70,8 @@ class PubChem(XYBaseDataModule):
                 yield dict(features=smiles, labels=None, ident=ident)
 
     def download(self):
-        if self._k == PubChem.FULL:
-            if not os.path.isfile(os.path.join(self.raw_dir, "smiles.txt")):
+        if not os.path.isfile(os.path.join(self.raw_dir, "smiles.txt")):
+            if self._k == PubChem.FULL:
                 print("Download from", self.pubchem_url)
                 r = requests.get(self.pubchem_url, allow_redirects=True)
                 with tempfile.NamedTemporaryFile() as tf:
@@ -79,21 +83,23 @@ class PubChem(XYBaseDataModule):
                             os.path.join(self.raw_dir, "smiles.txt"), "wb"
                         ) as f_out:
                             shutil.copyfileobj(f_in, f_out)
-        else:
-            full_dataset = self.__class__(k=PubChem.FULL)
-            full_dataset.download()
-            with open(os.path.join(full_dataset.raw_dir, "smiles.txt"), "r") as f_in:
-                lines = sum(1 for _ in f_in)
-                selected = frozenset(random.sample(list(range(lines)), k=self._k))
-                f_in.seek(0)
-                selected_lines = list(
-                    filter(
-                        lambda x: x[0] in selected,
-                        enumerate(tqdm.tqdm(f_in, total=lines)),
+            else:
+                full_dataset = self.__class__(k=PubChem.FULL)
+                full_dataset.download()
+                with open(
+                    os.path.join(full_dataset.raw_dir, "smiles.txt"), "r"
+                ) as f_in:
+                    lines = sum(1 for _ in f_in)
+                    selected = frozenset(random.sample(list(range(lines)), k=self._k))
+                    f_in.seek(0)
+                    selected_lines = list(
+                        filter(
+                            lambda x: x[0] in selected,
+                            enumerate(tqdm.tqdm(f_in, total=lines)),
+                        )
                     )
-                )
-            with open(os.path.join(self.raw_dir, "smiles.txt"), "w") as f_out:
-                f_out.writelines([l for i, l in selected_lines])
+                with open(os.path.join(self.raw_dir, "smiles.txt"), "w") as f_out:
+                    f_out.writelines([l for i, l in selected_lines])
 
     def setup_processed(self):
         # Collect token distribution
@@ -125,6 +131,71 @@ class PubChem(XYBaseDataModule):
             print("Downloading data. This may take some time...")
             self.download()
             print("Done")
+
+
+class PubChemDissimilar(PubChem):
+    """Subset of PubChem, but chosing the most dissimilar molecules (according to fingerprint)"""
+
+    @property
+    def _name(self):
+        return f"PubchemDissimilar"
+
+    def download(self):
+        if self._k == PubChem.FULL:
+            super().download()
+        else:
+            # split random subset into n parts, from each part, select the most dissimilar entities
+            n_random_subsets = 10
+            random_dataset = PubChem(k=self._k * n_random_subsets)
+            random_dataset.download()
+
+            with open(os.path.join(random_dataset.raw_dir, "smiles.txt"), "r") as f_in:
+                random_smiles = [
+                    [x.strip() for x in s.split("\t")] for s in f_in.readlines()
+                ]
+                fpgen = AllChem.GetRDKitFPGenerator()
+                selected_smiles = []
+                print(f"Selecting most dissimilar values from random subsets...")
+                for i in tqdm.tqdm(range(n_random_subsets)):
+                    smiles_i = random_smiles[
+                        i
+                        * len(random_smiles)
+                        // n_random_subsets : (i + 1)
+                        * len(random_smiles)
+                        // n_random_subsets
+                    ]
+                    mols_i = [Chem.MolFromSmiles(smiles) for _, smiles in smiles_i]
+                    fps = [
+                        fpgen.GetFingerprint(m) if m is not None else m for m in mols_i
+                    ]
+                    nonnull_fps = [fp for fp in fps if fp is not None]
+                    similarity = []
+                    for i, fp in enumerate(fps):
+                        try:
+                            if fp is not None:
+                                bulk = DataStructs.BulkTanimotoSimilarity(
+                                    fp, nonnull_fps
+                                )
+                                similarity.append(sum(bulk))
+                            else:
+                                similarity.append(len(smiles_i))
+                        except Exception as e:
+                            print(i, smiles_i[i])
+                            print(e.with_traceback())
+                            similarity.append(len(smiles_i))
+
+                    similarity = sorted(zip(smiles_i, similarity), key=lambda x: x[1])
+                    selected_smiles += list(
+                        list(zip(*similarity[: len(smiles_i) // n_random_subsets]))[0]
+                    )
+            with open(os.path.join(self.raw_dir, "smiles.txt"), "w") as f_out:
+                f_out.writelines(
+                    "\n".join(["\t".join(smiles) for smiles in selected_smiles])
+                )
+
+
+class PubChemDissimilarSMILES(PubChemDissimilar):
+    READER = dr.ChemDataReader
 
 
 class SWJPreChem(PubChem):

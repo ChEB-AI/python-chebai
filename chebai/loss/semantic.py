@@ -13,7 +13,7 @@ class ImplicationLoss(torch.nn.Module):
         self,
         data_extractor: _ChEBIDataExtractor,
         base_loss: torch.nn.Module = None,
-        tnorm: Literal["product", "lukasiewicz"] = "product",
+        tnorm: Literal["product", "lukasiewicz", "xu19"] = "product",
         impl_loss_weight=0.1,  # weight of implication loss in relation to base_loss
     ):
         super().__init__()
@@ -57,8 +57,12 @@ class ImplicationLoss(torch.nn.Module):
     def _calculate_implication_loss(self, l, r):
         if self.tnorm == "product":
             individual_loss = l * (1 - r)
-        else:  # lukasiewicz
+        elif tnorm == "xu19":
+            individual_loss = -torch.log(1 - l(1 - r))
+        elif tnorm == "lukasiewicz":
             individual_loss = torch.relu(l - r)
+        else:
+            raise NotImplementedError(f"Unknown tnorm {self.tnorm}")
         return torch.mean(
             torch.sum(individual_loss, dim=-1),
             dim=0,
