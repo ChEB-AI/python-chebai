@@ -82,7 +82,7 @@ class DisjointLoss(ImplicationLoss):
         data_extractor: _ChEBIDataExtractor,
         base_loss: torch.nn.Module = None,
         tnorm: Literal["product", "lukasiewicz"] = "product",
-        impl_loss_weight=0.1,
+        impl_loss_weight=0.01,
         disjoint_loss_weight=100,
     ):
         super().__init__(

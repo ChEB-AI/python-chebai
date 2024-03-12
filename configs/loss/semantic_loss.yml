@@ -5,7 +5,8 @@ init_args:
   base_loss:
     class_path: chebai.loss.bce_weighted.BCEWeighted
     init_args:
-      beta: 0.999
+      beta: 0.99
       data_extractor: *extractor
   tnorm: product
+  impl_loss_weight: 0.01
 
