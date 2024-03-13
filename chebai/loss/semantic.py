@@ -85,7 +85,7 @@ class DisjointLoss(ImplicationLoss):
         path_to_disjointness,
         data_extractor: _ChEBIDataExtractor,
         base_loss: torch.nn.Module = None,
-        tnorm: Literal["product", "lukasiewicz"] = "product",
+        tnorm: Literal["product", "lukasiewicz", "xu19"] = "product",
         impl_loss_weight=0.01,
         disjoint_loss_weight=100,
     ):
@@ -137,6 +137,9 @@ def _build_disjointness_filter(path_to_disjointness, label_names, hierarchy):
         for l1_raw, r1_raw in reader:
             l1 = int(l1_raw)
             r1 = int(r1_raw)
+            if l1 == 36233 and r1 == 63353:
+                # ignore disaccharide-disaccharide derivative disjointness axiom
+                continue
             disjoints.update(
                 {
                     (label_dict[l2], label_dict[r2])
