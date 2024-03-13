@@ -134,7 +134,18 @@ class PubChem(XYBaseDataModule):
 
 
 class PubChemDissimilar(PubChem):
-    """Subset of PubChem, but chosing the most dissimilar molecules (according to fingerprint)"""
+    """Subset of PubChem, but choosing the most dissimilar molecules (according to fingerprint)"""
+
+    def __init__(
+        self, *args, k=100000, n_random_subsets=100, random_size_factor=5, **kwargs
+    ):
+        """k: number of entries in this dataset,
+        n_random_subsets: number of subsets of random data from which to draw
+        the most dissimilar molecules,
+        random_size_factor: size of random subsets (in total) in relation to k"""
+        self.n_random_subsets = n_random_subsets
+        self.random_size_factor = random_size_factor
+        super(PubChemDissimilar, self).__init__(*args, k=k, **kwargs)
 
     @property
     def _name(self):
@@ -145,8 +156,7 @@ class PubChemDissimilar(PubChem):
             super().download()
         else:
             # split random subset into n parts, from each part, select the most dissimilar entities
-            n_random_subsets = 10
-            random_dataset = PubChem(k=self._k * n_random_subsets)
+            random_dataset = PubChem(k=self._k * self.random_size_factor)
             random_dataset.download()
 
             with open(os.path.join(random_dataset.raw_dir, "smiles.txt"), "r") as f_in:
@@ -156,13 +166,13 @@ class PubChemDissimilar(PubChem):
                 fpgen = AllChem.GetRDKitFPGenerator()
                 selected_smiles = []
                 print(f"Selecting most dissimilar values from random subsets...")
-                for i in tqdm.tqdm(range(n_random_subsets)):
+                for i in tqdm.tqdm(range(self.n_random_subsets)):
                     smiles_i = random_smiles[
                         i
                         * len(random_smiles)
-                        // n_random_subsets : (i + 1)
+                        // self.n_random_subsets : (i + 1)
                         * len(random_smiles)
-                        // n_random_subsets
+                        // self.n_random_subsets
                     ]
                     mols_i = [Chem.MolFromSmiles(smiles) for _, smiles in smiles_i]
                     fps = [
@@ -181,12 +191,14 @@ class PubChemDissimilar(PubChem):
                                 similarity.append(len(smiles_i))
                         except Exception as e:
                             print(i, smiles_i[i])
-                            print(e.with_traceback())
+                            print(e.with_traceback(None))
                             similarity.append(len(smiles_i))
 
                     similarity = sorted(zip(smiles_i, similarity), key=lambda x: x[1])
                     selected_smiles += list(
-                        list(zip(*similarity[: len(smiles_i) // n_random_subsets]))[0]
+                        list(
+                            zip(*similarity[: len(smiles_i) // self.random_size_factor])
+                        )[0]
                     )
             with open(os.path.join(self.raw_dir, "smiles.txt"), "w") as f_out:
                 f_out.writelines(
