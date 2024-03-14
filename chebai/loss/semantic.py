@@ -58,7 +58,7 @@ class ImplicationLoss(torch.nn.Module):
         if self.tnorm == "product":
             individual_loss = l * (1 - r)
         elif self.tnorm == "xu19":
-            individual_loss = -torch.log(1 - l(1 - r))
+            individual_loss = -torch.log(1 - l * (1 - r))
         elif self.tnorm == "lukasiewicz":
             individual_loss = torch.relu(l - r)
         else:
