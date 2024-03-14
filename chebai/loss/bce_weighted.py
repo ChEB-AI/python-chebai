@@ -8,6 +8,7 @@ import pickle
 class BCEWeighted(torch.nn.BCEWithLogitsLoss):
     """BCEWithLogitsLoss with weights automatically computed according to beta parameter (formula from
     https://openaccess.thecvf.com/content_CVPR_2019/papers/Cui_Class-Balanced_Loss_Based_on_Effective_Number_of_Samples_CVPR_2019_paper.pdf)
+    warning: requires datasets to already exist on initialisation
     """
 
     def __init__(self, beta: float = None, data_extractor: _ChEBIDataExtractor = None):

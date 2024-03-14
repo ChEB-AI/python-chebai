@@ -57,9 +57,9 @@ class ImplicationLoss(torch.nn.Module):
     def _calculate_implication_loss(self, l, r):
         if self.tnorm == "product":
             individual_loss = l * (1 - r)
-        elif tnorm == "xu19":
+        elif self.tnorm == "xu19":
             individual_loss = -torch.log(1 - l(1 - r))
-        elif tnorm == "lukasiewicz":
+        elif self.tnorm == "lukasiewicz":
             individual_loss = torch.relu(l - r)
         else:
             raise NotImplementedError(f"Unknown tnorm {self.tnorm}")
