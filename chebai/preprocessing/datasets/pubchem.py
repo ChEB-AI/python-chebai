@@ -304,18 +304,19 @@ class SWJPreChem(PubChem):
         return (self.reader.name(),)
 
 
-class PubToxAndChebiX(XYBaseDataModule):
+class LabeledUnlabeledMixed(XYBaseDataModule):
     READER = dr.ChemDataReader
-    CHEBI_X = ChEBIOverX
 
-    def __init__(self, *args, **kwargs):
-        self.labeled = self.CHEBI_X(*args, **kwargs)
-        self.unlabeled = PubchemChem(*args, **kwargs)
+    def __init__(
+        self, labeled: XYBaseDataModule, unlabeled: XYBaseDataModule, *args, **kwargs
+    ):
+        self.labeled = labeled
+        self.unlabeled = unlabeled
         super().__init__(*args, **kwargs)
 
     @property
     def _name(self):
-        return "PubToxU" + self.labeled._name
+        return f"Mixed_{self.labeled._name}_{self.unlabeled._name}"
 
     def dataloader(self, kind, **kwargs):
         labeled_data = torch.load(
@@ -345,6 +346,20 @@ class PubToxAndChebiX(XYBaseDataModule):
     def setup_processed(self):
         self.labeled.setup()
         self.unlabeled.setup()
+
+
+class PubToxAndChebiX(LabeledUnlabeledMixed):
+    READER = dr.ChemDataReader
+    CHEBI_X = ChEBIOverX
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(
+            self.CHEBI_X(*args, **kwargs), PubchemChem(*args, **kwargs), *args, **kwargs
+        )
+
+    @property
+    def _name(self):
+        return "PubToxU" + self.labeled._name
 
 
 class PubToxAndChebi100(PubToxAndChebiX):
