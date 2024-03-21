@@ -58,7 +58,8 @@ def evaluate_model(
     for i in tqdm.tqdm(range(0, len(data_list), batch_size)):
         collated = collate(data_list[i : min(i + batch_size, len(data_list) - 1)])
         collated.x = collated.to_x(model.device)
-        collated.y = collated.to_y(model.device)
+        if collated.y is not None:
+            collated.y = collated.to_y(model.device)
         processable_data = model._process_batch(collated, 0)
         model_output = model(processable_data, **processable_data["model_kwargs"])
         preds, labels = model._get_prediction_and_labels(
@@ -73,10 +74,11 @@ def evaluate_model(
                     torch.cat(preds_list),
                     os.path.join(buffer_dir, f"preds{save_ind:03d}.pt"),
                 )
-                torch.save(
-                    torch.cat(labels_list),
-                    os.path.join(buffer_dir, f"labels{save_ind:03d}.pt"),
-                )
+                if collated.y is not None:
+                    torch.save(
+                        torch.cat(labels_list),
+                        os.path.join(buffer_dir, f"labels{save_ind:03d}.pt"),
+                    )
                 preds_list = []
                 labels_list = []
                 save_ind += 1
@@ -84,9 +86,11 @@ def evaluate_model(
 
     if buffer_dir is None:
         test_preds = torch.cat(preds_list)
-        test_labels = torch.cat(labels_list)
+        if labels_list is not None:
+            test_labels = torch.cat(labels_list)
 
-        return test_preds, test_labels
+            return test_preds, test_labels
+        return test_preds, None
 
 
 def load_results_from_buffer(buffer_dir, device):
@@ -119,7 +123,10 @@ def load_results_from_buffer(buffer_dir, device):
         filename = f"labels{i:03d}.pt"
 
     test_preds = torch.cat(preds_list)
-    test_labels = torch.cat(labels_list)
+    if len(labels_list) > 0:
+        test_labels = torch.cat(labels_list)
+    else:
+        test_labels = None
 
     return test_preds, test_labels
 

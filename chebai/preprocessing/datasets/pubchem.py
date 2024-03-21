@@ -274,7 +274,7 @@ class Hazardous(SWJChem):
 
     @property
     def _name(self):
-        return f"hazardous"
+        return f"PubChemHazardous"
 
     @staticmethod
     def _load_dict(input_file_path):
@@ -284,9 +284,24 @@ class Hazardous(SWJChem):
                 yield dict(features=smiles, labels=None)
 
     def download(self):
-        raise Exception(
-            "This dataset is not publicly available, yet. Please supply raw data manually."
-        )
+        # requires the / a hazardous subset from pubchem, e.g. obtained by entering
+        # "PubChem: PubChem Compound TOC: GHS Classification" in the pubchem search -> download -> csv
+        csv_path = os.path.join(self.raw_dir, "pubchem_hazardous_compound_list.csv")
+        compounds = pd.read_csv(csv_path)
+        smiles_list = []
+        for id, compound in compounds.iterrows():
+            if (
+                not isinstance(compound["cmpdsynonym"], str)
+                or "CHEBI" not in compound["cmpdsynonym"]
+            ):
+                smiles_list.append(f"{compound['cid']}\t{compound['isosmiles']}")
+        with open(os.path.join(self.raw_dir, "smiles.txt"), "w") as f:
+            f.write("\n".join(smiles_list))
+
+
+if __name__ == "__main__":
+    haz = Hazardous()
+    haz.setup_processed()
 
 
 class SWJPreChem(PubChem):
