@@ -12,8 +12,11 @@ import torch
 import tqdm
 
 from chebai.callbacks.epoch_metrics import MacroF1
+
 from chebai.models import ChebaiBaseNet
+from chebai.models.electra import Electra
 from chebai.preprocessing.datasets import XYBaseDataModule
+from utils import *
 
 
 def visualise_f1(logs_path):
@@ -30,105 +33,6 @@ def visualise_f1(logs_path):
     lineplt = sns.lineplot(df_loss, x="epoch", y="value", hue="variable")
     plt.savefig(os.path.join(logs_path, "f1_plot.png"))
     plt.show()
-
-
-def evaluate_model(
-    model: ChebaiBaseNet,
-    data_module: XYBaseDataModule,
-    filename=None,
-    buffer_dir=None,
-    batch_size: int = 32,
-):
-    """Runs model on test set of data_module (or, if filename is not None, on data set found in that file).
-    If buffer_dir is set, results will be saved in buffer_dir. Returns tensors with predictions and labels.
-    """
-    model.eval()
-    collate = data_module.reader.COLLATER()
-
-    data_list = data_module.load_processed_data("test", filename)
-    data_list = data_list[: data_module.data_limit]
-    preds_list = []
-    labels_list = []
-    if buffer_dir is not None:
-        os.makedirs(buffer_dir, exist_ok=True)
-    save_ind = 0
-    save_batch_size = 4
-    n_saved = 0
-
-    for i in tqdm.tqdm(range(0, len(data_list), batch_size)):
-        collated = collate(data_list[i : min(i + batch_size, len(data_list) - 1)])
-        collated.x = collated.to_x(model.device)
-        if collated.y is not None:
-            collated.y = collated.to_y(model.device)
-        processable_data = model._process_batch(collated, 0)
-        model_output = model(processable_data, **processable_data["model_kwargs"])
-        preds, labels = model._get_prediction_and_labels(
-            processable_data, processable_data["labels"], model_output
-        )
-        preds_list.append(preds)
-        labels_list.append(labels)
-        if buffer_dir is not None:
-            n_saved += 1
-            if n_saved >= save_batch_size:
-                torch.save(
-                    torch.cat(preds_list),
-                    os.path.join(buffer_dir, f"preds{save_ind:03d}.pt"),
-                )
-                if collated.y is not None:
-                    torch.save(
-                        torch.cat(labels_list),
-                        os.path.join(buffer_dir, f"labels{save_ind:03d}.pt"),
-                    )
-                preds_list = []
-                labels_list = []
-                save_ind += 1
-                n_saved = 0
-
-    if buffer_dir is None:
-        test_preds = torch.cat(preds_list)
-        if labels_list is not None:
-            test_labels = torch.cat(labels_list)
-
-            return test_preds, test_labels
-        return test_preds, None
-
-
-def load_results_from_buffer(buffer_dir, device):
-    """Load results stored in evaluate_model()"""
-    preds_list = []
-    labels_list = []
-
-    i = 0
-    filename = f"preds{i:03d}.pt"
-    while os.path.isfile(os.path.join(buffer_dir, filename)):
-        preds_list.append(
-            torch.load(
-                os.path.join(buffer_dir, filename),
-                map_location=torch.device(device),
-            )
-        )
-        i += 1
-        filename = f"preds{i:03d}.pt"
-
-    i = 0
-    filename = f"labels{i:03d}.pt"
-    while os.path.isfile(os.path.join(buffer_dir, filename)):
-        labels_list.append(
-            torch.load(
-                os.path.join(buffer_dir, filename),
-                map_location=torch.device(device),
-            )
-        )
-        i += 1
-        filename = f"labels{i:03d}.pt"
-
-    test_preds = torch.cat(preds_list)
-    if len(labels_list) > 0:
-        test_labels = torch.cat(labels_list)
-    else:
-        test_labels = None
-
-    return test_preds, test_labels
 
 
 def print_metrics(preds, labels, device, classes=None, top_k=10, markdown_output=False):
