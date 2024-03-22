@@ -114,6 +114,8 @@ class PubChem(XYBaseDataModule):
         torch.save(test, os.path.join(self.processed_dir, f"test.pt"))
         torch.save(val, os.path.join(self.processed_dir, f"validation.pt"))
 
+        self.reader.on_finish()
+
     @property
     def raw_file_names(self):
         return ["smiles.txt"]
@@ -276,12 +278,17 @@ class Hazardous(SWJChem):
     def _name(self):
         return f"PubChemHazardous"
 
-    @staticmethod
-    def _load_dict(input_file_path):
-        with open(input_file_path, "r") as input_file:
-            for row in input_file:
-                smiles = row.strip()
-                yield dict(features=smiles, labels=None)
+    def setup_processed(self):
+        # Collect token distribution
+        filename = os.path.join(self.raw_dir, self.raw_file_names[0])
+        print("Load data from file", filename)
+        data = self._load_data_from_file(filename)
+        torch.save(data, os.path.join(self.processed_dir, f"all.pt"))
+
+        self.reader.on_finish()
+
+    def processed_file_names(self):
+        return ["all.pt"]
 
     def download(self):
         # requires the / a hazardous subset from pubchem, e.g. obtained by entering
