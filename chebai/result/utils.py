@@ -17,7 +17,9 @@ def get_checkpoint(
 
     files = run.files()
     for file in files:
-        if file.name.startswith(f"checkpoints/per_epoch={epoch}"):
+        if file.name.startswith(
+            f"checkpoints/per_epoch={epoch}"
+        ) or file.name.startswith(f"checkpoints/best_epoch={epoch}"):
             dest_path = os.path.join(root, run.name, file.name.split("/")[-1])
             if not os.path.isfile(dest_path):
                 print(f"Downloading checkpoint to {dest_path}")
