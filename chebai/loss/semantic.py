@@ -15,6 +15,7 @@ class ImplicationLoss(torch.nn.Module):
         base_loss: torch.nn.Module = None,
         tnorm: Literal["product", "lukasiewicz", "xu19"] = "product",
         impl_loss_weight=0.1,  # weight of implication loss in relation to base_loss
+        pos_scalar=1,
     ):
         super().__init__()
         self.data_extractor = data_extractor
@@ -31,6 +32,7 @@ class ImplicationLoss(torch.nn.Module):
         self.implication_filter_r = implication_filter[:, 1]
         self.tnorm = tnorm
         self.impl_weight = impl_loss_weight
+        self.pos_scalar = pos_scalar
 
     def forward(self, input, target, **kwargs):
         nnl = kwargs.pop("non_null_labels", None)
@@ -55,6 +57,9 @@ class ImplicationLoss(torch.nn.Module):
         )
 
     def _calculate_implication_loss(self, l, r):
+        if self.pos_scalar != 1:
+            l = torch.pow(l, 1 / self.pos_scalar)
+            r = torch.pow(r, self.pos_scalar)
         if self.tnorm == "product":
             individual_loss = l * (1 - r)
         elif self.tnorm == "xu19":
@@ -85,13 +90,10 @@ class DisjointLoss(ImplicationLoss):
         path_to_disjointness,
         data_extractor: _ChEBIDataExtractor,
         base_loss: torch.nn.Module = None,
-        tnorm: Literal["product", "lukasiewicz", "xu19"] = "product",
-        impl_loss_weight=0.01,
         disjoint_loss_weight=100,
+        **kwargs,
     ):
-        super().__init__(
-            data_extractor, base_loss, impl_loss_weight=impl_loss_weight, tnorm=tnorm
-        )
+        super().__init__(data_extractor, base_loss, **kwargs)
         self.disjoint_filter_l, self.disjoint_filter_r = _build_disjointness_filter(
             path_to_disjointness, self.label_names, self.hierarchy
         )

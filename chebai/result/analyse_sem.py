@@ -168,8 +168,8 @@ def analyse_run(
             df_new[i][f"macro-sem-recall-{filter_type}"] = torch.mean(
                 macro_recall[~macro_recall.isnan()]
             ).item()
-            df_new[i][f"fn-sum-{filter_type}"] = torch.sum(m["fns"])
-            df_new[i][f"tp-sum-{filter_type}"] = torch.sum(m["tps"])
+            df_new[i][f"fn-sum-{filter_type}"] = torch.sum(m["fns"]).item()
+            df_new[i][f"tp-sum-{filter_type}"] = torch.sum(m["tps"]).item()
 
             del m
             del m_cls
@@ -221,7 +221,10 @@ def run_all(run_id=None):
             "qeghvubh",
             "jyjfs3ha",
             "lfg384bp",
-        ]  # "h7x23req",
+            "lig23cmg",
+            "rw32mr1b",
+            "h7x23req",
+        ]  #
     else:
         run_ids = [run_id]
     timestamp = datetime.now().strftime("%y%m%d-%H%M")
