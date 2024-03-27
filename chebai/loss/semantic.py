@@ -60,6 +60,8 @@ class ImplicationLoss(torch.nn.Module):
         if self.pos_scalar != 1:
             l = torch.pow(l, 1 / self.pos_scalar)
             r = torch.pow(r, self.pos_scalar)
+        assert not l.isnan().any()
+        assert not r.isnan().any()
         if self.tnorm == "product":
             individual_loss = l * (1 - r)
         elif self.tnorm == "xu19":
@@ -68,6 +70,8 @@ class ImplicationLoss(torch.nn.Module):
             individual_loss = torch.relu(l - r)
         else:
             raise NotImplementedError(f"Unknown tnorm {self.tnorm}")
+
+        assert not individual_loss.isnan().any()
         return torch.mean(
             torch.sum(individual_loss, dim=-1),
             dim=0,
