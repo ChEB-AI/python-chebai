@@ -160,4 +160,4 @@ cython_debug/
 #  option (not recommended) you can uncomment the following to ignore the entire idea folder.
 #.idea/
 
-configs/
+# configs/ # commented as new configs can be added as a part of a feature
