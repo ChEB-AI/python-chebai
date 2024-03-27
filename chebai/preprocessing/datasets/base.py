@@ -14,6 +14,47 @@ from chebai.preprocessing import reader as dr
 
 
 class XYBaseDataModule(LightningDataModule):
+    """
+    Base class for data modules.
+
+    This class provides a base implementation for loading and preprocessing datasets.
+    It inherits from `LightningDataModule` and defines common properties and methods for data loading and processing.
+
+    Args:
+        batch_size (int): The batch size for data loading. Default is 1.
+        train_split (float): The ratio of training data to total data. Default is 0.85.
+        reader_kwargs (dict): Additional keyword arguments to be passed to the data reader. Default is None.
+        prediction_kind (str): The kind of prediction to be performed. Default is "test".
+        data_limit (int): The maximum number of data samples to load. Default is None.
+        label_filter (int): The index of the label to filter. Default is None.
+        balance_after_filter (float): The ratio of negative samples to positive samples after filtering. Default is None.
+        num_workers (int): The number of worker processes for data loading. Default is 1.
+        chebi_version (int): The version of ChEBI database to use. Default is 200.
+        inner_k_folds (int): The number of folds for inner cross-validation. Use -1 to disable inner cross-validation. Default is -1.
+        fold_index (int): The index of the fold to use for training and validation. Default is None.
+        base_dir (str): The base directory for storing processed and raw data. Default is None.
+        **kwargs: Additional keyword arguments.
+
+    Attributes:
+        READER (DataReader): The data reader class to use.
+        reader (DataReader): An instance of the data reader class.
+        train_split (float): The ratio of training data to total data.
+        batch_size (int): The batch size for data loading.
+        prediction_kind (str): The kind of prediction to be performed.
+        data_limit (int): The maximum number of data samples to load.
+        label_filter (int): The index of the label to filter.
+        balance_after_filter (float): The ratio of negative samples to positive samples after filtering.
+        num_workers (int): The number of worker processes for data loading.
+        chebi_version (int): The version of ChEBI database to use.
+        inner_k_folds (int): The number of folds for inner cross-validation.
+        fold_index (int): The index of the fold to use for training and validation.
+        _base_dir (str): The base directory for storing processed and raw data.
+        raw_dir (str): The directory for storing raw data.
+        processed_dir (str): The directory for storing processed data.
+        fold_dir (str): The name of the directory where the folds from inner cross-validation are stored.
+        _name (str): The name of the data module.
+
+    """
     READER = dr.DataReader
 
     def __init__(
@@ -69,10 +110,12 @@ class XYBaseDataModule(LightningDataModule):
 
     @property
     def identifier(self):
+        """Identifier for the dataset."""
         return (self.reader.name(),)
 
     @property
     def full_identifier(self):
+        """Full identifier for the dataset."""
         return (self._name, *self.identifier)
 
     @property
@@ -84,10 +127,12 @@ class XYBaseDataModule(LightningDataModule):
 
     @property
     def processed_dir(self):
+        """name of dir where the processed data is stored"""
         return os.path.join(self.base_dir, "processed", *self.identifier)
 
     @property
     def raw_dir(self):
+        """name of dir where the raw data is stored"""
         return os.path.join(self.base_dir, "raw")
 
     @property
@@ -100,10 +145,24 @@ class XYBaseDataModule(LightningDataModule):
         raise NotImplementedError
 
     def _filter_labels(self, row):
+        """filter labels based on label_filter"""
         row["labels"] = [row["labels"][self.label_filter]]
         return row
 
     def load_processed_data(self, kind: str = None, filename: str = None) -> List:
+        """
+        Load processed data from a file.
+
+        Args:
+            kind (str, optional): The kind of dataset to load such as "train", "val" or "test". Defaults to None.
+            filename (str, optional): The name of the file to load the dataset from. Defaults to None.
+
+        Returns:
+            List: The loaded processed data.
+
+        Raises:
+            ValueError: If both kind and filename are None.
+        """
         if kind is None and filename is None:
             raise ValueError(
                 "Either kind or filename is required to load the correct dataset, both are None"
@@ -123,6 +182,17 @@ class XYBaseDataModule(LightningDataModule):
         return torch.load(os.path.join(self.processed_dir, filename))
 
     def dataloader(self, kind, **kwargs) -> DataLoader:
+        """
+        Returns a DataLoader object for the specified kind (train, val or test) of data.
+
+        Args:
+            kind (str): The kind indicates whether it is a train, val or test data to load.
+            **kwargs: Additional keyword arguments.
+
+        Returns:
+            DataLoader: A DataLoader object.
+
+        """
         dataset = self.load_processed_data(kind)
         if "ids" in kwargs:
             ids = kwargs.pop("ids")
@@ -155,6 +225,15 @@ class XYBaseDataModule(LightningDataModule):
 
     @staticmethod
     def _load_dict(input_file_path):
+        """
+        Load data from a file and return a dictionary.
+        
+        Args:
+            input_file_path (str): The path to the input file.
+            
+        Yields:
+            dict: A dictionary containing the features and labels.
+        """
         with open(input_file_path, "r") as input_file:
             for row in input_file:
                 smiles, labels = row.split("\t")
@@ -166,6 +245,15 @@ class XYBaseDataModule(LightningDataModule):
             return sum(1 for _ in f)
 
     def _load_data_from_file(self, path):
+        """
+        Load data from a file and return a list of dictionaries.
+        
+        Args:
+            path (str): The path to the input file.
+        
+        Returns:
+            List: A list of dictionaries containing the features and labels.
+        """
         lines = self._get_data_size(path)
         print(f"Processing {lines} lines...")
         data = [

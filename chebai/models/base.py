@@ -13,6 +13,24 @@ _MODEL_REGISTRY = dict()
 
 
 class ChebaiBaseNet(LightningModule):
+    """
+    Base class for Chebai neural network models inheriting from
+    :class:`pytorch_lightning.LightningModule`.
+
+    Args:
+        criterion (torch.nn.Module, optional): The loss criterion for the model. Defaults to None.
+        out_dim (int, optional): The output dimension of the model. Defaults to None.
+        train_metrics (torch.nn.Module, optional): The metrics to be used during training. Defaults to None.
+        val_metrics (torch.nn.Module, optional): The metrics to be used during validation. Defaults to None.
+        test_metrics (torch.nn.Module, optional): The metrics to be used during testing. Defaults to None.
+        pass_loss_kwargs (bool, optional): Whether to pass loss kwargs to the criterion. Defaults to True.
+        optimizer_kwargs (typing.Dict, optional): Additional keyword arguments for the optimizer. Defaults to None.
+        **kwargs: Additional keyword arguments.
+
+    Attributes:
+        NAME (str): The name of the model.
+        LOSS (torch.nn.Module): The loss function used by the model.
+    """
     NAME = None
     LOSS = torch.nn.BCEWithLogitsLoss
 
@@ -85,6 +103,20 @@ class ChebaiBaseNet(LightningModule):
         return self._execute(batch, batch_idx, self.test_metrics, prefix="", log=False)
 
     def _execute(self, batch, batch_idx, metrics, prefix="", log=True, sync_dist=False):
+        """
+        Executes the model on a batch of data and returns the model output and predictions.
+
+        Args:
+            batch (XYData): The input batch of data.
+            batch_idx (int): The index of the current batch.
+            metrics (dict): A dictionary of metrics to track.
+            prefix (str, optional): A prefix to add to the metric names. Defaults to "".
+            log (bool, optional): Whether to log the metrics. Defaults to True.
+            sync_dist (bool, optional): Whether to synchronize distributed training. Defaults to False.
+
+        Returns:
+            dict: A dictionary containing the processed data, labels, model output, predictions, and loss (if applicable).
+        """
         assert isinstance(batch, XYData)
         batch = batch.to(self.device)
         data = self._process_batch(batch, batch_idx)
@@ -119,6 +151,17 @@ class ChebaiBaseNet(LightningModule):
         return d
 
     def _log_metrics(self, prefix, metrics, batch_size):
+        """
+        Logs the metrics for the given prefix.
+
+        Args:
+            prefix (str): The prefix to be added to the metric names.
+            metrics (dict): A dictionary containing the metrics to be logged.
+            batch_size (int): The batch size used for logging.
+
+        Returns:
+            None
+        """
         # don't use sync_dist=True if the metric is a torchmetrics-metric
         # (see https://github.com/Lightning-AI/pytorch-lightning/discussions/6501#discussioncomment-569757)
         for metric_name, metric in metrics.items():
