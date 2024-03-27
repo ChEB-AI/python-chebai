@@ -12,6 +12,10 @@ For quick setup and usage instructions, please refer to the README.md file.
 
 ChEBai accesses the ChEBI ontology data from the following URL: http://purl.obolibrary.org/obo/chebi/{version}/chebi.obo.
 
+The ChEBI ontology data can be visualised in the following URL: https://www.ebi.ac.uk/chebi/init.do
+
+To read more about ChEBI please visit the about section of ChEBI: https://www.ebi.ac.uk/chebi/aboutChebiForward.do
+
 **ChEBI versions**
 
 Change the chebi version used for all sets (default: 200):
