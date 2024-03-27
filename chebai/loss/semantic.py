@@ -2,6 +2,7 @@ import csv
 import os
 import pickle
 
+import math
 import torch
 from typing import Literal
 
@@ -16,6 +17,7 @@ class ImplicationLoss(torch.nn.Module):
         tnorm: Literal["product", "lukasiewicz", "xu19"] = "product",
         impl_loss_weight=0.1,  # weight of implication loss in relation to base_loss
         pos_scalar=1,
+        pos_epsilon=0.01,
     ):
         super().__init__()
         self.data_extractor = data_extractor
@@ -33,6 +35,7 @@ class ImplicationLoss(torch.nn.Module):
         self.tnorm = tnorm
         self.impl_weight = impl_loss_weight
         self.pos_scalar = pos_scalar
+        self.eps = pos_epsilon
 
     def forward(self, input, target, **kwargs):
         nnl = kwargs.pop("non_null_labels", None)
@@ -60,10 +63,14 @@ class ImplicationLoss(torch.nn.Module):
         assert not l.isnan().any()
         assert not r.isnan().any()
         if self.pos_scalar != 1:
-            l = torch.pow(l, 1 / self.pos_scalar)
+            l = (
+                torch.pow(l + self.eps, 1 / self.pos_scalar)
+                - math.pow(self.eps, 1 / self.pos_scalar)
+            ) / (
+                math.pow(1 + self.eps, 1 / self.pos_scalar)
+                - math.pow(self.eps, 1 / self.pos_scalar)
+            )
             r = torch.pow(r, self.pos_scalar)
-        assert not l.isnan().any()
-        assert not r.isnan().any()
         if self.tnorm == "product":
             individual_loss = l * (1 - r)
         elif self.tnorm == "xu19":
@@ -73,7 +80,6 @@ class ImplicationLoss(torch.nn.Module):
         else:
             raise NotImplementedError(f"Unknown tnorm {self.tnorm}")
 
-        assert not individual_loss.isnan().any()
         return torch.mean(
             torch.sum(individual_loss, dim=-1),
             dim=0,
