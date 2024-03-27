@@ -57,6 +57,8 @@ class ImplicationLoss(torch.nn.Module):
         )
 
     def _calculate_implication_loss(self, l, r):
+        assert not l.isnan().any()
+        assert not r.isnan().any()
         if self.pos_scalar != 1:
             l = torch.pow(l, 1 / self.pos_scalar)
             r = torch.pow(r, self.pos_scalar)
