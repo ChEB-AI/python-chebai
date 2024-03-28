@@ -53,11 +53,11 @@ and `cv_${n_folds}_fold/fold_{fold_index}_validation.pkl` in the raw directory.
 
 # Models
 
-ChEBai employs deep neural network models for semantic classification of chemical entities. Model classes are located within the `chebai\models\` directory.
+ChEBai employs deep neural network models for semantic classification of chemical entities. Model classes are located within the `chebai/models/` directory.
 
-- `chebai\models\base.py`: Contains the base class ChebaiBaseNet, inherited from PyTorch Lightning module, facilitating custom model creation.
+- `chebai/models/base.py`: Contains the base class ChebaiBaseNet, inherited from PyTorch Lightning module, facilitating custom model creation.
 
-- Example: `chebai\models\electra.py` showcases a custom model inherited from `ChebaiBaseNet`, implementing an Electra model.
+- Example: `chebai/models/electra.py` showcases a custom model inherited from `ChebaiBaseNet`, implementing an Electra model.
 
 # Configurations
 
@@ -66,11 +66,11 @@ ChEBai utilizes PyTorch Lightning for model development, training, and inference
 The configs are saved in the `configs` folder. Each component such as training, data, model etc., has their own configuration YAML file. 
 
 Configs Folder Structure
-- `configs\training\`: Basic trainer, callbacks, and logger configurations.
-- `configs\data\`: Configurations for different dataset types used in training and evaluation.
-- `configs\loss\`: Custom loss function configurations for training and fine-tuning.
-- `configs\metrics\`: Custom configurations for evaluation metrics.
-- `configs\model\`: Configurations for different models.
-- `configs\weightings\`: Weight values for different datasets used in training.
+- `configs/training/`: Basic trainer, callbacks, and logger configurations.
+- `configs/data/`: Configurations for different dataset types used in training and evaluation.
+- `configs/loss/`: Custom loss function configurations for training and fine-tuning.
+- `configs/metrics/`: Custom configurations for evaluation metrics.
+- `configs/model/`: Configurations for different models.
+- `configs/weightings/`: Weight values for different datasets used in training.
 
 For detailed information on available arguments for each module, refer to the PyTorch Lightning CLI documentation: [PyTorch Lightning for CLI Docs](https://lightning.ai/docs/pytorch/stable/cli/lightning_cli_advanced.html)
