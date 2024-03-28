@@ -14,8 +14,7 @@ _MODEL_REGISTRY = dict()
 
 class ChebaiBaseNet(LightningModule):
     """
-    Base class for Chebai neural network models inheriting from
-    :class:`pytorch_lightning.LightningModule`.
+    Base class for Chebai neural network models inheriting from PyTorch Lightning's LightningModule.
 
     Args:
         criterion (torch.nn.Module, optional): The loss criterion for the model. Defaults to None.
