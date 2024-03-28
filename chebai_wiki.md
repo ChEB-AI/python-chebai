@@ -53,7 +53,7 @@ and `cv_${n_folds}_fold/fold_{fold_index}_validation.pkl` in the raw directory.
 
 # Models
 
-ChEBai employs deep neural network models for semantic classification of chemical entities. Model classes are located within the `chebai/models/` directory.
+ChEBai employs deep neural network models for semantic classification of chemical entities. Model classes are located within the `chebai\models\` directory.
 
 - `chebai\models\base.py`: Contains the base class ChebaiBaseNet, inherited from PyTorch Lightning module, facilitating custom model creation.
 
