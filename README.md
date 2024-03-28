@@ -69,15 +69,3 @@ and the fold to be used in the current optimisation run as
 ```
 To train K models, you need to do K such calls, each with a different `fold_index`. On the first call with a given 
 `inner_k_folds`, all folds will be created and stored in the data directory
-
-## Contributing
-
-We welcome contributions! See our guidelines at [link-to-contributing-guidelines].
-
-## License
-
-ChEBai is released under the [specify license type] license.
-
-## Contact
-
-For questions or support, please reach out to [project maintainer's contact information].
