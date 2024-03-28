@@ -73,4 +73,4 @@ Configs Folder Structure
 - `configs\model\`: Configurations for different models.
 - `configs\weightings\`: Weight values for different datasets used in training.
 
-For detailed information on available arguments for each module, refer to the PyTorch Lightning documentation: [PyTorch Lightning Docs](https://lightning.ai/docs/pytorch/stable/)
+For detailed information on available arguments for each module, refer to the PyTorch Lightning CLI documentation: [PyTorch Lightning for CLI Docs](https://lightning.ai/docs/pytorch/stable/cli/lightning_cli_advanced.html)
