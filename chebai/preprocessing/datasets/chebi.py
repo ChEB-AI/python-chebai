@@ -107,6 +107,7 @@ class _ChEBIDataExtractor(XYBaseDataModule, ABC):
         single_class (int): The ID of the single class to predict.
         chebi_version_train (int): The version of ChEBI to use for training and validation.
     """
+
     def __init__(
         self, chebi_version_train: int = None, single_class: int = None, **kwargs
     ):
@@ -120,10 +121,10 @@ class _ChEBIDataExtractor(XYBaseDataModule, ABC):
     def extract_class_hierarchy(self, chebi_path):
         """
         Extract the class hierarchy from the ChEBI dataset.
-        
+
         Args:
             chebi_path (str): The path to the ChEBI dataset.
-            
+
         Returns:
             nx.DiGraph: The class hierarchy.
         """
@@ -178,10 +179,10 @@ class _ChEBIDataExtractor(XYBaseDataModule, ABC):
     def _load_dict(self, input_file_path):
         """
         Loads a dictionary from a pickled file, yielding individual dictionaries for each row.
-        
+
         Args:
             input_file_path (str): The path to the file.
-            
+
         Yields:
             dict: The dictionary.
         """
@@ -416,9 +417,9 @@ class _ChEBIDataExtractor(XYBaseDataModule, ABC):
         """
         Prepares the data for the Chebi dataset.
 
-        This method checks for the presence of raw data in the specified directory. 
-        If the raw data is missing, it fetches the data and creates the test set. 
-        If the test set already exists, it loads it from the file. 
+        This method checks for the presence of raw data in the specified directory.
+        If the raw data is missing, it fetches the data and creates the test set.
+        If the test set already exists, it loads it from the file.
         Then, it creates the train/validation split based on the test set.
 
         Args:
@@ -627,7 +628,7 @@ def chebi_to_int(s):
 
 def term_callback(doc):
     """
-    Extracts information from a ChEBI term document. 
+    Extracts information from a ChEBI term document.
     This function takes a ChEBI term document as input and extracts relevant information such as the term ID, parents,
     parts, name, and SMILES string. It returns a dictionary containing the extracted information.
 

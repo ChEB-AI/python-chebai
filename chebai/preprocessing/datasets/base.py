@@ -55,6 +55,7 @@ class XYBaseDataModule(LightningDataModule):
         _name (str): The name of the data module.
 
     """
+
     READER = dr.DataReader
 
     def __init__(
@@ -227,10 +228,10 @@ class XYBaseDataModule(LightningDataModule):
     def _load_dict(input_file_path):
         """
         Load data from a file and return a dictionary.
-        
+
         Args:
             input_file_path (str): The path to the input file.
-            
+
         Yields:
             dict: A dictionary containing the features and labels.
         """
@@ -247,10 +248,10 @@ class XYBaseDataModule(LightningDataModule):
     def _load_data_from_file(self, path):
         """
         Load data from a file and return a list of dictionaries.
-        
+
         Args:
             path (str): The path to the input file.
-        
+
         Returns:
             List: A list of dictionaries containing the features and labels.
         """

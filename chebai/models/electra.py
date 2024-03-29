@@ -216,7 +216,7 @@ class Electra(ChebaiBaseNet):
             nn.Dropout(self.config.hidden_dropout_prob),
             nn.Linear(in_d, self.config.num_labels),
         )
-        
+
         # Load pretrained checkpoint if provided
         if pretrained_checkpoint:
             with open(pretrained_checkpoint, "rb") as fin:
