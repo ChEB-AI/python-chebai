@@ -10,5 +10,3 @@
     filename: 'per_{epoch:02d}_{val_loss:.4f}_{val_macro-f1:.4f}_{val_micro-f1:.4f}'
     every_n_epochs: 25
     save_top_k: -1
-#- class_path: chebai.callbacks.epoch_metrics.EpochLevelMacroF1
-#class_path: chebai.callbacks.save_config_callback.CustomSaveConfigCallback
