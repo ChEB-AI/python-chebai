@@ -1,39 +1,61 @@
 # ChEBai
 
-ChEBai  is a deep learning library that allows the combination of deep learning methods with chemical ontologies
-(especially ChEBI). Special attention is given to the integration of the semantic qualities of the ontology into the learning process. This is done in two different ways:
+ChEBai is a deep learning library designed for the integration of deep learning methods with chemical ontologies, particularly ChEBI. 
+The library emphasizes the incorporation of the semantic qualities of the ontology into the learning process.
 
-## Pretraining
+## Installation
 
+To install ChEBai, follow these steps:
+
+1. Clone the repository:
 ```
-python -m chebai fit --data.class_path=chebai.preprocessing.datasets.pubchem.SWJChem --model=configs/model/electra-for-pretraining.yml --trainer=configs/training/default_trainer.yml --trainer.callbacks=configs/training/default_callbacks.yml
-```
-
-## Structure-based ontology extension
-
-```
-python -m chebai fit --config=[path-to-your-electra_chebi100-config] --trainer.callbacks=configs/training/default_callbacks.yml  --model.pretrained_checkpoint=[path-to-pretrained-model] --model.load_prefix=generator.
+git clone https://github.com/ChEB-AI/python-chebai.git
 ```
 
+2. Install the package:
 
-## Fine-tuning for Toxicity prediction
+```
+cd python-chebai
+pip install .
+```
 
+## Usage
+
+The training and inference is abstracted using the Pytorch Lightning modules. 
+Here are some CLI commands for the standard functionalities of pretraining, ontology extension, fine-tuning for toxicity and prediction.
+For further details, see the [wiki](https://github.com/ChEB-AI/python-chebai/wiki).
+If you face any problems, please open a new [issue](https://github.com/ChEB-AI/python-chebai/issues/new).
+
+### Pretraining
+```
+python -m chebai fit --data.class_path=chebai.preprocessing.datasets.pubchem.PubchemChem --model=configs/model/electra-for-pretraining.yml --trainer=configs/training/pretraining_trainer.yml
+```
+
+### Structure-based ontology extension
+```
+python -m chebai fit --trainer=configs/training/default_trainer.yml --model=configs/model/electra.yml  --model.pretrained_checkpoint=[path-to-pretrained-model] --model.load_prefix=generator. --data=[path-to-dataset-config] --model.out_dim=[number-of-labels]
+```
+A command with additional options may look like this:
+```
+python3 -m chebai fit --trainer=configs/training/default_trainer.yml --model=configs/model/electra.yml --model.train_metrics=configs/metrics/micro-macro-f1.yml --model.test_metrics=configs/metrics/micro-macro-f1.yml --model.val_metrics=configs/metrics/micro-macro-f1.yml --model.pretrained_checkpoint=electra_pretrained.ckpt --model.load_prefix=generator. --data=configs/data/chebi50.yml --model.out_dim=1446 --model.criterion=configs/loss/bce.yml --data.init_args.batch_size=10 --trainer.logger.init_args.name=chebi50_bce_unweighted --data.init_args.num_workers=9 --model.pass_loss_kwargs=false --data.init_args.chebi_version=231 --data.init_args.data_limit=1000
+```
+
+### Fine-tuning for Toxicity prediction
 ```
 python -m chebai fit --config=[path-to-your-tox21-config] --trainer.callbacks=configs/training/default_callbacks.yml  --model.pretrained_checkpoint=[path-to-pretrained-model] --model.load_prefix=generator.
 ```
 
-```
-python -m chebai train --config=[path-to-your-tox21-config] --trainer.callbacks=configs/training/default_callbacks.yml  --ckpt_path=[path-to-model-with-ontology-pretraining]
-```
-
-## Predicting classes given SMILES strings
-
+### Predicting classes given SMILES strings
 ```
 python3 -m chebai predict_from_file --model=[path-to-model-config] --checkpoint_path=[path-to-model] --input_path={path-to-file-containing-smiles] [--classes_path=[path-to-classes-file]] [--save_to=[path-to-output]]
 ```
 The input files should contain a list of line-separated SMILES strings. This generates a CSV file  that contains the
 one row for each SMILES string and one column for each class.
 
+## Evaluation
+
+An example for evaluating a model trained on the ontology extension task is given in `tutorials/eval_model_basic.ipynb`. 
+It takes in the finetuned model as input for performing the evaluation.
 
 ## Cross-validation
 You can do inner k-fold cross-validation, i.e., train models on k train-validation splits that all use the same test 
@@ -47,30 +69,3 @@ and the fold to be used in the current optimisation run as
 ```
 To train K models, you need to do K such calls, each with a different `fold_index`. On the first call with a given 
 `inner_k_folds`, all folds will be created and stored in the data directory
-
-## Chebi versions
-Change the chebi version used for all sets (default: 200):
-```
---data.init_args.chebi_version=VERSION
-```
-To change only the version of the train and validation sets independently of the test set, use
-```
---data.init_args.chebi_version_train=VERSION
-```
-
-## Data folder structure
-Data is stored in and retrieved from the raw and processed folders 
-```
-data/${dataset_name}/${chebi_version}/raw/
-```
-and 
-``` 
-data/${dataset_name}/${chebi_version}/processed/${reader_name}/
-```
-where `${dataset_name}` is the `_name`-attribute of the `DataModule` used,
-`${chebi_version}` refers to the ChEBI version used (only for ChEBI-datasets) and
-`${reader_name}` is the `name`-attribute of the `Reader` class associated with the dataset.
-
-For cross-validation, the folds are stored as `cv_${n_folds}_fold/fold_{fold_index}_train.pkl` 
-and `cv_${n_folds}_fold/fold_{fold_index}_validation.pkl` in the raw directory.
-In the processed directory, `.pt` is used instead of `.pkl`.
