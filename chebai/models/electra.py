@@ -22,6 +22,23 @@ from chebai.loss.semantic import DisjointLoss as ElectraChEBIDisjointLoss  # noq
 
 
 class ElectraPre(ChebaiBaseNet):
+    """
+    ElectraPre class represents an Electra model for pre-training inherited from ChebaiBaseNet.
+
+    Args:
+        config (dict): Configuration parameters for the Electra model.
+        **kwargs: Additional keyword arguments (passed to parent class).
+
+    Attributes:
+        NAME (str): Name of the ElectraPre model.
+        generator_config (ElectraConfig): Configuration for the generator model.
+        generator (ElectraForMaskedLM): Generator model for masked language modeling.
+        discriminator_config (ElectraConfig): Configuration for the discriminator model.
+        discriminator (ElectraForPreTraining): Discriminator model for pre-training.
+        replace_p (float): Probability of replacing tokens during training.
+
+    """
+
     NAME = "ElectraPre"
 
     def __init__(self, config=None, **kwargs):
@@ -34,12 +51,32 @@ class ElectraPre(ChebaiBaseNet):
 
     @property
     def as_pretrained(self):
+        """
+        Returns the discriminator model as a pre-trained model.
+
+        Returns:
+            ElectraForPreTraining: The discriminator model.
+
+        """
         return self.discriminator
 
     def _process_labels_in_batch(self, batch):
         return None
 
     def forward(self, data, **kwargs):
+        """
+        Forward pass of the ElectraPre model.
+
+        Args:
+            data (dict): Input data.
+            **kwargs: Additional keyword arguments.
+
+        Returns:
+            tuple: A tuple containing the raw generator output and discriminator output.
+            The generator output is a tensor of shape (batch_size, max_seq_len, vocab_size).
+            The discriminator output is a tensor of shape (batch_size, max_seq_len).
+
+        """
         features = data["features"]
         features = features.long()
         self.batch_size = batch_size = features.shape[0]
@@ -96,9 +133,35 @@ def filter_dict(d, filter_key):
 
 
 class Electra(ChebaiBaseNet):
+    """
+    Electra model implementation inherited from ChebaiBaseNet.
+
+    Args:
+        config (dict, optional): Configuration parameters for the Electra model. Defaults to None.
+        pretrained_checkpoint (str, optional): Path to the pretrained checkpoint file. Defaults to None.
+        load_prefix (str, optional): Prefix to filter the state_dict keys from the pretrained checkpoint. Defaults to None.
+        **kwargs: Additional keyword arguments.
+
+    Attributes:
+        NAME (str): Name of the Electra model.
+
+    """
+
     NAME = "Electra"
 
     def _process_batch(self, batch, batch_idx):
+        """
+        Process a batch of data.
+
+        Args:
+            batch (XYData): The input batch of data.
+            batch_idx (int): The index of the batch (not used).
+
+        Returns:
+            dict: A dictionary containing the processed batch, keys are `features`, `labels`, `model_kwargs`,
+                `loss_kwargs` and `idents`.
+
+        """
         model_kwargs = dict()
         loss_kwargs = batch.additional_fields["loss_kwargs"]
         if "lens" in batch.additional_fields["model_kwargs"]:
@@ -125,6 +188,13 @@ class Electra(ChebaiBaseNet):
 
     @property
     def as_pretrained(self):
+        """
+        Get the pretrained Electra model.
+
+        Returns:
+            ElectraModel: The pretrained Electra model.
+
+        """
         return self.electra.electra
 
     def __init__(
@@ -149,6 +219,8 @@ class Electra(ChebaiBaseNet):
             nn.Dropout(self.config.hidden_dropout_prob),
             nn.Linear(in_d, self.config.num_labels),
         )
+
+        # Load pretrained checkpoint if provided
         if pretrained_checkpoint:
             with open(pretrained_checkpoint, "rb") as fin:
                 model_dict = torch.load(fin, map_location=self.device)
@@ -163,12 +235,36 @@ class Electra(ChebaiBaseNet):
             self.electra = ElectraModel(config=self.config)
 
     def _process_for_loss(self, model_output, labels, loss_kwargs):
+        """
+        Process the model output for calculating the loss.
+
+        Args:
+            model_output (dict): The output of the model.
+            labels (Tensor): The target labels.
+            loss_kwargs (dict): Additional loss arguments.
+
+        Returns:
+            tuple: A tuple containing the processed model output, labels, and loss arguments.
+
+        """
         kwargs_copy = dict(loss_kwargs)
         if labels is not None:
             labels = labels.float()
         return model_output["logits"], labels, kwargs_copy
 
     def _get_prediction_and_labels(self, data, labels, model_output):
+        """
+        Get the predictions and labels from the model output. Applies a sigmoid to the model output.
+
+        Args:
+            data (dict): The input data.
+            labels (Tensor): The target labels.
+            model_output (dict): The output of the model.
+
+        Returns:
+            tuple: A tuple containing the predictions and labels.
+
+        """
         d = model_output["logits"]
         loss_kwargs = data.get("loss_kwargs", dict())
         if "non_null_labels" in loss_kwargs:
@@ -177,6 +273,16 @@ class Electra(ChebaiBaseNet):
         return torch.sigmoid(d), labels.int() if labels is not None else None
 
     def forward(self, data, **kwargs):
+        """
+        Forward pass of the Electra model.
+
+        Args:
+            data (dict): The input data (expects a key `features`).
+            **kwargs: Additional keyword arguments for `self.electra`.
+
+        Returns:
+            dict: A dictionary containing the model output (logits and attentions).
+        """
         self.batch_size = data["features"].shape[0]
         try:
             inp = self.electra.embeddings.forward(data["features"].int())

@@ -110,6 +110,21 @@ class JCITokenData(JCIBase):
 
 
 class _ChEBIDataExtractor(XYBaseDataModule, ABC):
+    """
+    A class for extracting and processing data from the ChEBI dataset.
+
+    Args:
+        chebi_version_train (int, optional): The version of ChEBI to use for training and validation. If not set,
+            chebi_version will be used for training, validation and test. Defaults to None.
+        single_class (int, optional): The ID of the single class to predict. If not set, all available labels will be
+            predicted. Defaults to None.
+        **kwargs: Additional keyword arguments (passed to XYBaseDataModule).
+
+    Attributes:
+        single_class (int): The ID of the single class to predict.
+        chebi_version_train (int): The version of ChEBI to use for training and validation.
+    """
+
     def __init__(
         self, chebi_version_train: int = None, single_class: int = None, **kwargs
     ):
@@ -121,6 +136,15 @@ class _ChEBIDataExtractor(XYBaseDataModule, ABC):
         self.chebi_version_train = chebi_version_train
 
     def extract_class_hierarchy(self, chebi_path):
+        """
+        Extracts the class hierarchy from the ChEBI ontology.
+
+        Args:
+            chebi_path (str): The path to the ChEBI ontology.
+
+        Returns:
+            nx.DiGraph: The class hierarchy.
+        """
         with open(chebi_path, encoding="utf-8") as chebi:
             chebi = "\n".join(l for l in chebi if not l.startswith("xref:"))
         elements = [
@@ -171,6 +195,15 @@ class _ChEBIDataExtractor(XYBaseDataModule, ABC):
         pickle.dump(data, open(os.path.join(self.raw_dir, filename), "wb"))
 
     def _load_dict(self, input_file_path):
+        """
+        Loads a dictionary from a pickled file, yielding individual dictionaries for each row.
+
+        Args:
+            input_file_path (str): The path to the file.
+
+        Yields:
+            dict: The dictionary, keys are `features`, `labels` and `ident`.
+        """
         with open(input_file_path, "rb") as input_file:
             df = pickle.load(input_file)
             if self.single_class is not None:
@@ -259,7 +292,18 @@ class _ChEBIDataExtractor(XYBaseDataModule, ABC):
         return df_train, df_test
 
     def get_train_val_splits_given_test(self, df: pd.DataFrame, test_df: pd.DataFrame):
-        """Use test set (e.g., loaded from another chebi version or generated in get_test_split), avoid overlap"""
+        """
+        Split the dataset into train and validation sets, given a test set.
+        Use test set (e.g., loaded from another chebi version or generated in get_test_split), avoid overlap
+
+        Args:
+            df (pd.DataFrame): The original dataset.
+            test_df (pd.DataFrame): The test dataset.
+
+        Returns:
+            dict: A dictionary containing the train and validation sets.
+                The keys are the names of the train and validation sets, and the values are the corresponding DataFrames.
+        """
         print(f"Split dataset into train / val with given test set")
 
         df_trainval = df
@@ -367,6 +411,15 @@ class _ChEBIDataExtractor(XYBaseDataModule, ABC):
         return list(self.raw_file_names_dict.values())
 
     def _load_chebi(self, version: int):
+        """
+        Load the ChEBI ontology file.
+
+        Args:
+            version (int): The version of the ChEBI ontology to load.
+
+        Returns:
+            str: The file path of the loaded ChEBI ontology.
+        """
         chebi_name = (
             f"chebi.obo" if version == self.chebi_version else f"chebi_v{version}.obo"
         )
@@ -379,6 +432,21 @@ class _ChEBIDataExtractor(XYBaseDataModule, ABC):
         return chebi_path
 
     def prepare_data(self, *args, **kwargs):
+        """
+        Prepares the data for the Chebi dataset.
+
+        This method checks for the presence of raw data in the specified directory.
+        If the raw data is missing, it fetches the ontology and creates a test test set.
+        If the test set already exists, it loads it from the file.
+        Then, it creates the train/validation split based on the test set.
+
+        Args:
+            *args: Variable length argument list.
+            **kwargs: Arbitrary keyword arguments.
+
+        Returns:
+            None
+        """
         print("Check for raw data in", self.raw_dir)
         if any(
             not os.path.isfile(os.path.join(self.raw_dir, f))
@@ -436,6 +504,16 @@ class JCIExtendedBase(_ChEBIDataExtractor):
 
 
 class ChEBIOverX(_ChEBIDataExtractor):
+    """
+    A class for extracting data from the ChEBI dataset with a threshold for selecting classes.
+
+    Attributes:
+        LABEL_INDEX (int): The index of the label in the dataset.
+        SMILES_INDEX (int): The index of the SMILES string in the dataset.
+        READER (ChemDataReader): The reader used for reading the dataset.
+        THRESHOLD (None): The threshold for selecting classes.
+    """
+
     LABEL_INDEX = 3
     SMILES_INDEX = 2
     READER = dr.ChemDataReader
@@ -450,6 +528,18 @@ class ChEBIOverX(_ChEBIDataExtractor):
         return f"ChEBI{self.THRESHOLD}"
 
     def select_classes(self, g, split_name, *args, **kwargs):
+        """
+        Selects classes from the ChEBI dataset.
+
+        Args:
+            g (Graph): The graph representing the dataset.
+            split_name (str): The name of the split.
+            *args: Additional arguments (not used).
+            **kwargs: Additional keyword arguments (not used).
+
+        Returns:
+            list: The list of selected classes.
+        """
         smiles = nx.get_node_attributes(g, "smiles")
         nodes = list(
             sorted(
@@ -555,6 +645,22 @@ def chebi_to_int(s):
 
 
 def term_callback(doc):
+    """
+    Extracts information from a ChEBI term document.
+    This function takes a ChEBI term document as input and extracts relevant information such as the term ID, parents,
+    parts, name, and SMILES string. It returns a dictionary containing the extracted information.
+
+    Args:
+    - doc: A ChEBI term document.
+
+    Returns:
+    A dictionary containing the following keys:
+    - "id": The ID of the ChEBI term.
+    - "parents": A list of parent term IDs.
+    - "has_part": A set of term IDs representing the parts of the ChEBI term.
+    - "name": The name of the ChEBI term.
+    - "smiles": The SMILES string associated with the ChEBI term, if available.
+    """
     parts = set()
     parents = []
     name = None
