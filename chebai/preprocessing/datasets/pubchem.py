@@ -13,6 +13,7 @@ import random
 import shutil
 import tempfile
 
+import pandas as pd
 from sklearn.model_selection import train_test_split
 import requests
 import torch
@@ -26,6 +27,8 @@ from chebai.preprocessing.datasets.chebi import (
     ChEBIOver100,
     ChEBIOverX,
 )
+from rdkit import Chem, DataStructs
+from rdkit.Chem import AllChem
 
 
 class PubChem(XYBaseDataModule):
@@ -33,6 +36,7 @@ class PubChem(XYBaseDataModule):
     LABEL_INDEX = 1
     FULL = 0
     UNLABELED = True
+    READER = dr.ChemDataReader
 
     def __init__(self, *args, k=100000, **kwargs):
         self._k = k
@@ -69,8 +73,8 @@ class PubChem(XYBaseDataModule):
                 yield dict(features=smiles, labels=None, ident=ident)
 
     def download(self):
-        if self._k == PubChem.FULL:
-            if not os.path.isfile(os.path.join(self.raw_dir, "smiles.txt")):
+        if not os.path.isfile(os.path.join(self.raw_dir, "smiles.txt")):
+            if self._k == PubChem.FULL:
                 print("Download from", self.pubchem_url)
                 r = requests.get(self.pubchem_url, allow_redirects=True)
                 with tempfile.NamedTemporaryFile() as tf:
@@ -82,21 +86,23 @@ class PubChem(XYBaseDataModule):
                             os.path.join(self.raw_dir, "smiles.txt"), "wb"
                         ) as f_out:
                             shutil.copyfileobj(f_in, f_out)
-        else:
-            full_dataset = self.__class__(k=PubChem.FULL)
-            full_dataset.download()
-            with open(os.path.join(full_dataset.raw_dir, "smiles.txt"), "r") as f_in:
-                lines = sum(1 for _ in f_in)
-                selected = frozenset(random.sample(list(range(lines)), k=self._k))
-                f_in.seek(0)
-                selected_lines = list(
-                    filter(
-                        lambda x: x[0] in selected,
-                        enumerate(tqdm.tqdm(f_in, total=lines)),
+            else:
+                full_dataset = self.__class__(k=PubChem.FULL)
+                full_dataset.download()
+                with open(
+                    os.path.join(full_dataset.raw_dir, "smiles.txt"), "r"
+                ) as f_in:
+                    lines = sum(1 for _ in f_in)
+                    selected = frozenset(random.sample(list(range(lines)), k=self._k))
+                    f_in.seek(0)
+                    selected_lines = list(
+                        filter(
+                            lambda x: x[0] in selected,
+                            enumerate(tqdm.tqdm(f_in, total=lines)),
+                        )
                     )
-                )
-            with open(os.path.join(self.raw_dir, "smiles.txt"), "w") as f_out:
-                f_out.writelines([l for i, l in selected_lines])
+                with open(os.path.join(self.raw_dir, "smiles.txt"), "w") as f_out:
+                    f_out.writelines([l for i, l in selected_lines])
 
     def setup_processed(self):
         # Collect token distribution
@@ -110,6 +116,8 @@ class PubChem(XYBaseDataModule):
         torch.save(train, os.path.join(self.processed_dir, f"train.pt"))
         torch.save(test, os.path.join(self.processed_dir, f"test.pt"))
         torch.save(val, os.path.join(self.processed_dir, f"validation.pt"))
+
+        self.reader.on_finish()
 
     @property
     def raw_file_names(self):
@@ -128,6 +136,83 @@ class PubChem(XYBaseDataModule):
             print("Downloading data. This may take some time...")
             self.download()
             print("Done")
+
+
+class PubChemDissimilar(PubChem):
+    """Subset of PubChem, but choosing the most dissimilar molecules (according to fingerprint)"""
+
+    def __init__(
+        self, *args, k=100000, n_random_subsets=100, random_size_factor=5, **kwargs
+    ):
+        """k: number of entries in this dataset,
+        n_random_subsets: number of subsets of random data from which to draw
+        the most dissimilar molecules,
+        random_size_factor: size of random subsets (in total) in relation to k"""
+        self.n_random_subsets = n_random_subsets
+        self.random_size_factor = random_size_factor
+        super(PubChemDissimilar, self).__init__(*args, k=k, **kwargs)
+
+    @property
+    def _name(self):
+        return f"PubchemDissimilar"
+
+    def download(self):
+        if self._k == PubChem.FULL:
+            super().download()
+        else:
+            # split random subset into n parts, from each part, select the most dissimilar entities
+            random_dataset = PubChem(k=self._k * self.random_size_factor)
+            random_dataset.download()
+
+            with open(os.path.join(random_dataset.raw_dir, "smiles.txt"), "r") as f_in:
+                random_smiles = [
+                    [x.strip() for x in s.split("\t")] for s in f_in.readlines()
+                ]
+                fpgen = AllChem.GetRDKitFPGenerator()
+                selected_smiles = []
+                print(f"Selecting most dissimilar values from random subsets...")
+                for i in tqdm.tqdm(range(self.n_random_subsets)):
+                    smiles_i = random_smiles[
+                        i
+                        * len(random_smiles)
+                        // self.n_random_subsets : (i + 1)
+                        * len(random_smiles)
+                        // self.n_random_subsets
+                    ]
+                    mols_i = [Chem.MolFromSmiles(smiles) for _, smiles in smiles_i]
+                    fps = [
+                        fpgen.GetFingerprint(m) if m is not None else m for m in mols_i
+                    ]
+                    nonnull_fps = [fp for fp in fps if fp is not None]
+                    similarity = []
+                    for i, fp in enumerate(fps):
+                        try:
+                            if fp is not None:
+                                bulk = DataStructs.BulkTanimotoSimilarity(
+                                    fp, nonnull_fps
+                                )
+                                similarity.append(sum(bulk))
+                            else:
+                                similarity.append(len(smiles_i))
+                        except Exception as e:
+                            print(i, smiles_i[i])
+                            print(e.with_traceback(None))
+                            similarity.append(len(smiles_i))
+
+                    similarity = sorted(zip(smiles_i, similarity), key=lambda x: x[1])
+                    selected_smiles += list(
+                        list(
+                            zip(*similarity[: len(smiles_i) // self.random_size_factor])
+                        )[0]
+                    )
+            with open(os.path.join(self.raw_dir, "smiles.txt"), "w") as f_out:
+                f_out.writelines(
+                    "\n".join(["\t".join(smiles) for smiles in selected_smiles])
+                )
+
+
+class PubChemDissimilarSMILES(PubChemDissimilar):
+    READER = dr.ChemDataReader
 
 
 class SWJPreChem(PubChem):
@@ -194,19 +279,39 @@ class Hazardous(SWJChem):
 
     @property
     def _name(self):
-        return f"hazardous"
+        return f"PubChemHazardous"
 
-    @staticmethod
-    def _load_dict(input_file_path):
-        with open(input_file_path, "r") as input_file:
-            for row in input_file:
-                smiles = row.strip()
-                yield dict(features=smiles, labels=None)
+    def setup_processed(self):
+        # Collect token distribution
+        filename = os.path.join(self.raw_dir, self.raw_file_names[0])
+        print("Load data from file", filename)
+        data = self._load_data_from_file(filename)
+        torch.save(data, os.path.join(self.processed_dir, f"all.pt"))
+
+        self.reader.on_finish()
+
+    def processed_file_names(self):
+        return ["all.pt"]
 
     def download(self):
-        raise Exception(
-            "This dataset is not publicly available, yet. Please supply raw data manually."
-        )
+        # requires the / a hazardous subset from pubchem, e.g. obtained by entering
+        # "PubChem: PubChem Compound TOC: GHS Classification" in the pubchem search -> download -> csv
+        csv_path = os.path.join(self.raw_dir, "pubchem_hazardous_compound_list.csv")
+        compounds = pd.read_csv(csv_path)
+        smiles_list = []
+        for id, compound in compounds.iterrows():
+            if (
+                not isinstance(compound["cmpdsynonym"], str)
+                or "CHEBI" not in compound["cmpdsynonym"]
+            ):
+                smiles_list.append(f"{compound['cid']}\t{compound['isosmiles']}")
+        with open(os.path.join(self.raw_dir, "smiles.txt"), "w") as f:
+            f.write("\n".join(smiles_list))
+
+
+if __name__ == "__main__":
+    haz = Hazardous()
+    haz.setup_processed()
 
 
 class SWJPreChem(PubChem):
@@ -224,18 +329,19 @@ class SWJPreChem(PubChem):
         return (self.reader.name(),)
 
 
-class PubToxAndChebiX(XYBaseDataModule):
+class LabeledUnlabeledMixed(XYBaseDataModule):
     READER = dr.ChemDataReader
-    CHEBI_X = ChEBIOverX
 
-    def __init__(self, *args, **kwargs):
-        self.labeled = self.CHEBI_X(*args, **kwargs)
-        self.unlabeled = PubchemChem(*args, **kwargs)
+    def __init__(
+        self, labeled: XYBaseDataModule, unlabeled: XYBaseDataModule, *args, **kwargs
+    ):
+        self.labeled = labeled
+        self.unlabeled = unlabeled
         super().__init__(*args, **kwargs)
 
     @property
     def _name(self):
-        return "PubToxU" + self.labeled._name
+        return f"Mixed_{self.labeled._name}_{self.unlabeled._name}"
 
     def dataloader(self, kind, **kwargs):
         labeled_data = torch.load(
@@ -265,6 +371,20 @@ class PubToxAndChebiX(XYBaseDataModule):
     def setup_processed(self):
         self.labeled.setup()
         self.unlabeled.setup()
+
+
+class PubToxAndChebiX(LabeledUnlabeledMixed):
+    READER = dr.ChemDataReader
+    CHEBI_X = ChEBIOverX
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(
+            self.CHEBI_X(*args, **kwargs), PubchemChem(*args, **kwargs), *args, **kwargs
+        )
+
+    @property
+    def _name(self):
+        return "PubToxU" + self.labeled._name
 
 
 class PubToxAndChebi100(PubToxAndChebiX):
