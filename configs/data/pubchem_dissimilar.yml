@@ -1,0 +1,3 @@
+class_path: chebai.preprocessing.datasets.pubchem.PubChemDissimilarSMILES
+init_args:
+  k: 200000

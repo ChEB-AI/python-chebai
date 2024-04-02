@@ -1,1 +1,3 @@
 class_path: chebai.preprocessing.datasets.chebi.ChEBIOver100
+init_args:
+  chebi_version: 231
