@@ -16,7 +16,7 @@ from chebai.callbacks.epoch_metrics import MacroF1
 from chebai.models import ChebaiBaseNet
 from chebai.models.electra import Electra
 from chebai.preprocessing.datasets import XYBaseDataModule
-from utils import *
+from chebai.result.utils import *
 
 
 def visualise_f1(logs_path):
