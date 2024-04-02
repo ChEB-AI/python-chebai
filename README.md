@@ -1,6 +1,7 @@
 # ChEBai
 
-ChEBai is a deep learning library designed for the integration of deep learning methods with chemical ontologies, particularly ChEBI. The library emphasizes the incorporation of the semantic qualities of the ontology into the learning process.
+ChEBai is a deep learning library designed for the integration of deep learning methods with chemical ontologies, particularly ChEBI. 
+The library emphasizes the incorporation of the semantic qualities of the ontology into the learning process.
 
 ## Installation
 
@@ -20,25 +21,23 @@ pip install .
 
 ## Usage
 
-The training and inference is abstracted using the Pytorch Lightning modules. Here are some quick CLI commands on using ChEBai for pretraining, finetuning, ontology extension and prediction:
+The training and inference is abstracted using the Pytorch Lightning modules. 
+Here are some CLI commands for the standard functionalities of pretraining, ontology extension, fine-tuning for toxicity and prediction.
+For further details, see the [wiki](https://github.com/ChEB-AI/python-chebai/wiki).
+If you face any problems, please open a new [issue](https://github.com/ChEB-AI/python-chebai/issues/new).
 
 ### Pretraining
 ```
-python -m chebai fit --data.class_path=chebai.preprocessing.datasets.pubchem.SWJChem --model=configs/model/electra-for-pretraining.yml --trainer=configs/training/default_trainer.yml --trainer.callbacks=configs/training/default_callbacks.yml
+python -m chebai fit --data.class_path=chebai.preprocessing.datasets.pubchem.PubchemChem --model=configs/model/electra-for-pretraining.yml --trainer=configs/training/pretraining_trainer.yml
 ```
-
-### Finetuning for predicting classes given SMILES strings
-
-Adapt the pretrained model for specific tasks:
-
-```
-python3 -m chebai fit --trainer=configs/training/default_trainer.yml --trainer.logger=configs/training/csv_logger.yml --model=configs/model/electra.yml --model.train_metrics=configs/metrics/micro-macro-f1.yml --model.test_metrics=configs/metrics/micro-macro-f1.yml --model.val_metrics=configs/metrics/micro-macro-f1.yml --model.pretrained_checkpoint=electra_pretrained.ckpt --model.load_prefix=generator. --data=configs/data/chebi50.yml --model.out_dim=1446 --model.criterion=configs/loss/bce.yml --data.init_args.batch_size=10 --trainer.logger.init_args.name=chebi50_bce_unweighted --data.init_args.num_workers=9 --model.pass_loss_kwargs=false --data.init_args.chebi_version=227 --data.init_args.data_limit=1000
-```
-Note: Please make sure you have the pretrained model checkpoint.
 
 ### Structure-based ontology extension
 ```
-python -m chebai fit --config=[path-to-your-electra_chebi100-config] --trainer.callbacks=configs/training/default_callbacks.yml  --model.pretrained_checkpoint=[path-to-pretrained-model] --model.load_prefix=generator.
+python -m chebai fit --trainer=configs/training/default_trainer.yml --model=configs/model/electra.yml  --model.pretrained_checkpoint=[path-to-pretrained-model] --model.load_prefix=generator. --data=[path-to-dataset-config] --model.out_dim=[number-of-labels]
+```
+A command with additional options may look like this:
+```
+python3 -m chebai fit --trainer=configs/training/default_trainer.yml --model=configs/model/electra.yml --model.train_metrics=configs/metrics/micro-macro-f1.yml --model.test_metrics=configs/metrics/micro-macro-f1.yml --model.val_metrics=configs/metrics/micro-macro-f1.yml --model.pretrained_checkpoint=electra_pretrained.ckpt --model.load_prefix=generator. --data=configs/data/chebi50.yml --model.out_dim=1446 --model.criterion=configs/loss/bce.yml --data.init_args.batch_size=10 --trainer.logger.init_args.name=chebi50_bce_unweighted --data.init_args.num_workers=9 --model.pass_loss_kwargs=false --data.init_args.chebi_version=231 --data.init_args.data_limit=1000
 ```
 
 ### Fine-tuning for Toxicity prediction
@@ -55,7 +54,8 @@ one row for each SMILES string and one column for each class.
 
 ## Evaluation
 
-The finetuned model for predicting classes using the SMILES strings can be evaluated using the following python notebook `eval_model_basic.ipynb` in the root dir. It takes in the finetuned model as input for performing the evaluation.
+An example for evaluating a model trained on the ontology extension task is given in `tutorials/eval_model_basic.ipynb`. 
+It takes in the finetuned model as input for performing the evaluation.
 
 ## Cross-validation
 You can do inner k-fold cross-validation, i.e., train models on k train-validation splits that all use the same test 
