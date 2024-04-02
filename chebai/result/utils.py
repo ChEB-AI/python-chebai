@@ -8,9 +8,10 @@ import tqdm
 import torch
 
 
-def get_checkpoint(
+def get_checkpoint_from_wandb(
     epoch, run, root=os.path.join("logs", "downloaded_ckpts"), model_class=None
 ):
+    """Gets wandb checkpoint based on run and epoch, downloads it if necessary"""
     api = wandb.Api()
     if model_class is None:
         model_class = Electra
