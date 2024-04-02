@@ -2,9 +2,6 @@ min_epochs: 100
 max_epochs: 100
 
 default_root_dir: &default_root_dir logs
-logger:
-    class_path: lightning.pytorch.loggers.CSVLogger
-    init_args:
-      save_dir: *default_root_dir
+logger: csv_logger.yml
 
 callbacks: pretraining_callbacks.yml

@@ -28,6 +28,21 @@ import torch
 from chebai.preprocessing import reader as dr
 from chebai.preprocessing.datasets.base import XYBaseDataModule
 
+# exclude some entities from the dataset because the violate disjointness axioms
+CHEBI_BLACKLIST = [
+    194026,
+    144321,
+    156504,
+    167175,
+    167174,
+    167178,
+    183506,
+    74635,
+    3311,
+    190439,
+    92386,
+]
+
 
 class JCIBase(XYBaseDataModule):
     LABEL_INDEX = 2
@@ -170,6 +185,7 @@ class _ChEBIDataExtractor(XYBaseDataModule, ABC):
 
         data = pd.DataFrame(data)
         data = data[~data["SMILES"].isnull()]
+        data = data[[name not in CHEBI_BLACKLIST for name, _ in data.iterrows()]]
         data = data[data.iloc[:, 3:].any(axis=1)]
         return data
 
