@@ -18,7 +18,8 @@ from chebai.preprocessing.reader import CLS_TOKEN, MASK_TOKEN_INDEX
 
 logging.getLogger("pysmiles").setLevel(logging.CRITICAL)
 
-from chebai.loss.semantic import DisjointLoss as ElectraChEBIDisjointLoss # noqa
+from chebai.loss.semantic import DisjointLoss as ElectraChEBIDisjointLoss  # noqa
+
 
 class ElectraPre(ChebaiBaseNet):
     NAME = "ElectraPre"

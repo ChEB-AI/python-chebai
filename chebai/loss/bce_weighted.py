@@ -15,7 +15,6 @@ class BCEWeighted(torch.nn.BCEWithLogitsLoss):
         self.data_extractor = data_extractor
         super().__init__()
 
-
     def set_pos_weight(self, input):
         if (
             self.beta is not None
@@ -23,7 +22,8 @@ class BCEWeighted(torch.nn.BCEWithLogitsLoss):
             and all(
                 os.path.exists(os.path.join(self.data_extractor.raw_dir, raw_file))
                 for raw_file in self.data_extractor.raw_file_names
-            ) and self.pos_weight is None
+            )
+            and self.pos_weight is None
         ):
             complete_data = pd.concat(
                 [
@@ -42,9 +42,13 @@ class BCEWeighted(torch.nn.BCEWithLogitsLoss):
             value_counts = []
             for c in complete_data.columns[3:]:
                 value_counts.append(len([v for v in complete_data[c] if v]))
-            weights = [(1 - self.beta) / (1 - pow(self.beta, value)) for value in value_counts]
+            weights = [
+                (1 - self.beta) / (1 - pow(self.beta, value)) for value in value_counts
+            ]
             mean = sum(weights) / len(weights)
-            self.pos_weight = torch.tensor([w / mean for w in weights], device=input.device)
+            self.pos_weight = torch.tensor(
+                [w / mean for w in weights], device=input.device
+            )
 
     def forward(self, input: torch.Tensor, target: torch.Tensor) -> torch.Tensor:
         self.set_pos_weight(input)

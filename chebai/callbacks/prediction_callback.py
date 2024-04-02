@@ -3,6 +3,7 @@ import torch
 import os
 import pickle
 
+
 class PredictionWriter(BasePredictionWriter):
     def __init__(self, output_dir, write_interval):
         super().__init__(write_interval)
@@ -10,7 +11,15 @@ class PredictionWriter(BasePredictionWriter):
         self.prediction_file_name = "predictions.pkl"
 
     def write_on_epoch_end(self, trainer, pl_module, predictions, batch_indices):
-        results = [dict(ident=row["data"]["idents"][0], predictions=torch.sigmoid(row["output"]["logits"]).numpy(),
-              labels=row["labels"][0].numpy() if row["labels"] is not None else None) for row in predictions]
-        with open(os.path.join(self.output_dir, self.prediction_file_name), "wb") as fout:
+        results = [
+            dict(
+                ident=row["data"]["idents"][0],
+                predictions=torch.sigmoid(row["output"]["logits"]).numpy(),
+                labels=row["labels"][0].numpy() if row["labels"] is not None else None,
+            )
+            for row in predictions
+        ]
+        with open(
+            os.path.join(self.output_dir, self.prediction_file_name), "wb"
+        ) as fout:
             pickle.dump(results, fout)
