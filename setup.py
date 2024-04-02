@@ -14,6 +14,7 @@ setup(
     author_email="martin.glauer@ovgu.de",
     description="",
     zip_safe=False,
+    python_requires="<=3.11.8",
     install_requires=[
         "certifi",
         "idna",
@@ -45,7 +46,7 @@ setup(
         "seaborn",
         "deepsmiles",
         "iterative-stratification",
-        "wandb"
+        "wandb",
     ],
     extras_require={"dev": ["black", "isort", "pre-commit"]},
 )

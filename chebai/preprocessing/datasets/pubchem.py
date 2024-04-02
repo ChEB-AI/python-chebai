@@ -18,6 +18,7 @@ from sklearn.model_selection import train_test_split
 import requests
 import torch
 import tqdm
+from datetime import datetime
 
 from chebai.preprocessing import reader as dr
 from chebai.preprocessing.datasets.base import DataLoader, XYBaseDataModule
@@ -39,7 +40,9 @@ class PubChem(XYBaseDataModule):
 
     def __init__(self, *args, k=100000, **kwargs):
         self._k = k
-        self.pubchem_url = "https://ftp.ncbi.nlm.nih.gov/pubchem/Compound/Monthly/2024-03-01/Extras/CID-SMILES.gz"
+        current_year = datetime.today().year
+        current_month = datetime.today().month
+        self.pubchem_url = f"https://ftp.ncbi.nlm.nih.gov/pubchem/Compound/Monthly/{current_year}-{current_month:02d}-01/Extras/CID-SMILES.gz"
 
         super(PubChem, self).__init__(*args, **kwargs)
 
