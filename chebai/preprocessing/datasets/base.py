@@ -22,14 +22,14 @@ class XYBaseDataModule(LightningDataModule):
 
     Args:
         batch_size (int): The batch size for data loading. Default is 1.
-        train_split (float): The ratio of training data to total data. Default is 0.85.
+        train_split (float): The ratio of training data to total data and of test data to (validation + test) data. Default is 0.85.
         reader_kwargs (dict): Additional keyword arguments to be passed to the data reader. Default is None.
-        prediction_kind (str): The kind of prediction to be performed. Default is "test".
-        data_limit (int): The maximum number of data samples to load. Default is None.
+        prediction_kind (str): The kind of prediction to be performed (only relevant for the predict_dataloader). Default is "test".
+        data_limit (int): The maximum number of data samples to load. If set to None, the complete dataset will be used. Default is None.
         label_filter (int): The index of the label to filter. Default is None.
         balance_after_filter (float): The ratio of negative samples to positive samples after filtering. Default is None.
         num_workers (int): The number of worker processes for data loading. Default is 1.
-        chebi_version (int): The version of ChEBI database to use. Default is 200.
+        chebi_version (int): The version of ChEBI to use. Default is 200.
         inner_k_folds (int): The number of folds for inner cross-validation. Use -1 to disable inner cross-validation. Default is -1.
         fold_index (int): The index of the fold to use for training and validation. Default is None.
         base_dir (str): The base directory for storing processed and raw data. Default is None.
@@ -45,9 +45,9 @@ class XYBaseDataModule(LightningDataModule):
         label_filter (int): The index of the label to filter.
         balance_after_filter (float): The ratio of negative samples to positive samples after filtering.
         num_workers (int): The number of worker processes for data loading.
-        chebi_version (int): The version of ChEBI database to use.
-        inner_k_folds (int): The number of folds for inner cross-validation.
-        fold_index (int): The index of the fold to use for training and validation.
+        chebi_version (int): The version of ChEBI to use.
+        inner_k_folds (int): The number of folds for inner cross-validation. If it is less than to, no cross-validation will be performed.
+        fold_index (int): The index of the fold to use for training and validation (only relevant for cross-validation)
         _base_dir (str): The base directory for storing processed and raw data.
         raw_dir (str): The directory for storing raw data.
         processed_dir (str): The directory for storing processed data.

@@ -23,11 +23,11 @@ from chebai.loss.semantic import DisjointLoss as ElectraChEBIDisjointLoss  # noq
 
 class ElectraPre(ChebaiBaseNet):
     """
-    ElectraPre class represents a pre-trained Electra model for pre-training inherited from ChebaiBaseNet.
+    ElectraPre class represents an Electra model for pre-training inherited from ChebaiBaseNet.
 
     Args:
         config (dict): Configuration parameters for the Electra model.
-        **kwargs: Additional keyword arguments.
+        **kwargs: Additional keyword arguments (passed to parent class).
 
     Attributes:
         NAME (str): Name of the ElectraPre model.
@@ -155,10 +155,11 @@ class Electra(ChebaiBaseNet):
 
         Args:
             batch (XYData): The input batch of data.
-            batch_idx (int): The index of the batch.
+            batch_idx (int): The index of the batch (not used).
 
         Returns:
-            dict: A dictionary containing the processed batch.
+            dict: A dictionary containing the processed batch, keys are `features`, `labels`, `model_kwargs`,
+                `loss_kwargs` and `idents`.
 
         """
         model_kwargs = dict()
@@ -253,7 +254,7 @@ class Electra(ChebaiBaseNet):
 
     def _get_prediction_and_labels(self, data, labels, model_output):
         """
-        Get the predictions and labels from the model output.
+        Get the predictions and labels from the model output. Applies a sigmoid to the model output.
 
         Args:
             data (dict): The input data.
@@ -276,12 +277,11 @@ class Electra(ChebaiBaseNet):
         Forward pass of the Electra model.
 
         Args:
-            data (dict): The input data.
-            **kwargs: Additional keyword arguments.
+            data (dict): The input data (expects a key `features`).
+            **kwargs: Additional keyword arguments for `self.electra`.
 
         Returns:
-            dict: A dictionary containing the model output.
-
+            dict: A dictionary containing the model output (logits and attentions).
         """
         self.batch_size = data["features"].shape[0]
         try:

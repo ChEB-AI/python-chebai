@@ -115,7 +115,7 @@ class ChebaiBaseNet(LightningModule):
             sync_dist (bool, optional): Whether to synchronize distributed training. Defaults to False.
 
         Returns:
-            dict: A dictionary containing the processed data, labels, model output, predictions, and loss (if applicable).
+            dict: A dictionary containing the processed data, labels, model_output, predictions, and loss (if applicable).
         """
         assert isinstance(batch, XYData)
         batch = batch.to(self.device)

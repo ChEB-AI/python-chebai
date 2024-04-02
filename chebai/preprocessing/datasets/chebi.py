@@ -114,9 +114,11 @@ class _ChEBIDataExtractor(XYBaseDataModule, ABC):
     A class for extracting and processing data from the ChEBI dataset.
 
     Args:
-        chebi_version_train (int, optional): The version of ChEBI to use for training and validation. Defaults to None.
-        single_class (int, optional): The ID of the single class to predict. Defaults to None.
-        **kwargs: Additional keyword arguments.
+        chebi_version_train (int, optional): The version of ChEBI to use for training and validation. If not set,
+            chebi_version will be used for training, validation and test. Defaults to None.
+        single_class (int, optional): The ID of the single class to predict. If not set, all available labels will be
+            predicted. Defaults to None.
+        **kwargs: Additional keyword arguments (passed to XYBaseDataModule).
 
     Attributes:
         single_class (int): The ID of the single class to predict.
@@ -135,10 +137,10 @@ class _ChEBIDataExtractor(XYBaseDataModule, ABC):
 
     def extract_class_hierarchy(self, chebi_path):
         """
-        Extract the class hierarchy from the ChEBI dataset.
+        Extracts the class hierarchy from the ChEBI ontology.
 
         Args:
-            chebi_path (str): The path to the ChEBI dataset.
+            chebi_path (str): The path to the ChEBI ontology.
 
         Returns:
             nx.DiGraph: The class hierarchy.
@@ -200,7 +202,7 @@ class _ChEBIDataExtractor(XYBaseDataModule, ABC):
             input_file_path (str): The path to the file.
 
         Yields:
-            dict: The dictionary.
+            dict: The dictionary, keys are `features`, `labels` and `ident`.
         """
         with open(input_file_path, "rb") as input_file:
             df = pickle.load(input_file)
@@ -434,7 +436,7 @@ class _ChEBIDataExtractor(XYBaseDataModule, ABC):
         Prepares the data for the Chebi dataset.
 
         This method checks for the presence of raw data in the specified directory.
-        If the raw data is missing, it fetches the data and creates the test set.
+        If the raw data is missing, it fetches the ontology and creates a test test set.
         If the test set already exists, it loads it from the file.
         Then, it creates the train/validation split based on the test set.
 
@@ -532,8 +534,8 @@ class ChEBIOverX(_ChEBIDataExtractor):
         Args:
             g (Graph): The graph representing the dataset.
             split_name (str): The name of the split.
-            *args: Additional arguments.
-            **kwargs: Additional keyword arguments.
+            *args: Additional arguments (not used).
+            **kwargs: Additional keyword arguments (not used).
 
         Returns:
             list: The list of selected classes.
