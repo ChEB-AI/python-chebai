@@ -17,6 +17,8 @@ import pandas as pd
 from sklearn.model_selection import train_test_split
 import requests
 import torch
+import time
+import numpy as np
 import tqdm
 from datetime import datetime
 
@@ -56,7 +58,7 @@ class PubChem(XYBaseDataModule):
 
     @property
     def split_label(self):
-        if self._k:
+        if self._k and self._k != self.FULL:
             return str(self._k)
         else:
             return "full"
@@ -211,6 +213,77 @@ class PubChemDissimilar(PubChem):
                 )
 
 
+class PubChemKMeans(PubChem):
+
+    def __init__(self, *args, n_clusters=1e4, random_size=1e6, **kwargs):
+        """k: number of entries in this dataset,
+        n_random_subsets: number of subsets of random data from which to draw
+        the most dissimilar molecules,
+        random_size_factor: size of random subsets (in total) in relation to k"""
+        self.n_clusters = int(n_clusters)
+        super(PubChemKMeans, self).__init__(*args, k=int(random_size), **kwargs)
+
+    @property
+    def _name(self):
+        return f"PubchemKMeans"
+
+    def download(self):
+        if self._k == PubChem.FULL:
+            super().download()
+        else:
+            print(f"Loading random dataset (size: {self._k})...")
+            random_dataset = PubChem(k=self._k)
+            random_dataset.download()
+            fingerprints_path = os.path.join(self.raw_dir, "fingerprints.pkl")
+            if not os.path.exists(fingerprints_path):
+                with open(
+                    os.path.join(random_dataset.raw_dir, "smiles.txt"), "r"
+                ) as f_in:
+                    random_smiles = [s.split("\t")[1].strip() for s in f_in.readlines()]
+                    fpgen = AllChem.GetRDKitFPGenerator()
+                    selected_smiles = []
+                    print(f"Converting SMILES to molecules...")
+                    mols = [Chem.MolFromSmiles(s) for s in tqdm.tqdm(random_smiles)]
+                    print(f"Generating Fingerprints...")
+                    fps = [
+                        fpgen.GetFingerprint(m) if m is not None else m
+                        for m in tqdm.tqdm(mols)
+                    ]
+                    similarity = []
+                    d = {"smiles": random_smiles, "fps": fps}
+                    df = pd.DataFrame(d, columns=["smiles", "fps"])
+                    df = df.dropna()
+                    df.to_pickle(open(fingerprints_path, "wb"))
+            else:
+                df = pd.read_pickle(open(fingerprints_path, "rb"))
+            fps = np.array([list(vec) for vec in df["fps"].tolist()])
+            print(f"Starting k-means clustering...")
+            start_time = time.perf_counter()
+            kmeans = KMeans(n_clusters=self.n_clusters, random_state=0, n_init="auto")
+            kmeans.fit(fps)
+            print(f"Finished k-means in {time.perf_counter() - start_time:.2f} seconds")
+            df["label"] = kmeans.labels_
+            df.to_pickle(
+                open(
+                    os.path.join(
+                        self.raw_dir, f"fingerprints_labeled_{self.n_clusters}.pkl"
+                    ),
+                    "wb",
+                )
+            )
+            cluster_df = pd.DataFrame(
+                data={"centers": [center for center in kmeans.cluster_centers_]}
+            )
+            cluster_df.to_pickle(
+                open(
+                    os.path.join(
+                        self.raw_dir, f"cluster_centers_{self.n_clusters}.pkl"
+                    ),
+                    "wb",
+                )
+            )
+
+
 class PubChemDissimilarSMILES(PubChemDissimilar):
     READER = dr.ChemDataReader
 
@@ -310,8 +383,8 @@ class Hazardous(SWJChem):
 
 
 if __name__ == "__main__":
-    haz = Hazardous()
-    haz.setup_processed()
+    kmeans_data = PubChemKMeans()
+    kmeans_data.download()
 
 
 class SWJPreChem(PubChem):
