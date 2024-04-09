@@ -1,6 +1,6 @@
 import pandas as pd
 import sys
-
+import traceback
 from datetime import datetime
 from chebai.loss.semantic import DisjointLoss
 from chebai.preprocessing.datasets.chebi import ChEBIOver100
@@ -59,15 +59,15 @@ def _sort_results_by_label(n_labels, results, filter):
 def get_best_epoch(run):
     files = run.files()
     best_ep = None
-    best_val_loss = 0
+    best_micro_f1 = 0
     for file in files:
         if file.name.startswith("checkpoints/best_epoch"):
-            val_loss = float(file.name.split("=")[2].split("_")[0])
-            if val_loss < best_val_loss or best_ep is None:
+            micro_f1 = float(file.name.split("=")[-1][:-5])
+            if micro_f1 > best_micro_f1 or best_ep is None:
                 best_ep = int(file.name.split("=")[1].split("_")[0])
-                best_val_loss = val_loss
+                best_micro_f1 = micro_f1
     if best_ep is None:
-        raise Exception("Could not find any 'best' checkpoint")
+        raise Exception(f"Could not find any 'best' checkpoint for run {run.name}")
     else:
         print(f"Best epoch for run {run.name}: {best_ep}")
     return best_ep
@@ -88,7 +88,42 @@ def load_preds_labels_from_wandb(
         f"{data_module.__class__.__name__}_{kind}",
     )
 
-    model = get_checkpoint_from_wandb(epoch, run)
+    model = get_checkpoint_from_wandb(epoch, run, map_device_to="cuda:0")
+    print(f"Calculating predictions...")
+    evaluate_model(
+        model,
+        data_module,
+        buffer_dir=buffer_dir,
+        filename=f"{kind}.pt",
+        skip_existing_preds=True,
+    )
+    preds, labels = load_results_from_buffer(buffer_dir, device=DEVICE)
+    del model
+    gc.collect()
+
+    return preds, labels
+
+
+def load_preds_labels_from_nonwandb(
+    name, epoch, chebi_version, test_on_data_cls=ChEBIOver100, kind="test"
+):
+    data_module = test_on_data_cls(chebi_version=chebi_version)
+
+    buffer_dir = os.path.join(
+        "results_buffer",
+        f"{name}_ep{epoch}",
+        f"{data_module.__class__.__name__}_{kind}",
+    )
+    ckpt_path = None
+    for file in os.listdir(os.path.join("logs", "downloaded_ckpts", name)):
+        if file.startswith(f"best_epoch={epoch}"):
+            ckpt_path = os.path.join(
+                os.path.join("logs", "downloaded_ckpts", name, file)
+            )
+    assert (
+        ckpt_path is not None
+    ), f"Could not find ckpt for epoch {epoch} in directory {os.path.join('logs', 'downloaded_ckpts', name)}"
+    model = Electra.load_from_checkpoint(ckpt_path, map_location="cuda:0", strict=False)
     print(f"Calculating predictions...")
     evaluate_model(
         model,
@@ -130,7 +165,6 @@ def analyse_run(
         (dl.implication_filter_l, dl.implication_filter_r, "impl"),
         (dl.disjoint_filter_l, dl.disjoint_filter_r, "disj"),
     ]:
-        print(f"Calculating on {filter_type} loss")
         # prepare predictions
         n_loss_terms = dl_filter_l.shape[0]
         preds_exp = preds.unsqueeze(2).expand((-1, -1, n_loss_terms)).swapaxes(1, 2)
@@ -218,7 +252,14 @@ def analyse_run(
     gc.collect()
 
 
-def run_all(run_ids, datasets=None, chebi_version=231):
+def run_all(
+    run_ids,
+    datasets=None,
+    chebi_version=231,
+    skip_analyse=False,
+    skip_preds=False,
+    nonwandb_runs=None,
+):
     # evaluate a list of runs on Hazardous and ChEBIOver100 datasets
     if datasets is None:
         datasets = [(Hazardous, "all"), (ChEBIOver100, "test")]
@@ -226,26 +267,120 @@ def run_all(run_ids, datasets=None, chebi_version=231):
     results_path = os.path.join(
         "_semloss_eval", f"semloss_results_pc-dis-200k_{timestamp}.csv"
     )
-
+    api = wandb.Api()
     for run_id in run_ids:
+        try:
+            run = api.run(f"chebai/chebai/{run_id}")
+            epoch = get_best_epoch(run)
+            for test_on, kind in datasets:
+                df = {
+                    "run-id": run_id,
+                    "epoch": int(epoch),
+                    "kind": kind,
+                    "data_module": test_on.__name__,
+                    "chebi_version": chebi_version,
+                }
+                if not skip_preds:
+                    preds, labels = load_preds_labels_from_wandb(
+                        run, epoch, chebi_version, test_on, kind
+                    )
+                else:
+                    buffer_dir = os.path.join(
+                        "results_buffer",
+                        f"{run.name}_ep{epoch}",
+                        f"{test_on.__name__}_{kind}",
+                    )
+                    preds, labels = load_results_from_buffer(buffer_dir, device=DEVICE)
+                if not skip_analyse:
+                    print(
+                        f"Calculating metrics for run {run.name} on {test_on.__name__} ({kind})"
+                    )
+                    analyse_run(
+                        preds,
+                        labels,
+                        df_hyperparams=df,
+                        chebi_version=chebi_version,
+                        results_path=results_path,
+                    )
+        except Exception as e:
+            print(f"Failed for run {run_id}: {e}")
+            print(traceback.format_exc())
+
+    if nonwandb_runs:
+        for run_name, epoch in nonwandb_runs:
+            try:
+                for test_on, kind in datasets:
+                    df = {
+                        "run-id": run_name,
+                        "epoch": int(epoch),
+                        "kind": kind,
+                        "data_module": test_on.__name__,
+                        "chebi_version": chebi_version,
+                    }
+                    if not skip_preds:
+                        preds, labels = load_preds_labels_from_nonwandb(
+                            run_name, epoch, chebi_version, test_on, kind
+                        )
+                    else:
+                        buffer_dir = os.path.join(
+                            "results_buffer",
+                            f"{run_name}_ep{epoch}",
+                            f"{test_on.__name__}_{kind}",
+                        )
+                        preds, labels = load_results_from_buffer(
+                            buffer_dir, device=DEVICE
+                        )
+                    if not skip_analyse:
+                        print(
+                            f"Calculating metrics for run {run_name} on {test_on.__name__} ({kind})"
+                        )
+                        analyse_run(
+                            preds,
+                            labels,
+                            df_hyperparams=df,
+                            chebi_version=chebi_version,
+                            results_path=results_path,
+                        )
+            except Exception as e:
+                print(f"Failed for run {run_name}: {e}")
+                print(traceback.format_exc())
+
+
+def run_semloss_eval(mode="eval"):
+    non_wandb_runs = (
+        []
+    )  # ("chebi100_semprodk2_weighted_v231_pc_200k_dis_24042-2000", 195)]
+    if mode == "preds":
         api = wandb.Api()
-        run = api.run(f"chebai/chebai/{run_id}")
-        epoch = get_best_epoch(run)
-        for test_on, kind in datasets:
-            df = {
-                "run-id": run_id,
-                "epoch": int(epoch),
-                "kind": kind,
-                "data_module": test_on.__class__.__name__,
-                "chebi_version": chebi_version,
-            }
-            preds, labels = load_preds_labels_from_wandb(
-                run, epoch, chebi_version, test_on, kind
-            )
-            analyse_run(
-                preds,
-                labels,
-                df_hyperparams=df,
-                chebi_version=chebi_version,
-                results_path=results_path,
-            )
+        runs = api.runs("chebai/chebai", filters={"tags": "eval_semloss_paper"})
+        print(f"Found {len(runs)} tagged wandb runs")
+        ids = [run.id for run in runs]
+        run_all(ids, skip_analyse=True, nonwandb_runs=non_wandb_runs)
+
+    if mode == "eval":
+        new_14 = [
+            "e4ba0ff8",
+            "5ko8knb4",
+            "hk8555ff",
+            "r50ioujs",
+            "w0h3zr5s",
+            "e0lxw8py",
+            "0c0s48nh",
+            "lfg384bp",
+            "75o8bc3h",
+            "lig23cmg",
+            "qeghvubh",
+            "uke62a8m",
+            "061fd85t",
+            "tk15yznc",
+        ]
+        baseline = ["i4wtz1k4", "zd020wkv", "rc1q3t49"]
+        ids = baseline
+        run_all(ids, skip_preds=True, nonwandb_runs=non_wandb_runs)
+
+
+if __name__ == "__main__":
+    if len(sys.argv) > 1:
+        run_semloss_eval(sys.argv[1])
+    else:
+        run_semloss_eval()
