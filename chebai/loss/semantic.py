@@ -70,13 +70,15 @@ class ImplicationLoss(torch.nn.Module):
                 math.pow(1 + self.eps, 1 / self.pos_scalar)
                 - math.pow(self.eps, 1 / self.pos_scalar)
             )
-            r = torch.pow(r, self.pos_scalar)
+            one_min_r = torch.pow(1 - r, self.pos_scalar)
+        else:
+            one_min_r = 1 - r
         if self.tnorm == "product":
-            individual_loss = l * (1 - r)
+            individual_loss = l * one_min_r
         elif self.tnorm == "xu19":
-            individual_loss = -torch.log(1 - l * (1 - r))
+            individual_loss = -torch.log(1 - l * one_min_r)
         elif self.tnorm == "lukasiewicz":
-            individual_loss = torch.relu(l - r)
+            individual_loss = torch.relu(l + one_min_r - 1)
         else:
             raise NotImplementedError(f"Unknown tnorm {self.tnorm}")
 
