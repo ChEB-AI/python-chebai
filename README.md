@@ -51,6 +51,7 @@ python3 -m chebai predict_from_file --model=[path-to-model-config] --checkpoint_
 ```
 The input files should contain a list of line-separated SMILES strings. This generates a CSV file  that contains the
 one row for each SMILES string and one column for each class.
+The `classes_path` is the path to the dataset's `raw/classes.txt` file that contains the relationship between model output and ChEBI-IDs.
 
 ## Evaluation
 
