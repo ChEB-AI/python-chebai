@@ -42,7 +42,7 @@ python3 -m chebai fit --trainer=configs/training/default_trainer.yml --model=con
 
 ### Fine-tuning for Toxicity prediction
 ```
-python -m chebai fit --config=[path-to-your-tox21-config] --trainer.callbacks=configs/training/default_callbacks.yml  --model.pretrained_checkpoint=[path-to-pretrained-model] --model.load_prefix=generator.
+python -m chebai fit --config=[path-to-your-tox21-config] --trainer.callbacks=configs/training/default_callbacks.yml  --model.pretrained_checkpoint=[path-to-pretrained-model]
 ```
 
 ### Predicting classes given SMILES strings
