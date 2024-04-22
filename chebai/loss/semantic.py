@@ -18,7 +18,7 @@ class ImplicationLoss(torch.nn.Module):
         impl_loss_weight=0.1,  # weight of implication loss in relation to base_loss
         pos_scalar=1,
         pos_epsilon=0.01,
-        loss_attention=False,
+        multiply_by_softmax=False,
     ):
         super().__init__()
         self.data_extractor = data_extractor
@@ -37,7 +37,7 @@ class ImplicationLoss(torch.nn.Module):
         self.impl_weight = impl_loss_weight
         self.pos_scalar = pos_scalar
         self.eps = pos_epsilon
-        self.loss_attention = loss_attention
+        self.multiply_by_softmax = multiply_by_softmax
 
     def forward(self, input, target, **kwargs):
         nnl = kwargs.pop("non_null_labels", None)
@@ -84,8 +84,8 @@ class ImplicationLoss(torch.nn.Module):
         else:
             raise NotImplementedError(f"Unknown tnorm {self.tnorm}")
 
-        if self.loss_attention:
-            individual_loss *= individual_loss.softmax(dim=-1)
+        if self.multiply_by_softmax:
+            individual_loss = individual_loss * individual_loss.softmax(dim=-1)
         return torch.mean(
             torch.sum(individual_loss, dim=-1),
             dim=0,
