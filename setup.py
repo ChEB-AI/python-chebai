@@ -47,6 +47,8 @@ setup(
         "deepsmiles",
         "iterative-stratification",
         "wandb",
+        "chardet",
+        "configparser"
     ],
     extras_require={"dev": ["black", "isort", "pre-commit"]},
 )
