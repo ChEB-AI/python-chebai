@@ -20,6 +20,7 @@ class CustomTrainer(Trainer):
         super().__init__(*args, **kwargs)
         # instantiation custom logger connector
         self._logger_connector.on_trainer_init(self.logger, 1)
+        self.logger.log_hyperparams(self.init_kwargs)
 
     def predict_from_file(
         self,
