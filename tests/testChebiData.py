@@ -1,8 +1,7 @@
 import unittest
 import os
-from pathlib import Path
 import torch
-import configparser
+import yaml
 
 
 class TestChebiData(unittest.TestCase):
@@ -15,17 +14,18 @@ class TestChebiData(unittest.TestCase):
     @classmethod
     def getChebiDataConfig(cls):
         """Import the respective class and instantiate with given version from the config"""
-        config = configparser.ConfigParser()
-        config_file_path = Path(os.path.join(os.getcwd(), "tests/config_chebi_data.ini"))
-        config.read(config_file_path)
+        CONFIG_FILE_NAME = "chebi50.yml"
+        with open(f"configS/data/{CONFIG_FILE_NAME}", "r") as yaml_file:
+            config = yaml.safe_load(yaml_file)
 
-        class_name = config.get('ChebiData', 'chebi_class_name')
-        version_number = config.get('ChebiData', 'version_number')
+        class_path = config["class_path"]
+        init_args = config.get("init_args", {})
 
-        module = __import__('chebai.preprocessing.datasets.chebi', fromlist=[class_name])
+        module, class_name = class_path.rsplit(".", 1)
+        module = __import__(module, fromlist=[class_name])
         class_ = getattr(module, class_name)
 
-        cls.chebi_class = class_(chebi_version=version_number)
+        cls.chebi_class = class_(**init_args)
 
     @classmethod
     def getDataSplitsOverlaps(cls):
@@ -58,7 +58,9 @@ class TestChebiData(unittest.TestCase):
         # val_smiles_ids.append(test_smiles_ids[0])
 
         cls.overlaps_train_val_ids = cls.get_overlaps(train_smiles_ids, val_smiles_ids)
-        cls.overlaps_train_test_ids = cls.get_overlaps(train_smiles_ids, test_smiles_ids)
+        cls.overlaps_train_test_ids = cls.get_overlaps(
+            train_smiles_ids, test_smiles_ids
+        )
         cls.overlaps_val_test_ids = cls.get_overlaps(val_smiles_ids, test_smiles_ids)
 
     @staticmethod
@@ -82,36 +84,62 @@ class TestChebiData(unittest.TestCase):
     @unittest.expectedFailure
     def test_train_val_overlap_based_on_smiles(self):
         """Check that train-val splits are performed correctly i.e.every entity
-        only appears in one of the train and validation set based on smiles tokens/features"""
-        self.assertEqual(len(self.overlaps_train_val), 0, "Duplicate entities present in Train and Validation set based on SMILES")
+        only appears in one of the train and validation set based on smiles tokens/features
+        """
+        self.assertEqual(
+            len(self.overlaps_train_val),
+            0,
+            "Duplicate entities present in Train and Validation set based on SMILES",
+        )
 
     @unittest.expectedFailure
     def test_train_test_overlap_based_on_smiles(self):
         """Check that train-test splits are performed correctly i.e.every entity
         only appears in one of the train and test set based on smiles tokens/features"""
-        self.assertEqual(len(self.overlaps_train_test), 0, "Duplicate entities present in Train and Test set based on SMILES")
+        self.assertEqual(
+            len(self.overlaps_train_test),
+            0,
+            "Duplicate entities present in Train and Test set based on SMILES",
+        )
 
     @unittest.expectedFailure
     def test_val_test_overlap_based_on_smiles(self):
         """Check that val-test splits are performed correctly i.e.every entity
-        only appears in one of the validation and test set based on smiles tokens/features"""
-        self.assertEqual(len(self.overlaps_val_test), 0, "Duplicate entities present in Validation and Test set based on SMILES")
+        only appears in one of the validation and test set based on smiles tokens/features
+        """
+        self.assertEqual(
+            len(self.overlaps_val_test),
+            0,
+            "Duplicate entities present in Validation and Test set based on SMILES",
+        )
 
     def test_train_val_overlap_based_on_ids(self):
         """Check that train-val splits are performed correctly i.e.every entity
         only appears in one of the train and validation set based on smiles IDs"""
-        self.assertEqual(len(self.overlaps_train_val_ids), 0, "Duplicate entities present in Train and Validation set based on IDs")
+        self.assertEqual(
+            len(self.overlaps_train_val_ids),
+            0,
+            "Duplicate entities present in Train and Validation set based on IDs",
+        )
 
     def test_train_test_overlap_based_on_ids(self):
         """Check that train-test splits are performed correctly i.e.every entity
         only appears in one of the train and test set based on smiles IDs"""
-        self.assertEqual(len(self.overlaps_train_test_ids), 0, "Duplicate entities present in Train and Test set based on IDs")
+        self.assertEqual(
+            len(self.overlaps_train_test_ids),
+            0,
+            "Duplicate entities present in Train and Test set based on IDs",
+        )
 
     def test_val_test_overlap_based_on_ids(self):
         """Check that val-test splits are performed correctly i.e.every entity
         only appears in one of the validation and test set based on smiles IDs"""
-        self.assertEqual(len(self.overlaps_val_test_ids), 0, "Duplicate entities present in Validation and Test set based on IDs")
+        self.assertEqual(
+            len(self.overlaps_val_test_ids),
+            0,
+            "Duplicate entities present in Validation and Test set based on IDs",
+        )
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

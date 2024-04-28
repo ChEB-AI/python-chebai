@@ -42,7 +42,9 @@ class TestPubChemData(unittest.TestCase):
         # val_smiles_ids.append(test_smiles_ids[0])
 
         cls.overlaps_train_val_ids = cls.get_overlaps(train_smiles_ids, val_smiles_ids)
-        cls.overlaps_train_test_ids = cls.get_overlaps(train_smiles_ids, test_smiles_ids)
+        cls.overlaps_train_test_ids = cls.get_overlaps(
+            train_smiles_ids, test_smiles_ids
+        )
         cls.overlaps_val_test_ids = cls.get_overlaps(val_smiles_ids, test_smiles_ids)
 
     @staticmethod
@@ -65,34 +67,60 @@ class TestPubChemData(unittest.TestCase):
 
     def test_train_val_overlap_based_on_smiles(self):
         """Check that train-val splits are performed correctly i.e.every entity
-        only appears in one of the train and validation set based on smiles tokens/features"""
-        self.assertEqual(len(self.overlaps_train_val), 0, "Duplicate entities present in Train and Validation set based on SMILES")
+        only appears in one of the train and validation set based on smiles tokens/features
+        """
+        self.assertEqual(
+            len(self.overlaps_train_val),
+            0,
+            "Duplicate entities present in Train and Validation set based on SMILES",
+        )
 
     def test_train_test_overlap_based_on_smiles(self):
         """Check that train-test splits are performed correctly i.e.every entity
         only appears in one of the train and test set based on smiles tokens/features"""
-        self.assertEqual(len(self.overlaps_train_test), 0, "Duplicate entities present in Train and Test set based on SMILES")
+        self.assertEqual(
+            len(self.overlaps_train_test),
+            0,
+            "Duplicate entities present in Train and Test set based on SMILES",
+        )
 
     def test_val_test_overlap_based_on_smiles(self):
         """Check that val-test splits are performed correctly i.e.every entity
-        only appears in one of the validation and test set based on smiles tokens/features"""
-        self.assertEqual(len(self.overlaps_val_test), 0, "Duplicate entities present in Validation and Test set based on SMILES")
+        only appears in one of the validation and test set based on smiles tokens/features
+        """
+        self.assertEqual(
+            len(self.overlaps_val_test),
+            0,
+            "Duplicate entities present in Validation and Test set based on SMILES",
+        )
 
     def test_train_val_overlap_based_on_ids(self):
         """Check that train-val splits are performed correctly i.e.every entity
         only appears in one of the train and validation set based on smiles IDs"""
-        self.assertEqual(len(self.overlaps_train_val_ids), 0, "Duplicate entities present in Train and Validation set based on IDs")
+        self.assertEqual(
+            len(self.overlaps_train_val_ids),
+            0,
+            "Duplicate entities present in Train and Validation set based on IDs",
+        )
 
     def test_train_test_overlap_based_on_ids(self):
         """Check that train-test splits are performed correctly i.e.every entity
         only appears in one of the train and test set based on smiles IDs"""
-        self.assertEqual(len(self.overlaps_train_test_ids), 0, "Duplicate entities present in Train and Test set based on IDs")
+        self.assertEqual(
+            len(self.overlaps_train_test_ids),
+            0,
+            "Duplicate entities present in Train and Test set based on IDs",
+        )
 
     def test_val_test_overlap_based_on_ids(self):
         """Check that val-test splits are performed correctly i.e.every entity
         only appears in one of the validation and test set based on smiles IDs"""
-        self.assertEqual(len(self.overlaps_val_test_ids), 0, "Duplicate entities present in Validation and Test set based on IDs")
+        self.assertEqual(
+            len(self.overlaps_val_test_ids),
+            0,
+            "Duplicate entities present in Validation and Test set based on IDs",
+        )
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()
