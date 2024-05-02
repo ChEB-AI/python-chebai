@@ -8,14 +8,15 @@ class TestChebiData(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls) -> None:
-        cls.getChebiDataConfig()
         cls.getDataSplitsOverlaps()
 
     @classmethod
     def getChebiDataConfig(cls):
         """Import the respective class and instantiate with given version from the config"""
         CONFIG_FILE_NAME = "chebi50.yml"
-        with open(f"configS/data/{CONFIG_FILE_NAME}", "r") as yaml_file:
+        with open(
+            os.path.join("configs", "data", f"{CONFIG_FILE_NAME}"), "r"
+        ) as yaml_file:
             config = yaml.safe_load(yaml_file)
 
         class_path = config["class_path"]
@@ -25,12 +26,14 @@ class TestChebiData(unittest.TestCase):
         module = __import__(module, fromlist=[class_name])
         class_ = getattr(module, class_name)
 
-        cls.chebi_class = class_(**init_args)
+        return class_(**init_args)
 
     @classmethod
     def getDataSplitsOverlaps(cls):
         """Get the overlap between data splits"""
-        processed_path = os.path.join(os.getcwd(), cls.chebi_class.processed_dir)
+        processed_path = os.path.join(
+            os.getcwd(), cls.getChebiDataConfig().processed_dir
+        )
         print(f"Checking Data from - {processed_path}")
 
         train_set = torch.load(os.path.join(processed_path, "train.pt"))
@@ -43,19 +46,11 @@ class TestChebiData(unittest.TestCase):
 
         # ----- Get the overlap between data splits based on smiles tokens/features -----
 
-        # train_smiles.append(val_smiles[0])
-        # train_smiles.append(test_smiles[0])
-        # val_smiles.append(test_smiles[0])
-
         cls.overlaps_train_val = cls.get_overlaps(train_smiles, val_smiles)
         cls.overlaps_train_test = cls.get_overlaps(train_smiles, test_smiles)
         cls.overlaps_val_test = cls.get_overlaps(val_smiles, test_smiles)
 
         # ----- Get the overlap between data splits based on IDs -----
-
-        # train_smiles_ids.append(val_smiles_ids[0])
-        # train_smiles_ids.append(test_smiles_ids[0])
-        # val_smiles_ids.append(test_smiles_ids[0])
 
         cls.overlaps_train_val_ids = cls.get_overlaps(train_smiles_ids, val_smiles_ids)
         cls.overlaps_train_test_ids = cls.get_overlaps(
