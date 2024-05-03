@@ -197,7 +197,7 @@ class Electra(ChebaiBaseNet):
         return dict(
             logits=self.output(d),
             attentions=electra.attentions,
-            target_mask=data.get("target_mask"),
+            target_mask=data["loss_kwargs"].get("target_mask"),
         )
 
 
