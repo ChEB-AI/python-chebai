@@ -7,12 +7,14 @@ import torch
 from typing import Literal
 
 from chebai.preprocessing.datasets.chebi import _ChEBIDataExtractor, ChEBIOver100
+from chebai.preprocessing.datasets.pubchem import LabeledUnlabeledMixed
+from chebai.loss.bce_weighted import BCEWeighted
 
 
 class ImplicationLoss(torch.nn.Module):
     def __init__(
         self,
-        data_extractor: _ChEBIDataExtractor,
+        data_extractor: _ChEBIDataExtractor | LabeledUnlabeledMixed,
         base_loss: torch.nn.Module = None,
         tnorm: Literal["product", "lukasiewicz", "xu19"] = "product",
         impl_loss_weight=0.1,  # weight of implication loss in relation to base_loss
@@ -21,7 +23,13 @@ class ImplicationLoss(torch.nn.Module):
         multiply_by_softmax=False,
     ):
         super().__init__()
+        # automatically choose labeled subset for implication filter in case of mixed dataset
+        if isinstance(data_extractor, LabeledUnlabeledMixed):
+            data_extractor = data_extractor.labeled
         self.data_extractor = data_extractor
+        # propagate data_extractor to base loss
+        if isinstance(base_loss, BCEWeighted):
+            base_loss.data_extractor = self.data_extractor
         self.base_loss = base_loss
         self.implication_cache_file = f"implications_{self.data_extractor.name}.cache"
         self.label_names = _load_label_names(
@@ -106,7 +114,7 @@ class DisjointLoss(ImplicationLoss):
     def __init__(
         self,
         path_to_disjointness,
-        data_extractor: _ChEBIDataExtractor,
+        data_extractor: _ChEBIDataExtractor | LabeledUnlabeledMixed,
         base_loss: torch.nn.Module = None,
         disjoint_loss_weight=100,
         **kwargs,
