@@ -559,16 +559,6 @@ class Hazardous(SWJChem):
             f.write("\n".join(smiles_list))
 
 
-if __name__ == "__main__":
-    kmeans_data = PubChemKMeans(
-        n_clusters=100,
-        random_size=10000,
-        exclude_data_from=ChEBIOver100(chebi_version=231),
-        include_min_n_clusters=10,
-    )
-    kmeans_data.download()
-
-
 class SWJPreChem(PubChem):
     UNLABELED = True
 

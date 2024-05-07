@@ -521,6 +521,7 @@ def run_all(
                 print(traceback.format_exc())
 
 
+# run predictions / metrics calculations for semantic loss paper runs (NeSy 2024 submission)
 def run_semloss_eval(mode="eval"):
     non_wandb_runs = []
     if mode == "preds":
@@ -531,25 +532,29 @@ def run_semloss_eval(mode="eval"):
         run_all(ids, skip_analyse=True, nonwandb_runs=non_wandb_runs)
 
     if mode == "eval":
-        new_14 = [
-            "e4ba0ff8",
-            "5ko8knb4",
-            "hk8555ff",
-            "r50ioujs",
+        prod = [
+            "tk15yznc",
+            "uke62a8m",
             "w0h3zr5s",
+        ]
+        xu19 = [
+            "5ko8knb4",
+            "061fd85t",
+            "r50ioujs",
+        ]
+        prod_mixed = [
+            "hk8555ff",
             "e0lxw8py",
+            "lig23cmg",
+        ]
+        luka = [
             "0c0s48nh",
             "lfg384bp",
-            "75o8bc3h",
-            "lig23cmg",
             "qeghvubh",
-            "uke62a8m",
-            "061fd85t",
-            "tk15yznc",
         ]
         baseline = ["i4wtz1k4", "zd020wkv", "rc1q3t49"]
-        k2 = ["ng3usn0p", "rp0wwzjv", "8fma1q7r"]
-        ids = baseline
+        prodk2 = ["ng3usn0p", "rp0wwzjv", "8fma1q7r"]
+        ids = baseline + prod + prodk2 + xu19 + luka + prod_mixed
         run_all(
             ids,
             skip_preds=True,
