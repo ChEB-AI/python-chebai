@@ -9,7 +9,11 @@ import torch
 
 
 def get_checkpoint_from_wandb(
-    epoch, run, root=os.path.join("logs", "downloaded_ckpts"), model_class=None
+    epoch,
+    run,
+    root=os.path.join("logs", "downloaded_ckpts"),
+    model_class=None,
+    map_device_to=None,
 ):
     """Gets wandb checkpoint based on run and epoch, downloads it if necessary"""
     api = wandb.Api()
@@ -26,7 +30,7 @@ def get_checkpoint_from_wandb(
                 print(f"Downloading checkpoint to {dest_path}")
                 wandb_util.download_file_from_url(dest_path, file.url, api.api_key)
             return model_class.load_from_checkpoint(
-                dest_path, strict=False, map_location="cuda:0"
+                dest_path, strict=False, map_location=map_device_to
             )
     print(f"No model found for epoch {epoch}")
     return None
@@ -54,8 +58,9 @@ def evaluate_model(
         os.makedirs(buffer_dir, exist_ok=True)
     save_ind = 0
     save_batch_size = 4
-    n_saved = 0
+    n_saved = 1
 
+    print(f"")
     for i in tqdm.tqdm(range(0, len(data_list), batch_size)):
         if not (
             skip_existing_preds
@@ -74,7 +79,6 @@ def evaluate_model(
             preds_list.append(preds)
             labels_list.append(labels)
             if buffer_dir is not None:
-                n_saved += 1
                 if n_saved >= save_batch_size:
                     torch.save(
                         torch.cat(preds_list),
@@ -87,8 +91,10 @@ def evaluate_model(
                         )
                     preds_list = []
                     labels_list = []
-                    save_ind += 1
-                    n_saved = 0
+        if n_saved >= save_batch_size:
+            save_ind += 1
+            n_saved = 0
+        n_saved += 1
 
     if buffer_dir is None:
         test_preds = torch.cat(preds_list)

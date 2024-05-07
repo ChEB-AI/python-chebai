@@ -19,6 +19,9 @@ class ChebaiCLI(LightningCLI):
         parser.link_arguments(
             "model.init_args.out_dim", "trainer.callbacks.init_args.num_labels"
         )
+        parser.link_arguments(
+            "data", "model.init_args.criterion.init_args.data_extractor"
+        )
 
     @staticmethod
     def subcommands() -> Dict[str, Set[str]]:

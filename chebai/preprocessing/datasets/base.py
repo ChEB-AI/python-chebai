@@ -313,6 +313,10 @@ class XYBaseDataModule(LightningDataModule):
         raise NotImplementedError
 
     @property
+    def raw_file_names(self):
+        raise NotImplementedError
+
+    @property
     def processed_file_names_dict(self) -> dict:
         raise NotImplementedError
 
