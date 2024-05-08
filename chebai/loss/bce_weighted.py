@@ -35,7 +35,7 @@ class BCEWeighted(torch.nn.BCEWithLogitsLoss):
         ):
             complete_data = pd.concat(
                 [
-                    pickle.load(
+                    pd.read_pickle(
                         open(
                             os.path.join(
                                 self.data_extractor.raw_dir,
