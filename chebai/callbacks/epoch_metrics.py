@@ -47,3 +47,61 @@ class MacroF1(torchmetrics.Metric):
         # if (precision and recall are 0) or (precision is nan), set f1 to 0
         classwise_f1 = classwise_f1.nan_to_num()
         return torch.mean(classwise_f1)
+
+class BalancedAccuracy(torchmetrics.Metric):
+    def __init__(self, num_labels, dist_sync_on_step=False, threshold=0.5):
+        super().__init__(dist_sync_on_step=dist_sync_on_step)
+
+        self.add_state(
+            "true_positives",
+            default=torch.zeros(num_labels, dtype=torch.int),
+            dist_reduce_fx="sum",
+        )
+
+        self.add_state(
+            "false_positives",
+            default=torch.zeros(num_labels, dtype=torch.int),
+            dist_reduce_fx="sum",
+        )
+
+        self.add_state(
+            "true_negatives",
+            default=torch.zeros(num_labels, dtype=torch.int),
+            dist_reduce_fx="sum",
+        )
+
+        self.add_state(
+            "false_negatives",
+            default=torch.zeros(num_labels, dtype=torch.int),
+            dist_reduce_fx="sum",
+        )
+
+        self.threshold = threshold
+
+    def update(self, preds: torch.Tensor, labels: torch.Tensor):
+        """"Update the TPs, TNs ,FPs and FNs """
+
+        # Size: Batch_size x Num_of_Classes;
+        # summing over 1st dimension (dim=0), gives us the True positives per class
+        tps = torch.sum(torch.logical_and(preds > self.threshold, labels.to(torch.bool)), dim=0)
+        fps = torch.sum(torch.logical_and(preds > self.threshold, ~labels.to(torch.bool)), dim=0)
+        tns = torch.sum(torch.logical_and(preds <= self.threshold, ~labels.to(torch.bool)), dim=0)
+        fns = torch.sum(torch.logical_and(preds <= self.threshold, labels.to(torch.bool)), dim=0)
+
+        # Size: Num_of_Classes;
+        self.true_positives += tps
+        self.false_positives += fps
+        self.true_negatives += tns
+        self.false_negatives += fns
+
+    def compute(self):
+        """Compute the average value of Balanced accuracy from each batch"""
+
+        tpr = self.true_positives / (self.true_positives + self.false_negatives)
+        tnr = self.true_negatives / (self.true_negatives + self.false_positives)
+        # Convert the nan values to 0
+        tpr = tpr.nan_to_num()
+        tnr = tnr.nan_to_num()
+
+        balanced_acc = (tpr + tnr) / 2
+        return torch.mean(balanced_acc)

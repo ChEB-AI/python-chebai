@@ -49,6 +49,7 @@ setup(
         "wandb",
         "chardet",
         "yaml",
+        "torchmetrics",
     ],
     extras_require={"dev": ["black", "isort", "pre-commit"]},
 )

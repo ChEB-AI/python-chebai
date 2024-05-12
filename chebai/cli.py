@@ -11,10 +11,10 @@ class ChebaiCLI(LightningCLI):
 
     def add_arguments_to_parser(self, parser: LightningArgumentParser):
         for kind in ("train", "val", "test"):
-            for average in ("micro", "macro"):
+            for average in ("micro-f1", "macro-f1", "balanced-accuracy"):
                 parser.link_arguments(
                     "model.init_args.out_dim",
-                    f"model.init_args.{kind}_metrics.init_args.metrics.{average}-f1.init_args.num_labels",
+                    f"model.init_args.{kind}_metrics.init_args.metrics.{average}.init_args.num_labels",
                 )
         parser.link_arguments(
             "model.init_args.out_dim", "trainer.callbacks.init_args.num_labels"
