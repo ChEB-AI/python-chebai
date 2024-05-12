@@ -15,12 +15,8 @@ class TestCustomMacroF1Metric(unittest.TestCase):
         """Test the custom metric implementation in update fashion approach against
         the single call approach"""
 
-        preds = torch.tensor([[1, 1, 0, 1],
-                              [1, 0, 1, 1],
-                              [0, 1, 0, 1]])
-        label = torch.tensor([[0, 0, 0, 0],
-                              [0, 0, 1, 1],
-                              [0, 1, 0, 1]])
+        preds = torch.tensor([[1, 1, 0, 1], [1, 0, 1, 1], [0, 1, 0, 1]])
+        label = torch.tensor([[0, 0, 0, 0], [0, 0, 1, 1], [0, 1, 0, 1]])
 
         num_labels = label.shape[1]
         iterative_custom_metric = BalancedAccuracy(num_labels=num_labels)
@@ -41,13 +37,21 @@ class TestCustomMacroF1Metric(unittest.TestCase):
         num_of_files = len(os.listdir(abs_path)) // 2
 
         # load single file to get the num of labels for metric class instantiation
-        labels = torch.load(f'{directory_path}/labels{0:03d}.pt', map_location=torch.device(self.device))
+        labels = torch.load(
+            f"{directory_path}/labels{0:03d}.pt", map_location=torch.device(self.device)
+        )
         num_labels = labels.shape[1]
         balanced_acc_custom = BalancedAccuracy(num_labels=num_labels)
 
         for i in range(num_of_files):
-            labels = torch.load(f'{directory_path}/labels{i:03d}.pt', map_location=torch.device(self.device))
-            preds = torch.load(f'{directory_path}/preds{i:03d}.pt', map_location=torch.device(self.device))
+            labels = torch.load(
+                f"{directory_path}/labels{i:03d}.pt",
+                map_location=torch.device(self.device),
+            )
+            preds = torch.load(
+                f"{directory_path}/preds{i:03d}.pt",
+                map_location=torch.device(self.device),
+            )
             balanced_acc_custom.update(preds, labels)
 
         balanced_acc_custom_score = balanced_acc_custom.compute().item()
@@ -55,12 +59,8 @@ class TestCustomMacroF1Metric(unittest.TestCase):
 
     def test_case_when_few_class_has_no_labels(self):
         """Test custom metric against standard metric for the scenario where some class has no labels"""
-        preds = torch.tensor([[1, 1, 0, 1],
-                              [1, 0, 1, 1],
-                              [0, 1, 0, 1]])
-        label = torch.tensor([[0, 0, 0, 0], # no labels
-                              [0, 0, 1, 1],
-                              [0, 1, 0, 1]])
+        preds = torch.tensor([[1, 1, 0, 1], [1, 0, 1, 1], [0, 1, 0, 1]])
+        label = torch.tensor([[0, 0, 0, 0], [0, 0, 1, 1], [0, 1, 0, 1]])  # no labels
 
         # tp = [0, 1, 1, 2], fp = [2, 1, 0, 1], tn = [1, 1, 2, 0], fn = [0, 0, 0, 0]
         # tpr = [0, 1, 1, 2] / ([0, 1, 1, 2] + [0, 0, 0, 0]) = [0, 1, 1, 1]
@@ -68,7 +68,9 @@ class TestCustomMacroF1Metric(unittest.TestCase):
         # balanced_accuracy = ([0, 1, 1, 1] + [0.33333, 0.5, 1, 0]) / 2 = ([0.16666667, 0.75, 1, 0.5]
         # mean bal accuracy = 0.6041666666666666
 
-        balanced_acc_score = self.__get_custom_metric_score(preds, label, label.shape[1])
+        balanced_acc_score = self.__get_custom_metric_score(
+            preds, label, label.shape[1]
+        )
 
         self.assertAlmostEqual(balanced_acc_score, 0.6041666666, places=4)
 
@@ -78,7 +80,10 @@ class TestCustomMacroF1Metric(unittest.TestCase):
         preds = torch.ones((1, 900), dtype=torch.int)
         label = torch.ones((1, 900), dtype=torch.int)
 
-        mask = [[True] * (label.size(1) // 2) + [False] * (label.size(1) - (label.size(1) // 2))]
+        mask = [
+            [True] * (label.size(1) // 2)
+            + [False] * (label.size(1) - (label.size(1) // 2))
+        ]
         random.shuffle(mask[0])
         label[torch.tensor(mask)] = 0
 
@@ -88,7 +93,9 @@ class TestCustomMacroF1Metric(unittest.TestCase):
         # tnr = tn / (tn + fp) = [0, 0, 0, 0]
         # balanced accuracy = 1 / 4 = 0.25
 
-        balanced_acc_custom_score = self.__get_custom_metric_score(preds, label, label.shape[1])
+        balanced_acc_custom_score = self.__get_custom_metric_score(
+            preds, label, label.shape[1]
+        )
         self.assertAlmostEqual(balanced_acc_custom_score, 0.25, places=4)
 
     def test_all_labels_are_1_half_predictions_are_1(self):
@@ -97,7 +104,10 @@ class TestCustomMacroF1Metric(unittest.TestCase):
         preds = torch.ones((1, 900), dtype=torch.int)
         label = torch.ones((1, 900), dtype=torch.int)
 
-        mask = [[True] * (label.size(1) // 2) + [False] * (label.size(1) - (label.size(1) // 2))]
+        mask = [
+            [True] * (label.size(1) // 2)
+            + [False] * (label.size(1) - (label.size(1) // 2))
+        ]
         random.shuffle(mask[0])
         preds[torch.tensor(mask)] = 0
 
@@ -107,7 +117,9 @@ class TestCustomMacroF1Metric(unittest.TestCase):
         # tnr = tn / (tn + fp) = [0, 0, 0, 0]
         # balanced accuracy = 1 / 4 = 0.25
 
-        balanced_acc_custom_score = self.__get_custom_metric_score(preds, label, label.shape[1])
+        balanced_acc_custom_score = self.__get_custom_metric_score(
+            preds, label, label.shape[1]
+        )
         self.assertAlmostEqual(balanced_acc_custom_score, 0.25, places=4)
 
     @staticmethod
