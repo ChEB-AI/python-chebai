@@ -5,7 +5,7 @@ from chebai.callbacks.epoch_metrics import BalancedAccuracy
 import random
 
 
-class TestCustomMacroF1Metric(unittest.TestCase):
+class TestCustomBalancedAccuracyMetric(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls) -> None:
@@ -31,7 +31,7 @@ class TestCustomMacroF1Metric(unittest.TestCase):
 
     def test_metric_against_realistic_data(self):
         """Test the custom metric against the standard on realistic data"""
-        directory_path = "CheBIOver100_test"
+        directory_path = os.path.join("tests", "test_data", "CheBIOver100_test")
         abs_path = os.path.join(os.getcwd(), directory_path)
         print(f"Checking data from - {abs_path}")
         num_of_files = len(os.listdir(abs_path)) // 2

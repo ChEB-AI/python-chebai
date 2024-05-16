@@ -50,6 +50,13 @@ class MacroF1(torchmetrics.Metric):
 
 
 class BalancedAccuracy(torchmetrics.Metric):
+    """Balanced Accuracy = (TPR + TNR) / 2 = ( TP/(TP + FN) + (TN)/(TN + FP) ) / 2
+
+    This metric computes the balanced accuracy, which is the average of true positive rate (TPR)
+    and true negative rate (TNR). It is useful for imbalanced datasets where the classes are not
+    represented equally.
+    """
+
     def __init__(self, num_labels, dist_sync_on_step=False, threshold=0.5):
         super().__init__(dist_sync_on_step=dist_sync_on_step)
 

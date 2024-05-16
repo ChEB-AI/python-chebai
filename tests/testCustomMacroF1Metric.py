@@ -12,7 +12,6 @@ class TestCustomMacroF1Metric(unittest.TestCase):
     def setUpClass(cls) -> None:
         cls.device = "cuda" if torch.cuda.is_available() else "cpu"
 
-    @unittest.expectedFailure
     def test_all_predictions_are_1_half_labels_are_1(self):
         """Test custom metric against standard metric for the scenario where all prediction are 1 but only half of
         the labels are 1"""
@@ -54,8 +53,10 @@ class TestCustomMacroF1Metric(unittest.TestCase):
         # recall    = [1, 1, 1, 1, 1] / [1, 1, 1, 1, 1] = [1, 1, 1, 1, 1]
         # classwise_f1 = [2, 2, 2, 2, 2] / [2, 2, 2, 2, 2] = [1, 1, 1, 1, 1]
         # mean = 5/5 = 1  (because of masking we averaging with across positive labels only)
-
-        self.assertAlmostEqual(macro_f1_custom_score, macro_f1_standard_score, places=4)
+        self.assertAlmostEqual(macro_f1_custom_score, 1, places=4)
+        self.assertNotAlmostEqual(
+            macro_f1_custom_score, macro_f1_standard_score, places=4
+        )
 
     def test_all_labels_are_1_half_predictions_are_1(self):
         """Test custom metric against standard metric for the scenario where all labels are 1 but only half of
@@ -98,7 +99,7 @@ class TestCustomMacroF1Metric(unittest.TestCase):
     @unittest.expectedFailure
     def test_metric_against_realistic_data(self):
         """Test the custom metric against the standard on realistic data"""
-        directory_path = "CheBIOver100_test"
+        directory_path = os.path.join("tests", "test_data", "CheBIOver100_test")
         abs_path = os.path.join(os.getcwd(), directory_path)
         print(f"Checking data from - {abs_path}")
         num_of_files = len(os.listdir(abs_path)) // 2
