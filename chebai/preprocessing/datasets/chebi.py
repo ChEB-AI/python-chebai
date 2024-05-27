@@ -14,6 +14,10 @@ from collections import OrderedDict
 import os
 import pickle
 import queue
+import yaml
+from typing import List, Union
+from torch.utils.data import DataLoader
+import random
 
 from iterstrat.ml_stratifiers import (
     MultilabelStratifiedKFold,
@@ -134,6 +138,7 @@ class _ChEBIDataExtractor(XYBaseDataModule, ABC):
         # use different version of chebi for training and validation (if not None)
         # (still uses self.chebi_version for test set)
         self.chebi_version_train = chebi_version_train
+        self.data_split_seed = self._get_seed_for_data_split()
 
     def extract_class_hierarchy(self, chebi_path):
         """
@@ -194,6 +199,9 @@ class _ChEBIDataExtractor(XYBaseDataModule, ABC):
     def save_raw(self, data: pd.DataFrame, filename: str):
         pickle.dump(data, open(os.path.join(self.raw_dir, filename), "wb"))
 
+    def save_processed(self, data: pd.DataFrame, filename: str):
+        pickle.dump(data, open(os.path.join(self.processed_dir_main, filename), "wb"))
+
     def _load_dict(self, input_file_path):
         """
         Loads a dictionary from a pickled file, yielding individual dictionaries for each row.
@@ -246,17 +254,23 @@ class _ChEBIDataExtractor(XYBaseDataModule, ABC):
         )
 
     def setup_processed(self):
-        print("Transform splits")
+        print("Transform data")
         os.makedirs(self.processed_dir, exist_ok=True)
         for k in self.processed_file_names_dict.keys():
-            processed_name = (
-                "test.pt" if k == "test" else self.processed_file_names_dict[k]
-            )
+            # processed_name = (
+            #     "test.pt" if k == "test" else self.processed_file_names_dict[k]
+            # )
+            processed_name = self.processed_file_names_dict[k]
             if not os.path.isfile(os.path.join(self.processed_dir, processed_name)):
-                print("transform", k)
+                print(
+                    "Missing encoded data, transform processed data into encoded data",
+                    k,
+                )
                 torch.save(
                     self._load_data_from_file(
-                        os.path.join(self.raw_dir, self.raw_file_names_dict[k])
+                        os.path.join(
+                            self.processed_dir_main, self.raw_file_names_dict[k]
+                        )
                     ),
                     os.path.join(self.processed_dir, processed_name),
                 )
@@ -267,22 +281,23 @@ class _ChEBIDataExtractor(XYBaseDataModule, ABC):
             print("transform test (select classes)")
             self._setup_pruned_test_set()
 
-    def get_test_split(self, df: pd.DataFrame):
+    def get_test_split(self, df: pd.DataFrame, seed: int = None):
         print("Get test data split")
 
-        df_list = df.values.tolist()
-        df_list = [row[3:] for row in df_list]
+        # df_list = df.values.tolist()
+        # df_list = [row[1] for row in df_list]
+        labels_list = df["labels"].tolist()
 
         test_size = 1 - self.train_split - (1 - self.train_split) ** 2
         msss = MultilabelStratifiedShuffleSplit(
-            n_splits=1, test_size=test_size, random_state=0
+            n_splits=1, test_size=test_size, random_state=seed
         )
 
         train_split = []
         test_split = []
         for train_split, test_split in msss.split(
-            df_list,
-            df_list,
+            labels_list,
+            labels_list,
         ):
             train_split = train_split
             test_split = test_split
@@ -291,7 +306,9 @@ class _ChEBIDataExtractor(XYBaseDataModule, ABC):
         df_test = df.iloc[test_split]
         return df_train, df_test
 
-    def get_train_val_splits_given_test(self, df: pd.DataFrame, test_df: pd.DataFrame):
+    def get_train_val_splits_given_test(
+        self, df: pd.DataFrame, test_df: pd.DataFrame, seed: int = None
+    ):
         """
         Split the dataset into train and validation sets, given a test set.
         Use test set (e.g., loaded from another chebi version or generated in get_test_split), avoid overlap
@@ -307,19 +324,22 @@ class _ChEBIDataExtractor(XYBaseDataModule, ABC):
         print(f"Split dataset into train / val with given test set")
 
         df_trainval = df
-        test_ids = test_df["id"].tolist()
-        mask = [trainval_id not in test_ids for trainval_id in df_trainval["id"]]
+        test_ids = test_df["ident"].tolist()
+        mask = [trainval_id not in test_ids for trainval_id in df_trainval["ident"]]
         df_trainval = df_trainval[mask]
-        df_trainval_list = df_trainval.values.tolist()
-        df_trainval_list = [row[3:] for row in df_trainval_list]
+        # df_trainval_list = df_trainval.values.tolist()
+        # df_trainval_list = [row[3:] for row in df_trainval_list]
+        labels_list_trainval = df_trainval["labels"].tolist()
 
         if self.use_inner_cross_validation:
             folds = {}
-            kfold = MultilabelStratifiedKFold(n_splits=self.inner_k_folds)
+            kfold = MultilabelStratifiedKFold(
+                n_splits=self.inner_k_folds, random_state=seed
+            )
             for fold, (train_ids, val_ids) in enumerate(
                 kfold.split(
-                    df_trainval_list,
-                    df_trainval_list,
+                    labels_list_trainval,
+                    labels_list_trainval,
                 )
             ):
                 df_validation = df_trainval.iloc[val_ids]
@@ -334,27 +354,33 @@ class _ChEBIDataExtractor(XYBaseDataModule, ABC):
         # scale val set size by 1/self.train_split to compensate for (hypothetical) test set size (1-self.train_split)
         test_size = ((1 - self.train_split) ** 2) / self.train_split
         msss = MultilabelStratifiedShuffleSplit(
-            n_splits=1, test_size=test_size, random_state=0
+            n_splits=1, test_size=test_size, random_state=seed
         )
         train_split = []
         validation_split = []
         for train_split, validation_split in msss.split(
-            df_trainval_list, df_trainval_list
+            labels_list_trainval, labels_list_trainval
         ):
             train_split = train_split
             validation_split = validation_split
 
         df_validation = df_trainval.iloc[validation_split]
         df_train = df_trainval.iloc[train_split]
-        return {
-            self.raw_file_names_dict["train"]: df_train,
-            self.raw_file_names_dict["validation"]: df_validation,
-        }
+        return df_train, df_validation
+
+    @property
+    def processed_dir_main(self):
+        return os.path.join(
+            self.base_dir,
+            self._name,
+            "processed",
+        )
 
     @property
     def processed_dir(self):
         res = os.path.join(
             self.base_dir,
+            self._name,
             "processed",
             *self.identifier,
         )
@@ -365,14 +391,15 @@ class _ChEBIDataExtractor(XYBaseDataModule, ABC):
 
     @property
     def base_dir(self):
-        return os.path.join("data", self._name, f"chebi_v{self.chebi_version}")
+        return os.path.join("data", f"chebi_v{self.chebi_version}")
 
     @property
     def processed_file_names_dict(self) -> dict:
         train_v_str = (
             f"_v{self.chebi_version_train}" if self.chebi_version_train else ""
         )
-        res = {"test": f"test{train_v_str}.pt"}
+        # res = {"test": f"test{train_v_str}.pt"}
+        res = {}
         for set in ["train", "validation"]:
             if self.use_inner_cross_validation:
                 for i in range(self.inner_k_folds):
@@ -380,7 +407,8 @@ class _ChEBIDataExtractor(XYBaseDataModule, ABC):
                         self.fold_dir, f"fold_{i}_{set}{train_v_str}.pt"
                     )
             else:
-                res[set] = f"{set}{train_v_str}.pt"
+                # res[set] = f"{set}{train_v_str}.pt"
+                res["data"] = "data.pt"
         return res
 
     @property
@@ -388,10 +416,11 @@ class _ChEBIDataExtractor(XYBaseDataModule, ABC):
         train_v_str = (
             f"_v{self.chebi_version_train}" if self.chebi_version_train else ""
         )
-        res = {
-            "test": f"test.pkl"
-        }  # no extra raw test version for chebi_version_train - use default test set and only
+        # res = {
+        #     "test": f"test.pkl"
+        # }  # no extra raw test version for chebi_version_train - use default test set and only
         # adapt processed file
+        res = {}
         for set in ["train", "validation"]:
             if self.use_inner_cross_validation:
                 for i in range(self.inner_k_folds):
@@ -399,7 +428,8 @@ class _ChEBIDataExtractor(XYBaseDataModule, ABC):
                         self.fold_dir, f"fold_{i}_{set}{train_v_str}.pkl"
                     )
             else:
-                res[set] = f"{set}{train_v_str}.pkl"
+                # res[set] = f"{set}{train_v_str}.pkl"
+                res["data"] = "data.pkl"
         return res
 
     @property
@@ -447,44 +477,146 @@ class _ChEBIDataExtractor(XYBaseDataModule, ABC):
         Returns:
             None
         """
-        print("Check for raw data in", self.raw_dir)
+        print("Check for processed data in", self.processed_dir_main)
         if any(
-            not os.path.isfile(os.path.join(self.raw_dir, f))
+            not os.path.isfile(os.path.join(self.processed_dir_main, f))
             for f in self.raw_file_names
         ):
-            os.makedirs(self.raw_dir, exist_ok=True)
+            os.makedirs(self.processed_dir_main, exist_ok=True)
             print("Missing raw data. Go fetch...")
+
+            # -------- Commented the code for Data Handling Restructure for Issue No.10
+            # -------- https://github.com/ChEB-AI/python-chebai/issues/10
             # missing test set -> create
-            if not os.path.isfile(
-                os.path.join(self.raw_dir, self.raw_file_names_dict["test"])
-            ):
-                chebi_path = self._load_chebi(self.chebi_version)
-                g = self.extract_class_hierarchy(chebi_path)
-                df = self.graph_to_raw_dataset(g, self.raw_file_names_dict["test"])
-                _, test_df = self.get_test_split(df)
-                self.save_raw(test_df, self.raw_file_names_dict["test"])
-            # load test_split from file
-            else:
-                with open(
-                    os.path.join(self.raw_dir, self.raw_file_names_dict["test"]), "rb"
-                ) as input_file:
-                    test_df = pickle.load(input_file)
-            # create train/val split based on test set
-            chebi_path = self._load_chebi(
-                self.chebi_version_train
-                if self.chebi_version_train is not None
-                else self.chebi_version
-            )
+            # if not os.path.isfile(
+            #     os.path.join(self.raw_dir, self.raw_file_names_dict["test"])
+            # ):
+            #     chebi_path = self._load_chebi(self.chebi_version)
+            #     g = self.extract_class_hierarchy(chebi_path)
+            #     df = self.graph_to_raw_dataset(g, self.raw_file_names_dict["test"])
+            #     _, test_df = self.get_test_split(df)
+            #     self.save_raw(test_df, self.raw_file_names_dict["test"])
+            # # load test_split from file
+            # else:
+            #     with open(
+            #         os.path.join(self.raw_dir, self.raw_file_names_dict["test"]), "rb"
+            #     ) as input_file:
+            #         test_df = pickle.load(input_file)
+            # # create train/val split based on test set
+            # chebi_path = self._load_chebi(
+            #     self.chebi_version_train
+            #     if self.chebi_version_train is not None
+            #     else self.chebi_version
+            # )
+            # g = self.extract_class_hierarchy(chebi_path)
+            # if self.use_inner_cross_validation:
+            #     df = self.graph_to_raw_dataset(
+            #         g, self.raw_file_names_dict[f"fold_0_train"]
+            #     )
+            # else:
+            #     df = self.graph_to_raw_dataset(g, self.raw_file_names_dict["train"])
+            # train_val_dict = self.get_train_val_splits_given_test(df, test_df)
+            # for name, df in train_val_dict.items():
+            #     self.save_raw(df, name)
+
+            chebi_path = self._load_chebi(self.chebi_version)
             g = self.extract_class_hierarchy(chebi_path)
-            if self.use_inner_cross_validation:
-                df = self.graph_to_raw_dataset(
-                    g, self.raw_file_names_dict[f"fold_0_train"]
+            df = self.graph_to_raw_dataset(g, self.raw_file_names_dict["data"])
+            self.save_processed(df, self.raw_file_names_dict["data"])
+
+    @staticmethod
+    def _get_seed_for_data_split():
+        # Get Seed (random_state) configuration in order generate same splits every time
+        __SEED_CONFIG_FILE_NAME = "chebiDataSplit_Seed.yml"
+        with open(
+            os.path.join("configs", "data", f"{__SEED_CONFIG_FILE_NAME}"), "r"
+        ) as yaml_file:
+            config = yaml.safe_load(yaml_file)
+        seed = int(config.get("seed", None))
+        return seed
+
+    def dataloader(self, data, **kwargs) -> DataLoader:
+        """
+        Returns a DataLoader object for the specified kind (train, val or test) of data.
+
+        Args:
+            data (str): Data to use.
+
+        Returns:
+            DataLoader: A DataLoader object.
+
+        """
+        dataset = data
+        if "ids" in kwargs:
+            ids = kwargs.pop("ids")
+            _dataset = []
+            for i in range(len(dataset)):
+                if i in ids:
+                    _dataset.append(dataset[i])
+            dataset = _dataset
+        if self.label_filter is not None:
+            original_len = len(dataset)
+            dataset = [self._filter_labels(r) for r in dataset]
+            positives = [r for r in dataset if r["labels"][0]]
+            negatives = [r for r in dataset if not r["labels"][0]]
+            if self.balance_after_filter is not None:
+                negative_length = min(
+                    original_len, int(len(positives) * self.balance_after_filter)
                 )
+                dataset = positives + negatives[:negative_length]
             else:
-                df = self.graph_to_raw_dataset(g, self.raw_file_names_dict["train"])
-            train_val_dict = self.get_train_val_splits_given_test(df, test_df)
-            for name, df in train_val_dict.items():
-                self.save_raw(df, name)
+                dataset = positives + negatives
+            random.shuffle(dataset)
+        if self.data_limit is not None:
+            dataset = dataset[: self.data_limit]
+        return DataLoader(
+            dataset,
+            collate_fn=self.reader.collater,
+            batch_size=self.batch_size,
+            **kwargs,
+        )
+
+    def val_dataloader(self, *args, **kwargs) -> Union[DataLoader, List[DataLoader]]:
+        data = self.load_processed_data("data")
+        df = pd.DataFrame(data)
+        train_df, df_test = self.get_test_split(df, seed=self.data_split_seed)
+        _, df_val = self.get_train_val_splits_given_test(
+            train_df, df_test, seed=self.data_split_seed
+        )
+        val_list_of_dicts = df_val.to_dict(orient="records")
+
+        return self.dataloader(
+            val_list_of_dicts,
+            shuffle=False,
+            num_workers=self.num_workers,
+            persistent_workers=True,
+            **kwargs,
+        )
+
+    def train_dataloader(self, *args, **kwargs) -> DataLoader:
+        data = self.load_processed_data("data")
+        df = pd.DataFrame(data)
+        train_df, df_test = self.get_test_split(df, seed=self.data_split_seed)
+        df_train, _ = self.get_train_val_splits_given_test(
+            train_df, df_test, seed=self.data_split_seed
+        )
+        train_list_of_dicts = df_train.to_dict(orient="records")
+
+        return self.dataloader(
+            train_list_of_dicts,
+            shuffle=True,
+            num_workers=self.num_workers,
+            persistent_workers=True,
+            **kwargs,
+        )
+
+    def test_dataloader(self, *args, **kwargs) -> Union[DataLoader, List[DataLoader]]:
+        data = self.load_processed_data("data")
+        df = pd.DataFrame(data)
+        _, df_test = self.get_test_split(df, seed=self.data_split_seed)
+        test_list_of_dicts = df_test.to_dict(orient="records")
+
+        return self.dataloader(test_list_of_dicts, shuffle=False, **kwargs)
 
 
 class JCIExtendedBase(_ChEBIDataExtractor):
