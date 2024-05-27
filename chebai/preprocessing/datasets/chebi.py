@@ -197,7 +197,7 @@ class _ChEBIDataExtractor(XYBaseDataModule, ABC):
         return data
 
     def save_raw(self, data: pd.DataFrame, filename: str):
-        pickle.dump(data, open(os.path.join(self.raw_dir, filename), "wb"))
+        pd.to_pickle(data, open(os.path.join(self.raw_dir, filename), "wb"))
 
     def save_processed(self, data: pd.DataFrame, filename: str):
         pickle.dump(data, open(os.path.join(self.processed_dir_main, filename), "wb"))
@@ -213,7 +213,7 @@ class _ChEBIDataExtractor(XYBaseDataModule, ABC):
             dict: The dictionary, keys are `features`, `labels` and `ident`.
         """
         with open(input_file_path, "rb") as input_file:
-            df = pickle.load(input_file)
+            df = pd.read_pickle(input_file)
             if self.single_class is not None:
                 single_cls_index = list(df.columns).index(int(self.single_class))
             for row in df.values:
@@ -226,7 +226,7 @@ class _ChEBIDataExtractor(XYBaseDataModule, ABC):
     @staticmethod
     def _get_data_size(input_file_path):
         with open(input_file_path, "rb") as f:
-            return len(pickle.load(f))
+            return len(pd.read_pickle(f))
 
     def _setup_pruned_test_set(self):
         """Create test set with same leaf nodes, but use classes that appear in train set"""

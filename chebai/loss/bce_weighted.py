@@ -1,5 +1,6 @@
 import torch
-from chebai.preprocessing.datasets.chebi import _ChEBIDataExtractor
+from chebai.preprocessing.datasets.base import XYBaseDataModule
+from chebai.preprocessing.datasets.pubchem import LabeledUnlabeledMixed
 import pandas as pd
 import os
 import pickle
@@ -10,9 +11,16 @@ class BCEWeighted(torch.nn.BCEWithLogitsLoss):
     https://openaccess.thecvf.com/content_CVPR_2019/papers/Cui_Class-Balanced_Loss_Based_on_Effective_Number_of_Samples_CVPR_2019_paper.pdf)
     """
 
-    def __init__(self, beta: float = None, data_extractor: _ChEBIDataExtractor = None):
+    def __init__(
+        self,
+        beta: float = None,
+        data_extractor: XYBaseDataModule = None,
+    ):
         self.beta = beta
+        if isinstance(data_extractor, LabeledUnlabeledMixed):
+            data_extractor = data_extractor.labeled
         self.data_extractor = data_extractor
+
         super().__init__()
 
     def set_pos_weight(self, input):
@@ -27,16 +35,16 @@ class BCEWeighted(torch.nn.BCEWithLogitsLoss):
         ):
             complete_data = pd.concat(
                 [
-                    pickle.load(
+                    pd.read_pickle(
                         open(
                             os.path.join(
                                 self.data_extractor.raw_dir,
-                                self.data_extractor.raw_file_names_dict[set],
+                                raw_file_name,
                             ),
                             "rb",
                         )
                     )
-                    for set in ["train", "validation", "test"]
+                    for raw_file_name in self.data_extractor.raw_file_names
                 ]
             )
             value_counts = []

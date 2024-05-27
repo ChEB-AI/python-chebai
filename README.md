@@ -42,7 +42,7 @@ python3 -m chebai fit --trainer=configs/training/default_trainer.yml --model=con
 
 ### Fine-tuning for Toxicity prediction
 ```
-python -m chebai fit --config=[path-to-your-tox21-config] --trainer.callbacks=configs/training/default_callbacks.yml  --model.pretrained_checkpoint=[path-to-pretrained-model] --model.load_prefix=generator.
+python -m chebai fit --config=[path-to-your-tox21-config] --trainer.callbacks=configs/training/default_callbacks.yml  --model.pretrained_checkpoint=[path-to-pretrained-model]
 ```
 
 ### Predicting classes given SMILES strings
@@ -51,6 +51,7 @@ python3 -m chebai predict_from_file --model=[path-to-model-config] --checkpoint_
 ```
 The input files should contain a list of line-separated SMILES strings. This generates a CSV file  that contains the
 one row for each SMILES string and one column for each class.
+The `classes_path` is the path to the dataset's `raw/classes.txt` file that contains the relationship between model output and ChEBI-IDs.
 
 ## Evaluation
 
