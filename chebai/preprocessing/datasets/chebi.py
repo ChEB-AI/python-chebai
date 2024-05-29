@@ -192,7 +192,7 @@ class _ChEBIDataExtractor(XYBaseDataModule, ABC):
         return data
 
     def save_raw(self, data: pd.DataFrame, filename: str):
-        pickle.dump(data, open(os.path.join(self.raw_dir, filename), "wb"))
+        pd.to_pickle(data, open(os.path.join(self.raw_dir, filename), "wb"))
 
     def _load_dict(self, input_file_path):
         """
@@ -205,7 +205,7 @@ class _ChEBIDataExtractor(XYBaseDataModule, ABC):
             dict: The dictionary, keys are `features`, `labels` and `ident`.
         """
         with open(input_file_path, "rb") as input_file:
-            df = pickle.load(input_file)
+            df = pd.read_pickle(input_file)
             if self.single_class is not None:
                 single_cls_index = list(df.columns).index(int(self.single_class))
             for row in df.values:
@@ -218,7 +218,7 @@ class _ChEBIDataExtractor(XYBaseDataModule, ABC):
     @staticmethod
     def _get_data_size(input_file_path):
         with open(input_file_path, "rb") as f:
-            return len(pickle.load(f))
+            return len(pd.read_pickle(f))
 
     def _setup_pruned_test_set(self):
         """Create test set with same leaf nodes, but use classes that appear in train set"""
@@ -468,7 +468,7 @@ class _ChEBIDataExtractor(XYBaseDataModule, ABC):
                 with open(
                     os.path.join(self.raw_dir, self.raw_file_names_dict["test"]), "rb"
                 ) as input_file:
-                    test_df = pickle.load(input_file)
+                    test_df = pd.read_pickle(input_file)
             # create train/val split based on test set
             chebi_path = self._load_chebi(
                 self.chebi_version_train

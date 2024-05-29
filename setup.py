@@ -47,6 +47,9 @@ setup(
         "deepsmiles",
         "iterative-stratification",
         "wandb",
+        "chardet",
+        "yaml",
+        "torchmetrics",
     ],
     extras_require={"dev": ["black", "isort", "pre-commit"]},
 )

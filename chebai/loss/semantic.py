@@ -7,20 +7,29 @@ import torch
 from typing import Literal
 
 from chebai.preprocessing.datasets.chebi import _ChEBIDataExtractor, ChEBIOver100
+from chebai.preprocessing.datasets.pubchem import LabeledUnlabeledMixed
+from chebai.loss.bce_weighted import BCEWeighted
 
 
 class ImplicationLoss(torch.nn.Module):
     def __init__(
         self,
-        data_extractor: _ChEBIDataExtractor,
+        data_extractor: _ChEBIDataExtractor | LabeledUnlabeledMixed,
         base_loss: torch.nn.Module = None,
         tnorm: Literal["product", "lukasiewicz", "xu19"] = "product",
         impl_loss_weight=0.1,  # weight of implication loss in relation to base_loss
         pos_scalar=1,
         pos_epsilon=0.01,
+        multiply_by_softmax=False,
     ):
         super().__init__()
+        # automatically choose labeled subset for implication filter in case of mixed dataset
+        if isinstance(data_extractor, LabeledUnlabeledMixed):
+            data_extractor = data_extractor.labeled
         self.data_extractor = data_extractor
+        # propagate data_extractor to base loss
+        if isinstance(base_loss, BCEWeighted):
+            base_loss.data_extractor = self.data_extractor
         self.base_loss = base_loss
         self.implication_cache_file = f"implications_{self.data_extractor.name}.cache"
         self.label_names = _load_label_names(
@@ -36,6 +45,7 @@ class ImplicationLoss(torch.nn.Module):
         self.impl_weight = impl_loss_weight
         self.pos_scalar = pos_scalar
         self.eps = pos_epsilon
+        self.multiply_by_softmax = multiply_by_softmax
 
     def forward(self, input, target, **kwargs):
         nnl = kwargs.pop("non_null_labels", None)
@@ -70,16 +80,20 @@ class ImplicationLoss(torch.nn.Module):
                 math.pow(1 + self.eps, 1 / self.pos_scalar)
                 - math.pow(self.eps, 1 / self.pos_scalar)
             )
-            r = torch.pow(r, self.pos_scalar)
+            one_min_r = torch.pow(1 - r, self.pos_scalar)
+        else:
+            one_min_r = 1 - r
         if self.tnorm == "product":
-            individual_loss = l * (1 - r)
+            individual_loss = l * one_min_r
         elif self.tnorm == "xu19":
-            individual_loss = -torch.log(1 - l * (1 - r))
+            individual_loss = -torch.log(1 - l * one_min_r)
         elif self.tnorm == "lukasiewicz":
-            individual_loss = torch.relu(l - r)
+            individual_loss = torch.relu(l + one_min_r - 1)
         else:
             raise NotImplementedError(f"Unknown tnorm {self.tnorm}")
 
+        if self.multiply_by_softmax:
+            individual_loss = individual_loss * individual_loss.softmax(dim=-1)
         return torch.mean(
             torch.sum(individual_loss, dim=-1),
             dim=0,
@@ -100,7 +114,7 @@ class DisjointLoss(ImplicationLoss):
     def __init__(
         self,
         path_to_disjointness,
-        data_extractor: _ChEBIDataExtractor,
+        data_extractor: _ChEBIDataExtractor | LabeledUnlabeledMixed,
         base_loss: torch.nn.Module = None,
         disjoint_loss_weight=100,
         **kwargs,

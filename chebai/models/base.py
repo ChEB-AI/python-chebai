@@ -28,11 +28,9 @@ class ChebaiBaseNet(LightningModule):
 
     Attributes:
         NAME (str): The name of the model.
-        LOSS (torch.nn.Module): The loss function used by the model.
     """
 
     NAME = None
-    LOSS = torch.nn.BCEWithLogitsLoss
 
     def __init__(
         self,
