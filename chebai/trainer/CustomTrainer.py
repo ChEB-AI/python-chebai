@@ -34,7 +34,7 @@ class CustomTrainer(Trainer):
             smiles_strings = [inp.strip() for inp in input.readlines()]
         loaded_model.eval()
         predictions = self._predict_smiles(loaded_model, smiles_strings)
-        predictions_df = pd.DataFrame(predictions.detach().numpy())
+        predictions_df = pd.DataFrame(predictions.detach().cpu().numpy())
         if classes_path is not None:
             with open(classes_path, "r") as f:
                 predictions_df.columns = [cls.strip() for cls in f.readlines()]
@@ -44,7 +44,7 @@ class CustomTrainer(Trainer):
     def _predict_smiles(self, model: LightningModule, smiles: List[str]):
         reader = ChemDataReader()
         parsed_smiles = [reader._read_data(s) for s in smiles]
-        x = pad_sequence([torch.tensor(a) for a in parsed_smiles], batch_first=True)
+        x = pad_sequence([torch.tensor(a, device=model.device) for a in parsed_smiles], batch_first=True)
         cls_tokens = (
             torch.ones(x.shape[0], dtype=torch.int, device=model.device).unsqueeze(-1)
             * CLS_TOKEN
