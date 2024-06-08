@@ -1,4 +1,5 @@
 import unittest
+
 from chebai.preprocessing.datasets.chebi import ChEBIOver50
 
 
@@ -16,9 +17,9 @@ class TestChebiData(unittest.TestCase):
         chebi_class_obj.prepare_data()
         chebi_class_obj.setup()
 
-        train_set = chebi_class_obj.dynamic_split_class_variables_df["train"]
-        val_set = chebi_class_obj.dynamic_split_class_variables_df["validation"]
-        test_set = chebi_class_obj.dynamic_split_class_variables_df["test"]
+        train_set = chebi_class_obj.dynamic_split_dfs["train"]
+        val_set = chebi_class_obj.dynamic_split_dfs["validation"]
+        test_set = chebi_class_obj.dynamic_split_dfs["test"]
 
         train_smiles, train_smiles_ids = cls.get_features_ids(train_set)
         val_smiles, val_smiles_ids = cls.get_features_ids(val_set)
