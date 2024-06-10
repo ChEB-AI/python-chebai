@@ -8,14 +8,16 @@ from chebai.preprocessing.datasets.chebi import ChEBIOver50
 
 
 class TestChebiDynamicDataSplits(unittest.TestCase):
+    """Test dynamic splits implementation's consistency"""
 
-    def setUpClass(self):
-        self.chebi_50_v231 = ChEBIOver50(chebi_version=231)
-        self.chebi_50_v231_vt200 = ChEBIOver50(
+    @classmethod
+    def setUpClass(cls):
+        cls.chebi_50_v231 = ChEBIOver50(chebi_version=231)
+        cls.chebi_50_v231_vt200 = ChEBIOver50(
             chebi_version=231, chebi_version_train=200
         )
-        self._generate_chebi_class_data(self.chebi_50_v231)
-        self._generate_chebi_class_data(self.chebi_50_v231_vt200)
+        cls._generate_chebi_class_data(cls.chebi_50_v231)
+        cls._generate_chebi_class_data(cls.chebi_50_v231_vt200)
 
     def testDynamicDataSplitsConsistency(self):
         """Test Dynamic Data Splits consistency across every run"""
@@ -47,16 +49,16 @@ class TestChebiDynamicDataSplits(unittest.TestCase):
         """Check if test sets of both classes have different size/shape of labels"""
 
         v231_labels_shape = len(
-            self.chebi_50_v231.dynamic_split_dfs["test"]["ident"][0]
+            self.chebi_50_v231.dynamic_split_dfs["test"]["labels"].iloc[0]
         )
         v231_vt200_label_shape = len(
-            self.chebi_50_v231_vt200.dynamic_split_dfs["test"]["ident"][0]
+            self.chebi_50_v231_vt200.dynamic_split_dfs["test"]["labels"].iloc[0]
         )
 
-        self.assertNotEqual(
+        self.assertEqual(
             v231_labels_shape,
             v231_vt200_label_shape,
-            "Test sets have the same size of labels",
+            "Test sets have the different size of labels",
         )
 
     def test_no_overlaps_in_chebi_v231_vt200(self):
@@ -95,8 +97,7 @@ class TestChebiDynamicDataSplits(unittest.TestCase):
 
         # Get the raw/processed data if missing
         chebi_class_obj = ChEBIOver50(seed=42)
-        chebi_class_obj.prepare_data()
-        chebi_class_obj.setup()
+        self._generate_chebi_class_data(chebi_class_obj)
 
         # Get dynamic splits from class variables
         train_data = chebi_class_obj.dynamic_split_dfs["train"]

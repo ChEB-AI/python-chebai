@@ -257,7 +257,7 @@ class _ChEBIDataExtractor(XYBaseDataModule, ABC):
         ]
 
         # Iterate over each data instance in the test set which is derived from chebi_version
-        for row in df_test_chebi_version:
+        for _, row in df_test_chebi_version.iterrows():
             # Size = Number of classes in chebi_version_train
             new_labels = [False for _ in new_classes]
             for ind, label in enumerate(row["labels"]):
@@ -601,10 +601,11 @@ class _ChEBIDataExtractor(XYBaseDataModule, ABC):
                     self.processed_file_names_dict["data_chebi_train"],
                 )
             )
+            df_chebi_train_version = pd.DataFrame(data_chebi_train_version)
             # Get train/val split of data based on "chebi_version_train", but
             # using test set from "chebi_version"
             df_train, df_val = self.get_train_val_splits_given_test(
-                data_chebi_train_version,
+                df_chebi_train_version,
                 df_test_chebi_ver,
                 seed=self.dynamic_data_split_seed,
             )
@@ -730,11 +731,12 @@ class ChEBIOverX(_ChEBIDataExtractor):
         )
         filename = "classes.txt"
         if (
-            self.chebi_version_train is not None
-            and self.raw_file_names_dict["test"] != split_name
+            self.chebi_version_train
+            is not None
+            # and self.raw_file_names_dict["test"] != split_name
         ):
             filename = f"classes_v{self.chebi_version_train}.txt"
-        with open(os.path.join(self.raw_dir, filename), "wt") as fout:
+        with open(os.path.join(self.processed_dir_main, filename), "wt") as fout:
             fout.writelines(str(node) + "\n" for node in nodes)
         return nodes
 
