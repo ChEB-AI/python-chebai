@@ -14,7 +14,10 @@ setup(
     author_email="martin.glauer@ovgu.de",
     description="",
     zip_safe=False,
-    python_requires="<=3.11.8",
+    # `|` operator used for type hint in chebai/loss/semantic.py is only supported for python_version >= 3.10.
+    # https://stackoverflow.com/questions/76712720/typeerror-unsupported-operand-types-for-type-and-nonetype
+    # python_requires="<=3.11.8",
+    python_requires=">=3.10.0, <3.11.8",
     install_requires=[
         "certifi",
         "idna",
@@ -48,7 +51,8 @@ setup(
         "iterative-stratification",
         "wandb",
         "chardet",
-        "yaml",
+        # --- commented below due to strange dependency error while setting up new env
+        # "yaml",`
         "torchmetrics",
     ],
     extras_require={"dev": ["black", "isort", "pre-commit"]},
