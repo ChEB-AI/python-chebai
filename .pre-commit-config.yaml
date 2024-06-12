@@ -7,3 +7,25 @@ repos:
     rev: "24.2.0"
     hooks:
     -   id: black
+    -   id: black-jupyter # for formatting jupyter-notebook
+
+# -------- below works for me --- locally
+#-   repo: https://github.com/pycqa/isort
+#    rev: 5.13.2
+#    hooks:
+#      - id: isort
+#        name: isort (python)
+#        args: ["--profile=black"]
+#
+#-   repo: https://github.com/asottile/seed-isort-config
+#    rev: v2.2.0
+#    hooks:
+#    -   id: seed-isort-config
+#
+#-   repo: https://github.com/pre-commit/pre-commit-hooks
+#    rev: v4.6.0
+#    hooks:
+#    -   id: check-yaml
+#    -   id: end-of-file-fixer
+#    -   id: trailing-whitespace
+
