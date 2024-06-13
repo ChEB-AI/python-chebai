@@ -108,6 +108,7 @@ class XYBaseDataModule(LightningDataModule):
         if self.use_inner_cross_validation:
             os.makedirs(os.path.join(self.raw_dir, self.fold_dir), exist_ok=True)
             os.makedirs(os.path.join(self.processed_dir, self.fold_dir), exist_ok=True)
+        self.save_hyperparameters()
 
     @property
     def identifier(self):
