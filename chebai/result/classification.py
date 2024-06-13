@@ -1,19 +1,17 @@
 import os
 
-from torchmetrics.classification import (
-    MultilabelF1Score,
-    MultilabelPrecision,
-    MultilabelRecall,
-)
 import matplotlib.pyplot as plt
 import pandas as pd
 import seaborn as sns
 import torch
 import tqdm
+from torchmetrics.classification import (
+    MultilabelF1Score,
+    MultilabelPrecision,
+    MultilabelRecall,
+)
 
-from chebai.callbacks.epoch_metrics import MacroF1
-from chebai.callbacks.epoch_metrics import BalancedAccuracy
-
+from chebai.callbacks.epoch_metrics import BalancedAccuracy, MacroF1
 from chebai.models import ChebaiBaseNet
 from chebai.models.electra import Electra
 from chebai.preprocessing.datasets import XYBaseDataModule

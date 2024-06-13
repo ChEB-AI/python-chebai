@@ -1,15 +1,15 @@
-from typing import List, Optional
 import logging
+from typing import List, Optional
 
+import pandas as pd
+import torch
 from lightning import LightningModule, Trainer
 from lightning.fabric.utilities.types import _PATH
 from lightning.pytorch.loggers import WandbLogger
 from torch.nn.utils.rnn import pad_sequence
-import pandas as pd
-import torch
 
-from chebai.preprocessing.reader import CLS_TOKEN, ChemDataReader
 from chebai.loggers.custom import CustomLogger
+from chebai.preprocessing.reader import CLS_TOKEN, ChemDataReader
 
 log = logging.getLogger(__name__)
 

@@ -1,8 +1,8 @@
 import json
 import os
 
-from lightning.pytorch.callbacks import BasePredictionWriter
 import torch
+from lightning.pytorch.callbacks import BasePredictionWriter
 
 
 class ChebaiPredictionWriter(BasePredictionWriter):

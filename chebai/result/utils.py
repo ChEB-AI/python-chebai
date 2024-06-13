@@ -1,12 +1,14 @@
+import os
+
+import torch
+import tqdm
+import wandb
 import wandb.util as wandb_util
-from chebai.models.electra import Electra
+
 from chebai.models.base import ChebaiBaseNet
+from chebai.models.electra import Electra
 from chebai.preprocessing.datasets.base import XYBaseDataModule
 from chebai.preprocessing.datasets.chebi import _ChEBIDataExtractor
-import os
-import wandb
-import tqdm
-import torch
 
 
 def get_checkpoint_from_wandb(

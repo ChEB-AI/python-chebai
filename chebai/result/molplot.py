@@ -1,7 +1,11 @@
+import abc
 from os import makedirs
 from tempfile import NamedTemporaryFile
-import abc
 
+import networkx as nx
+import numpy as np
+import pandas as pd
+import torch
 from matplotlib import cm, colors
 from matplotlib import pyplot as plt
 from matplotlib import rc
@@ -11,10 +15,6 @@ from pysmiles.read_smiles import *
 from pysmiles.read_smiles import _tokenize
 from rdkit import Chem
 from rdkit.Chem.Draw import MolToMPL, rdMolDraw2D
-import networkx as nx
-import numpy as np
-import pandas as pd
-import torch
 
 from chebai.preprocessing.datasets import JCI_500_COLUMNS, JCI_500_COLUMNS_INT
 from chebai.result.base import ResultProcessor

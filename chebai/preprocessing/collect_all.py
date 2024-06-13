@@ -2,6 +2,9 @@ import logging
 import os
 import sys
 
+import pytorch_lightning as pl
+import torch
+import torch.nn.functional as F
 from pytorch_lightning import loggers as pl_loggers
 from pytorch_lightning.callbacks import ModelCheckpoint
 from pytorch_lightning.metrics import F1
@@ -9,9 +12,6 @@ from sklearn.metrics import f1_score
 from torch import nn
 from torch_geometric import nn as tgnn
 from torch_geometric.data import DataLoader
-import pytorch_lightning as pl
-import torch
-import torch.nn.functional as F
 
 from data import ClassificationData, JCIClassificationData
 

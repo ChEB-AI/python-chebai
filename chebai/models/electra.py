@@ -1,7 +1,8 @@
+import logging
 from math import pi
 from tempfile import TemporaryDirectory
-import logging
 
+import torch
 from torch import nn
 from torch.nn.utils.rnn import pad_sequence
 from transformers import (
@@ -10,7 +11,6 @@ from transformers import (
     ElectraForPreTraining,
     ElectraModel,
 )
-import torch
 
 from chebai.loss.pretraining import ElectraPreLoss  # noqa
 from chebai.models.base import ChebaiBaseNet

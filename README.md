@@ -1,6 +1,6 @@
 # ChEBai
 
-ChEBai is a deep learning library designed for the integration of deep learning methods with chemical ontologies, particularly ChEBI. 
+ChEBai is a deep learning library designed for the integration of deep learning methods with chemical ontologies, particularly ChEBI.
 The library emphasizes the incorporation of the semantic qualities of the ontology into the learning process.
 
 ## Installation
@@ -21,7 +21,7 @@ pip install .
 
 ## Usage
 
-The training and inference is abstracted using the Pytorch Lightning modules. 
+The training and inference is abstracted using the Pytorch Lightning modules.
 Here are some CLI commands for the standard functionalities of pretraining, ontology extension, fine-tuning for toxicity and prediction.
 For further details, see the [wiki](https://github.com/ChEB-AI/python-chebai/wiki).
 If you face any problems, please open a new [issue](https://github.com/ChEB-AI/python-chebai/issues/new).
@@ -55,18 +55,18 @@ The `classes_path` is the path to the dataset's `raw/classes.txt` file that cont
 
 ## Evaluation
 
-An example for evaluating a model trained on the ontology extension task is given in `tutorials/eval_model_basic.ipynb`. 
+An example for evaluating a model trained on the ontology extension task is given in `tutorials/eval_model_basic.ipynb`.
 It takes in the finetuned model as input for performing the evaluation.
 
 ## Cross-validation
-You can do inner k-fold cross-validation, i.e., train models on k train-validation splits that all use the same test 
+You can do inner k-fold cross-validation, i.e., train models on k train-validation splits that all use the same test
 set. For that, you need to specify the total_number of folds as
 ```
 --data.init_args.inner_k_folds=K
 ```
 and the fold to be used in the current optimisation run as
-``` 
+```
 --data.init_args.fold_index=I
 ```
-To train K models, you need to do K such calls, each with a different `fold_index`. On the first call with a given 
+To train K models, you need to do K such calls, each with a different `fold_index`. On the first call with a given
 `inner_k_folds`, all folds will be created and stored in the data directory

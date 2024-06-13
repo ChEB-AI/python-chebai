@@ -1,17 +1,17 @@
-from tempfile import NamedTemporaryFile, TemporaryDirectory
-from urllib import request
 import csv
 import gzip
 import os
 import random
 import shutil
 import zipfile
+from tempfile import NamedTemporaryFile, TemporaryDirectory
+from urllib import request
 
-from rdkit import Chem
-from sklearn.model_selection import GroupShuffleSplit, train_test_split
 import numpy as np
 import pysmiles
 import torch
+from rdkit import Chem
+from sklearn.model_selection import GroupShuffleSplit, train_test_split
 
 from chebai.preprocessing import reader as dr
 from chebai.preprocessing.datasets.base import MergedDataset, XYBaseDataModule

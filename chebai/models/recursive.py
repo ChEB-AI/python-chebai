@@ -1,9 +1,9 @@
 import logging
 
-from torch import exp, nn, tensor
 import networkx as nx
 import torch
 import torch.nn.functional as F
+from torch import exp, nn, tensor
 
 from chebai.models.base import ChebaiBaseNet
 

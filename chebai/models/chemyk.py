@@ -3,11 +3,11 @@ import os
 import pickle
 import sys
 
+import networkx as nx
+import torch
 from torch import nn
 from torch.nn import functional as F
 from torch.nn.functional import pad
-import networkx as nx
-import torch
 
 from chebai.models.base import ChebaiBaseNet
 
