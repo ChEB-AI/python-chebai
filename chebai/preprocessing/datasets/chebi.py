@@ -576,9 +576,6 @@ class _ChEBIDataExtractor(XYBaseDataModule, ABC):
                     df, filename=self.raw_file_names_dict["data_chebi_train"]
                 )
 
-    def setup(self, **kwargs):
-        super().setup(**kwargs)
-
     def _get_dynamic_splits(self):
         """Generate data splits during run-time and saves in class variables"""
 
@@ -640,34 +637,44 @@ class _ChEBIDataExtractor(XYBaseDataModule, ABC):
             "test": self.dynamic_df_test,
         }
 
-    def load_processed_data(self, kind: str = None) -> List:
+    def load_processed_data(self, kind: str = None, filename: str = None) -> List:
         """
         Load processed data from a file.
 
         Args:
             kind (str, optional): The kind of dataset to load such as "train", "val" or "test". Defaults to None.
+            filename (str, optional): The name of the file to load the dataset from. Defaults to None.
 
         Returns:
             List: The loaded processed data.
 
         Raises:
-            ValueError: If kind is None.
+            ValueError: If both kind and filename are None.
+            FileNotFoundError: If the specified file does not exist.
         """
-        if kind is None:
-            raise ValueError("kind is required to load the correct dataset")
-        # if both kind and filename are given, use filename
-        if kind is not None:
+        if kind is None and filename is None:
+            raise ValueError(
+                "Either kind or filename is required to load the correct dataset, both are None"
+            )
+
+        # If both kind and filename are given, use filename
+        if kind is not None and filename is None:
             try:
-                # processed_file_names_dict is only implemented for _ChEBIDataExtractor
                 if self.use_inner_cross_validation and kind != "test":
                     filename = self.processed_file_names_dict[
                         f"fold_{self.fold_index}_{kind}"
                     ]
                 else:
                     data_df = self.dynamic_split_dfs[kind]
-            except NotImplementedError:
-                filename = f"{kind}"
-        return data_df.to_dict(orient="records")
+                    return data_df.to_dict(orient="records")
+            except KeyError:
+                kind = f"{kind}"
+
+        # If filename is provided
+        try:
+            return torch.load(os.path.join(self.processed_dir, filename))
+        except FileNotFoundError:
+            raise FileNotFoundError(f"File {filename} doesn't exist")
 
 
 class JCIExtendedBase(_ChEBIDataExtractor):
