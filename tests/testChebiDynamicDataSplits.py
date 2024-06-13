@@ -96,8 +96,7 @@ class TestChebiDynamicDataSplits(unittest.TestCase):
         """Returns hashed dynamic data splits"""
 
         # Get the raw/processed data if missing
-        chebi_class_obj = ChEBIOver50(seed=42)
-        self._generate_chebi_class_data(chebi_class_obj)
+        chebi_class_obj = self.chebi_50_v231
 
         # Get dynamic splits from class variables
         train_data = chebi_class_obj.dynamic_split_dfs["train"]
