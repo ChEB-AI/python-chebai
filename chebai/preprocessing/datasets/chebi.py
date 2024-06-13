@@ -578,8 +578,6 @@ class _ChEBIDataExtractor(XYBaseDataModule, ABC):
 
     def setup(self, **kwargs):
         super().setup(**kwargs)
-        if not all([self.dynamic_df_train, self.dynamic_df_val, self.dynamic_df_test]):
-            self._get_dynamic_splits()
 
     def _get_dynamic_splits(self):
         """Generate data splits during run-time and saves in class variables"""
@@ -627,6 +625,15 @@ class _ChEBIDataExtractor(XYBaseDataModule, ABC):
 
     @property
     def dynamic_split_dfs(self):
+        if any(
+            split is None
+            for split in [
+                self.dynamic_df_test,
+                self.dynamic_df_val,
+                self.dynamic_df_train,
+            ]
+        ):
+            self._get_dynamic_splits()
         return {
             "train": self.dynamic_df_train,
             "validation": self.dynamic_df_val,
