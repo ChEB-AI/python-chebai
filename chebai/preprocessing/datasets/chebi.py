@@ -127,6 +127,10 @@ class _ChEBIDataExtractor(XYBaseDataModule, ABC):
     Attributes:
         single_class (int): The ID of the single class to predict.
         chebi_version_train (int): The version of ChEBI to use for training and validation.
+        dynamic_data_split_seed (int): The seed for random data splitting, default is 42.
+        dynamic_df_train (pd.DataFrame): DataFrame to store the training data split.
+        dynamic_df_test (pd.DataFrame): DataFrame to store the test data split.
+        dynamic_df_val (pd.DataFrame): DataFrame to store the validation data split.
     """
 
     def __init__(
@@ -143,6 +147,16 @@ class _ChEBIDataExtractor(XYBaseDataModule, ABC):
         self.dynamic_df_train = None
         self.dynamic_df_test = None
         self.dynamic_df_val = None
+
+        if self.chebi_version_train is not None:
+            # Instantiate another same class with "chebi_version" as "chebi_version_train", if train_version is given
+            # This is to get the data from respective directory related to "chebi_version_train"
+            _init_kwargs = kwargs
+            _init_kwargs["chebi_version"] = self.chebi_version_train
+            self._chebi_version_train_obj = self.__class__(
+                single_class=self.single_class,
+                **_init_kwargs,
+            )
 
     def extract_class_hierarchy(self, chebi_path):
         """
@@ -238,7 +252,7 @@ class _ChEBIDataExtractor(XYBaseDataModule, ABC):
         """Create a test set with the same leaf nodes, but use only classes that appear in the training set"""
         # TODO: find a more efficient way to do this
         filename_old = "classes.txt"
-        filename_new = f"classes_v{self.chebi_version_train}.txt"
+        # filename_new = f"classes_v{self.chebi_version_train}.txt"
         # dataset = torch.load(os.path.join(self.processed_dir, "test.pt"))
 
         # Load original classes (from the current ChEBI version - chebi_version)
@@ -246,7 +260,12 @@ class _ChEBIDataExtractor(XYBaseDataModule, ABC):
             orig_classes = file.readlines()
 
         # Load new classes (from the training ChEBI version - chebi_version_train)
-        with open(os.path.join(self.processed_dir_main, filename_new), "r") as file:
+        with open(
+            os.path.join(
+                self._chebi_version_train_obj.processed_dir_main, filename_old
+            ),
+            "r",
+        ) as file:
             new_classes = file.readlines()
 
         # Create a mapping which give index of a class from chebi_version, if the corresponding
@@ -277,42 +296,74 @@ class _ChEBIDataExtractor(XYBaseDataModule, ABC):
     def setup_processed(self):
         print("Transform data")
         os.makedirs(self.processed_dir, exist_ok=True)
-        for k in self.processed_file_names_dict.keys():
-            # processed_name = (
-            #     "test.pt" if k == "test" else self.processed_file_names_dict[k]
-            # )
-            processed_name = self.processed_file_names_dict[k]
-            if k == "data_chebi_train" and self.chebi_version_train is None:
-                # To skip the encoding of data for "chebi_version_train", if it's not given
-                continue
-
-            if not os.path.isfile(os.path.join(self.processed_dir, processed_name)):
-                print(
-                    "Missing encoded data, transform processed data into encoded data",
-                    k,
-                )
-                torch.save(
-                    self._load_data_from_file(
-                        os.path.join(
-                            self.processed_dir_main, self.raw_file_names_dict[k]
-                        )
-                    ),
-                    os.path.join(self.processed_dir, processed_name),
-                )
-
         # -------- Commented the code for Data Handling Restructure for Issue No.10
         # -------- https://github.com/ChEB-AI/python-chebai/issues/10
+        # for k in self.processed_file_names_dict.keys():
+        #     processed_name = (
+        #         "test.pt" if k == "test" else self.processed_file_names_dict[k]
+        #     )
+        #     if not os.path.isfile(os.path.join(self.processed_dir, processed_name)):
+        #         print("transform", k)
+        #         torch.save(
+        #             self._load_data_from_file(
+        #                 os.path.join(self.raw_dir, self.raw_file_names_dict[k])
+        #             ),
+        #             os.path.join(self.processed_dir, processed_name),
+        #         )
         # # create second test set with classes used in train
         # if self.chebi_version_train is not None and not os.path.isfile(
-        #     os.path.join(
-        #         self.processed_dir, self.processed_file_names_dict["data_chebi_train"]
-        #     )
+        #     os.path.join(self.processed_dir, self.processed_file_names_dict["test"])
         # ):
         #     print("transform test (select classes)")
         #     self._setup_pruned_test_set()
+        #
+        # processed_name = self.processed_file_names_dict[k]
+        # if not os.path.isfile(os.path.join(self.processed_dir, processed_name)):
+        #     print(
+        #         "Missing encoded data, transform processed data into encoded data",
+        #         k,
+        #     )
+        #     torch.save(
+        #         self._load_data_from_file(
+        #             os.path.join(
+        #                 self.processed_dir_main, self.raw_file_names_dict[k]
+        #             )
+        #         ),
+        #         os.path.join(self.processed_dir, processed_name),
+        #     )
+
+        # Transform the processed data into encoded data
+        processed_name = self.processed_file_names_dict["data"]
+        if not os.path.isfile(os.path.join(self.processed_dir, processed_name)):
+            print(
+                f"Missing encoded data related to version {self.chebi_version}, transform processed data into encoded data:",
+                processed_name,
+            )
+            torch.save(
+                self._load_data_from_file(
+                    os.path.join(
+                        self.processed_dir_main,
+                        self.raw_file_names_dict["data"],
+                    )
+                ),
+                os.path.join(self.processed_dir, processed_name),
+            )
+
+        # Transform the data related to "chebi_version_train" to encoded data, if it doesn't exist
+        if self.chebi_version_train is not None and not os.path.isfile(
+            os.path.join(
+                self._chebi_version_train_obj.processed_dir,
+                self._chebi_version_train_obj.raw_file_names_dict["data"],
+            )
+        ):
+            print(
+                f"Missing encoded data related to train version: {self.chebi_version_train}"
+            )
+            print("Call the setup method related to it")
+            self._chebi_version_train_obj.setup()
 
     def get_test_split(self, df: pd.DataFrame, seed: int = None):
-        print("Get test data split")
+        print("\nGet test data split")
 
         # df_list = df.values.tolist()
         # df_list = [row[1] for row in df_list]
@@ -441,7 +492,6 @@ class _ChEBIDataExtractor(XYBaseDataModule, ABC):
             # else:
             # res[set] = f"{set}{train_v_str}.pt"
         res["data"] = "data.pt"
-        res["data_chebi_train"] = f"data{train_v_str}.pt"
         return res
 
     @property
@@ -464,7 +514,6 @@ class _ChEBIDataExtractor(XYBaseDataModule, ABC):
             # else:
             # res[set] = f"{set}{train_v_str}.pkl"
         res["data"] = "data.pkl"
-        res["data_chebi_train"] = f"data{train_v_str}.pkl"
         return res
 
     @property
@@ -560,29 +609,33 @@ class _ChEBIDataExtractor(XYBaseDataModule, ABC):
             df = self.graph_to_raw_dataset(g, self.raw_file_names_dict["data"])
             self.save_processed(df, filename=self.raw_file_names_dict["data"])
 
-            # Data from chebi_version_train
-            if self.chebi_version_train is not None and not os.path.isfile(
-                os.path.join(
-                    self.processed_dir_main,
-                    self.raw_file_names_dict["data_chebi_train"],
-                )
-            ):
-                chebi_path = self._load_chebi(self.chebi_version_train)
-                g = self.extract_class_hierarchy(chebi_path)
-                df = self.graph_to_raw_dataset(
-                    g, self.raw_file_names_dict["data_chebi_train"]
-                )
-                self.save_processed(
-                    df, filename=self.raw_file_names_dict["data_chebi_train"]
-                )
+            if self.chebi_version_train is not None:
+                if not os.path.isfile(
+                    os.path.join(
+                        self._chebi_version_train_obj.processed_dir_main,
+                        self._chebi_version_train_obj.raw_file_names_dict["data"],
+                    )
+                ):
+                    print(
+                        f"Missing processed data related to train version: {self.chebi_version_train}"
+                    )
+                    print("Call the prepare_data method related to it")
+                    # Generate the "chebi_version_train" data if it doesn't exist
+                    self._chebi_version_train_obj.prepare_data(*args, **kwargs)
 
     def _get_dynamic_splits(self):
         """Generate data splits during run-time and saves in class variables"""
 
         # Load encoded data derived from "chebi_version"
-        data_chebi_version = torch.load(
-            os.path.join(self.processed_dir, self.processed_file_names_dict["data"])
-        )
+        try:
+            filename = self.processed_file_names_dict["data"]
+            data_chebi_version = torch.load(os.path.join(self.processed_dir, filename))
+        except FileNotFoundError:
+            raise FileNotFoundError(
+                f"File {filename} doesn't exists. "
+                f"Please call 'prepare_data' and/or 'setup' methods to generate the dataset files"
+            )
+
         df_chebi_version = pd.DataFrame(data_chebi_version)
         train_df_chebi_ver, df_test_chebi_ver = self.get_test_split(
             df_chebi_version, seed=self.dynamic_data_split_seed
@@ -590,12 +643,21 @@ class _ChEBIDataExtractor(XYBaseDataModule, ABC):
 
         if self.chebi_version_train is not None:
             # Load encoded data derived from "chebi_version_train"
-            data_chebi_train_version = torch.load(
-                os.path.join(
-                    self.processed_dir,
-                    self.processed_file_names_dict["data_chebi_train"],
+            try:
+                filename_train = (
+                    self._chebi_version_train_obj.processed_file_names_dict["data"]
                 )
-            )
+                data_chebi_train_version = torch.load(
+                    os.path.join(
+                        self._chebi_version_train_obj.processed_dir, filename_train
+                    )
+                )
+            except FileNotFoundError:
+                raise FileNotFoundError(
+                    f"File {filename_train} doesn't exists related to chebi_version_train {self.chebi_version_train}."
+                    f"Please call 'prepare_data' and/or 'setup' methods to generate the dataset files"
+                )
+
             df_chebi_train_version = pd.DataFrame(data_chebi_train_version)
             # Get train/val split of data based on "chebi_version_train", but
             # using test set from "chebi_version"
@@ -744,12 +806,12 @@ class ChEBIOverX(_ChEBIDataExtractor):
             )
         )
         filename = "classes.txt"
-        if (
-            self.chebi_version_train
-            is not None
-            # and self.raw_file_names_dict["test"] != split_name
-        ):
-            filename = f"classes_v{self.chebi_version_train}.txt"
+        # if (
+        #     self.chebi_version_train
+        #     is not None
+        #     # and self.raw_file_names_dict["test"] != split_name
+        # ):
+        #     filename = f"classes_v{self.chebi_version_train}.txt"
         with open(os.path.join(self.processed_dir_main, filename), "wt") as fout:
             fout.writelines(str(node) + "\n" for node in nodes)
         return nodes
