@@ -22,12 +22,10 @@ import networkx as nx
 import pandas as pd
 import requests
 import torch
-import yaml
 from iterstrat.ml_stratifiers import (
     MultilabelStratifiedKFold,
     MultilabelStratifiedShuffleSplit,
 )
-from torch.utils.data import DataLoader
 
 from chebai.preprocessing import reader as dr
 from chebai.preprocessing.datasets.base import XYBaseDataModule
@@ -363,10 +361,32 @@ class _ChEBIDataExtractor(XYBaseDataModule, ABC):
             self._chebi_version_train_obj.setup()
 
     def get_test_split(self, df: pd.DataFrame, seed: int = None):
+        """
+        Split the input DataFrame into training and testing sets based on multilabel stratified sampling.
+
+        This method uses MultilabelStratifiedShuffleSplit to split the data such that the distribution of labels
+        in the training and testing sets is approximately the same. The split is based on the "labels" column
+        in the DataFrame.
+
+        Parameters:
+        ----------
+        df : pd.DataFrame
+            The input DataFrame containing the data to be split. It must contain a column named "labels"
+            with the multilabel data.
+
+        seed : int, optional
+            The random seed to be used for reproducibility. Default is None.
+
+        Returns:
+        -------
+        df_train : pd.DataFrame
+            The training set split from the input DataFrame.
+
+        df_test : pd.DataFrame
+            The testing set split from the input DataFrame.
+        """
         print("\nGet test data split")
 
-        # df_list = df.values.tolist()
-        # df_list = [row[1] for row in df_list]
         labels_list = df["labels"].tolist()
 
         test_size = 1 - self.train_split - (1 - self.train_split) ** 2
@@ -374,17 +394,10 @@ class _ChEBIDataExtractor(XYBaseDataModule, ABC):
             n_splits=1, test_size=test_size, random_state=seed
         )
 
-        train_split = []
-        test_split = []
-        for train_split, test_split in msss.split(
-            labels_list,
-            labels_list,
-        ):
-            train_split = train_split
-            test_split = test_split
-            break
-        df_train = df.iloc[train_split]
-        df_test = df.iloc[test_split]
+        train_indices, test_indices = next(msss.split(labels_list, labels_list))
+
+        df_train = df.iloc[train_indices]
+        df_test = df.iloc[test_indices]
         return df_train, df_test
 
     def get_train_val_splits_given_test(
@@ -392,7 +405,7 @@ class _ChEBIDataExtractor(XYBaseDataModule, ABC):
     ):
         """
         Split the dataset into train and validation sets, given a test set.
-        Use test set (e.g., loaded from another chebi version or generated in get_test_split), avoid overlap
+        Use test set (e.g., loaded from another chebi version or generated in get_test_split), to avoid overlap
 
         Args:
             df (pd.DataFrame): The original dataset.
@@ -404,12 +417,11 @@ class _ChEBIDataExtractor(XYBaseDataModule, ABC):
         """
         print(f"Split dataset into train / val with given test set")
 
-        df_trainval = df
         test_ids = test_df["ident"].tolist()
-        mask = [trainval_id not in test_ids for trainval_id in df_trainval["ident"]]
-        df_trainval = df_trainval[mask]
-        # df_trainval_list = df_trainval.values.tolist()
-        # df_trainval_list = [row[3:] for row in df_trainval_list]
+        # ---- list comprehension degrades performance, dataframe operations are faster
+        # mask = [trainval_id not in test_ids for trainval_id in df_trainval["ident"]]
+        # df_trainval = df_trainval[mask]
+        df_trainval = df[~df["ident"].isin(test_ids)]
         labels_list_trainval = df_trainval["labels"].tolist()
 
         if self.use_inner_cross_validation:
@@ -437,16 +449,13 @@ class _ChEBIDataExtractor(XYBaseDataModule, ABC):
         msss = MultilabelStratifiedShuffleSplit(
             n_splits=1, test_size=test_size, random_state=seed
         )
-        train_split = []
-        validation_split = []
-        for train_split, validation_split in msss.split(
-            labels_list_trainval, labels_list_trainval
-        ):
-            train_split = train_split
-            validation_split = validation_split
 
-        df_validation = df_trainval.iloc[validation_split]
-        df_train = df_trainval.iloc[train_split]
+        train_indices, validation_indices = next(
+            msss.split(labels_list_trainval, labels_list_trainval)
+        )
+
+        df_validation = df_trainval.iloc[validation_indices]
+        df_train = df_trainval.iloc[train_indices]
         return df_train, df_validation
 
     @property
@@ -632,7 +641,7 @@ class _ChEBIDataExtractor(XYBaseDataModule, ABC):
             data_chebi_version = torch.load(os.path.join(self.processed_dir, filename))
         except FileNotFoundError:
             raise FileNotFoundError(
-                f"File {filename} doesn't exists. "
+                f"File data.pt doesn't exists. "
                 f"Please call 'prepare_data' and/or 'setup' methods to generate the dataset files"
             )
 
@@ -654,7 +663,7 @@ class _ChEBIDataExtractor(XYBaseDataModule, ABC):
                 )
             except FileNotFoundError:
                 raise FileNotFoundError(
-                    f"File {filename_train} doesn't exists related to chebi_version_train {self.chebi_version_train}."
+                    f"File data.pt doesn't exists related to chebi_version_train {self.chebi_version_train}."
                     f"Please call 'prepare_data' and/or 'setup' methods to generate the dataset files"
                 )
 
