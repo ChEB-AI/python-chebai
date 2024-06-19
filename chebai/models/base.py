@@ -1,11 +1,8 @@
-from typing import Optional
 import logging
-import typing
-
 from lightning.pytorch.core.module import LightningModule
 import torch
-
-from chebai.preprocessing.structures import XYData
+from typing import Optional, Dict, Any
+import pickle
 
 logging.getLogger("pysmiles").setLevel(logging.CRITICAL)
 
@@ -13,49 +10,25 @@ _MODEL_REGISTRY = dict()
 
 
 class ChebaiBaseNet(LightningModule):
-    """
-    Base class for Chebai neural network models inheriting from PyTorch Lightning's LightningModule.
-
-    Args:
-        criterion (torch.nn.Module, optional): The loss criterion for the model. Defaults to None.
-        out_dim (int, optional): The output dimension of the model. Defaults to None.
-        train_metrics (torch.nn.Module, optional): The metrics to be used during training. Defaults to None.
-        val_metrics (torch.nn.Module, optional): The metrics to be used during validation. Defaults to None.
-        test_metrics (torch.nn.Module, optional): The metrics to be used during testing. Defaults to None.
-        pass_loss_kwargs (bool, optional): Whether to pass loss kwargs to the criterion. Defaults to True.
-        optimizer_kwargs (typing.Dict, optional): Additional keyword arguments for the optimizer. Defaults to None.
-        **kwargs: Additional keyword arguments.
-
-    Attributes:
-        NAME (str): The name of the model.
-    """
-
     NAME = None
+    LOSS = torch.nn.BCEWithLogitsLoss
 
     def __init__(
         self,
         criterion: torch.nn.Module = None,
-        out_dim: Optional[int] = None,
-        train_metrics: Optional[torch.nn.Module] = None,
-        val_metrics: Optional[torch.nn.Module] = None,
-        test_metrics: Optional[torch.nn.Module] = None,
+        out_dim=None,
+        metrics: Optional[Dict[str, torch.nn.Module]] = None,
         pass_loss_kwargs=True,
-        optimizer_kwargs: Optional[typing.Dict] = None,
         **kwargs,
     ):
         super().__init__()
         self.criterion = criterion
-        self.save_hyperparameters(
-            ignore=["criterion", "train_metrics", "val_metrics", "test_metrics"]
-        )
+        self.save_hyperparameters(ignore=["criterion"])
         self.out_dim = out_dim
-        if optimizer_kwargs:
-            self.optimizer_kwargs = optimizer_kwargs
-        else:
-            self.optimizer_kwargs = dict()
-        self.train_metrics = train_metrics
-        self.validation_metrics = val_metrics
-        self.test_metrics = test_metrics
+        self.optimizer_kwargs = kwargs.get("optimizer_kwargs", dict())
+        self.train_metrics = metrics["train"]
+        self.validation_metrics = metrics["validation"]
+        self.test_metrics = metrics["test"]
         self.pass_loss_kwargs = pass_loss_kwargs
 
     def __init_subclass__(cls, **kwargs):
@@ -67,13 +40,10 @@ class ChebaiBaseNet(LightningModule):
     def _get_prediction_and_labels(self, data, labels, output):
         return output, labels
 
-    def _process_labels_in_batch(self, batch):
-        return batch.y.float()
-
     def _process_batch(self, batch, batch_idx):
         return dict(
             features=batch.x,
-            labels=self._process_labels_in_batch(batch),
+            labels=batch.y.float(),
             model_kwargs=batch.additional_fields["model_kwargs"],
             loss_kwargs=batch.additional_fields["loss_kwargs"],
             idents=batch.additional_fields["idents"],
@@ -101,27 +71,10 @@ class ChebaiBaseNet(LightningModule):
         return self._execute(batch, batch_idx, self.test_metrics, prefix="", log=False)
 
     def _execute(self, batch, batch_idx, metrics, prefix="", log=True, sync_dist=False):
-        """
-        Executes the model on a batch of data and returns the model output and predictions.
-
-        Args:
-            batch (XYData): The input batch of data.
-            batch_idx (int): The index of the current batch.
-            metrics (dict): A dictionary of metrics to track.
-            prefix (str, optional): A prefix to add to the metric names. Defaults to "".
-            log (bool, optional): Whether to log the metrics. Defaults to True.
-            sync_dist (bool, optional): Whether to synchronize distributed training. Defaults to False.
-
-        Returns:
-            dict: A dictionary containing the processed data, labels, model_output, predictions, and loss (if applicable).
-        """
-        assert isinstance(batch, XYData)
-        batch = batch.to(self.device)
         data = self._process_batch(batch, batch_idx)
         labels = data["labels"]
         model_output = self(data, **data.get("model_kwargs", dict()))
-        pr, tar = self._get_prediction_and_labels(data, labels, model_output)
-        d = dict(data=data, labels=labels, output=model_output, preds=pr)
+        d = dict(data=data, labels=labels, output=model_output)
         if log:
             if self.criterion is not None:
                 loss_data, loss_labels, loss_kwargs_candidates = self._process_for_loss(
@@ -130,78 +83,54 @@ class ChebaiBaseNet(LightningModule):
                 loss_kwargs = dict()
                 if self.pass_loss_kwargs:
                     loss_kwargs = loss_kwargs_candidates
-                loss = self.criterion(loss_data, loss_labels, **loss_kwargs)
-                if isinstance(loss, tuple):
-                    loss_additional = loss[1:]
-                    for i, loss_add in enumerate(loss_additional):
-                        self.log(
-                            f"{prefix}loss_{i}",
-                            loss_add if isinstance(loss_add, int) else loss_add.item(),
-                            batch_size=len(batch),
-                            on_step=True,
-                            on_epoch=False,
-                            prog_bar=False,
-                            logger=True,
-                            sync_dist=sync_dist,
-                        )
-                    loss = loss[0]
 
+                with open('./weights_2.pkl', 'rb') as f:
+                    weights_beta = pickle.load(f)
+                with open('./weights.pkl', 'rb') as f:
+                    weights_simple = pickle.load(f)   
+                loss_kwargs["weights_beta"] = torch.tensor(weights_beta).to('cuda')
+                loss_kwargs["weights_simple"] = torch.tensor(weights_simple).to('cuda')
+                loss_kwargs["model"] = self 
+                loss = self.criterion(loss_data, loss_labels, **loss_kwargs)
                 d["loss"] = loss
                 self.log(
                     f"{prefix}loss",
                     loss.item(),
-                    batch_size=len(batch),
-                    on_step=True,
+                    batch_size=batch.x.shape[0],
+                    on_step=False,
                     on_epoch=True,
                     prog_bar=True,
                     logger=True,
                     sync_dist=sync_dist,
                 )
             if metrics and labels is not None:
+                pr, tar = self._get_prediction_and_labels(data, labels, model_output)
                 for metric_name, metric in metrics.items():
-                    metric.update(pr, tar)
-                self._log_metrics(prefix, metrics, len(batch))
+                    m = metric(pr, tar)
+                    if isinstance(m, dict):
+                        for k, m2 in m.items():
+                            self.log(
+                                f"{prefix}{metric_name}{k}",
+                                m2,
+                                batch_size=batch.x.shape[0],
+                                on_step=False,
+                                on_epoch=True,
+                                prog_bar=True,
+                                logger=True,
+                                sync_dist=sync_dist,
+                            )
+                    else:
+                        self.log(
+                            f"{prefix}{metric_name}",
+                            m,
+                            batch_size=batch.x.shape[0],
+                            on_step=False,
+                            on_epoch=True,
+                            prog_bar=True,
+                            logger=True,
+                            sync_dist=sync_dist,
+                        )
         return d
-
-    def _log_metrics(self, prefix, metrics, batch_size):
-        """
-        Logs the metrics for the given prefix.
-
-        Args:
-            prefix (str): The prefix to be added to the metric names.
-            metrics (dict): A dictionary containing the metrics to be logged.
-            batch_size (int): The batch size used for logging.
-
-        Returns:
-            None
-        """
-        # don't use sync_dist=True if the metric is a torchmetrics-metric
-        # (see https://github.com/Lightning-AI/pytorch-lightning/discussions/6501#discussioncomment-569757)
-        for metric_name, metric in metrics.items():
-            m = None  # m = metric.compute()
-            if isinstance(m, dict):
-                # todo: is this case needed? it requires logging values directly which does not give accurate results
-                # with the current metric-setup
-                for k, m2 in m.items():
-                    self.log(
-                        f"{prefix}{metric_name}{k}",
-                        m2,
-                        batch_size=batch_size,
-                        on_step=False,
-                        on_epoch=True,
-                        prog_bar=True,
-                        logger=True,
-                    )
-            else:
-                self.log(
-                    f"{prefix}{metric_name}",
-                    metric,
-                    batch_size=batch_size,
-                    on_step=False,
-                    on_epoch=True,
-                    prog_bar=True,
-                    logger=True,
-                )
 
     def forward(self, x):
         raise NotImplementedError

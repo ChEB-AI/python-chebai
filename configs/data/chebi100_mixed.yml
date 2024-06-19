@@ -1,4 +1,0 @@
-class_path: chebai.preprocessing.datasets.pubchem.LabeledUnlabeledMixed
-init_args:
-  labeled: chebi100.yml
-  unlabeled: pubchem_dissimilar.yml

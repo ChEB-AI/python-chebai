@@ -1,5 +1,0 @@
-class_path: torchmetrics.MetricCollection
-init_args:
-  metrics:
-    balanced-accuracy:
-      class_path: chebai.callbacks.epoch_metrics.BalancedAccuracy

@@ -1,5 +1,0 @@
-min_epochs: 100
-max_epochs: 100
-default_root_dir: &default_root_dir logs
-logger: csv_logger.yml
-callbacks: default_callbacks.yml

@@ -1,3 +1,0 @@
-class_path: chebai.preprocessing.datasets.tox21.Tox21MolNetChem
-init_args:
-  batch_size: 10

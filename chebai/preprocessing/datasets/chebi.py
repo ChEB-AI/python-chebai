@@ -13,12 +13,9 @@ from abc import ABC
 from collections import OrderedDict
 import os
 import pickle
-import queue
+import random
 
-from iterstrat.ml_stratifiers import (
-    MultilabelStratifiedKFold,
-    MultilabelStratifiedShuffleSplit,
-)
+from sklearn.model_selection import train_test_split
 import fastobo
 import networkx as nx
 import pandas as pd
@@ -27,21 +24,6 @@ import torch
 
 from chebai.preprocessing import reader as dr
 from chebai.preprocessing.datasets.base import XYBaseDataModule
-
-# exclude some entities from the dataset because the violate disjointness axioms
-CHEBI_BLACKLIST = [
-    194026,
-    144321,
-    156504,
-    167175,
-    167174,
-    167178,
-    183506,
-    74635,
-    3311,
-    190439,
-    92386,
-]
 
 
 class JCIBase(XYBaseDataModule):
@@ -109,344 +91,97 @@ class JCITokenData(JCIBase):
     READER = dr.ChemDataReader
 
 
+def extract_class_hierarchy(chebi_path):
+    with open(chebi_path) as chebi:
+        chebi = "\n".join(l for l in chebi if not l.startswith("xref:"))
+    elements = [
+        term_callback(clause)
+        for clause in fastobo.loads(chebi)
+        if clause and ":" in str(clause.id)
+    ]
+    g = nx.DiGraph()
+    for n in elements:
+        g.add_node(n["id"], **n)
+    g.add_edges_from([(p, q["id"]) for q in elements for p in q["parents"]])
+    print("Compute transitive closure")
+    return nx.transitive_closure_dag(g)
+
+
 class _ChEBIDataExtractor(XYBaseDataModule, ABC):
-    """
-    A class for extracting and processing data from the ChEBI dataset.
-
-    Args:
-        chebi_version_train (int, optional): The version of ChEBI to use for training and validation. If not set,
-            chebi_version will be used for training, validation and test. Defaults to None.
-        single_class (int, optional): The ID of the single class to predict. If not set, all available labels will be
-            predicted. Defaults to None.
-        **kwargs: Additional keyword arguments (passed to XYBaseDataModule).
-
-    Attributes:
-        single_class (int): The ID of the single class to predict.
-        chebi_version_train (int): The version of ChEBI to use for training and validation.
-    """
-
-    def __init__(
-        self, chebi_version_train: int = None, single_class: int = None, **kwargs
-    ):
-        # predict only single class (given as id of one of the classes present in the raw data set)
-        self.single_class = single_class
-        super(_ChEBIDataExtractor, self).__init__(**kwargs)
-        # use different version of chebi for training and validation (if not None)
-        # (still uses self.chebi_version for test set)
-        self.chebi_version_train = chebi_version_train
-
-    def extract_class_hierarchy(self, chebi_path):
-        """
-        Extracts the class hierarchy from the ChEBI ontology.
-
-        Args:
-            chebi_path (str): The path to the ChEBI ontology.
-
-        Returns:
-            nx.DiGraph: The class hierarchy.
-        """
-        with open(chebi_path, encoding="utf-8") as chebi:
-            chebi = "\n".join(l for l in chebi if not l.startswith("xref:"))
-        elements = [
-            term_callback(clause)
-            for clause in fastobo.loads(chebi)
-            if clause and ":" in str(clause.id)
-        ]
-        g = nx.DiGraph()
-        for n in elements:
-            g.add_node(n["id"], **n)
-        g.add_edges_from([(p, q["id"]) for q in elements for p in q["parents"]])
-        print("Compute transitive closure")
-        return nx.transitive_closure_dag(g)
-
-    def select_classes(self, g, split_name, *args, **kwargs):
+    def select_classes(self, g, *args, **kwargs):
         raise NotImplementedError
 
-    def graph_to_raw_dataset(self, g, split_name=None):
-        """Preparation step before creating splits, uses graph created by extract_class_hierarchy(),
-        split_name is only relevant, if a separate train_version is set"""
+    def save(self, g, train_split, test_split, validation_split):
         smiles = nx.get_node_attributes(g, "smiles")
         names = nx.get_node_attributes(g, "name")
 
-        print(f"Process graph")
-
-        molecules, smiles_list = zip(
-            *(
-                (n, smiles)
-                for n, smiles in ((n, smiles.get(n)) for n in smiles.keys())
-                if smiles
+        print("build labels")
+        for k, nodes in dict(
+            validation=validation_split, test=test_split, train=train_split
+        ).items():
+            print("Process", k)
+            molecules, smiles_list = zip(
+                *(
+                    (n, smiles)
+                    for n, smiles in ((n, smiles.get(n)) for n in nodes)
+                    if smiles
+                )
             )
-        )
-        data = OrderedDict(id=molecules)
-        data["name"] = [names.get(node) for node in molecules]
-        data["SMILES"] = smiles_list
-        for n in self.select_classes(g, split_name):
-            data[n] = [
-                ((n in g.predecessors(node)) or (n == node)) for node in molecules
-            ]
+            data = OrderedDict(id=molecules)
+            data["name"] = [names.get(node) for node in molecules]
+            data["SMILES"] = smiles_list
+            for n in self.select_classes(g):
+                data[n] = [
+                    ((n in g.predecessors(node)) or (n == node)) for node in molecules
+                ]
 
-        data = pd.DataFrame(data)
-        data = data[~data["SMILES"].isnull()]
-        data = data[[name not in CHEBI_BLACKLIST for name, _ in data.iterrows()]]
-        data = data[data.iloc[:, 3:].any(axis=1)]
-        return data
+            data = pd.DataFrame(data)
+            data = data[~data["SMILES"].isnull()]
+            data = data[data.iloc[:, 3:].any(axis=1)]
+            pickle.dump(data, open(os.path.join(self.raw_dir, f"{k}.pkl"), "wb"))
 
-    def save_raw(self, data: pd.DataFrame, filename: str):
-        pd.to_pickle(data, open(os.path.join(self.raw_dir, filename), "wb"))
-
-    def _load_dict(self, input_file_path):
-        """
-        Loads a dictionary from a pickled file, yielding individual dictionaries for each row.
-
-        Args:
-            input_file_path (str): The path to the file.
-
-        Yields:
-            dict: The dictionary, keys are `features`, `labels` and `ident`.
-        """
+    @staticmethod
+    def _load_dict(input_file_path):
         with open(input_file_path, "rb") as input_file:
-            df = pd.read_pickle(input_file)
-            if self.single_class is not None:
-                single_cls_index = list(df.columns).index(int(self.single_class))
-            for row in df.values:
-                if self.single_class is None:
-                    labels = row[3:].astype(bool)
-                else:
-                    labels = [bool(row[single_cls_index])]
-                yield dict(features=row[2], labels=labels, ident=row[0])
+            for row in pickle.load(input_file).values:
+                yield dict(features=row[2], labels=row[3:].astype(bool), ident=row[0])
 
     @staticmethod
     def _get_data_size(input_file_path):
         with open(input_file_path, "rb") as f:
-            return len(pd.read_pickle(f))
-
-    def _setup_pruned_test_set(self):
-        """Create test set with same leaf nodes, but use classes that appear in train set"""
-        # TODO: find a more efficient way to do this
-        filename_old = "classes.txt"
-        filename_new = f"classes_v{self.chebi_version_train}.txt"
-        dataset = torch.load(os.path.join(self.processed_dir, "test.pt"))
-        with open(os.path.join(self.raw_dir, filename_old), "r") as file:
-            orig_classes = file.readlines()
-        with open(os.path.join(self.raw_dir, filename_new), "r") as file:
-            new_classes = file.readlines()
-        mapping = [
-            None if or_class not in new_classes else new_classes.index(or_class)
-            for or_class in orig_classes
-        ]
-        for row in dataset:
-            new_labels = [False for _ in new_classes]
-            for ind, label in enumerate(row["labels"]):
-                if mapping[ind] is not None and label:
-                    new_labels[mapping[ind]] = label
-            row["labels"] = new_labels
-        torch.save(
-            dataset,
-            os.path.join(self.processed_dir, self.processed_file_names_dict["test"]),
-        )
+            return len(pickle.load(f))
 
     def setup_processed(self):
         print("Transform splits")
         os.makedirs(self.processed_dir, exist_ok=True)
-        for k in self.processed_file_names_dict.keys():
-            processed_name = (
-                "test.pt" if k == "test" else self.processed_file_names_dict[k]
+        for k in ["test", "train", "validation"]:
+            print("transform", k)
+            torch.save(
+                self._load_data_from_file(os.path.join(self.raw_dir, f"{k}.pkl")),
+                os.path.join(self.processed_dir, f"{k}.pt"),
             )
-            if not os.path.isfile(os.path.join(self.processed_dir, processed_name)):
-                print("transform", k)
-                torch.save(
-                    self._load_data_from_file(
-                        os.path.join(self.raw_dir, self.raw_file_names_dict[k])
-                    ),
-                    os.path.join(self.processed_dir, processed_name),
-                )
-        # create second test set with classes used in train
-        if self.chebi_version_train is not None and not os.path.isfile(
-            os.path.join(self.processed_dir, self.processed_file_names_dict["test"])
-        ):
-            print("transform test (select classes)")
-            self._setup_pruned_test_set()
 
-    def get_test_split(self, df: pd.DataFrame):
-        print("Get test data split")
-
-        df_list = df.values.tolist()
-        df_list = [row[3:] for row in df_list]
-
-        test_size = 1 - self.train_split - (1 - self.train_split) ** 2
-        msss = MultilabelStratifiedShuffleSplit(
-            n_splits=1, test_size=test_size, random_state=0
+    def get_splits(self, g):
+        fixed_nodes = list(g.nodes)
+        print("Split dataset")
+        random.shuffle(fixed_nodes)
+        train_split, test_split = train_test_split(
+            fixed_nodes, train_size=self.train_split, shuffle=True
         )
-
-        train_split = []
-        test_split = []
-        for train_split, test_split in msss.split(
-            df_list,
-            df_list,
-        ):
-            train_split = train_split
-            test_split = test_split
-            break
-        df_train = df.iloc[train_split]
-        df_test = df.iloc[test_split]
-        return df_train, df_test
-
-    def get_train_val_splits_given_test(self, df: pd.DataFrame, test_df: pd.DataFrame):
-        """
-        Split the dataset into train and validation sets, given a test set.
-        Use test set (e.g., loaded from another chebi version or generated in get_test_split), avoid overlap
-
-        Args:
-            df (pd.DataFrame): The original dataset.
-            test_df (pd.DataFrame): The test dataset.
-
-        Returns:
-            dict: A dictionary containing the train and validation sets.
-                The keys are the names of the train and validation sets, and the values are the corresponding DataFrames.
-        """
-        print(f"Split dataset into train / val with given test set")
-
-        df_trainval = df
-        test_ids = test_df["id"].tolist()
-        mask = [trainval_id not in test_ids for trainval_id in df_trainval["id"]]
-        df_trainval = df_trainval[mask]
-        df_trainval_list = df_trainval.values.tolist()
-        df_trainval_list = [row[3:] for row in df_trainval_list]
-
-        if self.use_inner_cross_validation:
-            folds = {}
-            kfold = MultilabelStratifiedKFold(n_splits=self.inner_k_folds)
-            for fold, (train_ids, val_ids) in enumerate(
-                kfold.split(
-                    df_trainval_list,
-                    df_trainval_list,
-                )
-            ):
-                df_validation = df_trainval.iloc[val_ids]
-                df_train = df_trainval.iloc[train_ids]
-                folds[self.raw_file_names_dict[f"fold_{fold}_train"]] = df_train
-                folds[self.raw_file_names_dict[f"fold_{fold}_validation"]] = (
-                    df_validation
-                )
-
-            return folds
-
-        # scale val set size by 1/self.train_split to compensate for (hypothetical) test set size (1-self.train_split)
-        test_size = ((1 - self.train_split) ** 2) / self.train_split
-        msss = MultilabelStratifiedShuffleSplit(
-            n_splits=1, test_size=test_size, random_state=0
+        test_split, validation_split = train_test_split(
+            test_split, train_size=self.train_split, shuffle=True
         )
-        train_split = []
-        validation_split = []
-        for train_split, validation_split in msss.split(
-            df_trainval_list, df_trainval_list
-        ):
-            train_split = train_split
-            validation_split = validation_split
-
-        df_validation = df_trainval.iloc[validation_split]
-        df_train = df_trainval.iloc[train_split]
-        return {
-            self.raw_file_names_dict["train"]: df_train,
-            self.raw_file_names_dict["validation"]: df_validation,
-        }
-
-    @property
-    def processed_dir(self):
-        res = os.path.join(
-            self.base_dir,
-            "processed",
-            *self.identifier,
-        )
-        if self.single_class is None:
-            return res
-        else:
-            return os.path.join(res, f"single_{self.single_class}")
-
-    @property
-    def base_dir(self):
-        return os.path.join("data", self._name, f"chebi_v{self.chebi_version}")
-
-    @property
-    def processed_file_names_dict(self) -> dict:
-        train_v_str = (
-            f"_v{self.chebi_version_train}" if self.chebi_version_train else ""
-        )
-        res = {"test": f"test{train_v_str}.pt"}
-        for set in ["train", "validation"]:
-            if self.use_inner_cross_validation:
-                for i in range(self.inner_k_folds):
-                    res[f"fold_{i}_{set}"] = os.path.join(
-                        self.fold_dir, f"fold_{i}_{set}{train_v_str}.pt"
-                    )
-            else:
-                res[set] = f"{set}{train_v_str}.pt"
-        return res
-
-    @property
-    def raw_file_names_dict(self) -> dict:
-        train_v_str = (
-            f"_v{self.chebi_version_train}" if self.chebi_version_train else ""
-        )
-        res = {
-            "test": f"test.pkl"
-        }  # no extra raw test version for chebi_version_train - use default test set and only
-        # adapt processed file
-        for set in ["train", "validation"]:
-            if self.use_inner_cross_validation:
-                for i in range(self.inner_k_folds):
-                    res[f"fold_{i}_{set}"] = os.path.join(
-                        self.fold_dir, f"fold_{i}_{set}{train_v_str}.pkl"
-                    )
-            else:
-                res[set] = f"{set}{train_v_str}.pkl"
-        return res
+        return train_split, test_split, validation_split
 
     @property
     def processed_file_names(self):
-        return list(self.processed_file_names_dict.values())
+        return ["test.pt", "train.pt", "validation.pt"]
 
     @property
     def raw_file_names(self):
-        return list(self.raw_file_names_dict.values())
-
-    def _load_chebi(self, version: int):
-        """
-        Load the ChEBI ontology file.
-
-        Args:
-            version (int): The version of the ChEBI ontology to load.
-
-        Returns:
-            str: The file path of the loaded ChEBI ontology.
-        """
-        chebi_name = (
-            f"chebi.obo" if version == self.chebi_version else f"chebi_v{version}.obo"
-        )
-        chebi_path = os.path.join(self.raw_dir, chebi_name)
-        if not os.path.isfile(chebi_path):
-            print(f"Load ChEBI ontology (v_{version})")
-            url = f"http://purl.obolibrary.org/obo/chebi/{version}/chebi.obo"
-            r = requests.get(url, allow_redirects=True)
-            open(chebi_path, "wb").write(r.content)
-        return chebi_path
+        return ["test.pkl", "train.pkl", "validation.pkl"]
 
     def prepare_data(self, *args, **kwargs):
-        """
-        Prepares the data for the Chebi dataset.
-
-        This method checks for the presence of raw data in the specified directory.
-        If the raw data is missing, it fetches the ontology and creates a test test set.
-        If the test set already exists, it loads it from the file.
-        Then, it creates the train/validation split based on the test set.
-
-        Args:
-            *args: Variable length argument list.
-            **kwargs: Arbitrary keyword arguments.
-
-        Returns:
-            None
-        """
         print("Check for raw data in", self.raw_dir)
         if any(
             not os.path.isfile(os.path.join(self.raw_dir, f))
@@ -454,37 +189,13 @@ class _ChEBIDataExtractor(XYBaseDataModule, ABC):
         ):
             os.makedirs(self.raw_dir, exist_ok=True)
             print("Missing raw data. Go fetch...")
-            # missing test set -> create
-            if not os.path.isfile(
-                os.path.join(self.raw_dir, self.raw_file_names_dict["test"])
-            ):
-                chebi_path = self._load_chebi(self.chebi_version)
-                g = self.extract_class_hierarchy(chebi_path)
-                df = self.graph_to_raw_dataset(g, self.raw_file_names_dict["test"])
-                _, test_df = self.get_test_split(df)
-                self.save_raw(test_df, self.raw_file_names_dict["test"])
-            # load test_split from file
-            else:
-                with open(
-                    os.path.join(self.raw_dir, self.raw_file_names_dict["test"]), "rb"
-                ) as input_file:
-                    test_df = pd.read_pickle(input_file)
-            # create train/val split based on test set
-            chebi_path = self._load_chebi(
-                self.chebi_version_train
-                if self.chebi_version_train is not None
-                else self.chebi_version
-            )
-            g = self.extract_class_hierarchy(chebi_path)
-            if self.use_inner_cross_validation:
-                df = self.graph_to_raw_dataset(
-                    g, self.raw_file_names_dict[f"fold_0_train"]
-                )
-            else:
-                df = self.graph_to_raw_dataset(g, self.raw_file_names_dict["train"])
-            train_val_dict = self.get_train_val_splits_given_test(df, test_df)
-            for name, df in train_val_dict.items():
-                self.save_raw(df, name)
+            if not os.path.isfile(os.path.join(self.raw_dir, "chebi.obo")):
+                print("Load ChEBI ontology")
+                url = "http://purl.obolibrary.org/obo/chebi/200/chebi.obo"
+                r = requests.get(url, allow_redirects=True)
+                open(os.path.join(self.raw_dir, "chebi.obo"), "wb").write(r.content)
+            g = extract_class_hierarchy(os.path.join(self.raw_dir, "chebi.obo"))
+            self.save(g, *self.get_splits(g))
 
 
 class JCIExtendedBase(_ChEBIDataExtractor):
@@ -504,16 +215,6 @@ class JCIExtendedBase(_ChEBIDataExtractor):
 
 
 class ChEBIOverX(_ChEBIDataExtractor):
-    """
-    A class for extracting data from the ChEBI dataset with a threshold for selecting classes.
-
-    Attributes:
-        LABEL_INDEX (int): The index of the label in the dataset.
-        SMILES_INDEX (int): The index of the SMILES string in the dataset.
-        READER (ChemDataReader): The reader used for reading the dataset.
-        THRESHOLD (None): The threshold for selecting classes.
-    """
-
     LABEL_INDEX = 3
     SMILES_INDEX = 2
     READER = dr.ChemDataReader
@@ -527,19 +228,7 @@ class ChEBIOverX(_ChEBIDataExtractor):
     def _name(self):
         return f"ChEBI{self.THRESHOLD}"
 
-    def select_classes(self, g, split_name, *args, **kwargs):
-        """
-        Selects classes from the ChEBI dataset.
-
-        Args:
-            g (Graph): The graph representing the dataset.
-            split_name (str): The name of the split.
-            *args: Additional arguments (not used).
-            **kwargs: Additional keyword arguments (not used).
-
-        Returns:
-            list: The list of selected classes.
-        """
+    def select_classes(self, g, *args, **kwargs):
         smiles = nx.get_node_attributes(g, "smiles")
         nodes = list(
             sorted(
@@ -553,23 +242,9 @@ class ChEBIOverX(_ChEBIDataExtractor):
                 }
             )
         )
-        filename = "classes.txt"
-        if (
-            self.chebi_version_train is not None
-            and self.raw_file_names_dict["test"] != split_name
-        ):
-            filename = f"classes_v{self.chebi_version_train}.txt"
-        with open(os.path.join(self.raw_dir, filename), "wt") as fout:
+        with open(os.path.join(self.raw_dir, "classes.txt"), "wt") as fout:
             fout.writelines(str(node) + "\n" for node in nodes)
         return nodes
-
-
-class ChEBIOverXDeepSMILES(ChEBIOverX):
-    READER = dr.DeepChemDataReader
-
-
-class ChEBIOverXSELFIES(ChEBIOverX):
-    READER = dr.SelfiesReader
 
 
 class ChEBIOver100(ChEBIOverX):
@@ -584,48 +259,6 @@ class ChEBIOver50(ChEBIOverX):
 
     def label_number(self):
         return 1332
-
-
-class ChEBIOver100DeepSMILES(ChEBIOverXDeepSMILES, ChEBIOver100):
-    pass
-
-
-class ChEBIOver100SELFIES(ChEBIOverXSELFIES, ChEBIOver100):
-    pass
-
-
-class ChEBIOverXPartial(ChEBIOverX):
-    """Dataset that doesn't use the full ChEBI, but extracts are part of ChEBI"""
-
-    def __init__(self, top_class_id: int, **kwargs):
-        self.top_class_id = top_class_id
-        super().__init__(**kwargs)
-
-    @property
-    def base_dir(self):
-        return os.path.join(super().base_dir, f"partial_{self.top_class_id}")
-
-    def extract_class_hierarchy(self, chebi_path):
-        with open(chebi_path, encoding="utf-8") as chebi:
-            chebi = "\n".join(l for l in chebi if not l.startswith("xref:"))
-        elements = [
-            term_callback(clause)
-            for clause in fastobo.loads(chebi)
-            if clause and ":" in str(clause.id)
-        ]
-        g = nx.DiGraph()
-        for n in elements:
-            g.add_node(n["id"], **n)
-        g.add_edges_from([(p, q["id"]) for q in elements for p in q["parents"]])
-
-        g = nx.transitive_closure_dag(g)
-        g = g.subgraph(list(nx.descendants(g, self.top_class_id)) + [self.top_class_id])
-        print("Compute transitive closure")
-        return g
-
-
-class ChEBIOver50Partial(ChEBIOverXPartial, ChEBIOver50):
-    pass
 
 
 class JCIExtendedBPEData(JCIExtendedBase):
@@ -645,22 +278,6 @@ def chebi_to_int(s):
 
 
 def term_callback(doc):
-    """
-    Extracts information from a ChEBI term document.
-    This function takes a ChEBI term document as input and extracts relevant information such as the term ID, parents,
-    parts, name, and SMILES string. It returns a dictionary containing the extracted information.
-
-    Args:
-    - doc: A ChEBI term document.
-
-    Returns:
-    A dictionary containing the following keys:
-    - "id": The ID of the ChEBI term.
-    - "parents": A list of parent term IDs.
-    - "has_part": A set of term IDs representing the parts of the ChEBI term.
-    - "name": The name of the ChEBI term.
-    - "smiles": The SMILES string associated with the ChEBI term, if available.
-    """
     parts = set()
     parents = []
     name = None
@@ -671,12 +288,6 @@ def term_callback(doc):
             if str(t.relation) == "http://purl.obolibrary.org/obo/chebi/smiles":
                 assert smiles is None
                 smiles = t.value
-        # in older chebi versions, smiles strings are synonyms
-        # e.g. synonym: "[F-].[Na+]" RELATED SMILES [ChEBI]
-        elif isinstance(clause, fastobo.term.SynonymClause):
-            if "SMILES" in clause.raw_value():
-                assert smiles is None
-                smiles = clause.raw_value().split('"')[1]
         elif isinstance(clause, fastobo.term.RelationshipClause):
             if str(clause.typedef) == "has_part":
                 parts.add(chebi_to_int(str(clause.term)))

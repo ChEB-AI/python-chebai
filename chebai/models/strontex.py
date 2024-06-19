@@ -1,9 +1,9 @@
 import abc
-import typing
-
-import networkx as nx
-import numpy as np
 import torch
+import typing
+import numpy as np
+import networkx as nx
+
 
 FeatureType = typing.TypeVar("FeatureType")
 LabelType = typing.TypeVar("LabelType")

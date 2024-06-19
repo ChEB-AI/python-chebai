@@ -8,7 +8,6 @@ class XYData(torch.utils.data.Dataset):
         return self.x[index], self.y[index]
 
     def __len__(self):
-        # return batch size
         return len(self.x)
 
     def __init__(self, x, y, **kwargs):
@@ -18,16 +17,6 @@ class XYData(torch.utils.data.Dataset):
         self.y = y
 
     def to_x(self, device):
-        if isinstance(self.x, tuple):
-            res = []
-            for elem in self.x:
-                if isinstance(elem, dict):
-                    for k, v in elem.items():
-                        elem[k] = v.to(device) if v is not None else None
-                else:
-                    elem = elem.to(device)
-                res.append(elem)
-            return tuple(res)
         return self.x.to(device)
 
     def to_y(self, device):

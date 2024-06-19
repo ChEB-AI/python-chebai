@@ -1,9 +1,0 @@
-class_path: chebai.loss.semantic.DisjointLoss
-init_args:
-  path_to_disjointness: data/disjoint.csv
-  base_loss:
-    class_path: chebai.loss.bce_weighted.BCEWeighted
-    init_args:
-      beta: 0.99
-  tnorm: product
-  impl_loss_weight: 0.01

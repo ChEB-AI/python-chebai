@@ -1,12 +1,11 @@
-- class_path: chebai.callbacks.model_checkpoint.CustomModelCheckpoint
+- class_path: lightning.pytorch.callbacks.ModelCheckpoint
   init_args:
-    monitor: val_micro-f1
-    mode: 'max'
-    filename: 'best_{epoch:02d}_{val_loss:.4f}_{val_macro-f1:.4f}_{val_micro-f1:.4f}'
+    monitor: val_loss
+    filename: 'best_{epoch}_{val_loss:.4f}'
     every_n_epochs: 1
-    save_top_k: 3
-- class_path: chebai.callbacks.model_checkpoint.CustomModelCheckpoint
+    save_top_k: 5
+- class_path: lightning.pytorch.callbacks.ModelCheckpoint
   init_args:
-    filename: 'per_{epoch:02d}_{val_loss:.4f}_{val_macro-f1:.4f}_{val_micro-f1:.4f}'
-    every_n_epochs: 25
+    filename: 'per_{epoch}_{val_loss:.4f}'
+    every_n_epochs: 5
     save_top_k: -1

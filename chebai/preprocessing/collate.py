@@ -8,7 +8,7 @@ class Collater:
     def __init__(self, **kwargs):
         pass
 
-    def __call__(self, data) -> XYData:
+    def __call__(self, data):
         raise NotImplementedError
 
 
@@ -30,6 +30,9 @@ class RaggedCollater(Collater):
                 *((d["features"], d["labels"], d.get("ident")) for d in data)
             )
         if any(x is not None for x in y):
+            loss_kwargs["target_mask"] = torch.tensor(
+                [[v is not None for v in row] for row in y if row is not None]
+            )
             if any(x is None for x in y):
                 non_null_labels = [i for i, r in enumerate(y) if r is not None]
                 y = self.process_label_rows(
@@ -40,7 +43,6 @@ class RaggedCollater(Collater):
                 y = self.process_label_rows(y)
         else:
             y = None
-            loss_kwargs["non_null_labels"] = []
 
         lens = torch.tensor(list(map(len, x)))
         model_kwargs["mask"] = torch.arange(max(lens))[None, :] < lens[:, None]

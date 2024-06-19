@@ -1,3 +1,0 @@
-class_path: lightning.pytorch.loggers.CSVLogger
-init_args:
-  save_dir: logs
