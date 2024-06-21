@@ -11,7 +11,7 @@ from torchmetrics.functional.classification import multilabel_auroc
 from torchmetrics.functional.classification import multilabel_f1_score
 import wandb
 import gc
-from typing import List,Union
+from typing import List, Union
 from utils import *
 
 DEVICE = "cpu"  # torch.device("cuda:0" if torch.cuda.is_available() else "cpu")

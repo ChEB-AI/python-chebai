@@ -44,7 +44,10 @@ class CustomTrainer(Trainer):
     def _predict_smiles(self, model: LightningModule, smiles: List[str]):
         reader = ChemDataReader()
         parsed_smiles = [reader._read_data(s) for s in smiles]
-        x = pad_sequence([torch.tensor(a, device=model.device) for a in parsed_smiles], batch_first=True)
+        x = pad_sequence(
+            [torch.tensor(a, device=model.device) for a in parsed_smiles],
+            batch_first=True,
+        )
         cls_tokens = (
             torch.ones(x.shape[0], dtype=torch.int, device=model.device).unsqueeze(-1)
             * CLS_TOKEN
