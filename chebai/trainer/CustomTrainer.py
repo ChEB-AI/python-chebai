@@ -9,6 +9,7 @@ import pandas as pd
 import torch
 
 from chebai.preprocessing.reader import CLS_TOKEN, ChemDataReader
+from chebai.loggers.custom import CustomLogger
 
 log = logging.getLogger(__name__)
 
@@ -20,6 +21,35 @@ class CustomTrainer(Trainer):
         super().__init__(*args, **kwargs)
         # instantiation custom logger connector
         self._logger_connector.on_trainer_init(self.logger, 1)
+        # log additional hyperparameters to wandb
+        if isinstance(self.logger, CustomLogger):
+            custom_logger = self.logger
+            assert isinstance(custom_logger, CustomLogger)
+            if custom_logger.verbose_hyperparameters:
+                log_kwargs = {}
+                for key, value in self.init_kwargs.items():
+                    log_key, log_value = self._resolve_logging_argument(key, value)
+                    log_kwargs[log_key] = log_value
+                self.logger.log_hyperparams(log_kwargs)
+
+    def _resolve_logging_argument(self, key, value):
+        if isinstance(value, list):
+            key_value_pairs = [
+                self._resolve_logging_argument(f"{key}_{i}", v)
+                for i, v in enumerate(value)
+            ]
+            return key, {k: v for k, v in key_value_pairs}
+        if not (
+            isinstance(value, str)
+            or isinstance(value, float)
+            or isinstance(value, int)
+            or value is None
+        ):
+            params = {"class": value.__class__}
+            params.update(value.__dict__)
+            return key, params
+        else:
+            return key, value
 
     def predict_from_file(
         self,

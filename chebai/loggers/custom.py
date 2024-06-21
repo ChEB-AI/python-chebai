@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Literal, Optional, Union
+from typing import Literal, Optional, Union, List
 import os
 
 from lightning.fabric.utilities.types import _PATH
@@ -22,6 +22,8 @@ class CustomLogger(WandbLogger):
         entity: Optional[str] = None,
         offline: bool = False,
         log_model: Union[Literal["all"], bool] = False,
+        verbose_hyperparameters: bool = False,
+        tags: Optional[List[str]] = None,
         **kwargs,
     ):
         if version is None:
@@ -29,6 +31,7 @@ class CustomLogger(WandbLogger):
         self._version = version
         self._name = name
         self._fold = fold
+        self.verbose_hyperparameters = verbose_hyperparameters
         super().__init__(
             name=self.name,
             save_dir=save_dir,
@@ -40,6 +43,8 @@ class CustomLogger(WandbLogger):
             offline=offline,
             **kwargs,
         )
+        if tags:
+            self.experiment.tags += tuple(tags)
 
     @property
     def name(self) -> Optional[str]:
