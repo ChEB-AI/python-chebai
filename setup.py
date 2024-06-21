@@ -48,7 +48,7 @@ setup(
         "iterative-stratification",
         "wandb",
         "chardet",
-        "yaml",
+        "pyyaml",
         "torchmetrics",
     ],
     extras_require={"dev": ["black", "isort", "pre-commit"]},

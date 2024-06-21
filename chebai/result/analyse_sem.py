@@ -11,6 +11,7 @@ from torchmetrics.functional.classification import multilabel_auroc
 from torchmetrics.functional.classification import multilabel_f1_score
 import wandb
 import gc
+from typing import List, Union
 from utils import *
 
 DEVICE = "cpu"  # torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
@@ -244,7 +245,7 @@ def analyse_run(
     labeled_data_cls=ChEBIOver100,  # use labels from this dataset for violations
     chebi_version=231,
     results_path=os.path.join("_semantic", "eval_results.csv"),
-    violation_metrics: [str | list[callable]] = "all",
+    violation_metrics: Union[str, List[callable]] = "all",
     verbose_violation_output=False,
 ):
     """Calculates all semantic metrics for given predictions (and supervised metrics if labels are provided),
