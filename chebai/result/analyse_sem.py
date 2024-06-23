@@ -7,7 +7,11 @@ from datetime import datetime
 import pandas as pd
 import torch
 import wandb
+
 from torchmetrics.functional.classification import multilabel_auroc, multilabel_f1_score
+import gc
+from typing import List, Union
+
 from utils import *
 
 from chebai.loss.semantic import DisjointLoss
@@ -245,7 +249,7 @@ def analyse_run(
     labeled_data_cls=ChEBIOver100,  # use labels from this dataset for violations
     chebi_version=231,
     results_path=os.path.join("_semantic", "eval_results.csv"),
-    violation_metrics: [str | list[callable]] = "all",
+    violation_metrics: Union[str, List[callable]] = "all",
     verbose_violation_output=False,
 ):
     """Calculates all semantic metrics for given predictions (and supervised metrics if labels are provided),

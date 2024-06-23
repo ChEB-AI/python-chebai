@@ -2,9 +2,10 @@ import csv
 import math
 import os
 import pickle
-from typing import Literal
 
 import torch
+
+from typing import Literal, Union
 
 from chebai.loss.bce_weighted import BCEWeighted
 from chebai.preprocessing.datasets.chebi import ChEBIOver100, _ChEBIDataExtractor
@@ -14,7 +15,7 @@ from chebai.preprocessing.datasets.pubchem import LabeledUnlabeledMixed
 class ImplicationLoss(torch.nn.Module):
     def __init__(
         self,
-        data_extractor: _ChEBIDataExtractor | LabeledUnlabeledMixed,
+        data_extractor: Union[_ChEBIDataExtractor, LabeledUnlabeledMixed],
         base_loss: torch.nn.Module = None,
         tnorm: Literal["product", "lukasiewicz", "xu19"] = "product",
         impl_loss_weight=0.1,  # weight of implication loss in relation to base_loss
@@ -114,7 +115,7 @@ class DisjointLoss(ImplicationLoss):
     def __init__(
         self,
         path_to_disjointness,
-        data_extractor: _ChEBIDataExtractor | LabeledUnlabeledMixed,
+        data_extractor: Union[_ChEBIDataExtractor, LabeledUnlabeledMixed],
         base_loss: torch.nn.Module = None,
         disjoint_loss_weight=100,
         **kwargs,
