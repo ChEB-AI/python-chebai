@@ -161,3 +161,8 @@ cython_debug/
 #.idea/
 
 # configs/ # commented as new configs can be added as a part of a feature
+/data
+/logs
+/results_buffer
+electra_pretrained.ckpt
+/.idea
