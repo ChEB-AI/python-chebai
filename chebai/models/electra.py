@@ -60,6 +60,15 @@ class ElectraPre(ChebaiBaseNet):
         return self.discriminator
 
     def _process_labels_in_batch(self, batch: Dict[str, Any]) -> None:
+        """
+        Processes the labels in the batch.
+
+        Args:
+            batch (Dict[str, Any]): The input batch of data.
+
+        Returns:
+            torch.Tensor: The processed labels.
+        """
         return None
 
     def forward(
@@ -123,6 +132,17 @@ class ElectraPre(ChebaiBaseNet):
     def _get_prediction_and_labels(
         self, batch: Dict[str, Any], labels: Tensor, output: Tensor
     ) -> Tuple[Tensor, Tensor]:
+        """
+        Gets the predictions and labels from the model output.
+
+        Args:
+            data (Dict[str, Any]): The processed batch data.
+            labels (torch.Tensor): The true labels.
+            output (torch.Tensor): The model output.
+
+        Returns:
+            Tuple[torch.Tensor, torch.Tensor]: Predictions and labels.
+        """
         return torch.softmax(output[0][1], dim=-1), output[1][1].int()
 
 
