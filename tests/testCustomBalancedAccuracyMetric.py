@@ -6,15 +6,22 @@ import random
 
 
 class TestCustomBalancedAccuracyMetric(unittest.TestCase):
+    """
+    Unit tests for the Custom Balanced Accuracy metric.
+    """
 
     @classmethod
     def setUpClass(cls) -> None:
+        """
+        Set up class-level variables.
+        """
         cls.device = "cuda" if torch.cuda.is_available() else "cpu"
 
-    def test_iterative_vs_single_call_approach(self):
-        """Test the custom metric implementation in update fashion approach against
-        the single call approach"""
-
+    def test_iterative_vs_single_call_approach(self) -> None:
+        """
+        Test the custom metric implementation in update fashion approach against
+        the single call approach.
+        """
         preds = torch.tensor([[1, 1, 0, 1], [1, 0, 1, 1], [0, 1, 0, 1]])
         label = torch.tensor([[0, 0, 0, 0], [0, 0, 1, 1], [0, 1, 0, 1]])
 
@@ -29,8 +36,10 @@ class TestCustomBalancedAccuracyMetric(unittest.TestCase):
 
         self.assertEqual(iterative_custom_metric_score, single_call_custom_metric_score)
 
-    def test_metric_against_realistic_data(self):
-        """Test the custom metric against the standard on realistic data"""
+    def test_metric_against_realistic_data(self) -> None:
+        """
+        Test the custom metric against the standard on realistic data.
+        """
         directory_path = os.path.join("tests", "test_data", "CheBIOver100_test")
         abs_path = os.path.join(os.getcwd(), directory_path)
         print(f"Checking data from - {abs_path}")
@@ -57,8 +66,10 @@ class TestCustomBalancedAccuracyMetric(unittest.TestCase):
         balanced_acc_custom_score = balanced_acc_custom.compute().item()
         print(f"Balanced Accuracy for realistic data: {balanced_acc_custom_score}")
 
-    def test_case_when_few_class_has_no_labels(self):
-        """Test custom metric against standard metric for the scenario where some class has no labels"""
+    def test_case_when_few_class_has_no_labels(self) -> None:
+        """
+        Test custom metric against standard metric for the scenario where some class has no labels.
+        """
         preds = torch.tensor([[1, 1, 0, 1], [1, 0, 1, 1], [0, 1, 0, 1]])
         label = torch.tensor([[0, 0, 0, 0], [0, 0, 1, 1], [0, 1, 0, 1]])  # no labels
 
@@ -74,9 +85,11 @@ class TestCustomBalancedAccuracyMetric(unittest.TestCase):
 
         self.assertAlmostEqual(balanced_acc_score, 0.6041666666, places=4)
 
-    def test_all_predictions_are_1_half_labels_are_1(self):
-        """Test custom metric against standard metric for the scenario where all prediction are 1 but only half of
-        the labels are 1"""
+    def test_all_predictions_are_1_half_labels_are_1(self) -> None:
+        """
+        Test custom metric against standard metric for the scenario where all predictions are 1 but only half of
+        the labels are 1.
+        """
         preds = torch.ones((1, 900), dtype=torch.int)
         label = torch.ones((1, 900), dtype=torch.int)
 
@@ -98,9 +111,11 @@ class TestCustomBalancedAccuracyMetric(unittest.TestCase):
         )
         self.assertAlmostEqual(balanced_acc_custom_score, 0.25, places=4)
 
-    def test_all_labels_are_1_half_predictions_are_1(self):
-        """Test custom metric against standard metric for the scenario where all labels are 1 but only half of
-        the predictions are 1"""
+    def test_all_labels_are_1_half_predictions_are_1(self) -> None:
+        """
+        Test custom metric against standard metric for the scenario where all labels are 1 but only half of
+        the predictions are 1.
+        """
         preds = torch.ones((1, 900), dtype=torch.int)
         label = torch.ones((1, 900), dtype=torch.int)
 
@@ -123,7 +138,20 @@ class TestCustomBalancedAccuracyMetric(unittest.TestCase):
         self.assertAlmostEqual(balanced_acc_custom_score, 0.25, places=4)
 
     @staticmethod
-    def __get_custom_metric_score(preds, labels, num_labels):
+    def __get_custom_metric_score(
+        preds: torch.Tensor, labels: torch.Tensor, num_labels: int
+    ) -> float:
+        """
+        Helper function to compute the custom metric score.
+
+        Args:
+        - preds (torch.Tensor): Predictions tensor.
+        - labels (torch.Tensor): Labels tensor.
+        - num_labels (int): Number of labels/classes.
+
+        Returns:
+        - float: Computed custom metric score.
+        """
         balanced_acc_custom = BalancedAccuracy(num_labels=num_labels)
         return balanced_acc_custom(preds, labels).item()
 

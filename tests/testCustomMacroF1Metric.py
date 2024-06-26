@@ -7,17 +7,19 @@ import random
 
 
 class TestCustomMacroF1Metric(unittest.TestCase):
-
     @classmethod
     def setUpClass(cls) -> None:
         cls.device = "cuda" if torch.cuda.is_available() else "cpu"
 
-    def test_all_predictions_are_1_half_labels_are_1(self):
-        """Test custom metric against standard metric for the scenario where all prediction are 1 but only half of
-        the labels are 1"""
+    def test_all_predictions_are_1_half_labels_are_1(self) -> None:
+        """
+        Test custom metric against standard metric for the scenario where all predictions are 1
+        but only half of the labels are 1.
+        """
         preds = torch.ones((1, 900), dtype=torch.int)
         label = torch.ones((1, 900), dtype=torch.int)
 
+        # Randomly set half of the labels to 0
         mask = [
             [True] * (label.size(1) // 2)
             + [False] * (label.size(1) - (label.size(1) // 2))
@@ -25,6 +27,7 @@ class TestCustomMacroF1Metric(unittest.TestCase):
         random.shuffle(mask[0])
         label[torch.tensor(mask)] = 0
 
+        # Get custom and standard metric scores
         macro_f1_custom_score, macro_f1_standard_score = (
             self.__get_custom_and_standard_metric_scores(label.shape[1], preds, label)
         )
@@ -52,18 +55,21 @@ class TestCustomMacroF1Metric(unittest.TestCase):
         # precision = [1, 1, 1, 1, 1] / [1, 1, 1, 1, 1] = [1, 1, 1, 1, 1]
         # recall    = [1, 1, 1, 1, 1] / [1, 1, 1, 1, 1] = [1, 1, 1, 1, 1]
         # classwise_f1 = [2, 2, 2, 2, 2] / [2, 2, 2, 2, 2] = [1, 1, 1, 1, 1]
-        # mean = 5/5 = 1  (because of masking we averaging with across positive labels only)
+        # mean = 5/5 = 1  (because of masking we're averaging with across positive labels only)
         self.assertAlmostEqual(macro_f1_custom_score, 1, places=4)
         self.assertNotAlmostEqual(
             macro_f1_custom_score, macro_f1_standard_score, places=4
         )
 
-    def test_all_labels_are_1_half_predictions_are_1(self):
-        """Test custom metric against standard metric for the scenario where all labels are 1 but only half of
-        the predictions are 1"""
+    def test_all_labels_are_1_half_predictions_are_1(self) -> None:
+        """
+        Test custom metric against standard metric for the scenario where all labels are 1
+        but only half of the predictions are 1.
+        """
         preds = torch.ones((1, 900), dtype=torch.int)
         label = torch.ones((1, 900), dtype=torch.int)
 
+        # Randomly set half of the predictions to 0
         mask = [
             [True] * (label.size(1) // 2)
             + [False] * (label.size(1) - (label.size(1) // 2))
@@ -71,6 +77,7 @@ class TestCustomMacroF1Metric(unittest.TestCase):
         random.shuffle(mask[0])
         preds[torch.tensor(mask)] = 0
 
+        # Get custom and standard metric scores
         macro_f1_custom_score, macro_f1_standard_score = (
             self.__get_custom_and_standard_metric_scores(label.shape[1], preds, label)
         )
@@ -79,9 +86,11 @@ class TestCustomMacroF1Metric(unittest.TestCase):
         # and since all labels are positive in this scenario, custom and std metric are same
         self.assertAlmostEqual(macro_f1_custom_score, macro_f1_standard_score, places=4)
 
-    def test_iterative_vs_single_call_approach(self):
-        """Test the custom metric implementation in update fashion approach against
-        the single call approach"""
+    def test_iterative_vs_single_call_approach(self) -> None:
+        """
+        Test the custom metric implementation in update fashion approach against
+        the single call approach.
+        """
         preds = torch.tensor([[1, 1, 0, 1], [1, 0, 1, 1], [0, 1, 0, 1]])
         label = torch.tensor([[0, 0, 0, 0], [0, 0, 1, 1], [0, 1, 0, 1]])
 
@@ -94,16 +103,19 @@ class TestCustomMacroF1Metric(unittest.TestCase):
         single_call_custom_metric = MacroF1(num_labels=num_labels)
         single_call_custom_metric_score = single_call_custom_metric(preds, label).item()
 
+        # Assert iterative and single call approaches give the same metric score
         self.assertEqual(iterative_custom_metric_score, single_call_custom_metric_score)
 
-    def test_metric_against_realistic_data(self):
-        """Test the custom metric against the standard on realistic data"""
+    def test_metric_against_realistic_data(self) -> None:
+        """
+        Test the custom metric against the standard on realistic data.
+        """
         directory_path = os.path.join("tests", "test_data", "CheBIOver100_test")
         abs_path = os.path.join(os.getcwd(), directory_path)
         print(f"Checking data from - {abs_path}")
         num_of_files = len(os.listdir(abs_path)) // 2
 
-        # load single file to get the num of labels for metric class instantiation
+        # Load single file to get the number of labels for metric class instantiation
         labels = torch.load(
             f"{directory_path}/labels{0:03d}.pt", map_location=torch.device(self.device)
         )
@@ -111,7 +123,7 @@ class TestCustomMacroF1Metric(unittest.TestCase):
         macro_f1_custom = MacroF1(num_labels=num_labels)
         macro_f1_standard = MultilabelF1Score(num_labels=num_labels, average="macro")
 
-        # load each file in the directory and update the stats
+        # Load each file in the directory and update the metrics
         for i in range(num_of_files):
             labels = torch.load(
                 f"{directory_path}/labels{i:03d}.pt",
@@ -130,14 +142,19 @@ class TestCustomMacroF1Metric(unittest.TestCase):
             f"Realistic Data - Custom F1 score: {macro_f1_custom_score}, Std. F1 score: {macro_f1_standard_score}"
         )
 
+        # Assert custom metric score is not equal to standard metric score
         self.assertNotAlmostEqual(
             macro_f1_custom_score, macro_f1_standard_score, places=4
         )
 
-    def test_case_when_few_class_has_no_labels(self):
-        """Test custom metric against standard metric for the scenario where some class has no labels"""
+    def test_case_when_few_class_has_no_labels(self) -> None:
+        """
+        Test custom metric against standard metric for the scenario where some class has no labels.
+        """
         preds = torch.tensor([[1, 1, 0, 1], [1, 0, 1, 1], [0, 1, 0, 1]])
         label = torch.tensor([[0, 0, 0, 0], [0, 0, 1, 1], [0, 1, 0, 1]])
+
+        # Get custom and standard metric scores
         macro_f1_custom_score, macro_f1_standard_score = (
             self.__get_custom_and_standard_metric_scores(label.shape[1], preds, label)
         )
@@ -170,7 +187,22 @@ class TestCustomMacroF1Metric(unittest.TestCase):
         )
 
     @staticmethod
-    def __get_custom_and_standard_metric_scores(num_labels, preds, labels):
+    def __get_custom_and_standard_metric_scores(
+        num_labels: int, preds: torch.Tensor, labels: torch.Tensor
+    ) -> tuple:
+        """
+        Helper method to calculate custom and standard macro F1 scores.
+
+        Args:
+            num_labels (int): Number of labels/classes.
+            preds (torch.Tensor): Predicted tensor of shape (batch_size, num_labels).
+            labels (torch.Tensor): True labels tensor of shape (batch_size, num_labels).
+
+        Returns:
+            tuple: A tuple containing two floats:
+                - macro_f1_custom_score: Custom macro F1 score.
+                - macro_f1_standard_score: Standard macro F1 score.
+        """
         # Custom metric score
         macro_f1_custom = MacroF1(num_labels=num_labels)
         macro_f1_custom_score = macro_f1_custom(preds, labels).item()
