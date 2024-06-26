@@ -1,25 +1,32 @@
 import os
+from typing import List, Optional, Tuple
 
+import matplotlib.pyplot as plt
+import pandas as pd
+import seaborn as sns
+import torch
+from torch import Tensor
 from torchmetrics.classification import (
     MultilabelF1Score,
     MultilabelPrecision,
     MultilabelRecall,
 )
-import matplotlib.pyplot as plt
-import pandas as pd
-import seaborn as sns
-import torch
 import tqdm
 
 from chebai.callbacks.epoch_metrics import MacroF1
-
 from chebai.models import ChebaiBaseNet
 from chebai.models.electra import Electra
 from chebai.preprocessing.datasets import XYBaseDataModule
 from chebai.result.utils import *
 
 
-def visualise_f1(logs_path):
+def visualise_f1(logs_path: str) -> None:
+    """
+    Visualize F1 scores from metrics.csv and save the plot as f1_plot.png.
+
+    Args:
+        logs_path: The path to the directory containing metrics.csv.
+    """
     df = pd.read_csv(os.path.join(logs_path, "metrics.csv"))
     df_loss = df.melt(
         id_vars="epoch",
@@ -35,8 +42,26 @@ def visualise_f1(logs_path):
     plt.show()
 
 
-def print_metrics(preds, labels, device, classes=None, top_k=10, markdown_output=False):
-    """Prints relevant metrics, including micro and macro F1, recall and precision, best k classes and worst classes."""
+def print_metrics(
+    preds: Tensor,
+    labels: Tensor,
+    device: torch.device,
+    classes: Optional[List[str]] = None,
+    top_k: int = 10,
+    markdown_output: bool = False,
+) -> None:
+    """
+    Prints relevant metrics, including micro and macro F1, recall and precision,
+    best k classes, and worst classes.
+
+    Args:
+        preds: Predicted labels as a tensor.
+        labels: True labels as a tensor.
+        device: The device to perform computations on.
+        classes: Optional list of class names.
+        top_k: The number of top classes to display based on F1 score.
+        markdown_output: If True, print metrics in markdown format.
+    """
     f1_micro = MultilabelF1Score(preds.shape[1], average="micro").to(device=device)
     my_f1_macro = MacroF1(preds.shape[1]).to(device=device)
 
