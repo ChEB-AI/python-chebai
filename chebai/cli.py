@@ -1,15 +1,38 @@
 from typing import Dict, Set
-
 from lightning.pytorch.cli import LightningArgumentParser, LightningCLI
-
 from chebai.trainer.CustomTrainer import CustomTrainer
 
 
 class ChebaiCLI(LightningCLI):
-    def __init__(self, *args, **kwargs):
+    """
+    Custom CLI subclass for Chebai project based on PyTorch Lightning's LightningCLI.
+
+    Args:
+        save_config_kwargs (dict): Keyword arguments for saving configuration.
+        parser_kwargs (dict): Keyword arguments for parser configuration.
+
+    Attributes:
+        save_config_kwargs (dict): Configuration options for saving.
+        parser_kwargs (dict): Configuration options for the argument parser.
+    """
+
+    def __init__(self, save_config_kwargs: dict, parser_kwargs: dict):
+        """
+        Initialize ChebaiCLI with custom trainer and configure parser settings.
+
+        Args:
+            save_config_kwargs (dict): Keyword arguments for saving configuration.
+            parser_kwargs (dict): Keyword arguments for parser configuration.
+        """
         super().__init__(trainer_class=CustomTrainer, *args, **kwargs)
 
     def add_arguments_to_parser(self, parser: LightningArgumentParser):
+        """
+        Add custom arguments to the argument parser.
+
+        Args:
+            parser (LightningArgumentParser): Argument parser instance.
+        """
         for kind in ("train", "val", "test"):
             for average in ("micro-f1", "macro-f1", "balanced-accuracy"):
                 parser.link_arguments(
@@ -25,7 +48,12 @@ class ChebaiCLI(LightningCLI):
 
     @staticmethod
     def subcommands() -> Dict[str, Set[str]]:
-        """Defines the list of available subcommands and the arguments to skip."""
+        """
+        Defines the list of available subcommands and the arguments to skip.
+
+        Returns:
+            Dict[str, Set[str]]: Dictionary where keys are subcommands and values are sets of arguments to skip.
+        """
         return {
             "fit": {"model", "train_dataloaders", "val_dataloaders", "datamodule"},
             "validate": {"model", "dataloaders", "datamodule"},
@@ -36,6 +64,9 @@ class ChebaiCLI(LightningCLI):
 
 
 def cli():
+    """
+    Main function to instantiate and run the ChebaiCLI.
+    """
     r = ChebaiCLI(
         save_config_kwargs={"config_filename": "lightning_config.yaml"},
         parser_kwargs={"parser_mode": "omegaconf"},
