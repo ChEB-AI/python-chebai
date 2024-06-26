@@ -1,4 +1,4 @@
-from typing import List, Union
+from typing import List, Union, Optional, Dict, Any
 import os
 import random
 import typing
@@ -25,14 +25,14 @@ class XYBaseDataModule(LightningDataModule):
         train_split (float): The ratio of training data to total data and of test data to (validation + test) data. Default is 0.85.
         reader_kwargs (dict): Additional keyword arguments to be passed to the data reader. Default is None.
         prediction_kind (str): The kind of prediction to be performed (only relevant for the predict_dataloader). Default is "test".
-        data_limit (int): The maximum number of data samples to load. If set to None, the complete dataset will be used. Default is None.
-        label_filter (int): The index of the label to filter. Default is None.
-        balance_after_filter (float): The ratio of negative samples to positive samples after filtering. Default is None.
+        data_limit (Optional[int]): The maximum number of data samples to load. If set to None, the complete dataset will be used. Default is None.
+        label_filter (Optional[int]): The index of the label to filter. Default is None.
+        balance_after_filter (Optional[float]): The ratio of negative samples to positive samples after filtering. Default is None.
         num_workers (int): The number of worker processes for data loading. Default is 1.
         chebi_version (int): The version of ChEBI to use. Default is 200.
         inner_k_folds (int): The number of folds for inner cross-validation. Use -1 to disable inner cross-validation. Default is -1.
-        fold_index (int): The index of the fold to use for training and validation. Default is None.
-        base_dir (str): The base directory for storing processed and raw data. Default is None.
+        fold_index (Optional[int]): The index of the fold to use for training and validation. Default is None.
+        base_dir (Optional[str]): The base directory for storing processed and raw data. Default is None.
         **kwargs: Additional keyword arguments.
 
     Attributes:
@@ -41,14 +41,14 @@ class XYBaseDataModule(LightningDataModule):
         train_split (float): The ratio of training data to total data.
         batch_size (int): The batch size for data loading.
         prediction_kind (str): The kind of prediction to be performed.
-        data_limit (int): The maximum number of data samples to load.
-        label_filter (int): The index of the label to filter.
-        balance_after_filter (float): The ratio of negative samples to positive samples after filtering.
+        data_limit (Optional[int]): The maximum number of data samples to load.
+        label_filter (Optional[int]): The index of the label to filter.
+        balance_after_filter (Optional[float]): The ratio of negative samples to positive samples after filtering.
         num_workers (int): The number of worker processes for data loading.
         chebi_version (int): The version of ChEBI to use.
         inner_k_folds (int): The number of folds for inner cross-validation. If it is less than to, no cross-validation will be performed.
-        fold_index (int): The index of the fold to use for training and validation (only relevant for cross-validation)
-        _base_dir (str): The base directory for storing processed and raw data.
+        fold_index (Optional[int]): The index of the fold to use for training and validation (only relevant for cross-validation).
+        _base_dir (Optional[str]): The base directory for storing processed and raw data.
         raw_dir (str): The directory for storing raw data.
         processed_dir (str): The directory for storing processed data.
         fold_dir (str): The name of the directory where the folds from inner cross-validation are stored.
@@ -60,18 +60,18 @@ class XYBaseDataModule(LightningDataModule):
 
     def __init__(
         self,
-        batch_size=1,
-        train_split=0.85,
-        reader_kwargs=None,
-        prediction_kind="test",
-        data_limit: typing.Optional[int] = None,
-        label_filter: typing.Optional[int] = None,
-        balance_after_filter: typing.Optional[float] = None,
+        batch_size: int = 1,
+        train_split: float = 0.85,
+        reader_kwargs: Optional[dict] = None,
+        prediction_kind: str = "test",
+        data_limit: Optional[int] = None,
+        label_filter: Optional[int] = None,
+        balance_after_filter: Optional[float] = None,
         num_workers: int = 1,
         chebi_version: int = 200,
         inner_k_folds: int = -1,  # use inner cross-validation if > 1
-        fold_index: typing.Optional[int] = None,
-        base_dir=None,
+        fold_index: Optional[int] = None,
+        base_dir: Optional[str] = None,
         **kwargs,
     ):
         super().__init__()
@@ -111,47 +111,57 @@ class XYBaseDataModule(LightningDataModule):
         self.save_hyperparameters()
 
     @property
-    def identifier(self):
+    def identifier(self) -> tuple:
         """Identifier for the dataset."""
         return (self.reader.name(),)
 
     @property
-    def full_identifier(self):
+    def full_identifier(self) -> tuple:
         """Full identifier for the dataset."""
         return (self._name, *self.identifier)
 
     @property
-    def base_dir(self):
-        """Common base directory for processed and raw directories"""
+    def base_dir(self) -> str:
+        """Common base directory for processed and raw directories."""
         if self._base_dir is not None:
             return self._base_dir
         return os.path.join("data", self._name)
 
     @property
-    def processed_dir(self):
-        """name of dir where the processed data is stored"""
+    def processed_dir(self) -> str:
+        """Name of the directory where the processed data is stored."""
         return os.path.join(self.base_dir, "processed", *self.identifier)
 
     @property
-    def raw_dir(self):
-        """name of dir where the raw data is stored"""
+    def raw_dir(self) -> str:
+        """Name of the directory where the raw data is stored."""
         return os.path.join(self.base_dir, "raw")
 
     @property
-    def fold_dir(self):
-        """name of dir where the folds from inner cross-validation (i.e., the train and val sets) are stored"""
+    def fold_dir(self) -> str:
+        """Name of the directory where the folds from inner cross-validation (i.e., the train and val sets) are stored."""
         return f"cv_{self.inner_k_folds}_fold"
 
     @property
-    def _name(self):
+    def _name(self) -> str:
         raise NotImplementedError
 
-    def _filter_labels(self, row):
-        """filter labels based on label_filter"""
+    def _filter_labels(self, row: dict) -> dict:
+        """
+        Filter labels based on `label_filter`.
+
+        Args:
+            row (dict): A dictionary containing the row data.
+
+        Returns:
+            dict: The filtered row data.
+        """
         row["labels"] = [row["labels"][self.label_filter]]
         return row
 
-    def load_processed_data(self, kind: str = None, filename: str = None) -> List:
+    def load_processed_data(
+        self, kind: Optional[str] = None, filename: Optional[str] = None
+    ) -> List:
         """
         Load processed data from a file.
 
@@ -183,7 +193,7 @@ class XYBaseDataModule(LightningDataModule):
                 filename = f"{kind}.pt"
         return torch.load(os.path.join(self.processed_dir, filename))
 
-    def dataloader(self, kind, **kwargs) -> DataLoader:
+    def dataloader(self, kind: str, **kwargs) -> DataLoader:
         """
         Returns a DataLoader object for the specified kind (train, val or test) of data.
 
@@ -193,7 +203,6 @@ class XYBaseDataModule(LightningDataModule):
 
         Returns:
             DataLoader: A DataLoader object.
-
         """
         dataset = self.load_processed_data(kind)
         if "ids" in kwargs:
@@ -226,7 +235,9 @@ class XYBaseDataModule(LightningDataModule):
         )
 
     @staticmethod
-    def _load_dict(input_file_path):
+    def _load_dict(
+        input_file_path: str,
+    ) -> typing.Generator[Dict[str, Any], None, None]:
         """
         Load data from a file and return a dictionary.
 
@@ -242,11 +253,20 @@ class XYBaseDataModule(LightningDataModule):
                 yield dict(features=smiles, labels=labels)
 
     @staticmethod
-    def _get_data_size(input_file_path):
+    def _get_data_size(input_file_path: str) -> int:
+        """
+        Get the number of lines in a file.
+
+        Args:
+            input_file_path (str): The path to the input file.
+
+        Returns:
+            int: The number of lines in the file.
+        """
         with open(input_file_path, "r") as f:
             return sum(1 for _ in f)
 
-    def _load_data_from_file(self, path):
+    def _load_data_from_file(self, path: str) -> List[Dict[str, Any]]:
         """
         Load data from a file and return a list of dictionaries.
 
@@ -268,7 +288,17 @@ class XYBaseDataModule(LightningDataModule):
 
         return data
 
-    def train_dataloader(self, *args, **kwargs) -> DataLoader:
+    def train_dataloader(self, *args, **kwargs) -> Union[DataLoader, List[DataLoader]]:
+        """
+        Returns the train DataLoader.
+
+        Args:
+            *args: Additional positional arguments.
+            **kwargs: Additional keyword arguments.
+
+        Returns:
+            DataLoader: A DataLoader object for training data.
+        """
         return self.dataloader(
             "train",
             shuffle=True,
@@ -278,6 +308,16 @@ class XYBaseDataModule(LightningDataModule):
         )
 
     def val_dataloader(self, *args, **kwargs) -> Union[DataLoader, List[DataLoader]]:
+        """
+        Returns the validation DataLoader.
+
+        Args:
+            *args: Additional positional arguments.
+            **kwargs: Additional keyword arguments.
+
+        Returns:
+            Union[DataLoader, List[DataLoader]]: A DataLoader object for validation data.
+        """
         return self.dataloader(
             "validation",
             shuffle=False,
@@ -287,14 +327,42 @@ class XYBaseDataModule(LightningDataModule):
         )
 
     def test_dataloader(self, *args, **kwargs) -> Union[DataLoader, List[DataLoader]]:
+        """
+        Returns the test DataLoader.
+
+        Args:
+            *args: Additional positional arguments.
+            **kwargs: Additional keyword arguments.
+
+        Returns:
+            Union[DataLoader, List[DataLoader]]: A DataLoader object for test data.
+        """
         return self.dataloader("test", shuffle=False, **kwargs)
 
     def predict_dataloader(
         self, *args, **kwargs
     ) -> Union[DataLoader, List[DataLoader]]:
+        """
+        Returns the predict DataLoader.
+
+        Args:
+            *args: Additional positional arguments.
+            **kwargs: Additional keyword arguments.
+
+        Returns:
+            Union[DataLoader, List[DataLoader]]: A DataLoader object for prediction data.
+        """
         return self.dataloader(self.prediction_kind, shuffle=False, **kwargs)
 
     def setup(self, **kwargs):
+        """
+        Setup the data module.
+
+        This method checks for the processed data and sets up the data module for training, validation, and testing.
+
+        Args:
+            **kwargs: Additional keyword arguments.
+        """
         rank_zero_info(f"Check for processed data in {self.processed_dir}")
         rank_zero_info(f"Cross-validation enabled: {self.use_inner_cross_validation}")
         if any(
@@ -307,30 +375,70 @@ class XYBaseDataModule(LightningDataModule):
             self.reader.on_finish()
 
     def setup_processed(self):
+        """
+        Setup the processed data.
+
+        This method should be implemented by subclasses to handle the specific setup of processed data.
+        """
         raise NotImplementedError
 
     @property
-    def processed_file_names(self):
+    def processed_file_names(self) -> List[str]:
+        """
+        Returns the list of processed file names.
+
+        This property should be implemented by subclasses to provide the list of processed file names.
+
+        Returns:
+            List[str]: The list of processed file names.
+        """
         raise NotImplementedError
 
     @property
-    def raw_file_names(self):
+    def raw_file_names(self) -> List[str]:
+        """
+        Returns the list of raw file names.
+
+        This property should be implemented by subclasses to provide the list of raw file names.
+
+        Returns:
+            List[str]: The list of raw file names.
+        """
         raise NotImplementedError
 
     @property
     def processed_file_names_dict(self) -> dict:
+        """
+        Returns the dictionary of processed file names.
+
+        This property should be implemented by subclasses to provide the dictionary of processed file names.
+
+        Returns:
+            dict: The dictionary of processed file names.
+        """
         raise NotImplementedError
 
     @property
     def raw_file_names_dict(self) -> dict:
+        """
+        Returns the dictionary of raw file names.
+
+        This property should be implemented by subclasses to provide the dictionary of raw file names.
+
+        Returns:
+            dict: The dictionary of raw file names.
+        """
         raise NotImplementedError
 
     @property
-    def label_number(self):
+    def label_number(self) -> int:
         """
-        Number of labels
-        :return:
-        Returns -1 for seq2seq encoding, otherwise the number of labels
+        Returns the number of labels.
+
+        This property should be implemented by subclasses to provide the number of labels.
+
+        Returns:
+            int: The number of labels. Returns -1 for seq2seq encoding.
         """
         raise NotImplementedError
 
@@ -339,10 +447,26 @@ class MergedDataset(XYBaseDataModule):
     MERGED = []
 
     @property
-    def _name(self):
+    def _name(self) -> str:
+        """
+        Returns a concatenated name of all subset names.
+        """
         return "+".join(s._name for s in self.subsets)
 
-    def __init__(self, batch_size=1, train_split=0.85, reader_kwargs=None, **kwargs):
+    def __init__(
+        self,
+        batch_size: int = 1,
+        train_split: float = 0.85,
+        reader_kwargs: Union[None, List[dict]] = None,
+        **kwargs,
+    ):
+        """
+        Args:
+            batch_size (int): Batch size for data loaders.
+            train_split (float): Fraction of data to use for training.
+            reader_kwargs (Union[None, List[dict]]): Optional arguments for subset readers.
+            **kwargs: Additional arguments to pass to LightningDataModule.
+        """
         if reader_kwargs is None:
             reader_kwargs = [None for _ in self.MERGED]
         self.train_split = train_split
@@ -356,14 +480,35 @@ class MergedDataset(XYBaseDataModule):
         super(pl.LightningDataModule, self).__init__(**kwargs)
 
     def prepare_data(self):
+        """
+        Placeholder for data preparation logic.
+        """
         for s in self.subsets:
             s.prepare_data()
 
     def setup(self, **kwargs):
+        """
+        Setup the data module.
+
+        This method checks for the processed data and sets up the data module for training, validation, and testing.
+
+        Args:
+            **kwargs: Additional keyword arguments.
+        """
         for s in self.subsets:
             s.setup(**kwargs)
 
-    def dataloader(self, kind, **kwargs):
+    def dataloader(self, kind: str, **kwargs) -> DataLoader:
+        """
+        Creates a DataLoader for a specific subset.
+
+        Args:
+            kind (str): Kind of data loader ('train', 'validation', or 'test').
+            **kwargs: Additional arguments passed to DataLoader.
+
+        Returns:
+            DataLoader: DataLoader object for the specified subset.
+        """
         subdatasets = [
             torch.load(os.path.join(s.processed_dir, f"{kind}.pt"))
             for s in self.subsets
@@ -380,31 +525,62 @@ class MergedDataset(XYBaseDataModule):
             **kwargs,
         )
 
-    def train_dataloader(self, *args, **kwargs) -> DataLoader:
+    def train_dataloader(self, *args, **kwargs) -> Union[DataLoader, List[DataLoader]]:
+        """
+        Returns the training DataLoader.
+        """
         return self.dataloader("train", shuffle=True, **kwargs)
 
     def val_dataloader(self, *args, **kwargs) -> Union[DataLoader, List[DataLoader]]:
+        """
+        Returns the validation DataLoader.
+        """
         return self.dataloader("validation", shuffle=False, **kwargs)
 
     def test_dataloader(self, *args, **kwargs) -> Union[DataLoader, List[DataLoader]]:
+        """
+        Returns the test DataLoader.
+        """
         return self.dataloader("test", shuffle=False, **kwargs)
 
-    def _process_data(self, subset_id, data):
+    def _process_data(self, subset_id: int, data: dict) -> dict:
+        """
+        Processes data from a subset.
+
+        Args:
+            subset_id (int): Index of the subset.
+            data (dict): Data from the subset.
+
+        Returns:
+            dict: Processed data with 'features', 'labels', and 'ident' keys.
+        """
         return dict(
             features=data["features"], labels=data["labels"], ident=data["ident"]
         )
 
     def setup_processed(self):
+        """
+        Placeholder for setup logic after data processing.
+        """
         pass
 
     @property
-    def processed_file_names(self):
+    def processed_file_names(self) -> List[str]:
+        """
+        Returns the list of processed file names.
+        """
         return ["test.pt", "train.pt", "validation.pt"]
 
     @property
-    def label_number(self):
+    def label_number(self) -> int:
+        """
+        Returns the number of labels from the first subset.
+        """
         return self.subsets[0].label_number
 
     @property
     def limits(self):
+        """
+        Returns None, assuming no limits on data slicing.
+        """
         return None

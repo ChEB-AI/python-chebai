@@ -6,12 +6,13 @@ import os
 import random
 import shutil
 import zipfile
+from typing import List, Dict, Generator
 
 from rdkit import Chem
 from sklearn.model_selection import GroupShuffleSplit, train_test_split
 import numpy as np
-import pysmiles
 import torch
+import pysmiles
 
 from chebai.preprocessing import reader as dr
 from chebai.preprocessing.datasets.base import MergedDataset, XYBaseDataModule
@@ -20,6 +21,8 @@ from chebai.preprocessing.datasets.pubchem import Hazardous
 
 
 class Tox21MolNet(XYBaseDataModule):
+    """Data module for Tox21MolNet dataset."""
+
     HEADERS = [
         "NR-AR",
         "NR-AR-LBD",
@@ -36,22 +39,27 @@ class Tox21MolNet(XYBaseDataModule):
     ]
 
     @property
-    def _name(self):
+    def _name(self) -> str:
+        """Returns the name of the dataset."""
         return "Tox21MN"
 
     @property
-    def label_number(self):
+    def label_number(self) -> int:
+        """Returns the number of labels."""
         return 12
 
     @property
-    def raw_file_names(self):
+    def raw_file_names(self) -> List[str]:
+        """Returns a list of raw file names."""
         return ["tox21.csv"]
 
     @property
-    def processed_file_names(self):
+    def processed_file_names(self) -> List[str]:
+        """Returns a list of processed file names."""
         return ["test.pt", "train.pt", "validation.pt"]
 
-    def download(self):
+    def download(self) -> None:
+        """Downloads and extracts the dataset."""
         with NamedTemporaryFile("rb") as gout:
             request.urlretrieve(
                 "https://deepchemdata.s3-us-west-1.amazonaws.com/datasets/tox21.csv.gz",
@@ -61,7 +69,8 @@ class Tox21MolNet(XYBaseDataModule):
                 with open(os.path.join(self.raw_dir, "tox21.csv"), "wt") as fout:
                     fout.write(gfile.read().decode())
 
-    def setup_processed(self):
+    def setup_processed(self) -> None:
+        """Processes and splits the dataset."""
         print("Create splits")
         data = self._load_data_from_file(os.path.join(self.raw_dir, f"tox21.csv"))
         groups = np.array([d["group"] for d in data])
@@ -111,7 +120,8 @@ class Tox21MolNet(XYBaseDataModule):
                 os.path.join(self.processed_dir, f"{k}.pt"),
             )
 
-    def setup(self, **kwargs):
+    def setup(self, **kwargs) -> None:
+        """Sets up the dataset by downloading and processing if necessary."""
         if any(
             not os.path.isfile(os.path.join(self.raw_dir, f))
             for f in self.raw_file_names
@@ -123,7 +133,15 @@ class Tox21MolNet(XYBaseDataModule):
         ):
             self.setup_processed()
 
-    def _load_dict(self, input_file_path):
+    def _load_data_from_file(self, input_file_path: str) -> List[Dict]:
+        """Loads data from a CSV file.
+
+        Args:
+            input_file_path (str): Path to the CSV file.
+
+        Returns:
+            List[Dict]: List of data dictionaries.
+        """
         with open(input_file_path, "r") as input_file:
             reader = csv.DictReader(input_file)
             for row in reader:
@@ -135,6 +153,8 @@ class Tox21MolNet(XYBaseDataModule):
 
 
 class Tox21Challenge(XYBaseDataModule):
+    """Data module for Tox21Challenge dataset."""
+
     HEADERS = [
         "NR-AR",
         "NR-AR-LBD",
@@ -151,15 +171,18 @@ class Tox21Challenge(XYBaseDataModule):
     ]
 
     @property
-    def _name(self):
+    def _name(self) -> str:
+        """Returns the name of the dataset."""
         return "Tox21Chal"
 
     @property
-    def label_number(self):
+    def label_number(self) -> int:
+        """Returns the number of labels."""
         return 12
 
     @property
-    def raw_file_names(self):
+    def raw_file_names(self) -> List[str]:
+        """Returns a list of raw file names."""
         return [
             "train.sdf",
             "validation.sdf",
@@ -169,10 +192,12 @@ class Tox21Challenge(XYBaseDataModule):
         ]
 
     @property
-    def processed_file_names(self):
+    def processed_file_names(self) -> List[str]:
+        """Returns a list of processed file names."""
         return ["test.pt", "train.pt", "validation.pt"]
 
-    def download(self):
+    def download(self) -> None:
+        """Downloads and extracts the dataset."""
         self._retrieve_file(
             "https://tripod.nih.gov/tox21/challenge/download?id=tox21_10k_data_allsdf&sec=",
             "train.sdf",
@@ -192,7 +217,16 @@ class Tox21Challenge(XYBaseDataModule):
             "test_results.txt",
         )
 
-    def _retrieve_file(self, url, target_file, compression=None):
+    def _retrieve_file(
+        self, url: str, target_file: str, compression: str = None
+    ) -> None:
+        """Retrieves a file from a URL and saves it locally.
+
+        Args:
+            url (str): The URL to download the file from.
+            target_file (str): The name of the target file.
+            compression (str, optional): Compression type. Defaults to None.
+        """
         target_path = os.path.join(self.raw_dir, target_file)
         if not os.path.isfile(target_path):
             with NamedTemporaryFile("rb") as gout:
@@ -213,7 +247,15 @@ class Tox21Challenge(XYBaseDataModule):
                         assert len(files_in_zip) == 1
                         shutil.move(os.path.join(td.name, f), target_path)
 
-    def _load_data_from_file(self, path):
+    def _load_data_from_file(self, path: str) -> List[Dict]:
+        """Loads data from an SDF file.
+
+        Args:
+            path (str): Path to the SDF file.
+
+        Returns:
+            List[Dict]: List of data dictionaries.
+        """
         sdf = Chem.SDMolSupplier(path)
         data = []
         for mol in sdf:
@@ -233,7 +275,8 @@ class Tox21Challenge(XYBaseDataModule):
                 data.append(self.reader.to_data(d))
         return data
 
-    def setup_processed(self):
+    def setup_processed(self) -> None:
+        """Processes and splits the dataset."""
         for k in ("train", "validation"):
             d = self._load_data_from_file(os.path.join(self.raw_dir, f"{k}.sdf"))
             torch.save(d, os.path.join(self.processed_dir, f"{k}.pt"))
@@ -259,7 +302,8 @@ class Tox21Challenge(XYBaseDataModule):
         ]
         torch.save(test_data, os.path.join(self.processed_dir, f"test.pt"))
 
-    def setup(self, **kwargs):
+    def setup(self, **kwargs) -> None:
+        """Sets up the dataset by downloading and processing if necessary."""
         if any(
             not os.path.isfile(os.path.join(self.raw_dir, f))
             for f in self.raw_file_names
@@ -271,7 +315,15 @@ class Tox21Challenge(XYBaseDataModule):
         ):
             self.setup_processed()
 
-    def _load_dict(self, input_file_path):
+    def _load_dict(self, input_file_path: str) -> Generator[Dict, None, None]:
+        """Loads data from a CSV file as a generator.
+
+        Args:
+            input_file_path (str): Path to the CSV file.
+
+        Yields:
+            Generator[Dict, None, None]: Generator of data dictionaries.
+        """
         with open(input_file_path, "r") as input_file:
             reader = csv.DictReader(input_file)
             for row in reader:
@@ -283,8 +335,12 @@ class Tox21Challenge(XYBaseDataModule):
 
 
 class Tox21ChallengeChem(Tox21Challenge):
+    """Chemical data reader for Tox21Challenge dataset."""
+
     READER = dr.ChemDataReader
 
 
 class Tox21MolNetChem(Tox21MolNet):
+    """Chemical data reader for Tox21MolNet dataset."""
+
     READER = dr.ChemDataReader
