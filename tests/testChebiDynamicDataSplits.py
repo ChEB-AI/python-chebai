@@ -25,6 +25,7 @@ class TestChebiDynamicDataSplits(unittest.TestCase):
         # Dynamic Data Splits in Run 1
         train_hash_1, val_hash_1, test_hash_1 = self._get_hashed_splits()
 
+        self.chebi_50_v231.dynamic_df_train = None
         # Dynamic Data Splits in Run 2
         train_hash_2, val_hash_2, test_hash_2 = self._get_hashed_splits()
 
