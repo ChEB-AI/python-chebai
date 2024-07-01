@@ -28,7 +28,8 @@ class ChebaiCLI(LightningCLI):
 
     def add_arguments_to_parser(self, parser: LightningArgumentParser):
         """
-        Add custom arguments to the argument parser.
+        Link input parameters that are used by different classes (e.g. number of labels)
+        see https://lightning.ai/docs/pytorch/stable/cli/lightning_cli_expert.html#argument-linking
 
         Args:
             parser (LightningArgumentParser): Argument parser instance.

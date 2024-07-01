@@ -160,7 +160,7 @@ class DisjointLoss(ImplicationLoss):
     Disjoint Loss module, extending ImplicationLoss.
 
     Args:
-        path_to_disjointness (str): Path to the disjointness data file.
+        path_to_disjointness (str): Path to the disjointness data file (a csv file containing pairs of disjoint classes)
         data_extractor (Union[_ChEBIDataExtractor, LabeledUnlabeledMixed]): Data extractor for labels.
         base_loss (torch.nn.Module, optional): Base loss function. Defaults to None.
         disjoint_loss_weight (float, optional): Weight of disjointness loss. Defaults to 100.

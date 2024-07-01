@@ -229,7 +229,7 @@ class XYBaseDataModule(LightningDataModule):
             dataset = dataset[: self.data_limit]
         return DataLoader(
             dataset,
-            collate_fn=self.reader.collater,
+            collate_fn=self.reader.collator,
             batch_size=self.batch_size,
             **kwargs,
         )
@@ -312,8 +312,8 @@ class XYBaseDataModule(LightningDataModule):
         Returns the validation DataLoader.
 
         Args:
-            *args: Additional positional arguments.
-            **kwargs: Additional keyword arguments.
+            *args: Additional positional arguments (unused).
+            **kwargs: Additional keyword arguments, passed to dataloader().
 
         Returns:
             Union[DataLoader, List[DataLoader]]: A DataLoader object for validation data.
@@ -331,8 +331,8 @@ class XYBaseDataModule(LightningDataModule):
         Returns the test DataLoader.
 
         Args:
-            *args: Additional positional arguments.
-            **kwargs: Additional keyword arguments.
+            *args: Additional positional arguments (unused).
+            **kwargs: Additional keyword arguments, passed to dataloader().
 
         Returns:
             Union[DataLoader, List[DataLoader]]: A DataLoader object for test data.
@@ -346,8 +346,8 @@ class XYBaseDataModule(LightningDataModule):
         Returns the predict DataLoader.
 
         Args:
-            *args: Additional positional arguments.
-            **kwargs: Additional keyword arguments.
+            *args: Additional positional arguments (unused).
+            **kwargs: Additional keyword arguments, passed to dataloader().
 
         Returns:
             Union[DataLoader, List[DataLoader]]: A DataLoader object for prediction data.
@@ -520,7 +520,7 @@ class MergedDataset(XYBaseDataModule):
         ]
         return DataLoader(
             dataset,
-            collate_fn=self.reader.collater,
+            collate_fn=self.reader.collator,
             batch_size=self.batch_size,
             **kwargs,
         )

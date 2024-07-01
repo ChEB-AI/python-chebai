@@ -19,6 +19,9 @@ def custom_reduce_fx(input: torch.Tensor) -> torch.Tensor:
 class MacroF1(torchmetrics.Metric):
     """
     Computes the Macro F1 score, which is the unweighted mean of F1 scores for each class.
+    This implementation differs from torchmetrics.classification.MultilabelF1Score in the behaviour for undefined
+    values (i.e., classes where TP+FN=0). The torchmetrics implementation sets these classes to a default value.
+    Here, the mean is only taken over classes which have at least one positive sample.
 
     Args:
         num_labels (int): Number of classes/labels.
