@@ -901,7 +901,7 @@ class LabeledUnlabeledMixed(XYBaseDataModule):
             unlabeled_data = unlabeled_data[: self.data_limit]
         return DataLoader(
             labeled_data + unlabeled_data,
-            collate_fn=self.reader.collater,
+            collate_fn=self.reader.collator,
             batch_size=self.batch_size,
             **kwargs,
         )

@@ -73,7 +73,7 @@ def evaluate_model(
         Tensors with predictions and labels.
     """
     model.eval()
-    collate = data_module.reader.COLLATER()
+    collate = data_module.reader.COLLATOR()
 
     data_list = data_module.load_processed_data("test", filename)
     data_list = data_list[: data_module.data_limit]

@@ -5,7 +5,7 @@ from typing import List, Tuple, Union, Dict
 from chebai.preprocessing.structures import XYData
 
 
-class Collater:
+class Collator:
     """Base class for collating data samples into a batch."""
 
     def __init__(self, **kwargs):
@@ -23,8 +23,8 @@ class Collater:
         raise NotImplementedError
 
 
-class DefaultCollater(Collater):
-    """Default collater that extracts features and labels."""
+class DefaultCollator(Collator):
+    """Default collator that extracts features and labels."""
 
     def __call__(self, data: List[Dict]) -> XYData:
         """Collate data samples by extracting features and labels.
@@ -39,11 +39,12 @@ class DefaultCollater(Collater):
         return XYData(x, y)
 
 
-class RaggedCollater(Collater):
-    """Collater for handling ragged data samples."""
+class RaggedCollator(Collator):
+    """Collator for handling ragged data samples."""
 
     def __call__(self, data: List[Union[Dict, Tuple]]) -> XYData:
-        """Collate ragged data samples into a batch.
+        """Collate ragged data samples (i.e., samples of unequal size such as string representations of molecules) into
+        a batch.
 
         Args:
             data (List[Union[Dict, Tuple]]): List of ragged data samples.

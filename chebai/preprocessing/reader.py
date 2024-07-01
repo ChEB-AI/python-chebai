@@ -1,12 +1,12 @@
 import os
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional
 
 from pysmiles.read_smiles import _tokenize
 from transformers import RobertaTokenizerFast
 import deepsmiles
 import selfies as sf
 
-from chebai.preprocessing.collate import DefaultCollater, RaggedCollater
+from chebai.preprocessing.collate import DefaultCollator, RaggedCollator
 
 EMBEDDING_OFFSET = 10
 PADDING_TOKEN_INDEX = 0
@@ -16,15 +16,16 @@ CLS_TOKEN = 2
 
 class DataReader:
     """
-    Base class for reading and preprocessing data.
+    Base class for reading and preprocessing data. Turns the raw input data (e.g., a SMILES string) into the model
+    input format (e.g., a list of tokens).
 
     Args:
         collator_kwargs: Optional dictionary of keyword arguments for the collator.
         token_path: Optional path for the token file.
-        kwargs: Additional keyword arguments.
+        kwargs: Additional keyword arguments (not used).
     """
 
-    COLLATER = DefaultCollater
+    COLLATOR = DefaultCollator
 
     def __init__(
         self,
@@ -34,7 +35,7 @@ class DataReader:
     ):
         if collator_kwargs is None:
             collator_kwargs = dict()
-        self.collater = self.COLLATER(**collator_kwargs)
+        self.collator = self.COLLATOR(**collator_kwargs)
         self.dirname = os.path.dirname(__file__)
         self._token_path = token_path
 
@@ -126,7 +127,7 @@ class ChemDataReader(DataReader):
         kwargs: Additional keyword arguments.
     """
 
-    COLLATER = RaggedCollater
+    COLLATOR = RaggedCollator
 
     @classmethod
     def name(cls) -> str:
@@ -201,7 +202,7 @@ class ChemDataUnlabeledReader(ChemDataReader):
         kwargs: Additional keyword arguments.
     """
 
-    COLLATER = RaggedCollater
+    COLLATOR = RaggedCollator
 
     @classmethod
     def name(cls) -> str:
@@ -220,13 +221,13 @@ class ChemBPEReader(DataReader):
     Args:
         data_path: Path for the pretrained BPE tokenizer.
         max_len: Maximum length of the tokenized sequence.
-        vsize: Vocabulary size for the tokenizer.
+        vsize: Vocabulary size for the tokenizer (not used).
         collator_kwargs: Optional dictionary of keyword arguments for the collator.
         token_path: Optional path for the token file.
         kwargs: Additional keyword arguments.
     """
 
-    COLLATER = RaggedCollater
+    COLLATOR = RaggedCollator
 
     @classmethod
     def name(cls) -> str:
@@ -264,7 +265,7 @@ class SelfiesReader(ChemDataReader):
         kwargs: Additional keyword arguments.
     """
 
-    COLLATER = RaggedCollater
+    COLLATOR = RaggedCollator
 
     def __init__(
         self,
@@ -309,7 +310,7 @@ class OrdReader(DataReader):
         kwargs: Additional keyword arguments.
     """
 
-    COLLATER = RaggedCollater
+    COLLATOR = RaggedCollator
 
     @classmethod
     def name(cls) -> str:
