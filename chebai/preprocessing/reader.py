@@ -1,6 +1,7 @@
 import os
 
 from pysmiles.read_smiles import _tokenize
+from rdkit import Chem
 from transformers import RobertaTokenizerFast
 import deepsmiles
 import selfies as sf
@@ -186,14 +187,17 @@ class SelfiesReader(ChemDataReader):
         try:
             tokenized = sf.split_selfies(sf.encoder(raw_data.strip(), strict=True))
             tokenized = [self._get_token_index(v) for v in tokenized]
-        except Exception as e:
-            print(f"could not process {raw_data}")
-            # print(f'\t{e}')
-            self.error_count += 1
-            print(f"\terror count: {self.error_count}")
-            tokenized = None
-            # if self.error_count > 20:
-            #    raise Exception('Too many errors')
+        except Exception:
+            try:
+                # resolve potential problems by rdkit normalisation
+                smiles = Chem.MolToSmiles(Chem.MolFromSmiles(raw_data.strip()))
+                tokenized = sf.split_selfies(sf.encoder(smiles, strict=True))
+                tokenized = [self._get_token_index(v) for v in tokenized]
+            except Exception as e:
+                print(f"SELFIES encoding failed: {e}")
+                self.error_count += 1
+                print(f"\terror count: {self.error_count}")
+                tokenized = None
         return tokenized
 
 
