@@ -35,7 +35,12 @@ class ChebiDataMigration:
         os.makedirs(self._chebi_cls.base_dir, exist_ok=True)
         print("Migration started..................")
         self._migrate_old_raw_data()
-        self._migrate_old_processed_data()
+
+        # Either we can combine `.pt` split files to form `data.pt` file
+        # self._migrate_old_processed_data()
+        # OR
+        # we can transform `data.pkl` to `data.pt` file (this seems efficient along with less code)
+        self._chebi_cls.setup_processed()
         print("Migration completed..................")
 
     def _migrate_old_raw_data(self):
