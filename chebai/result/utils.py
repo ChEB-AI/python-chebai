@@ -36,6 +36,20 @@ def get_checkpoint_from_wandb(
     return None
 
 
+def _run_batch(batch, model, collate):
+    collated = collate(batch)
+    collated.x = collated.to_x(model.device)
+    if collated.y is not None:
+        collated.y = collated.to_y(model.device)
+    processable_data = model._process_batch(collated, 0)
+    del processable_data["loss_kwargs"]
+    model_output = model(processable_data, **processable_data["model_kwargs"])
+    preds, labels = model._get_prediction_and_labels(
+        processable_data, processable_data["labels"], model_output
+    )
+    return preds, labels
+
+
 def evaluate_model(
     model: ChebaiBaseNet,
     data_module: XYBaseDataModule,
@@ -57,7 +71,7 @@ def evaluate_model(
     if buffer_dir is not None:
         os.makedirs(buffer_dir, exist_ok=True)
     save_ind = 0
-    save_batch_size = 4
+    save_batch_size = 128
     n_saved = 1
 
     print(f"")
@@ -66,32 +80,24 @@ def evaluate_model(
             skip_existing_preds
             and os.path.isfile(os.path.join(buffer_dir, f"preds{save_ind:03d}.pt"))
         ):
-            collated = collate(data_list[i : min(i + batch_size, len(data_list) - 1)])
-            collated.x = collated.to_x(model.device)
-            if collated.y is not None:
-                collated.y = collated.to_y(model.device)
-            processable_data = model._process_batch(collated, 0)
-            del processable_data["loss_kwargs"]
-            model_output = model(processable_data, **processable_data["model_kwargs"])
-            preds, labels = model._get_prediction_and_labels(
-                processable_data, processable_data["labels"], model_output
-            )
+            preds, labels = _run_batch(data_list[i : i + batch_size], model, collate)
             preds_list.append(preds)
             labels_list.append(labels)
+
             if buffer_dir is not None:
-                if n_saved >= save_batch_size:
+                if n_saved * batch_size >= save_batch_size:
                     torch.save(
                         torch.cat(preds_list),
                         os.path.join(buffer_dir, f"preds{save_ind:03d}.pt"),
                     )
-                    if collated.y is not None:
+                    if labels_list[0] is not None:
                         torch.save(
                             torch.cat(labels_list),
                             os.path.join(buffer_dir, f"labels{save_ind:03d}.pt"),
                         )
                     preds_list = []
                     labels_list = []
-        if n_saved >= save_batch_size:
+        if n_saved * batch_size >= save_batch_size:
             save_ind += 1
             n_saved = 0
         n_saved += 1
@@ -103,6 +109,16 @@ def evaluate_model(
 
             return test_preds, test_labels
         return test_preds, None
+    else:
+        torch.save(
+            torch.cat(preds_list),
+            os.path.join(buffer_dir, f"preds{save_ind:03d}.pt"),
+        )
+        if labels_list[0] is not None:
+            torch.save(
+                torch.cat(labels_list),
+                os.path.join(buffer_dir, f"labels{save_ind:03d}.pt"),
+            )
 
 
 def load_results_from_buffer(buffer_dir, device):
@@ -144,3 +160,16 @@ def load_results_from_buffer(buffer_dir, device):
         test_labels = None
 
     return test_preds, test_labels
+
+
+if __name__ == "__main__":
+    import sys
+
+    buffer_dir = os.path.join("results_buffer", sys.argv[1], "ChEBIOver100_train")
+    buffer_dir_concat = os.path.join(
+        "results_buffer", "concatenated", sys.argv[1], "ChEBIOver100_train"
+    )
+    os.makedirs(buffer_dir_concat, exist_ok=True)
+    preds, labels = load_results_from_buffer(buffer_dir, "cpu")
+    torch.save(preds, os.path.join(buffer_dir_concat, f"preds000.pt"))
+    torch.save(labels, os.path.join(buffer_dir_concat, f"labels000.pt"))
