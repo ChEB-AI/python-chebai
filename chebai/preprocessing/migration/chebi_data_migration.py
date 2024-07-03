@@ -33,7 +33,7 @@ class ChebiDataMigration:
 
     def migrate(self):
         os.makedirs(self._chebi_cls.base_dir, exist_ok=True)
-        print("Migration started..................")
+        print("Migration started.....")
         self._migrate_old_raw_data()
 
         # Either we can combine `.pt` split files to form `data.pt` file
@@ -41,11 +41,11 @@ class ChebiDataMigration:
         # OR
         # we can transform `data.pkl` to `data.pt` file (this seems efficient along with less code)
         self._chebi_cls.setup_processed()
-        print("Migration completed..................")
+        print("Migration completed.....")
 
     def _migrate_old_raw_data(self):
         print("-" * 50)
-        print("Migrating old raw Data.....................")
+        print("Migrating old raw Data....")
 
         self._copy_file(self._old_raw_dir, self._chebi_cls.raw_dir, "chebi.obo")
         self._copy_file(
@@ -66,16 +66,17 @@ class ChebiDataMigration:
             self._old_raw_dir, old_splits_file_names
         )
 
-        data_df.to_pickle(data_file_path)
+        # data_df.to_pickle(data_file_path)
+        self._chebi_cls.save_processed(data_df, "data.pkl")
         print(f"File {data_file_path} saved to new data-folder structure")
 
         split_file = os.path.join(self._chebi_cls.processed_dir_main, "splits.csv")
-        split_ass_df.to_csv(split_file)
+        split_ass_df.to_csv(split_file)  # overwrites the files with same name
         print(f"File {split_file} saved to new data-folder structure")
 
     def _migrate_old_processed_data(self):
         print("-" * 50)
-        print("Migrating old processed data.....................")
+        print("Migrating old processed data.....")
 
         data_file_path = os.path.join(self._chebi_cls.processed_dir, "data.pt")
         if os.path.isfile(data_file_path):
@@ -120,12 +121,11 @@ class ChebiDataMigration:
         print("Combining `.pkl` splits...")
         for split, file_name in old_splits_file_names.items():
             file_path = os.path.join(old_dir, file_name)
-            file_df = pd.DataFrame(self._chebi_cls._load_data_from_file(path=file_path))
-            file_df["split"] = split  # Assign the split label to the DataFrame
+            file_df = pd.read_pickle(file_path)
             df_list.append(file_df)
 
             # Create split assignment for the current DataFrame
-            split_assignment = pd.DataFrame({"id": file_df["ident"], "split": split})
+            split_assignment = pd.DataFrame({"id": file_df["id"], "split": split})
             split_assignment_list.append(split_assignment)
 
         # Concatenate all dataframes and split assignments
