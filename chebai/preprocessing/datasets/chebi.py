@@ -156,6 +156,51 @@ class _ChEBIDataExtractor(XYBaseDataModule, ABC):
                 **_init_kwargs,
             )
 
+        self.splits_file_path = self._validate_splits_file_path(
+            kwargs.get("splits_file_path", None)
+        )
+
+    @staticmethod
+    def _validate_splits_file_path(splits_file_path=None):
+        """
+        Validates the provided splits file path.
+
+        Args:
+            splits_file_path (str or None): Path to the splits CSV file.
+
+        Returns:
+            str or None: Validated splits file path if checks pass, None if splits_file_path is None.
+
+        Raises:
+            FileNotFoundError: If the splits file does not exist.
+            ValueError: If the splits file is empty or missing required columns ('id' and/or 'split'), or not a CSV file.
+        """
+        if splits_file_path is None:
+            return None
+
+        if not os.path.isfile(splits_file_path):
+            raise FileNotFoundError(f"File {splits_file_path} does not exist")
+
+        file_size = os.path.getsize(splits_file_path)
+        if file_size == 0:
+            raise ValueError(f"File {splits_file_path} is empty")
+
+        # Check if the file has a CSV extension
+        if not splits_file_path.lower().endswith(".csv"):
+            raise ValueError(f"File {splits_file_path} is not a CSV file")
+
+        # Read the CSV file into a DataFrame
+        splits_df = pd.read_csv(splits_file_path)
+
+        # Check if 'id' and 'split' columns are in the DataFrame
+        required_columns = {"id", "split"}
+        if not required_columns.issubset(splits_df.columns):
+            raise ValueError(
+                f"CSV file {splits_file_path} is missing required columns ('id' and/or 'split')."
+            )
+
+        return splits_file_path
+
     def extract_class_hierarchy(self, chebi_path):
         """
         Extracts the class hierarchy from the ChEBI ontology.
@@ -632,7 +677,7 @@ class _ChEBIDataExtractor(XYBaseDataModule, ABC):
                     # Generate the "chebi_version_train" data if it doesn't exist
                     self._chebi_version_train_obj.prepare_data(*args, **kwargs)
 
-    def _get_dynamic_splits(self):
+    def _generate_dynamic_splits(self):
         """Generate data splits during run-time and saves in class variables"""
 
         # Load encoded data derived from "chebi_version"
@@ -687,9 +732,42 @@ class _ChEBIDataExtractor(XYBaseDataModule, ABC):
             )
             df_test = df_test_chebi_ver
 
+        # Generate splits.csv file to store ids of each corresponding split
+        split_assignment_list: List[pd.DataFrame] = [
+            pd.DataFrame({"id": df_train["ident"], "split": "train"}),
+            pd.DataFrame({"id": df_val["ident"], "split": "validation"}),
+            pd.DataFrame({"id": df_test["ident"], "split": "test"}),
+        ]
+        combined_split_assignment = pd.concat(split_assignment_list, ignore_index=True)
+        combined_split_assignment.to_csv(
+            os.path.join(self.processed_dir_main, "splits.csv")
+        )
+
+        # Store the splits in class variables
         self.dynamic_df_train = df_train
         self.dynamic_df_val = df_val
         self.dynamic_df_test = df_test
+
+    def _retreive_splits_from_csv(self):
+        splits_df = pd.read_csv(self.splits_file_path)
+
+        filename = self.processed_file_names_dict["data"]
+        data_chebi_version = torch.load(os.path.join(self.processed_dir, filename))
+        df_chebi_version = pd.DataFrame(data_chebi_version)
+
+        train_ids = splits_df[splits_df["split"] == "train"]["id"]
+        validation_ids = splits_df[splits_df["split"] == "validation"]["id"]
+        test_ids = splits_df[splits_df["split"] == "test"]["id"]
+
+        self.dynamic_df_train = df_chebi_version[
+            df_chebi_version["ident"].isin(train_ids)
+        ]
+        self.dynamic_df_val = df_chebi_version[
+            df_chebi_version["ident"].isin(validation_ids)
+        ]
+        self.dynamic_df_test = df_chebi_version[
+            df_chebi_version["ident"].isin(test_ids)
+        ]
 
     @property
     def dynamic_split_dfs(self):
@@ -701,7 +779,10 @@ class _ChEBIDataExtractor(XYBaseDataModule, ABC):
                 self.dynamic_df_train,
             ]
         ):
-            self._get_dynamic_splits()
+            if self.splits_file_path is None:
+                self._generate_dynamic_splits()
+            else:
+                self._retreive_splits_from_csv()
         return {
             "train": self.dynamic_df_train,
             "validation": self.dynamic_df_val,
