@@ -10,7 +10,6 @@ except ModuleNotFoundError:
 
 import networkx as nx
 import numpy as np
-import six
 import torch
 
 logger = logging.getLogger(__name__)
@@ -131,6 +130,9 @@ class Molecule:
     def create_feature_vectors(self):
         """
         Creates feature vectors based on local environments of atoms.
+
+        Note:
+            create a three-dimensional matrix I, such that I_{i,j} is the local input vector for jth vertex in ith DAG
         """
         length_of_bond_features = Molecule.num_bond_features()
         length_of_atom_features = Molecule.num_atom_features()

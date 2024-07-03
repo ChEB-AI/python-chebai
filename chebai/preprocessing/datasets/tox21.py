@@ -3,21 +3,17 @@ from urllib import request
 import csv
 import gzip
 import os
-import random
 import shutil
 import zipfile
-from typing import List, Dict, Generator
+from typing import List, Dict, Generator, Optional
 
 from rdkit import Chem
 from sklearn.model_selection import GroupShuffleSplit, train_test_split
 import numpy as np
 import torch
-import pysmiles
 
 from chebai.preprocessing import reader as dr
-from chebai.preprocessing.datasets.base import MergedDataset, XYBaseDataModule
-from chebai.preprocessing.datasets.chebi import JCIExtendedTokenData
-from chebai.preprocessing.datasets.pubchem import Hazardous
+from chebai.preprocessing.datasets.base import XYBaseDataModule
 
 
 class Tox21MolNet(XYBaseDataModule):
@@ -218,7 +214,7 @@ class Tox21Challenge(XYBaseDataModule):
         )
 
     def _retrieve_file(
-        self, url: str, target_file: str, compression: str = None
+        self, url: str, target_file: str, compression: Optional[str] = None
     ) -> None:
         """Retrieves a file from a URL and saves it locally.
 

@@ -3,7 +3,7 @@ import os
 
 from lightning.pytorch.callbacks import BasePredictionWriter
 import torch
-from typing import Any, Dict, List, Union
+from typing import Any, Dict, List, Union, Literal
 
 
 class ChebaiPredictionWriter(BasePredictionWriter):
@@ -22,7 +22,7 @@ class ChebaiPredictionWriter(BasePredictionWriter):
     def __init__(
         self,
         output_dir: str,
-        write_interval: str,
+        write_interval: Literal["batch", "epoch", "batch_and_epoch"],
         target_file: str = "predictions.json",
     ) -> None:
         super().__init__(write_interval)

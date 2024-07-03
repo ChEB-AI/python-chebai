@@ -3,7 +3,7 @@ from lightning.pytorch.callbacks import BasePredictionWriter
 import torch
 import os
 import pickle
-from typing import Sequence, Any
+from typing import Sequence, Any, Literal
 
 
 class PredictionWriter(BasePredictionWriter):
@@ -15,7 +15,11 @@ class PredictionWriter(BasePredictionWriter):
         write_interval (str): When to write predictions. Options are "batch" or "epoch".
     """
 
-    def __init__(self, output_dir: str, write_interval: str):
+    def __init__(
+        self,
+        output_dir: str,
+        write_interval: Literal["batch", "epoch", "batch_and_epoch"],
+    ):
         super().__init__(write_interval)
         self.output_dir = output_dir
         self.prediction_file_name = "predictions.pkl"

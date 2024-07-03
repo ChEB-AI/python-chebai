@@ -1,22 +1,16 @@
-import os
-from typing import List, Optional, Tuple
+from typing import List
 
 import matplotlib.pyplot as plt
 import pandas as pd
 import seaborn as sns
-import torch
 from torch import Tensor
 from torchmetrics.classification import (
     MultilabelF1Score,
     MultilabelPrecision,
     MultilabelRecall,
 )
-import tqdm
 
 from chebai.callbacks.epoch_metrics import MacroF1
-from chebai.models import ChebaiBaseNet
-from chebai.models.electra import Electra
-from chebai.preprocessing.datasets import XYBaseDataModule
 from chebai.result.utils import *
 
 
