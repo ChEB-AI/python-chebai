@@ -16,13 +16,15 @@ class ChebaiCLI(LightningCLI):
         parser_kwargs (dict): Configuration options for the argument parser.
     """
 
-    def __init__(self, save_config_kwargs: dict, parser_kwargs: dict):
+    def __init__(self, *args, **kwargs):
         """
         Initialize ChebaiCLI with custom trainer and configure parser settings.
 
         Args:
-            save_config_kwargs (dict): Keyword arguments for saving configuration.
-            parser_kwargs (dict): Keyword arguments for parser configuration.
+            args (list): List of arguments for LightningCLI.
+            kwargs (dict): Keyword arguments for LightningCLI.
+                save_config_kwargs (dict): Keyword arguments for saving configuration.
+                parser_kwargs (dict): Keyword arguments for parser configuration.
         """
         super().__init__(trainer_class=CustomTrainer, *args, **kwargs)
 
