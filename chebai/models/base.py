@@ -108,13 +108,13 @@ class ChebaiBaseNet(LightningModule):
         Returns:
             Dict[str, Any]: Processed batch data.
         """
-        return {
-            "features": batch.x,
-            "labels": self._process_labels_in_batch(batch),
-            "model_kwargs": batch.additional_fields.get("model_kwargs", {}),
-            "loss_kwargs": batch.additional_fields.get("loss_kwargs", {}),
-            "idents": batch.additional_fields.get("idents", []),
-        }
+        return dict(
+            features=batch.x,
+            labels=self._process_labels_in_batch(batch),
+            model_kwargs=batch.additional_fields["model_kwargs"],
+            loss_kwargs=batch.additional_fields["loss_kwargs"],
+            idents=batch.additional_fields["idents"],
+        )
 
     def _process_for_loss(
         self,
