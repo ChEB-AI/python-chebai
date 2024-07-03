@@ -155,7 +155,7 @@ class _ChEBIDataExtractor(XYBaseDataModule, ABC):
                 single_class=self.single_class,
                 **_init_kwargs,
             )
-
+        # Path of csv file which contains a list of chebi ids & their assignment to a dataset (either train, validation or test).
         self.splits_file_path = self._validate_splits_file_path(
             kwargs.get("splits_file_path", None)
         )
@@ -189,8 +189,8 @@ class _ChEBIDataExtractor(XYBaseDataModule, ABC):
         if not splits_file_path.lower().endswith(".csv"):
             raise ValueError(f"File {splits_file_path} is not a CSV file")
 
-        # Read the CSV file into a DataFrame
-        splits_df = pd.read_csv(splits_file_path)
+        # Read the first row of CSV file into a DataFrame
+        splits_df = pd.read_csv(splits_file_path, nrows=1)
 
         # Check if 'id' and 'split' columns are in the DataFrame
         required_columns = {"id", "split"}
@@ -604,7 +604,7 @@ class _ChEBIDataExtractor(XYBaseDataModule, ABC):
         Prepares the data for the Chebi dataset.
 
         This method checks for the presence of raw data in the specified directory.
-        If the raw data is missing, it fetches the ontology and creates a test test set.
+        If the raw data is missing, it fetches the ontology and creates a test set.
         If the test set already exists, it loads it from the file.
         Then, it creates the train/validation split based on the test set.
 
@@ -780,8 +780,10 @@ class _ChEBIDataExtractor(XYBaseDataModule, ABC):
             ]
         ):
             if self.splits_file_path is None:
+                # Generate splits based on given seed, create csv file to records the splits
                 self._generate_dynamic_splits()
             else:
+                # If user has provided splits file path, use it to get the splits from the data
                 self._retreive_splits_from_csv()
         return {
             "train": self.dynamic_df_train,
