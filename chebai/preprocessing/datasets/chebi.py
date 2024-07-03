@@ -216,7 +216,7 @@ class _ChEBIDataExtractor(XYBaseDataModule, ABC):
         pd.to_pickle(data, open(os.path.join(self.raw_dir, filename), "wb"))
 
     def save_processed(self, data: pd.DataFrame, filename: str):
-        pickle.dump(data, open(os.path.join(self.processed_dir_main, filename), "wb"))
+        pd.to_pickle(data, open(os.path.join(self.processed_dir_main, filename), "wb"))
 
     def _load_dict(self, input_file_path):
         """
