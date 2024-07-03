@@ -10,11 +10,30 @@ from chebai.preprocessing.datasets.chebi import _ChEBIDataExtractor
 
 
 class ChebiDataMigration:
+    """
+    A class to handle migration of ChEBI dataset to a new structure.
+
+    Attributes:
+        __MODULE_PATH (str): The path to the module containing ChEBI classes.
+        __DATA_ROOT_DIR (str): The root directory for data.
+        _chebi_cls (_ChEBIDataExtractor): The ChEBI class instance.
+        _chebi_version (int): The version of the ChEBI dataset.
+        _single_class (int, optional): The ID of a single class to predict.
+        _class_name (str): The name of the ChEBI class.
+    """
+
     __MODULE_PATH: str = "chebai.preprocessing.datasets.chebi"
     __DATA_ROOT_DIR: str = "data"
 
     def __init__(self, class_name: str, chebi_version: int, single_class: int = None):
-        # Chebi class instance according to new data structure
+        """
+        Initialize the ChebiDataMigration class.
+
+        Args:
+            class_name (str): The name of the ChEBI class.
+            chebi_version (int): The version of the ChEBI dataset.
+            single_class (int, optional): The ID of the single class to predict.
+        """
         self._chebi_cls: Type[_ChEBIDataExtractor] = self._dynamic_import_chebi_cls(
             class_name, chebi_version, single_class
         )
@@ -26,12 +45,26 @@ class ChebiDataMigration:
     def _dynamic_import_chebi_cls(
         cls, class_name: str, chebi_version: int, single_class: int
     ) -> Type[_ChEBIDataExtractor]:
+        """
+        Dynamically import the ChEBI class.
+
+        Args:
+            class_name (str): The name of the ChEBI class.
+            chebi_version (int): The version of the ChEBI dataset.
+            single_class (int): The ID of the single class to predict.
+
+        Returns:
+            _ChEBIDataExtractor: An instance of the dynamically imported class.
+        """
         class_name = class_name.strip()
         module = __import__(cls.__MODULE_PATH, fromlist=[class_name])
         _class = getattr(module, class_name)
         return _class(**{"chebi_version": chebi_version, "single_class": single_class})
 
-    def migrate(self):
+    def migrate(self) -> None:
+        """
+        Start the migration process for the ChEBI dataset.
+        """
         os.makedirs(self._chebi_cls.base_dir, exist_ok=True)
         print("Migration started.....")
         self._migrate_old_raw_data()
@@ -43,7 +76,10 @@ class ChebiDataMigration:
         self._chebi_cls.setup_processed()
         print("Migration completed.....")
 
-    def _migrate_old_raw_data(self):
+    def _migrate_old_raw_data(self) -> None:
+        """
+        Migrate old raw data files to the new data folder structure.
+        """
         print("-" * 50)
         print("Migrating old raw Data....")
 
@@ -66,7 +102,6 @@ class ChebiDataMigration:
             self._old_raw_dir, old_splits_file_names
         )
 
-        # data_df.to_pickle(data_file_path)
         self._chebi_cls.save_processed(data_df, "data.pkl")
         print(f"File {data_file_path} saved to new data-folder structure")
 
@@ -74,7 +109,10 @@ class ChebiDataMigration:
         split_ass_df.to_csv(split_file)  # overwrites the files with same name
         print(f"File {split_file} saved to new data-folder structure")
 
-    def _migrate_old_processed_data(self):
+    def _migrate_old_processed_data(self) -> None:
+        """
+        Migrate old processed data files to the new data folder structure.
+        """
         print("-" * 50)
         print("Migrating old processed data.....")
 
@@ -99,9 +137,19 @@ class ChebiDataMigration:
     def _combine_pt_splits(
         self, old_dir: str, old_splits_file_names: Dict[str, str]
     ) -> pd.DataFrame:
+        """
+        Combine old `.pt` split files into a single DataFrame.
+
+        Args:
+            old_dir (str): The directory containing the old split files.
+            old_splits_file_names (Dict[str, str]): A dictionary of split names and file names.
+
+        Returns:
+            pd.DataFrame: The combined DataFrame.
+        """
         self._check_if_old_splits_exists(old_dir, old_splits_file_names)
 
-        print("Combinig `.pt` splits...")
+        print("Combining `.pt` splits...")
         df_list: List[pd.DataFrame] = []
         for split, file_name in old_splits_file_names.items():
             file_path = os.path.join(old_dir, file_name)
@@ -113,6 +161,16 @@ class ChebiDataMigration:
     def _combine_pkl_splits(
         self, old_dir: str, old_splits_file_names: Dict[str, str]
     ) -> Tuple[pd.DataFrame, pd.DataFrame]:
+        """
+        Combine old `.pkl` split files into a single DataFrame and create split assignments.
+
+        Args:
+            old_dir (str): The directory containing the old split files.
+            old_splits_file_names (Dict[str, str]): A dictionary of split names and file names.
+
+        Returns:
+            Tuple[pd.DataFrame, pd.DataFrame]: The combined DataFrame and split assignments DataFrame.
+        """
         self._check_if_old_splits_exists(old_dir, old_splits_file_names)
 
         df_list: List[pd.DataFrame] = []
@@ -135,18 +193,41 @@ class ChebiDataMigration:
         return combined_df, combined_split_assignment
 
     @staticmethod
-    def _check_if_old_splits_exists(old_dir, old_splits_file_names):
+    def _check_if_old_splits_exists(
+        old_dir: str, old_splits_file_names: Dict[str, str]
+    ) -> None:
+        """
+        Check if the old split files exist in the specified directory.
+
+        Args:
+            old_dir (str): The directory containing the old split files.
+            old_splits_file_names (Dict[str, str]): A dictionary of split names and file names.
+
+        Raises:
+            FileNotFoundError: If any of the split files do not exist.
+        """
         if any(
             not os.path.isfile(os.path.join(old_dir, file))
             for file in old_splits_file_names.values()
         ):
             raise FileNotFoundError(
-                f"One of the split {old_splits_file_names.values()} doesn't exists "
+                f"One of the split {old_splits_file_names.values()} doesn't exist "
                 f"in old data-folder structure: {old_dir}"
             )
 
     @staticmethod
-    def _copy_file(old_file_dir, new_file_dir, file_name):
+    def _copy_file(old_file_dir: str, new_file_dir: str, file_name: str) -> None:
+        """
+        Copy a file from the old directory to the new directory.
+
+        Args:
+            old_file_dir (str): The directory containing the old file.
+            new_file_dir (str): The directory to copy the file to.
+            file_name (str): The name of the file to copy.
+
+        Raises:
+            FileNotFoundError: If the file does not exist in the old directory.
+        """
         os.makedirs(new_file_dir, exist_ok=True)
         new_file_path = os.path.join(new_file_dir, file_name)
         if os.path.isfile(new_file_path):
@@ -156,14 +237,20 @@ class ChebiDataMigration:
         old_file_path = os.path.join(old_file_dir, file_name)
         if not os.path.isfile(old_file_path):
             raise FileNotFoundError(
-                f"File {old_file_path} doesn't exists in old data-folder structure"
+                f"File {old_file_path} doesn't exist in old data-folder structure"
             )
 
         shutil.copy2(os.path.abspath(old_file_path), os.path.abspath(new_file_path))
         print(f"Copied from {old_file_path} to {new_file_path}")
 
     @property
-    def _old_base_dir(self):
+    def _old_base_dir(self) -> str:
+        """
+        Get the base directory for the old data structure.
+
+        Returns:
+            str: The base directory for the old data.
+        """
         return os.path.join(
             self.__DATA_ROOT_DIR,
             self._chebi_cls._name,
@@ -171,7 +258,13 @@ class ChebiDataMigration:
         )
 
     @property
-    def _old_processed_dir(self):
+    def _old_processed_dir(self) -> str:
+        """
+        Get the processed directory for the old data structure.
+
+        Returns:
+            str: The processed directory for the old data.
+        """
         res = os.path.join(
             self._old_base_dir,
             "processed",
@@ -183,8 +276,13 @@ class ChebiDataMigration:
             return os.path.join(res, f"single_{self._chebi_cls.single_class}")
 
     @property
-    def _old_raw_dir(self):
-        """name of dir where the raw data is stored"""
+    def _old_raw_dir(self) -> str:
+        """
+        Get the raw directory for the old data structure.
+
+        Returns:
+            str: The raw directory for the old data.
+        """
         return os.path.join(self._old_base_dir, "raw")
 
 
