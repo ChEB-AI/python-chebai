@@ -1,5 +1,5 @@
-from torch.nn.utils.rnn import pad_sequence
 import torch
+from torch.nn.utils.rnn import pad_sequence
 
 from chebai.preprocessing.structures import XYData
 

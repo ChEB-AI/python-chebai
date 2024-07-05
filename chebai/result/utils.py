@@ -1,11 +1,14 @@
-import wandb.util as wandb_util
-from chebai.models.electra import Electra
-from chebai.models.base import ChebaiBaseNet
-from chebai.preprocessing.datasets.base import XYBaseDataModule
 import os
-import wandb
-import tqdm
+
 import torch
+import tqdm
+import wandb
+import wandb.util as wandb_util
+
+from chebai.models.base import ChebaiBaseNet
+from chebai.models.electra import Electra
+from chebai.preprocessing.datasets.base import XYBaseDataModule
+from chebai.preprocessing.datasets.chebi import _ChEBIDataExtractor
 
 
 def get_checkpoint_from_wandb(
@@ -39,10 +42,12 @@ def get_checkpoint_from_wandb(
 def evaluate_model(
     model: ChebaiBaseNet,
     data_module: XYBaseDataModule,
+    # No need to provide "filename" parameter for Chebi dataset, "kind" parameter should be provided
     filename=None,
     buffer_dir=None,
     batch_size: int = 32,
     skip_existing_preds=False,
+    kind: str = "test",
 ):
     """Runs model on test set of data_module (or, if filename is not None, on data set found in that file).
     If buffer_dir is set, results will be saved in buffer_dir. Returns tensors with predictions and labels.
@@ -50,7 +55,12 @@ def evaluate_model(
     model.eval()
     collate = data_module.reader.COLLATER()
 
-    data_list = data_module.load_processed_data("test", filename)
+    if isinstance(data_module, _ChEBIDataExtractor):
+        # As the dynamic split change is implemented only for chebi-dataset as of now
+        data_df = data_module.dynamic_split_dfs[kind]
+        data_list = data_df.to_dict(orient="records")
+    else:
+        data_list = data_module.load_processed_data("test", filename)
     data_list = data_list[: data_module.data_limit]
     preds_list = []
     labels_list = []

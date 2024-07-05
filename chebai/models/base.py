@@ -1,9 +1,9 @@
-from typing import Optional
 import logging
 import typing
+from typing import Optional
 
-from lightning.pytorch.core.module import LightningModule
 import torch
+from lightning.pytorch.core.module import LightningModule
 
 from chebai.preprocessing.structures import XYData
 

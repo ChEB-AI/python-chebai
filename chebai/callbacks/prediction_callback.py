@@ -1,7 +1,8 @@
-from lightning.pytorch.callbacks import BasePredictionWriter
-import torch
 import os
 import pickle
+
+import torch
+from lightning.pytorch.callbacks import BasePredictionWriter
 
 
 class PredictionWriter(BasePredictionWriter):

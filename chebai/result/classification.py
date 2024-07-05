@@ -1,18 +1,17 @@
 import os
 
-from torchmetrics.classification import (
-    MultilabelF1Score,
-    MultilabelPrecision,
-    MultilabelRecall,
-)
 import matplotlib.pyplot as plt
 import pandas as pd
 import seaborn as sns
 import torch
 import tqdm
+from torchmetrics.classification import (
+    MultilabelF1Score,
+    MultilabelPrecision,
+    MultilabelRecall,
+)
 
-from chebai.callbacks.epoch_metrics import MacroF1
-
+from chebai.callbacks.epoch_metrics import BalancedAccuracy, MacroF1
 from chebai.models import ChebaiBaseNet
 from chebai.models.electra import Electra
 from chebai.preprocessing.datasets import XYBaseDataModule
@@ -39,9 +38,11 @@ def print_metrics(preds, labels, device, classes=None, top_k=10, markdown_output
     """Prints relevant metrics, including micro and macro F1, recall and precision, best k classes and worst classes."""
     f1_micro = MultilabelF1Score(preds.shape[1], average="micro").to(device=device)
     my_f1_macro = MacroF1(preds.shape[1]).to(device=device)
+    my_bal_acc = BalancedAccuracy(preds.shape[1]).to(device=device)
 
     print(f"Macro-F1: {my_f1_macro(preds, labels):3f}")
     print(f"Micro-F1: {f1_micro(preds, labels):3f}")
+    print(f"Balanced Accuracy: {my_bal_acc(preds, labels):3f}")
     precision_macro = MultilabelPrecision(preds.shape[1], average="macro").to(
         device=device
     )
@@ -57,13 +58,13 @@ def print_metrics(preds, labels, device, classes=None, top_k=10, markdown_output
     print(f"Micro-Recall: {recall_micro(preds, labels):3f}")
     if markdown_output:
         print(
-            f"| Model | Macro-F1 | Micro-F1 | Macro-Precision | Micro-Precision | Macro-Recall | Micro-Recall |"
+            f"| Model | Macro-F1 | Micro-F1 | Macro-Precision | Micro-Precision | Macro-Recall | Micro-Recall | Balanced Accuracy"
         )
-        print(f"| --- | --- | --- | --- | --- | --- | --- |")
+        print(f"| --- | --- | --- | --- | --- | --- | --- | --- |")
         print(
             f"| | {my_f1_macro(preds, labels):3f} | {f1_micro(preds, labels):3f} | {precision_macro(preds, labels):3f} | "
             f"{precision_micro(preds, labels):3f} | {recall_macro(preds, labels):3f} | "
-            f"{recall_micro(preds, labels):3f} |"
+            f"{recall_micro(preds, labels):3f} | {my_bal_acc(preds, labels):3f} |"
         )
 
     classwise_f1_fn = MultilabelF1Score(preds.shape[1], average=None).to(device=device)

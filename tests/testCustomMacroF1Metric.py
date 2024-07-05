@@ -1,9 +1,11 @@
-import unittest
-import torch
 import os
-from chebai.callbacks.epoch_metrics import MacroF1
-from torchmetrics.classification import MultilabelF1Score
 import random
+import unittest
+
+import torch
+from torchmetrics.classification import MultilabelF1Score
+
+from chebai.callbacks.epoch_metrics import MacroF1
 
 
 class TestCustomMacroF1Metric(unittest.TestCase):

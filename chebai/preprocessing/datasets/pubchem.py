@@ -12,16 +12,19 @@ import os
 import random
 import shutil
 import tempfile
-from scipy import spatial
+import time
+from datetime import datetime
 
+import numpy as np
 import pandas as pd
-from sklearn.model_selection import train_test_split
 import requests
 import torch
-import time
-import numpy as np
 import tqdm
-from datetime import datetime
+from rdkit import Chem, DataStructs
+from rdkit.Chem import AllChem
+from scipy import spatial
+from sklearn.cluster import KMeans
+from sklearn.model_selection import train_test_split
 
 from chebai.preprocessing import reader as dr
 from chebai.preprocessing.datasets.base import DataLoader, XYBaseDataModule
@@ -31,9 +34,6 @@ from chebai.preprocessing.datasets.chebi import (
     ChEBIOverX,
     _ChEBIDataExtractor,
 )
-from rdkit import Chem, DataStructs
-from rdkit.Chem import AllChem
-from sklearn.cluster import KMeans
 
 
 class PubChem(XYBaseDataModule):

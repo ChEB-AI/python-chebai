@@ -1,11 +1,11 @@
-from datetime import datetime
-from typing import Literal, Optional, Union, List
 import os
+from datetime import datetime
+from typing import List, Literal, Optional, Union
 
+import wandb
 from lightning.fabric.utilities.types import _PATH
 from lightning.pytorch.callbacks import ModelCheckpoint
 from lightning.pytorch.loggers import WandbLogger
-import wandb
 
 
 class CustomLogger(WandbLogger):

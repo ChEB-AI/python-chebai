@@ -1,6 +1,8 @@
-import unittest
 import os
+import unittest
+
 import torch
+
 from chebai.preprocessing.datasets.tox21 import Tox21MolNetChem
 
 

@@ -1,7 +1,6 @@
 import unittest
-import os
-import torch
-import yaml
+
+from chebai.preprocessing.datasets.chebi import ChEBIOver50
 
 
 class TestChebiData(unittest.TestCase):
@@ -11,47 +10,27 @@ class TestChebiData(unittest.TestCase):
         cls.getDataSplitsOverlaps()
 
     @classmethod
-    def getChebiDataConfig(cls):
-        """Import the respective class and instantiate with given version from the config"""
-        CONFIG_FILE_NAME = "chebi50.yml"
-        with open(
-            os.path.join("configs", "data", f"{CONFIG_FILE_NAME}"), "r"
-        ) as yaml_file:
-            config = yaml.safe_load(yaml_file)
-
-        class_path = config["class_path"]
-        init_args = config.get("init_args", {})
-
-        module, class_name = class_path.rsplit(".", 1)
-        module = __import__(module, fromlist=[class_name])
-        class_ = getattr(module, class_name)
-
-        return class_(**init_args)
-
-    @classmethod
     def getDataSplitsOverlaps(cls):
         """Get the overlap between data splits"""
-        processed_path = os.path.join(
-            os.getcwd(), cls.getChebiDataConfig().processed_dir
-        )
-        print(f"Checking Data from - {processed_path}")
+        chebi_class_obj = ChEBIOver50()
+        # Get the raw/processed data if missing
+        chebi_class_obj.prepare_data()
+        chebi_class_obj.setup()
 
-        train_set = torch.load(os.path.join(processed_path, "train.pt"))
-        val_set = torch.load(os.path.join(processed_path, "validation.pt"))
-        test_set = torch.load(os.path.join(processed_path, "test.pt"))
+        train_set = chebi_class_obj.dynamic_split_dfs["train"]
+        val_set = chebi_class_obj.dynamic_split_dfs["validation"]
+        test_set = chebi_class_obj.dynamic_split_dfs["test"]
 
         train_smiles, train_smiles_ids = cls.get_features_ids(train_set)
         val_smiles, val_smiles_ids = cls.get_features_ids(val_set)
         test_smiles, test_smiles_ids = cls.get_features_ids(test_set)
 
         # ----- Get the overlap between data splits based on smiles tokens/features -----
-
         cls.overlaps_train_val = cls.get_overlaps(train_smiles, val_smiles)
         cls.overlaps_train_test = cls.get_overlaps(train_smiles, test_smiles)
         cls.overlaps_val_test = cls.get_overlaps(val_smiles, test_smiles)
 
         # ----- Get the overlap between data splits based on IDs -----
-
         cls.overlaps_train_val_ids = cls.get_overlaps(train_smiles_ids, val_smiles_ids)
         cls.overlaps_train_test_ids = cls.get_overlaps(
             train_smiles_ids, test_smiles_ids
@@ -59,12 +38,10 @@ class TestChebiData(unittest.TestCase):
         cls.overlaps_val_test_ids = cls.get_overlaps(val_smiles_ids, test_smiles_ids)
 
     @staticmethod
-    def get_features_ids(data_split):
+    def get_features_ids(data_split_df):
         """Returns SMILES features/tokens and SMILES IDs from the data"""
-        smiles_features, smiles_ids = [], []
-        for entry in data_split:
-            smiles_features.append(entry["features"])
-            smiles_ids.append(entry["ident"])
+        smiles_features = data_split_df["features"].tolist()
+        smiles_ids = data_split_df["ident"].tolist()
 
         return smiles_features, smiles_ids
 

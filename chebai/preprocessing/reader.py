@@ -1,9 +1,9 @@
 import os
 
-from pysmiles.read_smiles import _tokenize
-from transformers import RobertaTokenizerFast
 import deepsmiles
 import selfies as sf
+from pysmiles.read_smiles import _tokenize
+from transformers import RobertaTokenizerFast
 
 from chebai.preprocessing.collate import DefaultCollater, RaggedCollater
 
