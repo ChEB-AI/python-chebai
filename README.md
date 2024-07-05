@@ -3,6 +3,23 @@
 ChEBai is a deep learning library designed for the integration of deep learning methods with chemical ontologies, particularly ChEBI.
 The library emphasizes the incorporation of the semantic qualities of the ontology into the learning process.
 
+## Note for developers
+
+If you have used ChEBai before PR #39, the file structure in which your ChEBI-data is saved has changed. This means that
+datasets will be freshly generated. The data however is the same. If you want to keep the old data (including the old
+splits), you can use a migration script. It copies the old data to the new location for a specific ChEBI class
+(including chebi version and other parameters). The script can be called by specifying the data module from a config
+```
+python chebai/preprocessing/migration/chebi_data_migration.py migrate --datamodule=[path-to-data-config]
+```
+or by specifying the class name (e.g. `ChEBIOver50`) and arguments separately
+```
+python chebai/preprocessing/migration/chebi_data_migration.py migrate --class_name=[data-class] [--chebi_version=[version]]
+```
+The new dataset will by default generate random data splits (with a given seed).
+To reuse a fixed data split, you have to provide the path of the csv file generated during the migration:
+`--data.init_args.splits_file_path=[path-to-processed_data]/splits.csv`
+
 ## Installation
 
 To install ChEBai, follow these steps:
