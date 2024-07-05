@@ -120,6 +120,8 @@ class _ChEBIDataExtractor(XYBaseDataModule, ABC):
             chebi_version will be used for training, validation and test. Defaults to None.
         single_class (int, optional): The ID of the single class to predict. If not set, all available labels will be
             predicted. Defaults to None.
+        dynamic_data_split_seed (int, optional): The seed for random data splitting. Defaults to 42.
+        splits_file_path (str, optional): Path to the splits CSV file. Defaults to None.
         **kwargs: Additional keyword arguments (passed to XYBaseDataModule).
 
     Attributes:
@@ -677,7 +679,7 @@ class _ChEBIDataExtractor(XYBaseDataModule, ABC):
 
     def _generate_dynamic_splits(self):
         """Generate data splits during run-time and saves in class variables"""
-
+        print("Generate dynamic splits...")
         # Load encoded data derived from "chebi_version"
         try:
             filename = self.processed_file_names_dict["data"]
@@ -746,7 +748,8 @@ class _ChEBIDataExtractor(XYBaseDataModule, ABC):
         self.dynamic_df_val = df_val
         self.dynamic_df_test = df_test
 
-    def _retreive_splits_from_csv(self):
+    def _retrieve_splits_from_csv(self):
+        print(f"Loading splits from {self.splits_file_path}...")
         splits_df = pd.read_csv(self.splits_file_path)
 
         filename = self.processed_file_names_dict["data"]
@@ -782,7 +785,7 @@ class _ChEBIDataExtractor(XYBaseDataModule, ABC):
                 self._generate_dynamic_splits()
             else:
                 # If user has provided splits file path, use it to get the splits from the data
-                self._retreive_splits_from_csv()
+                self._retrieve_splits_from_csv()
         return {
             "train": self.dynamic_df_train,
             "validation": self.dynamic_df_val,
