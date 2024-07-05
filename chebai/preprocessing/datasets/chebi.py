@@ -514,9 +514,7 @@ class _ChEBIDataExtractor(XYBaseDataModule, ABC):
     @property
     def processed_dir(self):
         res = os.path.join(
-            self.base_dir,
-            self._name,
-            "processed",
+            self.processed_dir_main,
             *self.identifier,
         )
         if self.single_class is None:
@@ -940,15 +938,20 @@ class ChEBIOver100SELFIES(ChEBIOverXSELFIES, ChEBIOver100):
 
 
 class ChEBIOverXPartial(ChEBIOverX):
-    """Dataset that doesn't use the full ChEBI, but extracts are part of ChEBI"""
+    """Dataset that doesn't use the full ChEBI, but extracts a part of ChEBI (subclasses of a given top class)"""
 
     def __init__(self, top_class_id: int, **kwargs):
         self.top_class_id = top_class_id
         super().__init__(**kwargs)
 
     @property
-    def base_dir(self):
-        return os.path.join(super().base_dir, f"partial_{self.top_class_id}")
+    def processed_dir_main(self):
+        return os.path.join(
+            self.base_dir,
+            self._name,
+            f"partial_{self.top_class_id}",
+            "processed",
+        )
 
     def extract_class_hierarchy(self, chebi_path):
         with open(chebi_path, encoding="utf-8") as chebi:

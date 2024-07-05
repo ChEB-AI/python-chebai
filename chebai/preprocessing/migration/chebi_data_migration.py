@@ -1,12 +1,13 @@
 import argparse
 import os
 import shutil
-from typing import Dict, List, Tuple, Type
+from typing import Dict, List, Optional, Tuple, Type
 
 import pandas as pd
 import torch
+from jsonargparse import CLI
 
-from chebai.preprocessing.datasets.chebi import _ChEBIDataExtractor
+from chebai.preprocessing.datasets.chebi import ChEBIOverXPartial, _ChEBIDataExtractor
 
 
 class ChebiDataMigration:
@@ -17,34 +18,25 @@ class ChebiDataMigration:
         __MODULE_PATH (str): The path to the module containing ChEBI classes.
         __DATA_ROOT_DIR (str): The root directory for data.
         _chebi_cls (_ChEBIDataExtractor): The ChEBI class instance.
-        _chebi_version (int): The version of the ChEBI dataset.
-        _single_class (int, optional): The ID of a single class to predict.
-        _class_name (str): The name of the ChEBI class.
     """
 
     __MODULE_PATH: str = "chebai.preprocessing.datasets.chebi"
     __DATA_ROOT_DIR: str = "data"
 
-    def __init__(self, class_name: str, chebi_version: int, single_class: int = None):
-        """
-        Initialize the ChebiDataMigration class.
+    def __init__(self, datamodule: _ChEBIDataExtractor):
+        self._chebi_cls = datamodule
 
-        Args:
-            class_name (str): The name of the ChEBI class.
-            chebi_version (int): The version of the ChEBI dataset.
-            single_class (int, optional): The ID of the single class to predict.
-        """
-        self._chebi_cls: Type[_ChEBIDataExtractor] = self._dynamic_import_chebi_cls(
+    @classmethod
+    def from_args(cls, class_name: str, chebi_version: int, single_class: int = None):
+        chebi_cls: _ChEBIDataExtractor = ChebiDataMigration._dynamic_import_chebi_cls(
             class_name, chebi_version, single_class
         )
-        self._chebi_version: int = chebi_version
-        self._single_class: int = single_class
-        self._class_name: str = class_name
+        return cls(chebi_cls)
 
     @classmethod
     def _dynamic_import_chebi_cls(
         cls, class_name: str, chebi_version: int, single_class: int
-    ) -> Type[_ChEBIDataExtractor]:
+    ) -> _ChEBIDataExtractor:
         """
         Dynamically import the ChEBI class.
 
@@ -67,47 +59,55 @@ class ChebiDataMigration:
         """
         os.makedirs(self._chebi_cls.base_dir, exist_ok=True)
         print("Migration started.....")
-        self._migrate_old_raw_data()
+        old_raw_data_exists = self._migrate_old_raw_data()
 
         # Either we can combine `.pt` split files to form `data.pt` file
         # self._migrate_old_processed_data()
         # OR
         # we can transform `data.pkl` to `data.pt` file (this seems efficient along with less code)
-        self._chebi_cls.setup_processed()
+        if old_raw_data_exists:
+            self._chebi_cls.setup_processed()
+        else:
+            self._migrate_old_processed_data()
         print("Migration completed.....")
 
-    def _migrate_old_raw_data(self) -> None:
+    def _migrate_old_raw_data(self) -> bool:
         """
         Migrate old raw data files to the new data folder structure.
         """
         print("-" * 50)
-        print("Migrating old raw Data....")
+        print("Migrating old raw data....")
 
         self._copy_file(self._old_raw_dir, self._chebi_cls.raw_dir, "chebi.obo")
         self._copy_file(
             self._old_raw_dir, self._chebi_cls.processed_dir_main, "classes.txt"
         )
 
-        old_splits_file_names = {
+        old_splits_file_names_raw = {
             "train": "train.pkl",
             "validation": "validation.pkl",
             "test": "test.pkl",
         }
+
         data_file_path = os.path.join(self._chebi_cls.processed_dir_main, "data.pkl")
         if os.path.isfile(data_file_path):
             print(f"File {data_file_path} already exists in new data-folder structure")
-            return
+            return True
 
-        data_df, split_ass_df = self._combine_pkl_splits(
-            self._old_raw_dir, old_splits_file_names
+        data_df_split_ass_df = self._combine_pkl_splits(
+            self._old_raw_dir, old_splits_file_names_raw
         )
+        if data_df_split_ass_df is not None:
+            data_df = data_df_split_ass_df[0]
+            split_ass_df = data_df_split_ass_df[1]
+            self._chebi_cls.save_processed(data_df, "data.pkl")
+            print(f"File {data_file_path} saved to new data-folder structure")
 
-        self._chebi_cls.save_processed(data_df, "data.pkl")
-        print(f"File {data_file_path} saved to new data-folder structure")
-
-        split_file = os.path.join(self._chebi_cls.processed_dir_main, "splits.csv")
-        split_ass_df.to_csv(split_file)  # overwrites the files with same name
-        print(f"File {split_file} saved to new data-folder structure")
+            split_file = os.path.join(self._chebi_cls.processed_dir_main, "splits.csv")
+            split_ass_df.to_csv(split_file)  # overwrites the files with same name
+            print(f"File {split_file} saved to new data-folder structure")
+            return True
+        return False
 
     def _migrate_old_processed_data(self) -> None:
         """
@@ -130,13 +130,13 @@ class ChebiDataMigration:
         data_df = self._combine_pt_splits(
             self._old_processed_dir, old_splits_file_names
         )
-
-        torch.save(data_df, data_file_path)
-        print(f"File {data_file_path} saved to new data-folder structure")
+        if data_df is not None:
+            torch.save(data_df, data_file_path)
+            print(f"File {data_file_path} saved to new data-folder structure")
 
     def _combine_pt_splits(
         self, old_dir: str, old_splits_file_names: Dict[str, str]
-    ) -> pd.DataFrame:
+    ) -> Optional[pd.DataFrame]:
         """
         Combine old `.pt` split files into a single DataFrame.
 
@@ -147,7 +147,11 @@ class ChebiDataMigration:
         Returns:
             pd.DataFrame: The combined DataFrame.
         """
-        self._check_if_old_splits_exists(old_dir, old_splits_file_names)
+        if not self._check_if_old_splits_exists(old_dir, old_splits_file_names):
+            print(
+                f"Missing at least one of [{', '.join(old_splits_file_names.values())}] in {old_dir}"
+            )
+            return None
 
         print("Combining `.pt` splits...")
         df_list: List[pd.DataFrame] = []
@@ -160,7 +164,7 @@ class ChebiDataMigration:
 
     def _combine_pkl_splits(
         self, old_dir: str, old_splits_file_names: Dict[str, str]
-    ) -> Tuple[pd.DataFrame, pd.DataFrame]:
+    ) -> Optional[Tuple[pd.DataFrame, pd.DataFrame]]:
         """
         Combine old `.pkl` split files into a single DataFrame and create split assignments.
 
@@ -171,7 +175,11 @@ class ChebiDataMigration:
         Returns:
             Tuple[pd.DataFrame, pd.DataFrame]: The combined DataFrame and split assignments DataFrame.
         """
-        self._check_if_old_splits_exists(old_dir, old_splits_file_names)
+        if not self._check_if_old_splits_exists(old_dir, old_splits_file_names):
+            print(
+                f"Missing at least one of [{', '.join(old_splits_file_names.values())}] in {old_dir}"
+            )
+            return None
 
         df_list: List[pd.DataFrame] = []
         split_assignment_list: List[pd.DataFrame] = []
@@ -195,7 +203,7 @@ class ChebiDataMigration:
     @staticmethod
     def _check_if_old_splits_exists(
         old_dir: str, old_splits_file_names: Dict[str, str]
-    ) -> None:
+    ) -> bool:
         """
         Check if the old split files exist in the specified directory.
 
@@ -203,17 +211,11 @@ class ChebiDataMigration:
             old_dir (str): The directory containing the old split files.
             old_splits_file_names (Dict[str, str]): A dictionary of split names and file names.
 
-        Raises:
-            FileNotFoundError: If any of the split files do not exist.
         """
-        if any(
-            not os.path.isfile(os.path.join(old_dir, file))
+        return all(
+            os.path.isfile(os.path.join(old_dir, file))
             for file in old_splits_file_names.values()
-        ):
-            raise FileNotFoundError(
-                f"One of the split {old_splits_file_names.values()} doesn't exist "
-                f"in old data-folder structure: {old_dir}"
-            )
+        )
 
     @staticmethod
     def _copy_file(old_file_dir: str, new_file_dir: str, file_name: str) -> None:
@@ -230,18 +232,19 @@ class ChebiDataMigration:
         """
         os.makedirs(new_file_dir, exist_ok=True)
         new_file_path = os.path.join(new_file_dir, file_name)
+        old_file_path = os.path.join(old_file_dir, file_name)
+
         if os.path.isfile(new_file_path):
-            print(f"File {new_file_path} already exists in new data-folder structure")
+            print(
+                f"Skipping {old_file_path} (file already exists at new location {new_file_path})"
+            )
             return
 
-        old_file_path = os.path.join(old_file_dir, file_name)
-        if not os.path.isfile(old_file_path):
-            raise FileNotFoundError(
-                f"File {old_file_path} doesn't exist in old data-folder structure"
-            )
-
-        shutil.copy2(os.path.abspath(old_file_path), os.path.abspath(new_file_path))
-        print(f"Copied from {old_file_path} to {new_file_path}")
+        if os.path.isfile(old_file_path):
+            shutil.copy2(os.path.abspath(old_file_path), os.path.abspath(new_file_path))
+            print(f"Copied {old_file_path} to {new_file_path}")
+        else:
+            print(f"Skipping expected file {old_file_path} (not found)")
 
     @property
     def _old_base_dir(self) -> str:
@@ -251,6 +254,13 @@ class ChebiDataMigration:
         Returns:
             str: The base directory for the old data.
         """
+        if isinstance(self._chebi_cls, ChEBIOverXPartial):
+            return os.path.join(
+                self.__DATA_ROOT_DIR,
+                self._chebi_cls._name,
+                f"chebi_v{self._chebi_cls.chebi_version}",
+                f"partial_{self._chebi_cls.top_class_id}",
+            )
         return os.path.join(
             self.__DATA_ROOT_DIR,
             self._chebi_cls._name,
@@ -286,29 +296,32 @@ class ChebiDataMigration:
         return os.path.join(self._old_base_dir, "raw")
 
 
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser(
-        description="Migrate ChEBI dataset to new structure and handle splits."
-    )
-    parser.add_argument(
-        "--chebi_class",
-        type=str,
-        required=True,
-        help="Chebi class name from the `chebai/preprocessing/datasets/chebi.py`",
-    )
-    parser.add_argument(
-        "--chebi_version", type=int, required=True, help="Chebi data version"
-    )
-    parser.add_argument(
-        "--single_class",
-        type=int,
-        help="The ID of the single class to predict",
-        default=None,
-    )
-    args = parser.parse_args()
+class Main:
 
-    ChebiDataMigration(
-        class_name=args.chebi_class,
-        chebi_version=args.chebi_version,
-        single_class=args.single_class,
-    ).migrate()
+    def migrate(
+        self,
+        datamodule: Optional[_ChEBIDataExtractor] = None,
+        class_name: Optional[str] = None,
+        chebi_version: Optional[int] = None,
+        single_class: Optional[int] = None,
+    ):
+        """
+        Migrate ChEBI dataset to new structure and handle splits.
+
+        Args:
+            datamodule (Optional[_ChEBIDataExtractor]): The datamodule instance. If not provided, class_name and
+            chebi_version are required.
+            class_name (Optional[str]): The name of the ChEBI class.
+            chebi_version (Optional[int]): The version of the ChEBI dataset.
+            single_class (Optional[int]): The ID of the single class to predict.
+        """
+        if datamodule is not None:
+            ChebiDataMigration(datamodule).migrate()
+        else:
+            ChebiDataMigration.from_args(
+                class_name, chebi_version, single_class
+            ).migrate()
+
+
+if __name__ == "__main__":
+    CLI(Main)
