@@ -1,7 +1,24 @@
 # ChEBai
 
-ChEBai is a deep learning library designed for the integration of deep learning methods with chemical ontologies, particularly ChEBI. 
+ChEBai is a deep learning library designed for the integration of deep learning methods with chemical ontologies, particularly ChEBI.
 The library emphasizes the incorporation of the semantic qualities of the ontology into the learning process.
+
+## Note for developers
+
+If you have used ChEBai before PR #39, the file structure in which your ChEBI-data is saved has changed. This means that
+datasets will be freshly generated. The data however is the same. If you want to keep the old data (including the old
+splits), you can use a migration script. It copies the old data to the new location for a specific ChEBI class
+(including chebi version and other parameters). The script can be called by specifying the data module from a config
+```
+python chebai/preprocessing/migration/chebi_data_migration.py migrate --datamodule=[path-to-data-config]
+```
+or by specifying the class name (e.g. `ChEBIOver50`) and arguments separately
+```
+python chebai/preprocessing/migration/chebi_data_migration.py migrate --class_name=[data-class] [--chebi_version=[version]]
+```
+The new dataset will by default generate random data splits (with a given seed).
+To reuse a fixed data split, you have to provide the path of the csv file generated during the migration:
+`--data.init_args.splits_file_path=[path-to-processed_data]/splits.csv`
 
 ## Installation
 
@@ -21,7 +38,7 @@ pip install .
 
 ## Usage
 
-The training and inference is abstracted using the Pytorch Lightning modules. 
+The training and inference is abstracted using the Pytorch Lightning modules.
 Here are some CLI commands for the standard functionalities of pretraining, ontology extension, fine-tuning for toxicity and prediction.
 For further details, see the [wiki](https://github.com/ChEB-AI/python-chebai/wiki).
 If you face any problems, please open a new [issue](https://github.com/ChEB-AI/python-chebai/issues/new).
@@ -55,18 +72,18 @@ The `classes_path` is the path to the dataset's `raw/classes.txt` file that cont
 
 ## Evaluation
 
-An example for evaluating a model trained on the ontology extension task is given in `tutorials/eval_model_basic.ipynb`. 
+An example for evaluating a model trained on the ontology extension task is given in `tutorials/eval_model_basic.ipynb`.
 It takes in the finetuned model as input for performing the evaluation.
 
 ## Cross-validation
-You can do inner k-fold cross-validation, i.e., train models on k train-validation splits that all use the same test 
+You can do inner k-fold cross-validation, i.e., train models on k train-validation splits that all use the same test
 set. For that, you need to specify the total_number of folds as
 ```
 --data.init_args.inner_k_folds=K
 ```
 and the fold to be used in the current optimisation run as
-``` 
+```
 --data.init_args.fold_index=I
 ```
-To train K models, you need to do K such calls, each with a different `fold_index`. On the first call with a given 
+To train K models, you need to do K such calls, each with a different `fold_index`. On the first call with a given
 `inner_k_folds`, all folds will be created and stored in the data directory

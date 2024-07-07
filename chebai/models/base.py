@@ -1,9 +1,12 @@
 from typing import Optional, Dict, Union, Any
 import logging
 
-from lightning.pytorch.core.module import LightningModule
 import torch
+
 from torchmetrics import Metric
+
+from lightning.pytorch.core.module import LightningModule
+
 from chebai.preprocessing.structures import XYData
 
 logging.getLogger("pysmiles").setLevel(logging.CRITICAL)

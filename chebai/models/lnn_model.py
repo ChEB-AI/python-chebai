@@ -1,8 +1,8 @@
-from lnn import Implies, Model, Not, Predicate, Variable, World
-from owlready2 import get_ontology
 import fastobo
 import pyhornedowl
 import tqdm
+from lnn import Implies, Model, Not, Predicate, Variable, World
+from owlready2 import get_ontology
 
 
 def get_name(iri: str):

@@ -6,9 +6,9 @@ import seaborn as sns
 import torch
 import tqdm
 
+import chebai.models.electra as electra
 from chebai.loss.pretraining import ElectraPreLoss
 from chebai.result.base import ResultProcessor
-import chebai.models.electra as electra
 
 
 def visualise_loss(logs_path):

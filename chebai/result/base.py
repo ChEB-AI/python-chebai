@@ -1,6 +1,6 @@
-from typing import Iterable
 import abc
 import multiprocessing as mp
+from typing import Iterable
 
 import torch
 import tqdm

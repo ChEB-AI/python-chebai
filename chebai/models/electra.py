@@ -1,9 +1,13 @@
+import logging
 from math import pi
 from tempfile import TemporaryDirectory
-import logging
+
 from typing import Any, Dict, Tuple, Optional
 
 from torch import nn, Tensor
+
+import torch
+
 from torch.nn.utils.rnn import pad_sequence
 from transformers import (
     ElectraConfig,
@@ -11,7 +15,6 @@ from transformers import (
     ElectraForPreTraining,
     ElectraModel,
 )
-import torch
 
 from chebai.loss.pretraining import ElectraPreLoss  # noqa
 from chebai.models.base import ChebaiBaseNet

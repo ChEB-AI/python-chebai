@@ -1,6 +1,8 @@
-from torch.nn.utils.rnn import pad_sequence
 import torch
+
 from typing import List, Tuple, Union, Dict
+
+from torch.nn.utils.rnn import pad_sequence
 
 from chebai.preprocessing.structures import XYData
 

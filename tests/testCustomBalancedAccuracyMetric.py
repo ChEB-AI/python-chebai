@@ -1,8 +1,10 @@
-import unittest
-import torch
 import os
-from chebai.callbacks.epoch_metrics import BalancedAccuracy
 import random
+import unittest
+
+import torch
+
+from chebai.callbacks.epoch_metrics import BalancedAccuracy
 
 
 class TestCustomBalancedAccuracyMetric(unittest.TestCase):

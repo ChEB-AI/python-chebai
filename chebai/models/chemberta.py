@@ -1,7 +1,8 @@
-from tempfile import TemporaryDirectory
 import logging
 import random
+from tempfile import TemporaryDirectory
 
+import torch
 from torch import nn
 from torch.nn.functional import one_hot
 from torch.nn.utils.rnn import pack_padded_sequence, pad_packed_sequence
@@ -11,7 +12,6 @@ from transformers import (
     RobertaModel,
     RobertaTokenizer,
 )
-import torch
 
 from chebai.models.base import ChebaiBaseNet
 

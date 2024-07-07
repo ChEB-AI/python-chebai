@@ -1,14 +1,14 @@
 from typing import List, Union, Optional, Dict, Any
+
 import os
 import random
-import typing
 
-from lightning.pytorch.core.datamodule import LightningDataModule
-from lightning_utilities.core.rank_zero import rank_zero_info
-from torch.utils.data import DataLoader
 import lightning as pl
 import torch
 import tqdm
+from lightning.pytorch.core.datamodule import LightningDataModule
+from lightning_utilities.core.rank_zero import rank_zero_info
+from torch.utils.data import DataLoader
 
 from chebai.preprocessing import reader as dr
 

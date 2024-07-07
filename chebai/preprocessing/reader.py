@@ -1,10 +1,10 @@
 import os
 from typing import Any, Dict, List, Optional
 
-from pysmiles.read_smiles import _tokenize
-from transformers import RobertaTokenizerFast
 import deepsmiles
 import selfies as sf
+from pysmiles.read_smiles import _tokenize
+from transformers import RobertaTokenizerFast
 
 from chebai.preprocessing.collate import DefaultCollator, RaggedCollator
 
