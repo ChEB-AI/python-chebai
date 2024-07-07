@@ -1,4 +1,3 @@
-import argparse
 import os
 import shutil
 from typing import Dict, List, Optional, Tuple, Type
@@ -28,6 +27,18 @@ class ChebiDataMigration:
 
     @classmethod
     def from_args(cls, class_name: str, chebi_version: int, single_class: int = None):
+        """
+        Class method to create an instance of the class using the provided arguments.
+
+        Args:
+            class_name (str): The name of the ChEBI class to be dynamically imported.
+            chebi_version (int): The version of ChEBI to be used.
+            single_class (int, optional): A specific class identifier if single class extraction is needed.
+                Default is None.
+
+        Returns:
+            Subclass of _ChEBIDataExtractor
+        """
         chebi_cls: _ChEBIDataExtractor = ChebiDataMigration._dynamic_import_chebi_cls(
             class_name, chebi_version, single_class
         )

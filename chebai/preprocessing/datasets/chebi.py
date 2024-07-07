@@ -11,11 +11,9 @@ __all__ = [
 
 import os
 import pickle
-import queue
-import random
 from abc import ABC
 from collections import OrderedDict
-from typing import List, Union
+from typing import Any, Dict, Generator, List, Optional, Tuple, Union
 
 import fastobo
 import networkx as nx
@@ -125,16 +123,20 @@ class _ChEBIDataExtractor(XYBaseDataModule, ABC):
         **kwargs: Additional keyword arguments (passed to XYBaseDataModule).
 
     Attributes:
-        single_class (int): The ID of the single class to predict.
-        chebi_version_train (int): The version of ChEBI to use for training and validation.
+        single_class (Optional[int]): The ID of the single class to predict.
+        chebi_version_train (Optional[int]): The version of ChEBI to use for training and validation.
         dynamic_data_split_seed (int): The seed for random data splitting, default is 42.
-        dynamic_df_train (pd.DataFrame): DataFrame to store the training data split.
-        dynamic_df_test (pd.DataFrame): DataFrame to store the test data split.
-        dynamic_df_val (pd.DataFrame): DataFrame to store the validation data split.
+        dynamic_df_train (Optional[pd.DataFrame]): DataFrame to store the training data split.
+        dynamic_df_test (Optional[pd.DataFrame]): DataFrame to store the test data split.
+        dynamic_df_val (Optional[pd.DataFrame]): DataFrame to store the validation data split.
+        splits_file_path (Optional[str]): Path to csv file containing split assignments.
     """
 
     def __init__(
-        self, chebi_version_train: int = None, single_class: int = None, **kwargs
+        self,
+        chebi_version_train: Optional[int] = None,
+        single_class: Optional[int] = None,
+        **kwargs,
     ):
         # predict only single class (given as id of one of the classes present in the raw data set)
         self.single_class = single_class
@@ -163,15 +165,15 @@ class _ChEBIDataExtractor(XYBaseDataModule, ABC):
         )
 
     @staticmethod
-    def _validate_splits_file_path(splits_file_path=None):
+    def _validate_splits_file_path(splits_file_path: Optional[str]) -> Optional[str]:
         """
         Validates the provided splits file path.
 
         Args:
-            splits_file_path (str or None): Path to the splits CSV file.
+            splits_file_path (Optional[str]): Path to the splits CSV file.
 
         Returns:
-            str or None: Validated splits file path if checks pass, None if splits_file_path is None.
+            Optional[str]: Validated splits file path if checks pass, None if splits_file_path is None.
 
         Raises:
             FileNotFoundError: If the splits file does not exist.
@@ -203,7 +205,7 @@ class _ChEBIDataExtractor(XYBaseDataModule, ABC):
 
         return splits_file_path
 
-    def extract_class_hierarchy(self, chebi_path):
+    def extract_class_hierarchy(self, chebi_path: str) -> nx.DiGraph:
         """
         Extracts the class hierarchy from the ChEBI ontology.
 
@@ -230,9 +232,20 @@ class _ChEBIDataExtractor(XYBaseDataModule, ABC):
     def select_classes(self, g, split_name, *args, **kwargs):
         raise NotImplementedError
 
-    def graph_to_raw_dataset(self, g, split_name=None):
-        """Preparation step before creating splits, uses graph created by extract_class_hierarchy(),
-        split_name is only relevant, if a separate train_version is set"""
+    def graph_to_raw_dataset(
+        self, g: nx.DiGraph, split_name: Optional[str] = None
+    ) -> pd.DataFrame:
+        """
+        Preparation step before creating splits, uses graph created by extract_class_hierarchy(),
+        split_name is only relevant, if a separate train_version is set.
+
+        Args:
+            g (nx.DiGraph): The class hierarchy graph.
+            split_name (Optional[str], optional): Name of the split. Defaults to None.
+
+        Returns:
+            pd.DataFrame: The raw dataset created from the graph.
+        """
         smiles = nx.get_node_attributes(g, "smiles")
         names = nx.get_node_attributes(g, "name")
 
@@ -259,13 +272,27 @@ class _ChEBIDataExtractor(XYBaseDataModule, ABC):
         data = data[data.iloc[:, 3:].any(axis=1)]
         return data
 
-    def save_raw(self, data: pd.DataFrame, filename: str):
+    def save_raw(self, data: pd.DataFrame, filename: str) -> None:
+        """
+        Save the raw dataset to a pickle file.
+
+        Args:
+            data (pd.DataFrame): The raw dataset to be saved.
+            filename (str): The filename for the pickle file.
+        """
         pd.to_pickle(data, open(os.path.join(self.raw_dir, filename), "wb"))
 
-    def save_processed(self, data: pd.DataFrame, filename: str):
+    def save_processed(self, data: pd.DataFrame, filename: str) -> None:
+        """
+        Save the processed dataset to a pickle file.
+
+        Args:
+            data (pd.DataFrame): The processed dataset to be saved.
+            filename (str): The filename for the pickle file.
+        """
         pd.to_pickle(data, open(os.path.join(self.processed_dir_main, filename), "wb"))
 
-    def _load_dict(self, input_file_path):
+    def _load_dict(self, input_file_path: str) -> Generator[Dict[str, Any], None, None]:
         """
         Loads a dictionary from a pickled file, yielding individual dictionaries for each row.
 
@@ -273,7 +300,7 @@ class _ChEBIDataExtractor(XYBaseDataModule, ABC):
             input_file_path (str): The path to the file.
 
         Yields:
-            dict: The dictionary, keys are `features`, `labels` and `ident`.
+            Dict[str, Any]: The dictionary, keys are `features`, `labels` and `ident`.
         """
         with open(input_file_path, "rb") as input_file:
             df = pd.read_pickle(input_file)
@@ -287,14 +314,31 @@ class _ChEBIDataExtractor(XYBaseDataModule, ABC):
                 yield dict(features=row[2], labels=labels, ident=row[0])
 
     @staticmethod
-    def _get_data_size(input_file_path):
+    def _get_data_size(input_file_path: str) -> int:
+        """
+        Get the size of the data from a pickled file.
+
+        Args:
+            input_file_path (str): The path to the file.
+
+        Returns:
+            int: The size of the data.
+        """
         with open(input_file_path, "rb") as f:
             return len(pd.read_pickle(f))
 
     def _setup_pruned_test_set(
         self, df_test_chebi_version: pd.DataFrame
     ) -> pd.DataFrame:
-        """Create a test set with the same leaf nodes, but use only classes that appear in the training set"""
+        """
+        Create a test set with the same leaf nodes, but use only classes that appear in the training set.
+
+        Args:
+            df_test_chebi_version (pd.DataFrame): The test dataset.
+
+        Returns:
+            pd.DataFrame: The pruned test dataset.
+        """
         # TODO: find a more efficient way to do this
         filename_old = "classes.txt"
         # filename_new = f"classes_v{self.chebi_version_train}.txt"
@@ -338,7 +382,19 @@ class _ChEBIDataExtractor(XYBaseDataModule, ABC):
         # )
         return df_test_chebi_version
 
-    def setup_processed(self):
+    def setup_processed(self) -> None:
+        """
+        Transform and prepare processed data for the ChEBI dataset.
+
+        This method sets up the processed data directories and files based on the ChEBI version
+        and train version (if specified). It ensures that the required processed data files exist
+        by loading raw data, transforming it into processed format, and saving it.
+
+        It also handles special cases, such as generating a pruned test set if `chebi_version_train`
+        is specified and the test set does not already exist. This pruned test set includes only
+        classes that appear in the training set.
+
+        """
         print("Transform data")
         os.makedirs(self.processed_dir, exist_ok=True)
         # -------- Commented the code for Data Handling Restructure for Issue No.10
@@ -407,7 +463,9 @@ class _ChEBIDataExtractor(XYBaseDataModule, ABC):
             print("Call the setup method related to it")
             self._chebi_version_train_obj.setup()
 
-    def get_test_split(self, df: pd.DataFrame, seed: int = None):
+    def get_test_split(
+        self, df: pd.DataFrame, seed: Optional[int] = None
+    ) -> Tuple[pd.DataFrame, pd.DataFrame]:
         """
         Split the input DataFrame into training and testing sets based on multilabel stratified sampling.
 
@@ -415,22 +473,16 @@ class _ChEBIDataExtractor(XYBaseDataModule, ABC):
         in the training and testing sets is approximately the same. The split is based on the "labels" column
         in the DataFrame.
 
-        Parameters:
-        ----------
-        df : pd.DataFrame
-            The input DataFrame containing the data to be split. It must contain a column named "labels"
-            with the multilabel data.
-
-        seed : int, optional
-            The random seed to be used for reproducibility. Default is None.
+        Args:
+            df (pd.DataFrame): The input DataFrame containing the data to be split. It must contain a column
+                               named "labels" with the multilabel data.
+            seed (int, optional): The random seed to be used for reproducibility. Default is None.
 
         Returns:
-        -------
-        df_train : pd.DataFrame
-            The training set split from the input DataFrame.
+            Tuple[pd.DataFrame, pd.DataFrame]: A tuple containing the training set and testing set DataFrames.
 
-        df_test : pd.DataFrame
-            The testing set split from the input DataFrame.
+        Raises:
+            ValueError: If the DataFrame does not contain a column named "labels".
         """
         print("\nGet test data split")
 
@@ -449,7 +501,7 @@ class _ChEBIDataExtractor(XYBaseDataModule, ABC):
 
     def get_train_val_splits_given_test(
         self, df: pd.DataFrame, test_df: pd.DataFrame, seed: int = None
-    ):
+    ) -> Union[Dict[str, pd.DataFrame], Tuple[pd.DataFrame, pd.DataFrame]]:
         """
         Split the dataset into train and validation sets, given a test set.
         Use test set (e.g., loaded from another chebi version or generated in get_test_split), to avoid overlap
@@ -457,10 +509,13 @@ class _ChEBIDataExtractor(XYBaseDataModule, ABC):
         Args:
             df (pd.DataFrame): The original dataset.
             test_df (pd.DataFrame): The test dataset.
+            seed (int, optional): The random seed to be used for reproducibility. Default is None.
 
         Returns:
-            dict: A dictionary containing the train and validation sets.
-                The keys are the names of the train and validation sets, and the values are the corresponding DataFrames.
+            Union[Dict[str, pd.DataFrame], Tuple[pd.DataFrame, pd.DataFrame]]: A dictionary containing train and
+                validation sets if self.use_inner_cross_validation is True, otherwise a tuple containing the train
+                and validation DataFrames. The keys are the names of the train and validation sets, and the values
+                are the corresponding DataFrames.
         """
         print(f"Split dataset into train / val with given test set")
 
@@ -506,7 +561,13 @@ class _ChEBIDataExtractor(XYBaseDataModule, ABC):
         return df_train, df_validation
 
     @property
-    def processed_dir_main(self):
+    def processed_dir_main(self) -> str:
+        """
+        Return the main directory path for processed data.
+
+        Returns:
+            str: The path to the main processed data directory.
+        """
         return os.path.join(
             self.base_dir,
             self._name,
@@ -514,7 +575,13 @@ class _ChEBIDataExtractor(XYBaseDataModule, ABC):
         )
 
     @property
-    def processed_dir(self):
+    def processed_dir(self) -> str:
+        """
+        Return the directory path for processed data.
+
+        Returns:
+            str: The path to the processed data directory.
+        """
         res = os.path.join(
             self.processed_dir_main,
             *self.identifier,
@@ -525,11 +592,23 @@ class _ChEBIDataExtractor(XYBaseDataModule, ABC):
             return os.path.join(res, f"single_{self.single_class}")
 
     @property
-    def base_dir(self):
+    def base_dir(self) -> str:
+        """
+        Return the base directory path for data.
+
+        Returns:
+            str: The base directory path for data.
+        """
         return os.path.join("data", f"chebi_v{self.chebi_version}")
 
     @property
     def processed_file_names_dict(self) -> dict:
+        """
+        Return a dictionary of processed file names.
+
+        Returns:
+            dict: A dictionary where keys are file names and values are paths.
+        """
         train_v_str = (
             f"_v{self.chebi_version_train}" if self.chebi_version_train else ""
         )
@@ -550,6 +629,12 @@ class _ChEBIDataExtractor(XYBaseDataModule, ABC):
 
     @property
     def raw_file_names_dict(self) -> dict:
+        """
+        Return a dictionary of raw file names.
+
+        Returns:
+            dict: A dictionary where keys are file names and values are paths.
+        """
         train_v_str = (
             f"_v{self.chebi_version_train}" if self.chebi_version_train else ""
         )
@@ -571,14 +656,26 @@ class _ChEBIDataExtractor(XYBaseDataModule, ABC):
         return res
 
     @property
-    def processed_file_names(self):
+    def processed_file_names(self) -> List[str]:
+        """
+        Return a list of processed file names.
+
+        Returns:
+            List[str]: A list containing processed file names.
+        """
         return list(self.processed_file_names_dict.values())
 
     @property
-    def raw_file_names(self):
+    def raw_file_names(self) -> List[str]:
+        """
+        Return a list of raw file names.
+
+        Returns:
+            List[str]: A list containing raw file names.
+        """
         return list(self.raw_file_names_dict.values())
 
-    def _load_chebi(self, version: int):
+    def _load_chebi(self, version: int) -> str:
         """
         Load the ChEBI ontology file.
 
@@ -599,7 +696,7 @@ class _ChEBIDataExtractor(XYBaseDataModule, ABC):
             open(chebi_path, "wb").write(r.content)
         return chebi_path
 
-    def prepare_data(self, *args, **kwargs):
+    def prepare_data(self, *args: Any, **kwargs: Any) -> None:
         """
         Prepares the data for the Chebi dataset.
 
@@ -677,8 +774,20 @@ class _ChEBIDataExtractor(XYBaseDataModule, ABC):
                     # Generate the "chebi_version_train" data if it doesn't exist
                     self._chebi_version_train_obj.prepare_data(*args, **kwargs)
 
-    def _generate_dynamic_splits(self):
-        """Generate data splits during run-time and saves in class variables"""
+    def _generate_dynamic_splits(self) -> None:
+        """
+        Generate data splits during runtime and save them in class variables.
+
+        This method loads encoded data derived from either `chebi_version` or `chebi_version_train`
+        and generates train, validation, and test splits based on the loaded data.
+        If `chebi_version_train` is specified, the test set is pruned to include only labels that
+        exist in `chebi_version_train`.
+
+        Raises:
+            FileNotFoundError: If the required data file (`data.pt`) for either `chebi_version` or `chebi_version_train`
+                               does not exist. It advises calling `prepare_data` or `setup` methods to generate
+                               the dataset files.
+        """
         print("Generate dynamic splits...")
         # Load encoded data derived from "chebi_version"
         try:
@@ -748,7 +857,15 @@ class _ChEBIDataExtractor(XYBaseDataModule, ABC):
         self.dynamic_df_val = df_val
         self.dynamic_df_test = df_test
 
-    def _retrieve_splits_from_csv(self):
+    def _retrieve_splits_from_csv(self) -> None:
+        """
+        Retrieve previously saved data splits from splits.csv file or from provided file path.
+
+        This method loads the splits.csv file located at `self.splits_file_path`.
+        It then loads the encoded data (`data.pt`) derived from `chebi_version` and filters
+        it based on the IDs retrieved from splits.csv to reconstruct the train, validation,
+        and test splits.
+        """
         print(f"Loading splits from {self.splits_file_path}...")
         splits_df = pd.read_csv(self.splits_file_path)
 
@@ -771,7 +888,18 @@ class _ChEBIDataExtractor(XYBaseDataModule, ABC):
         ]
 
     @property
-    def dynamic_split_dfs(self):
+    def dynamic_split_dfs(self) -> Dict[str, pd.DataFrame]:
+        """
+        Property to retrieve dynamic train, validation, and test splits.
+
+        This property checks if dynamic data splits (`dynamic_df_train`, `dynamic_df_val`, `dynamic_df_test`)
+        are already loaded. If any of them is None, it either generates them dynamically or retrieves them
+        from data file with help of pre-existing Split csv file (`splits_file_path`) containing splits assignments.
+
+        Returns:
+            dict: A dictionary containing the dynamic train, validation, and test DataFrames.
+                Keys are 'train', 'validation', and 'test'.
+        """
         if any(
             split is None
             for split in [
@@ -792,19 +920,21 @@ class _ChEBIDataExtractor(XYBaseDataModule, ABC):
             "test": self.dynamic_df_test,
         }
 
-    def load_processed_data(self, kind: str = None, filename: str = None) -> List:
+    def load_processed_data(
+        self, kind: Optional[str] = None, filename: Optional[str] = None
+    ) -> List[Dict[str, Any]]:
         """
         Load processed data from a file.
 
         Args:
-            kind (str, optional): The kind of dataset to load such as "train", "val" or "test". Defaults to None.
+            kind (str, optional): The kind of dataset to load such as "train", "val", or "test". Defaults to None.
             filename (str, optional): The name of the file to load the dataset from. Defaults to None.
 
         Returns:
-            List: The loaded processed data.
+            List[Dict[str, Any]] : The loaded processed data.
 
         Raises:
-            ValueError: If both kind and filename are None.
+            KeyError: If specified kind key doesn't exist.
             FileNotFoundError: If the specified file does not exist.
         """
         if kind is None and filename is None:
@@ -859,25 +989,37 @@ class ChEBIOverX(_ChEBIDataExtractor):
         THRESHOLD (None): The threshold for selecting classes.
     """
 
-    LABEL_INDEX = 3
-    SMILES_INDEX = 2
-    READER = dr.ChemDataReader
-    THRESHOLD = None
+    LABEL_INDEX: int = 3
+    SMILES_INDEX: int = 2
+    READER: dr.ChemDataReader = dr.ChemDataReader
+    THRESHOLD: int = None
 
     @property
-    def label_number(self):
+    def label_number(self) -> int:
+        """
+        Returns the number of labels in the dataset.
+
+        Returns:
+            int: The number of labels.
+        """
         return 854
 
     @property
-    def _name(self):
+    def _name(self) -> str:
+        """
+        Returns the name of the dataset.
+
+        Returns:
+            str: The dataset name.
+        """
         return f"ChEBI{self.THRESHOLD}"
 
-    def select_classes(self, g, split_name, *args, **kwargs):
+    def select_classes(self, g: nx.Graph, split_name: str, *args, **kwargs) -> List:
         """
         Selects classes from the ChEBI dataset.
 
         Args:
-            g (Graph): The graph representing the dataset.
+            g (nx.Graph): The graph representing the dataset.
             split_name (str): The name of the split.
             *args: Additional arguments (not used).
             **kwargs: Additional keyword arguments (not used).
@@ -911,44 +1053,126 @@ class ChEBIOverX(_ChEBIDataExtractor):
 
 
 class ChEBIOverXDeepSMILES(ChEBIOverX):
-    READER = dr.DeepChemDataReader
+    """
+    A class for extracting data from the ChEBI dataset with DeepChem SMILES reader.
+
+    Inherits from ChEBIOverX.
+
+    Attributes:
+        READER (DeepChemDataReader): The reader used for reading the dataset (DeepChem SMILES).
+    """
+
+    READER: dr.DeepChemDataReader = dr.DeepChemDataReader
 
 
 class ChEBIOverXSELFIES(ChEBIOverX):
-    READER = dr.SelfiesReader
+    """
+    A class for extracting data from the ChEBI dataset with SELFIES reader.
+
+    Inherits from ChEBIOverX.
+
+    Attributes:
+        READER (SelfiesReader): The reader used for reading the dataset (SELFIES).
+    """
+
+    READER: dr.SelfiesReader = dr.SelfiesReader
 
 
 class ChEBIOver100(ChEBIOverX):
-    THRESHOLD = 100
+    """
+    A class for extracting data from the ChEBI dataset with a threshold of 100 for selecting classes.
 
-    def label_number(self):
+    Inherits from ChEBIOverX.
+
+    Attributes:
+        THRESHOLD (int): The threshold for selecting classes (100).
+    """
+
+    THRESHOLD: int = 100
+
+    def label_number(self) -> int:
+        """
+        Returns the number of labels in the dataset.
+
+        Overrides the base class method to return the correct number of labels for this threshold.
+
+        Returns:
+            int: The number of labels.
+        """
         return 854
 
 
 class ChEBIOver50(ChEBIOverX):
-    THRESHOLD = 50
+    """
+    A class for extracting data from the ChEBI dataset with a threshold of 50 for selecting classes.
 
-    def label_number(self):
+    Inherits from ChEBIOverX.
+
+    Attributes:
+        THRESHOLD (int): The threshold for selecting classes (50).
+    """
+
+    THRESHOLD: int = 50
+
+    def label_number(self) -> int:
+        """
+        Returns the number of labels in the dataset.
+
+        Overrides the base class method to return the correct number of labels for this threshold.
+
+        Returns:
+            int: The number of labels.
+        """
         return 1332
 
 
 class ChEBIOver100DeepSMILES(ChEBIOverXDeepSMILES, ChEBIOver100):
+    """
+    A class for extracting data from the ChEBI dataset with DeepChem SMILES reader and a threshold of 100.
+
+    Inherits from ChEBIOverXDeepSMILES and ChEBIOver100.
+    """
+
     pass
 
 
 class ChEBIOver100SELFIES(ChEBIOverXSELFIES, ChEBIOver100):
+    """
+    A class for extracting data from the ChEBI dataset with SELFIES reader and a threshold of 100.
+
+    Inherits from ChEBIOverXSELFIES and ChEBIOver100.
+    """
+
     pass
 
 
 class ChEBIOverXPartial(ChEBIOverX):
-    """Dataset that doesn't use the full ChEBI, but extracts a part of ChEBI (subclasses of a given top class)"""
+    """
+    Dataset that doesn't use the full ChEBI, but extracts a part of ChEBI (subclasses of a given top class)
+
+    Attributes:
+        top_class_id (int): The ID of the top class from which to extract subclasses.
+    """
 
     def __init__(self, top_class_id: int, **kwargs):
-        self.top_class_id = top_class_id
+        """
+        Initializes the ChEBIOverXPartial dataset.
+
+        Args:
+            top_class_id (int): The ID of the top class from which to extract subclasses.
+            **kwargs: Additional keyword arguments passed to the superclass initializer.
+        """
+        self.top_class_id: int = top_class_id
         super().__init__(**kwargs)
 
     @property
-    def processed_dir_main(self):
+    def processed_dir_main(self) -> str:
+        """
+        Returns the main processed data directory specific to the top class.
+
+        Returns:
+            str: The processed data directory path.
+        """
         return os.path.join(
             self.base_dir,
             self._name,
@@ -956,7 +1180,16 @@ class ChEBIOverXPartial(ChEBIOverX):
             "processed",
         )
 
-    def extract_class_hierarchy(self, chebi_path):
+    def extract_class_hierarchy(self, chebi_path: str) -> nx.DiGraph:
+        """
+        Extracts a subset of ChEBI based on subclasses of the top class ID.
+
+        Args:
+            chebi_path (str): The file path to the ChEBI ontology file.
+
+        Returns:
+            nx.DiGraph: The extracted class hierarchy as a directed graph.
+        """
         with open(chebi_path, encoding="utf-8") as chebi:
             chebi = "\n".join(l for l in chebi if not l.startswith("xref:"))
         elements = [
@@ -976,6 +1209,13 @@ class ChEBIOverXPartial(ChEBIOverX):
 
 
 class ChEBIOver50Partial(ChEBIOverXPartial, ChEBIOver50):
+    """
+    Dataset that extracts a part of ChEBI based on subclasses of a given top class,
+    with a threshold of 50 for selecting classes.
+
+    Inherits from ChEBIOverXPartial and ChEBIOver50.
+    """
+
     pass
 
 
@@ -991,11 +1231,20 @@ class JCIExtSelfies(JCIExtendedBase):
     READER = dr.SelfiesReader
 
 
-def chebi_to_int(s):
+def chebi_to_int(s: str) -> int:
+    """
+    Converts a ChEBI term string representation to an integer ID.
+
+    Args:
+    - s (str): A ChEBI term string, e.g., "CHEBI:12345".
+
+    Returns:
+    - int: The integer ID extracted from the ChEBI term string.
+    """
     return int(s[s.index(":") + 1 :])
 
 
-def term_callback(doc):
+def term_callback(doc) -> dict:
     """
     Extracts information from a ChEBI term document.
     This function takes a ChEBI term document as input and extracts relevant information such as the term ID, parents,
