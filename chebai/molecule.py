@@ -1,7 +1,7 @@
 from __future__ import absolute_import, division
 
 import logging
-from typing import Optional, List, Union, Any
+from typing import Any, List, Optional, Union
 
 try:
     from rdkit import Chem

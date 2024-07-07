@@ -64,10 +64,10 @@ def evaluate_model(
     """
     Runs the model on the test set of the data module or on the dataset found in the specified file.
     If buffer_dir is set, results will be saved in buffer_dir.
-    
-    Note: 
+
+    Note:
         No need to provide "filename" parameter for Chebi dataset, "kind" parameter should be provided.
-      
+
     Args:
         model: The model to evaluate.
         data_module: The data module containing the dataset.

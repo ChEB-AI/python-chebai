@@ -1,13 +1,10 @@
 import logging
 from math import pi
 from tempfile import TemporaryDirectory
-
-from typing import Any, Dict, Tuple, Optional
-
-from torch import nn, Tensor
+from typing import Any, Dict, Optional, Tuple
 
 import torch
-
+from torch import Tensor, nn
 from torch.nn.utils.rnn import pad_sequence
 from transformers import (
     ElectraConfig,

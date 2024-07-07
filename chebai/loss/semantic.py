@@ -2,10 +2,9 @@ import csv
 import math
 import os
 import pickle
+from typing import List, Literal, Union
 
 import torch
-
-from typing import Literal, Union, List
 
 from chebai.loss.bce_weighted import BCEWeighted
 from chebai.preprocessing.datasets.chebi import ChEBIOver100, _ChEBIDataExtractor

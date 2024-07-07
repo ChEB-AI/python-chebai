@@ -2,8 +2,8 @@ import csv
 import multiprocessing as mp
 import os
 import pickle
-from typing import List, Tuple
 import random
+from typing import List, Tuple
 
 import numpy as np
 import pandas as pd

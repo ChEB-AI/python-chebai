@@ -3,10 +3,8 @@ import gzip
 import os
 import shutil
 import zipfile
-
-from typing import List, Dict, Generator, Optional
-
 from tempfile import NamedTemporaryFile, TemporaryDirectory
+from typing import Dict, Generator, List, Optional
 from urllib import request
 
 import numpy as np

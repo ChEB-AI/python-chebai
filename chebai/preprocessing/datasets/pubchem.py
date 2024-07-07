@@ -14,6 +14,7 @@ import shutil
 import tempfile
 import time
 from datetime import datetime
+from typing import Generator, List, Optional, Tuple, Type
 
 import numpy as np
 import pandas as pd
@@ -34,8 +35,6 @@ from chebai.preprocessing.datasets.chebi import (
     ChEBIOverX,
     _ChEBIDataExtractor,
 )
-
-from typing import Generator, Optional, List, Type, Tuple
 
 
 class PubChem(XYBaseDataModule):

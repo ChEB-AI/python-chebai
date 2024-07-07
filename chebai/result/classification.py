@@ -4,10 +4,6 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import seaborn as sns
 from torch import Tensor
-
-import torch
-import tqdm
-
 from torchmetrics.classification import (
     MultilabelF1Score,
     MultilabelPrecision,
@@ -15,9 +11,6 @@ from torchmetrics.classification import (
 )
 
 from chebai.callbacks.epoch_metrics import BalancedAccuracy, MacroF1
-from chebai.models import ChebaiBaseNet
-from chebai.models.electra import Electra
-from chebai.preprocessing.datasets import XYBaseDataModule
 from chebai.result.utils import *
 
 

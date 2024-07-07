@@ -1,7 +1,6 @@
-from typing import List, Union, Optional, Dict, Any
-
 import os
 import random
+from typing import Any, Dict, Generator, List, Optional, Union
 
 import lightning as pl
 import torch
@@ -237,7 +236,7 @@ class XYBaseDataModule(LightningDataModule):
     @staticmethod
     def _load_dict(
         input_file_path: str,
-    ) -> typing.Generator[Dict[str, Any], None, None]:
+    ) -> Generator[Dict[str, Any], None, None]:
         """
         Load data from a file and return a dictionary.
 

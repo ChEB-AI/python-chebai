@@ -1,9 +1,8 @@
 import os
 import unittest
+from typing import Dict, List, Tuple
 
 import torch
-
-from typing import List, Tuple, Dict
 
 from chebai.preprocessing.datasets.pubchem import PubChem
 

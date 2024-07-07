@@ -1,6 +1,7 @@
 import os
-import torch
 from typing import Any
+
+import torch
 
 # Get the absolute path of the current file's directory
 MODULE_PATH = os.path.abspath(os.path.dirname(__file__))

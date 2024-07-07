@@ -1,11 +1,9 @@
-from typing import Optional, Dict, Union, Any
 import logging
+from typing import Any, Dict, Optional, Union
 
 import torch
-
-from torchmetrics import Metric
-
 from lightning.pytorch.core.module import LightningModule
+from torchmetrics import Metric
 
 from chebai.preprocessing.structures import XYData
 
@@ -226,7 +224,8 @@ class ChebaiBaseNet(LightningModule):
             sync_dist (bool, optional): Whether to synchronize distributed training. Defaults to False.
 
         Returns:
-            Dict[str, Union[torch.Tensor, Any]]: A dictionary containing the processed data, labels, model output, predictions, and loss (if applicable).
+            Dict[str, Union[torch.Tensor, Any]]: A dictionary containing the processed data, labels, model output,
+            predictions, and loss (if applicable).
         """
         assert isinstance(batch, XYData)
         batch = batch.to(self.device)

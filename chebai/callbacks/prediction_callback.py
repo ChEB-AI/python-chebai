@@ -1,10 +1,10 @@
-from lightning.pytorch import Trainer, LightningModule
-from lightning.pytorch.callbacks import BasePredictionWriter
-import torch
-
 import os
 import pickle
-from typing import Sequence, Any, Literal
+from typing import Any, Literal, Sequence
+
+import torch
+from lightning.pytorch import LightningModule, Trainer
+from lightning.pytorch.callbacks import BasePredictionWriter
 
 
 class PredictionWriter(BasePredictionWriter):

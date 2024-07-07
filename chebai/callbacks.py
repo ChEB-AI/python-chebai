@@ -1,8 +1,8 @@
 import json
 import os
+from typing import Any, Dict, List, Literal, Union
 
 import torch
-from typing import Any, Dict, List, Union, Literal
 from lightning.pytorch.callbacks import BasePredictionWriter
 
 
