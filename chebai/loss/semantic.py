@@ -2,10 +2,9 @@ import csv
 import math
 import os
 import pickle
+from typing import List, Literal, Union
 
 import torch
-
-from typing import Literal, Union
 
 from chebai.loss.bce_weighted import BCEWeighted
 from chebai.preprocessing.datasets.chebi import ChEBIOver100, _ChEBIDataExtractor
@@ -13,15 +12,28 @@ from chebai.preprocessing.datasets.pubchem import LabeledUnlabeledMixed
 
 
 class ImplicationLoss(torch.nn.Module):
+    """
+    Implication Loss module.
+
+    Args:
+        data_extractor (Union[_ChEBIDataExtractor, LabeledUnlabeledMixed]): Data extractor for labels.
+        base_loss (torch.nn.Module, optional): Base loss function. Defaults to None.
+        tnorm (Literal["product", "lukasiewicz", "xu19"], optional): T-norm type. Defaults to "product".
+        impl_loss_weight (float, optional): Weight of implication loss relative to base loss. Defaults to 0.1.
+        pos_scalar (int, optional): Positive scalar exponent. Defaults to 1.
+        pos_epsilon (float, optional): Epsilon value for numerical stability. Defaults to 0.01.
+        multiply_by_softmax (bool, optional): Whether to multiply by softmax. Defaults to False.
+    """
+
     def __init__(
         self,
         data_extractor: Union[_ChEBIDataExtractor, LabeledUnlabeledMixed],
         base_loss: torch.nn.Module = None,
         tnorm: Literal["product", "lukasiewicz", "xu19"] = "product",
-        impl_loss_weight=0.1,  # weight of implication loss in relation to base_loss
-        pos_scalar=1,
-        pos_epsilon=0.01,
-        multiply_by_softmax=False,
+        impl_loss_weight: float = 0.1,
+        pos_scalar: int = 1,
+        pos_epsilon: float = 0.01,
+        multiply_by_softmax: bool = False,
     ):
         super().__init__()
         # automatically choose labeled subset for implication filter in case of mixed dataset
@@ -48,7 +60,18 @@ class ImplicationLoss(torch.nn.Module):
         self.eps = pos_epsilon
         self.multiply_by_softmax = multiply_by_softmax
 
-    def forward(self, input, target, **kwargs):
+    def forward(self, input: torch.Tensor, target: torch.Tensor, **kwargs) -> tuple:
+        """
+        Forward pass of the implication loss module.
+
+        Args:
+            input (torch.Tensor): Input tensor.
+            target (torch.Tensor): Target tensor.
+            **kwargs: Additional arguments.
+
+        Returns:
+            tuple: Tuple containing total loss, base loss, and implication loss.
+        """
         nnl = kwargs.pop("non_null_labels", None)
         if nnl:
             labeled_input = input[nnl]
@@ -70,7 +93,19 @@ class ImplicationLoss(torch.nn.Module):
             implication_loss,
         )
 
-    def _calculate_implication_loss(self, l, r):
+    def _calculate_implication_loss(
+        self, l: torch.Tensor, r: torch.Tensor
+    ) -> torch.Tensor:
+        """
+        Calculate implication loss based on T-norm and other parameters.
+
+        Args:
+            l (torch.Tensor): Left part of implication.
+            r (torch.Tensor): Right part of implication.
+
+        Returns:
+            torch.Tensor: Calculated implication loss.
+        """
         assert not l.isnan().any()
         assert not r.isnan().any()
         if self.pos_scalar != 1:
@@ -100,7 +135,16 @@ class ImplicationLoss(torch.nn.Module):
             dim=0,
         )
 
-    def _load_implications(self, path_to_chebi):
+    def _load_implications(self, path_to_chebi: str) -> dict:
+        """
+        Load class hierarchy implications.
+
+        Args:
+            path_to_chebi (str): Path to the ChEBI ontology file.
+
+        Returns:
+            dict: Loaded hierarchy of implications.
+        """
         if os.path.isfile(self.implication_cache_file):
             with open(self.implication_cache_file, "rb") as fin:
                 hierarchy = pickle.load(fin)
@@ -112,12 +156,23 @@ class ImplicationLoss(torch.nn.Module):
 
 
 class DisjointLoss(ImplicationLoss):
+    """
+    Disjoint Loss module, extending ImplicationLoss.
+
+    Args:
+        path_to_disjointness (str): Path to the disjointness data file (a csv file containing pairs of disjoint classes)
+        data_extractor (Union[_ChEBIDataExtractor, LabeledUnlabeledMixed]): Data extractor for labels.
+        base_loss (torch.nn.Module, optional): Base loss function. Defaults to None.
+        disjoint_loss_weight (float, optional): Weight of disjointness loss. Defaults to 100.
+        **kwargs: Additional arguments.
+    """
+
     def __init__(
         self,
-        path_to_disjointness,
+        path_to_disjointness: str,
         data_extractor: Union[_ChEBIDataExtractor, LabeledUnlabeledMixed],
         base_loss: torch.nn.Module = None,
-        disjoint_loss_weight=100,
+        disjoint_loss_weight: float = 100,
         **kwargs,
     ):
         super().__init__(data_extractor, base_loss, **kwargs)
@@ -126,7 +181,18 @@ class DisjointLoss(ImplicationLoss):
         )
         self.disjoint_weight = disjoint_loss_weight
 
-    def forward(self, input, target, **kwargs):
+    def forward(self, input: torch.Tensor, target: torch.Tensor, **kwargs) -> tuple:
+        """
+        Forward pass of the disjoint loss module.
+
+        Args:
+            input (torch.Tensor): Input tensor.
+            target (torch.Tensor): Target tensor.
+            **kwargs: Additional arguments.
+
+        Returns:
+            tuple: Tuple containing total loss, base loss, implication loss, and disjointness loss.
+        """
         loss, base_loss, impl_loss = super().forward(input, target, **kwargs)
         pred = torch.sigmoid(input)
         l = pred[:, self.disjoint_filter_l]
@@ -140,13 +206,32 @@ class DisjointLoss(ImplicationLoss):
         )
 
 
-def _load_label_names(path_to_label_names):
+def _load_label_names(path_to_label_names: str) -> List:
+    """
+    Load label names from a file.
+
+    Args:
+        path_to_label_names (str): Path to the label names file.
+
+    Returns:
+        list: List of label names.
+    """
     with open(path_to_label_names) as fin:
         label_names = [int(line.strip()) for line in fin]
     return label_names
 
 
-def _build_implication_filter(label_names, hierarchy):
+def _build_implication_filter(label_names: List, hierarchy: dict) -> torch.Tensor:
+    """
+    Build implication filter based on label names and hierarchy.
+
+    Args:
+        label_names (list): List of label names.
+        hierarchy (dict): Hierarchy of implications.
+
+    Returns:
+        torch.Tensor: Tensor representing implication filter.
+    """
     return torch.tensor(
         [
             (i1, i2)
@@ -157,7 +242,20 @@ def _build_implication_filter(label_names, hierarchy):
     )
 
 
-def _build_disjointness_filter(path_to_disjointness, label_names, hierarchy):
+def _build_disjointness_filter(
+    path_to_disjointness: str, label_names: List, hierarchy: dict
+) -> tuple:
+    """
+    Build disjointness filter based on disjointness data and hierarchy.
+
+    Args:
+        path_to_disjointness (str): Path to the disjointness data file.
+        label_names (list): List of label names.
+        hierarchy (dict): Hierarchy of implications.
+
+    Returns:
+        tuple: Tuple containing tensors representing disjointness filter.
+    """
     disjoints = set()
     label_dict = dict(map(reversed, enumerate(label_names)))
 

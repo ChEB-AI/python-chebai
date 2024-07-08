@@ -1,9 +1,10 @@
 import logging
 from math import pi
 from tempfile import TemporaryDirectory
+from typing import Any, Dict, Optional, Tuple
 
 import torch
-from torch import nn
+from torch import Tensor, nn
 from torch.nn.utils.rnn import pad_sequence
 from transformers import (
     ElectraConfig,
@@ -36,12 +37,11 @@ class ElectraPre(ChebaiBaseNet):
         discriminator_config (ElectraConfig): Configuration for the discriminator model.
         discriminator (ElectraForPreTraining): Discriminator model for pre-training.
         replace_p (float): Probability of replacing tokens during training.
-
     """
 
     NAME = "ElectraPre"
 
-    def __init__(self, config=None, **kwargs):
+    def __init__(self, config: Dict[str, Any] = None, **kwargs: Any):
         super().__init__(config=config, **kwargs)
         self.generator_config = ElectraConfig(**config["generator"])
         self.generator = ElectraForMaskedLM(self.generator_config)
@@ -50,20 +50,30 @@ class ElectraPre(ChebaiBaseNet):
         self.replace_p = 0.1
 
     @property
-    def as_pretrained(self):
+    def as_pretrained(self) -> ElectraForPreTraining:
         """
         Returns the discriminator model as a pre-trained model.
 
         Returns:
             ElectraForPreTraining: The discriminator model.
-
         """
         return self.discriminator
 
-    def _process_labels_in_batch(self, batch):
+    def _process_labels_in_batch(self, batch: Dict[str, Any]) -> None:
+        """
+        Processes the labels in the batch.
+
+        Args:
+            batch (Dict[str, Any]): The input batch of data.
+
+        Returns:
+            torch.Tensor: The processed labels.
+        """
         return None
 
-    def forward(self, data, **kwargs):
+    def forward(
+        self, data: Dict[str, Any], **kwargs: Any
+    ) -> Tuple[Tuple[Tensor, Tensor], Tuple[Tensor, Tensor]]:
         """
         Forward pass of the ElectraPre model.
 
@@ -75,7 +85,6 @@ class ElectraPre(ChebaiBaseNet):
             tuple: A tuple containing the raw generator output and discriminator output.
             The generator output is a tensor of shape (batch_size, max_seq_len, vocab_size).
             The discriminator output is a tensor of shape (batch_size, max_seq_len).
-
         """
         features = data["features"]
         features = features.long()
@@ -120,11 +129,34 @@ class ElectraPre(ChebaiBaseNet):
         ).logits
         return (raw_gen_out, disc_out), (gen_tar_one_hot, disc_tar_one_hot)
 
-    def _get_prediction_and_labels(self, batch, labels, output):
+    def _get_prediction_and_labels(
+        self, batch: Dict[str, Any], labels: Tensor, output: Tensor
+    ) -> Tuple[Tensor, Tensor]:
+        """
+        Gets the predictions and labels from the model output.
+
+        Args:
+            data (Dict[str, Any]): The processed batch data.
+            labels (torch.Tensor): The true labels.
+            output (torch.Tensor): The model output.
+
+        Returns:
+            Tuple[torch.Tensor, torch.Tensor]: Predictions and labels.
+        """
         return torch.softmax(output[0][1], dim=-1), output[1][1].int()
 
 
-def filter_dict(d, filter_key):
+def filter_dict(d: Dict[str, Any], filter_key: str) -> Dict[str, Any]:
+    """
+    Filters a dictionary by a given key prefix.
+
+    Args:
+        d (dict): The dictionary to filter.
+        filter_key (str): The key prefix to filter by.
+
+    Returns:
+        dict: A dictionary containing only the key-value pairs where the key starts with the given prefix.
+    """
     return {
         str(k)[len(filter_key) :]: v
         for k, v in d.items()
@@ -137,30 +169,28 @@ class Electra(ChebaiBaseNet):
     Electra model implementation inherited from ChebaiBaseNet.
 
     Args:
-        config (dict, optional): Configuration parameters for the Electra model. Defaults to None.
+        config (Dict[str, Any], optional): Configuration parameters for the Electra model. Defaults to None.
         pretrained_checkpoint (str, optional): Path to the pretrained checkpoint file. Defaults to None.
         load_prefix (str, optional): Prefix to filter the state_dict keys from the pretrained checkpoint. Defaults to None.
         **kwargs: Additional keyword arguments.
 
     Attributes:
         NAME (str): Name of the Electra model.
-
     """
 
     NAME = "Electra"
 
-    def _process_batch(self, batch, batch_idx):
+    def _process_batch(self, batch: Dict[str, Any], batch_idx: int) -> Dict[str, Any]:
         """
         Process a batch of data.
 
         Args:
-            batch (XYData): The input batch of data.
+            batch (Dict[str, Any]): The input batch of data.
             batch_idx (int): The index of the batch (not used).
 
         Returns:
             dict: A dictionary containing the processed batch, keys are `features`, `labels`, `model_kwargs`,
                 `loss_kwargs` and `idents`.
-
         """
         model_kwargs = dict()
         loss_kwargs = batch.additional_fields["loss_kwargs"]
@@ -187,18 +217,21 @@ class Electra(ChebaiBaseNet):
         )
 
     @property
-    def as_pretrained(self):
+    def as_pretrained(self) -> ElectraModel:
         """
         Get the pretrained Electra model.
 
         Returns:
             ElectraModel: The pretrained Electra model.
-
         """
         return self.electra.electra
 
     def __init__(
-        self, config=None, pretrained_checkpoint=None, load_prefix=None, **kwargs
+        self,
+        config: Optional[Dict[str, Any]] = None,
+        pretrained_checkpoint: Optional[str] = None,
+        load_prefix: Optional[str] = None,
+        **kwargs: Any,
     ):
         # Remove this property in order to prevent it from being stored as a
         # hyper parameter
@@ -234,36 +267,41 @@ class Electra(ChebaiBaseNet):
         else:
             self.electra = ElectraModel(config=self.config)
 
-    def _process_for_loss(self, model_output, labels, loss_kwargs):
+    def _process_for_loss(
+        self,
+        model_output: Dict[str, Tensor],
+        labels: Tensor,
+        loss_kwargs: Dict[str, Any],
+    ) -> Tuple[Tensor, Tensor, Dict[str, Any]]:
         """
         Process the model output for calculating the loss.
 
         Args:
-            model_output (dict): The output of the model.
+            model_output (Dict[str, Tensor]): The output of the model.
             labels (Tensor): The target labels.
-            loss_kwargs (dict): Additional loss arguments.
+            loss_kwargs (Dict[str, Any]): Additional loss arguments.
 
         Returns:
             tuple: A tuple containing the processed model output, labels, and loss arguments.
-
         """
         kwargs_copy = dict(loss_kwargs)
         if labels is not None:
             labels = labels.float()
         return model_output["logits"], labels, kwargs_copy
 
-    def _get_prediction_and_labels(self, data, labels, model_output):
+    def _get_prediction_and_labels(
+        self, data: Dict[str, Any], labels: Tensor, model_output: Dict[str, Tensor]
+    ) -> Tuple[Tensor, Tensor]:
         """
         Get the predictions and labels from the model output. Applies a sigmoid to the model output.
 
         Args:
-            data (dict): The input data.
+            data (Dict[str, Any]): The input data.
             labels (Tensor): The target labels.
-            model_output (dict): The output of the model.
+            model_output (Dict[str, Tensor]): The output of the model.
 
         Returns:
             tuple: A tuple containing the predictions and labels.
-
         """
         d = model_output["logits"]
         loss_kwargs = data.get("loss_kwargs", dict())
@@ -272,12 +310,12 @@ class Electra(ChebaiBaseNet):
             d = d[n]
         return torch.sigmoid(d), labels.int() if labels is not None else None
 
-    def forward(self, data, **kwargs):
+    def forward(self, data: Dict[str, Tensor], **kwargs: Any) -> Dict[str, Any]:
         """
         Forward pass of the Electra model.
 
         Args:
-            data (dict): The input data (expects a key `features`).
+            data (Dict[str, Tensor]): The input data (expects a key `features`).
             **kwargs: Additional keyword arguments for `self.electra`.
 
         Returns:

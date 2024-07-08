@@ -10,13 +10,25 @@ from lightning_utilities.core.rank_zero import rank_zero_warn
 
 
 class CustomModelCheckpoint(ModelCheckpoint):
-    """Checkpoint class that resolves checkpoint paths s.t. for the CustomLogger, checkpoints get saved to the
-    same directory as the other logs"""
+    """
+    Custom checkpoint class that resolves checkpoint paths to ensure checkpoints are saved in the same directory
+    as other logs when using CustomLogger.
+    Inherits from PyTorch Lightning's ModelCheckpoint class.
+    """
 
-    def setup(
-        self, trainer: "Trainer", pl_module: "LightningModule", stage: str
-    ) -> None:
-        """Same as in parent class, duplicated to be able to call self.__resolve_ckpt_dir"""
+    def setup(self, trainer: Trainer, pl_module: LightningModule, stage: str) -> None:
+        """
+        Setup the directory path for saving checkpoints. If the directory path is not set, it resolves the checkpoint
+        directory using the custom logger's directory.
+
+        Note:
+            Same as in parent class, duplicated to be able to call self.__resolve_ckpt_dir
+
+        Args:
+            trainer (Trainer): The Trainer instance.
+            pl_module (LightningModule): The LightningModule instance.
+            stage (str): The stage of training (e.g., 'fit').
+        """
         if self.dirpath is not None:
             self.dirpath = None
         dirpath = self.__resolve_ckpt_dir(trainer)
@@ -26,7 +38,15 @@ class CustomModelCheckpoint(ModelCheckpoint):
             self.__warn_if_dir_not_empty(self.dirpath)
 
     def __warn_if_dir_not_empty(self, dirpath: _PATH) -> None:
-        """Same as in parent class, duplicated because method in parent class is not accessible"""
+        """
+        Warn if the checkpoint directory is not empty.
+
+        Note:
+            Same as in parent class, duplicated because method in parent class is not accessible
+
+        Args:
+            dirpath (_PATH): The path to the checkpoint directory.
+        """
         if (
             self.save_top_k != 0
             and _is_dir(self._fs, dirpath, strict=True)
@@ -34,8 +54,20 @@ class CustomModelCheckpoint(ModelCheckpoint):
         ):
             rank_zero_warn(f"Checkpoint directory {dirpath} exists and is not empty.")
 
-    def __resolve_ckpt_dir(self, trainer: "Trainer") -> _PATH:
-        """Overwritten for compatibility with wandb -> saves checkpoints in same dir as wandb logs"""
+    def __resolve_ckpt_dir(self, trainer: Trainer) -> _PATH:
+        """
+        Resolve the checkpoint directory path, ensuring compatibility with WandbLogger by saving checkpoints
+        in the same directory as Wandb logs.
+
+        Note:
+            Overwritten for compatibility with wandb -> saves checkpoints in same dir as wandb logs
+
+        Args:
+            trainer (Trainer): The Trainer instance.
+
+        Returns:
+            _PATH: The resolved checkpoint directory path.
+        """
         rank_zero_info(f"Resolving checkpoint dir (custom)")
         if self.dirpath is not None:
             # short circuit if dirpath was passed to ModelCheckpoint

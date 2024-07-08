@@ -1,9 +1,9 @@
 import logging
-import typing
-from typing import Optional
+from typing import Any, Dict, Optional, Union
 
 import torch
 from lightning.pytorch.core.module import LightningModule
+from torchmetrics import Metric
 
 from chebai.preprocessing.structures import XYData
 
@@ -19,11 +19,11 @@ class ChebaiBaseNet(LightningModule):
     Args:
         criterion (torch.nn.Module, optional): The loss criterion for the model. Defaults to None.
         out_dim (int, optional): The output dimension of the model. Defaults to None.
-        train_metrics (torch.nn.Module, optional): The metrics to be used during training. Defaults to None.
-        val_metrics (torch.nn.Module, optional): The metrics to be used during validation. Defaults to None.
-        test_metrics (torch.nn.Module, optional): The metrics to be used during testing. Defaults to None.
+        train_metrics (Dict[str, Metric], optional): The metrics to be used during training. Defaults to None.
+        val_metrics (Dict[str, Metric], optional): The metrics to be used during validation. Defaults to None.
+        test_metrics (Dict[str, Metric], optional): The metrics to be used during testing. Defaults to None.
         pass_loss_kwargs (bool, optional): Whether to pass loss kwargs to the criterion. Defaults to True.
-        optimizer_kwargs (typing.Dict, optional): Additional keyword arguments for the optimizer. Defaults to None.
+        optimizer_kwargs (Dict[str, Any], optional): Additional keyword arguments for the optimizer. Defaults to None.
         **kwargs: Additional keyword arguments.
 
     Attributes:
@@ -36,11 +36,11 @@ class ChebaiBaseNet(LightningModule):
         self,
         criterion: torch.nn.Module = None,
         out_dim: Optional[int] = None,
-        train_metrics: Optional[torch.nn.Module] = None,
-        val_metrics: Optional[torch.nn.Module] = None,
-        test_metrics: Optional[torch.nn.Module] = None,
-        pass_loss_kwargs=True,
-        optimizer_kwargs: Optional[typing.Dict] = None,
+        train_metrics: Optional[Dict[str, Metric]] = None,
+        val_metrics: Optional[Dict[str, Metric]] = None,
+        test_metrics: Optional[Dict[str, Metric]] = None,
+        pass_loss_kwargs: bool = True,
+        optimizer_kwargs: Optional[Dict[str, Any]] = None,
         **kwargs,
     ):
         super().__init__()
@@ -59,18 +59,56 @@ class ChebaiBaseNet(LightningModule):
         self.pass_loss_kwargs = pass_loss_kwargs
 
     def __init_subclass__(cls, **kwargs):
+        """
+        Automatically registers subclasses in the model registry to prevent duplicates.
+
+        Args:
+            **kwargs: Additional keyword arguments.
+        """
         if cls.NAME in _MODEL_REGISTRY:
             raise ValueError(f"Model {cls.NAME} does already exist")
         else:
             _MODEL_REGISTRY[cls.NAME] = cls
 
-    def _get_prediction_and_labels(self, data, labels, output):
+    def _get_prediction_and_labels(
+        self, data: Dict[str, Any], labels: torch.Tensor, output: torch.Tensor
+    ) -> (torch.Tensor, torch.Tensor):
+        """
+        Gets the predictions and labels from the model output.
+
+        Args:
+            data (Dict[str, Any]): The processed batch data.
+            labels (torch.Tensor): The true labels.
+            output (torch.Tensor): The model output.
+
+        Returns:
+            Tuple[torch.Tensor, torch.Tensor]: Predictions and labels.
+        """
         return output, labels
 
-    def _process_labels_in_batch(self, batch):
+    def _process_labels_in_batch(self, batch: XYData) -> torch.Tensor:
+        """
+        Processes the labels in the batch.
+
+        Args:
+            batch (XYData): The input batch of data.
+
+        Returns:
+            torch.Tensor: The processed labels.
+        """
         return batch.y.float()
 
-    def _process_batch(self, batch, batch_idx):
+    def _process_batch(self, batch: XYData, batch_idx: int) -> Dict[str, Any]:
+        """
+        Processes the batch data.
+
+        Args:
+            batch (XYData): The input batch of data.
+            batch_idx (int): The index of the current batch.
+
+        Returns:
+            Dict[str, Any]: Processed batch data.
+        """
         return dict(
             features=batch.x,
             labels=self._process_labels_in_batch(batch),
@@ -79,41 +117,115 @@ class ChebaiBaseNet(LightningModule):
             idents=batch.additional_fields["idents"],
         )
 
-    def _process_for_loss(self, model_output, labels, loss_kwargs):
+    def _process_for_loss(
+        self,
+        model_output: torch.Tensor,
+        labels: torch.Tensor,
+        loss_kwargs: Dict[str, Any],
+    ) -> (torch.Tensor, torch.Tensor, Dict[str, Any]):
+        """
+        Processes the data for loss computation.
+
+        Args:
+            model_output (torch.Tensor): The model output.
+            labels (torch.Tensor): The true labels.
+            loss_kwargs (Dict[str, Any]): Additional keyword arguments for the loss function.
+
+        Returns:
+            Tuple[torch.Tensor, torch.Tensor, Dict[str, Any]]: Model output, labels, and loss kwargs.
+        """
         return model_output, labels, loss_kwargs
 
-    def training_step(self, batch, batch_idx):
+    def training_step(
+        self, batch: XYData, batch_idx: int
+    ) -> Dict[str, Union[torch.Tensor, Any]]:
+        """
+        Defines the training step.
+
+        Args:
+            batch (XYData): The input batch of data.
+            batch_idx (int): The index of the current batch.
+
+        Returns:
+            Dict[str, Union[torch.Tensor, Any]]: The result of the training step.
+        """
         return self._execute(
             batch, batch_idx, self.train_metrics, prefix="train_", sync_dist=True
         )
 
-    def validation_step(self, batch, batch_idx):
+    def validation_step(
+        self, batch: XYData, batch_idx: int
+    ) -> Dict[str, Union[torch.Tensor, Any]]:
+        """
+        Defines the validation step.
+
+        Args:
+            batch (XYData): The input batch of data.
+            batch_idx (int): The index of the current batch.
+
+        Returns:
+            Dict[str, Union[torch.Tensor, Any]]: The result of the validation step.
+        """
         return self._execute(
             batch, batch_idx, self.validation_metrics, prefix="val_", sync_dist=True
         )
 
-    def test_step(self, batch, batch_idx):
+    def test_step(
+        self, batch: XYData, batch_idx: int
+    ) -> Dict[str, Union[torch.Tensor, Any]]:
+        """
+        Defines the test step.
+
+        Args:
+            batch (XYData): The input batch of data.
+            batch_idx (int): The index of the current batch.
+
+        Returns:
+            Dict[str, Union[torch.Tensor, Any]]: The result of the test step.
+        """
         return self._execute(
             batch, batch_idx, self.test_metrics, prefix="test_", sync_dist=True
         )
 
-    def predict_step(self, batch, batch_idx, **kwargs):
+    def predict_step(
+        self, batch: XYData, batch_idx: int, **kwargs
+    ) -> Dict[str, Union[torch.Tensor, Any]]:
+        """
+        Defines the prediction step.
+
+        Args:
+            batch (XYData): The input batch of data.
+            batch_idx (int): The index of the current batch.
+            **kwargs: Additional keyword arguments.
+
+        Returns:
+            Dict[str, Union[torch.Tensor, Any]]: The result of the prediction step.
+        """
         return self._execute(batch, batch_idx, self.test_metrics, prefix="", log=False)
 
-    def _execute(self, batch, batch_idx, metrics, prefix="", log=True, sync_dist=False):
+    def _execute(
+        self,
+        batch: XYData,
+        batch_idx: int,
+        metrics: Dict[str, Metric],
+        prefix: Optional[str] = "",
+        log: Optional[bool] = True,
+        sync_dist: Optional[bool] = False,
+    ) -> Dict[str, Union[torch.Tensor, Any]]:
         """
         Executes the model on a batch of data and returns the model output and predictions.
 
         Args:
             batch (XYData): The input batch of data.
             batch_idx (int): The index of the current batch.
-            metrics (dict): A dictionary of metrics to track.
+            metrics (Dict[str, Metric]): A dictionary of metrics to track.
             prefix (str, optional): A prefix to add to the metric names. Defaults to "".
             log (bool, optional): Whether to log the metrics. Defaults to True.
             sync_dist (bool, optional): Whether to synchronize distributed training. Defaults to False.
 
         Returns:
-            dict: A dictionary containing the processed data, labels, model_output, predictions, and loss (if applicable).
+            Dict[str, Union[torch.Tensor, Any]]: A dictionary containing the processed data, labels, model output,
+            predictions, and loss (if applicable).
         """
         assert isinstance(batch, XYData)
         batch = batch.to(self.device)
@@ -163,13 +275,13 @@ class ChebaiBaseNet(LightningModule):
                 self._log_metrics(prefix, metrics, len(batch))
         return d
 
-    def _log_metrics(self, prefix, metrics, batch_size):
+    def _log_metrics(self, prefix: str, metrics: Dict[str, Metric], batch_size: int):
         """
         Logs the metrics for the given prefix.
 
         Args:
             prefix (str): The prefix to be added to the metric names.
-            metrics (dict): A dictionary containing the metrics to be logged.
+            metrics (Dict[str, Metric]): A dictionary containing the metrics to be logged.
             batch_size (int): The batch size used for logging.
 
         Returns:
@@ -203,8 +315,26 @@ class ChebaiBaseNet(LightningModule):
                     logger=True,
                 )
 
-    def forward(self, x):
+    def forward(self, x: Dict[str, Any]) -> torch.Tensor:
+        """
+        Defines the forward pass.
+
+        Args:
+            x (Dict[str, Any]): The input data.
+
+        Returns:
+            torch.Tensor: The model output.
+        """
         raise NotImplementedError
 
-    def configure_optimizers(self, **kwargs):
+    def configure_optimizers(self, **kwargs) -> torch.optim.Optimizer:
+        """
+        Configures the optimizers.
+
+        Args:
+            **kwargs: Additional keyword arguments.
+
+        Returns:
+            torch.optim.Optimizer: The optimizer.
+        """
         return torch.optim.Adamax(self.parameters(), **self.optimizer_kwargs)

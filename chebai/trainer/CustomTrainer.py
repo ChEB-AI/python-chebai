@@ -1,5 +1,5 @@
 import logging
-from typing import List, Optional
+from typing import Any, List, Optional, Tuple
 
 import pandas as pd
 import torch
@@ -16,6 +16,13 @@ log = logging.getLogger(__name__)
 
 class CustomTrainer(Trainer):
     def __init__(self, *args, **kwargs):
+        """
+        Initializes the CustomTrainer class, logging additional hyperparameters to the custom logger if specified.
+
+        Args:
+            *args: Positional arguments for the Trainer class.
+            **kwargs: Keyword arguments for the Trainer class.
+        """
         self.init_args = args
         self.init_kwargs = kwargs
         super().__init__(*args, **kwargs)
@@ -32,7 +39,17 @@ class CustomTrainer(Trainer):
                     log_kwargs[log_key] = log_value
                 self.logger.log_hyperparams(log_kwargs)
 
-    def _resolve_logging_argument(self, key, value):
+    def _resolve_logging_argument(self, key: str, value: Any) -> Tuple[str, Any]:
+        """
+        Resolves logging arguments, handling nested structures such as lists and complex objects.
+
+        Args:
+            key: The key of the argument.
+            value: The value of the argument.
+
+        Returns:
+            A tuple containing the resolved key and value.
+        """
         if isinstance(value, list):
             key_value_pairs = [
                 self._resolve_logging_argument(f"{key}_{i}", v)
@@ -58,7 +75,17 @@ class CustomTrainer(Trainer):
         input_path: _PATH,
         save_to: _PATH = "predictions.csv",
         classes_path: Optional[_PATH] = None,
-    ):
+    ) -> None:
+        """
+        Loads a model from a checkpoint and makes predictions on input data from a file.
+
+        Args:
+            model: The model to use for predictions.
+            checkpoint_path: Path to the model checkpoint.
+            input_path: Path to the input file containing SMILES strings.
+            save_to: Path to save the predictions CSV file.
+            classes_path: Optional path to a file containing class names.
+        """
         loaded_model = model.__class__.load_from_checkpoint(checkpoint_path)
         with open(input_path, "r") as input:
             smiles_strings = [inp.strip() for inp in input.readlines()]
@@ -71,7 +98,19 @@ class CustomTrainer(Trainer):
         predictions_df.index = smiles_strings
         predictions_df.to_csv(save_to)
 
-    def _predict_smiles(self, model: LightningModule, smiles: List[str]):
+    def _predict_smiles(
+        self, model: LightningModule, smiles: List[str]
+    ) -> torch.Tensor:
+        """
+        Predicts the output for a list of SMILES strings using the model.
+
+        Args:
+            model: The model to use for predictions.
+            smiles: A list of SMILES strings.
+
+        Returns:
+            A tensor containing the predictions.
+        """
         reader = ChemDataReader()
         parsed_smiles = [reader._read_data(s) for s in smiles]
         x = pad_sequence(
@@ -91,6 +130,12 @@ class CustomTrainer(Trainer):
 
     @property
     def log_dir(self) -> Optional[str]:
+        """
+        Returns the logging directory.
+
+        Returns:
+            The path to the logging directory if available, else the default root directory.
+        """
         if len(self.loggers) > 0:
             logger = self.loggers[0]
             if isinstance(logger, WandbLogger):

@@ -3,15 +3,12 @@ import os
 import sys
 import traceback
 from datetime import datetime
+from typing import List, Union
 
 import pandas as pd
 import torch
 import wandb
-
 from torchmetrics.functional.classification import multilabel_auroc, multilabel_f1_score
-import gc
-from typing import List, Union
-
 from utils import *
 
 from chebai.loss.semantic import DisjointLoss

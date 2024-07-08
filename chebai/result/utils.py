@@ -1,4 +1,5 @@
 import os
+from typing import Optional, Tuple, Union
 
 import torch
 import tqdm
@@ -12,13 +13,25 @@ from chebai.preprocessing.datasets.chebi import _ChEBIDataExtractor
 
 
 def get_checkpoint_from_wandb(
-    epoch,
-    run,
-    root=os.path.join("logs", "downloaded_ckpts"),
-    model_class=None,
-    map_device_to=None,
-):
-    """Gets wandb checkpoint based on run and epoch, downloads it if necessary"""
+    epoch: int,
+    run: wandb.apis.public.Run,
+    root: str = os.path.join("logs", "downloaded_ckpts"),
+    model_class: Optional[Union[Electra, ChebaiBaseNet]] = None,
+    map_device_to: Optional[torch.device] = None,
+) -> Optional[ChebaiBaseNet]:
+    """
+    Gets a wandb checkpoint based on run and epoch, downloads it if necessary.
+
+    Args:
+        epoch: The epoch number of the checkpoint to retrieve.
+        run: The wandb run object.
+        root: The root directory to save the downloaded checkpoint.
+        model_class: The class of the model to load.
+        map_device_to: The device to map the model to.
+
+    Returns:
+        The loaded model or None if no checkpoint is found.
+    """
     api = wandb.Api()
     if model_class is None:
         model_class = Electra
@@ -42,18 +55,33 @@ def get_checkpoint_from_wandb(
 def evaluate_model(
     model: ChebaiBaseNet,
     data_module: XYBaseDataModule,
-    # No need to provide "filename" parameter for Chebi dataset, "kind" parameter should be provided
-    filename=None,
-    buffer_dir=None,
+    filename: Optional[str] = None,
+    buffer_dir: Optional[str] = None,
     batch_size: int = 32,
-    skip_existing_preds=False,
+    skip_existing_preds: bool = False,
     kind: str = "test",
-):
-    """Runs model on test set of data_module (or, if filename is not None, on data set found in that file).
-    If buffer_dir is set, results will be saved in buffer_dir. Returns tensors with predictions and labels.
+) -> Tuple[torch.Tensor, Optional[torch.Tensor]]:
+    """
+    Runs the model on the test set of the data module or on the dataset found in the specified file.
+    If buffer_dir is set, results will be saved in buffer_dir.
+
+    Note:
+        No need to provide "filename" parameter for Chebi dataset, "kind" parameter should be provided.
+
+    Args:
+        model: The model to evaluate.
+        data_module: The data module containing the dataset.
+        filename: Optional file name for the dataset.
+        buffer_dir: Optional directory to save the results.
+        batch_size: The batch size for evaluation.
+        skip_existing_preds: Whether to skip evaluation if predictions already exist.
+        kind: Kind of split of the data to be used for testing the model. Default is `test`.
+
+    Returns:
+        Tensors with predictions and labels.
     """
     model.eval()
-    collate = data_module.reader.COLLATER()
+    collate = data_module.reader.COLLATOR()
 
     if isinstance(data_module, _ChEBIDataExtractor):
         # As the dynamic split change is implemented only for chebi-dataset as of now
@@ -115,8 +143,19 @@ def evaluate_model(
         return test_preds, None
 
 
-def load_results_from_buffer(buffer_dir, device):
-    """Load results stored in evaluate_model()"""
+def load_results_from_buffer(
+    buffer_dir: str, device: torch.device
+) -> Tuple[Optional[torch.Tensor], Optional[torch.Tensor]]:
+    """
+    Load results stored in evaluate_model() from the buffer directory.
+
+    Args:
+        buffer_dir: The directory containing the buffered results.
+        device: The device to load the results onto.
+
+    Returns:
+        Tensors with predictions and labels.
+    """
     preds_list = []
     labels_list = []
 

@@ -1,27 +1,61 @@
+from typing import Dict, List, Tuple, Union
+
 import torch
 from torch.nn.utils.rnn import pad_sequence
 
 from chebai.preprocessing.structures import XYData
 
 
-class Collater:
+class Collator:
+    """Base class for collating data samples into a batch."""
+
     def __init__(self, **kwargs):
         pass
 
-    def __call__(self, data) -> XYData:
+    def __call__(self, data: List[Dict]) -> XYData:
+        """Collate a list of data samples into a batch.
+
+        Args:
+            data (List[Dict]): List of data samples.
+
+        Returns:
+            XYData: Batched data.
+        """
         raise NotImplementedError
 
 
-class DefaultCollater(Collater):
-    def __call__(self, data):
+class DefaultCollator(Collator):
+    """Default collator that extracts features and labels."""
+
+    def __call__(self, data: List[Dict]) -> XYData:
+        """Collate data samples by extracting features and labels.
+
+        Args:
+            data (List[Dict]): List of data samples.
+
+        Returns:
+            XYData: Batched data.
+        """
         x, y = zip(*((d["features"], d["labels"]) for d in data))
         return XYData(x, y)
 
 
-class RaggedCollater(Collater):
-    def __call__(self, data):
-        model_kwargs = dict()
-        loss_kwargs = dict()
+class RaggedCollator(Collator):
+    """Collator for handling ragged data samples."""
+
+    def __call__(self, data: List[Union[Dict, Tuple]]) -> XYData:
+        """Collate ragged data samples (i.e., samples of unequal size such as string representations of molecules) into
+        a batch.
+
+        Args:
+            data (List[Union[Dict, Tuple]]): List of ragged data samples.
+
+        Returns:
+            XYData: Batched data with appropriate padding and masks.
+        """
+        model_kwargs: Dict = dict()
+        loss_kwargs: Dict = dict()
+
         if isinstance(data[0], tuple):
             # For legacy data
             x, y, idents = zip(*data)
@@ -45,6 +79,7 @@ class RaggedCollater(Collater):
         lens = torch.tensor(list(map(len, x)))
         model_kwargs["mask"] = torch.arange(max(lens))[None, :] < lens[:, None]
         model_kwargs["lens"] = lens
+
         return XYData(
             pad_sequence([torch.tensor(a) for a in x], batch_first=True),
             y,
@@ -53,7 +88,15 @@ class RaggedCollater(Collater):
             idents=idents,
         )
 
-    def process_label_rows(self, labels):
+    def process_label_rows(self, labels: Tuple) -> torch.Tensor:
+        """Process label rows by padding sequences.
+
+        Args:
+            labels (Tuple): Tuple of label rows.
+
+        Returns:
+            torch.Tensor: Padded label sequences.
+        """
         return pad_sequence(
             [
                 torch.tensor([v if v is not None else False for v in row])

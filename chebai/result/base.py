@@ -45,7 +45,7 @@ class ResultFactory(abc.ABC):
 
     def _generate_predictions(self, data_path, raw=False, **kwargs):
         self._model.eval()
-        collate = self._reader.COLLATER()
+        collate = self._reader.COLLATOR()
         if raw:
             data_tuples = [
                 (x["features"], x["ident"], self._reader.to_data(self._process_row(x)))

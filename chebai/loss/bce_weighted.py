@@ -1,5 +1,5 @@
 import os
-import pickle
+from typing import Optional
 
 import pandas as pd
 import torch
@@ -9,14 +9,21 @@ from chebai.preprocessing.datasets.pubchem import LabeledUnlabeledMixed
 
 
 class BCEWeighted(torch.nn.BCEWithLogitsLoss):
-    """BCEWithLogitsLoss with weights automatically computed according to beta parameter (formula from
-    https://openaccess.thecvf.com/content_CVPR_2019/papers/Cui_Class-Balanced_Loss_Based_on_Effective_Number_of_Samples_CVPR_2019_paper.pdf)
+    """
+    BCEWithLogitsLoss with weights automatically computed according to the beta parameter.
+
+    This class computes weights based on the formula from the paper:
+    https://openaccess.thecvf.com/content_CVPR_2019/papers/Cui_Class-Balanced_Loss_Based_on_Effective_Number_of_Samples_CVPR_2019_paper.pdf
+
+    Args:
+        beta (float, optional): The beta parameter for weight calculation. Default is None.
+        data_extractor (XYBaseDataModule, optional): The data extractor for loading the dataset. Default is None.
     """
 
     def __init__(
         self,
-        beta: float = None,
-        data_extractor: XYBaseDataModule = None,
+        beta: Optional[float] = None,
+        data_extractor: Optional[XYBaseDataModule] = None,
     ):
         self.beta = beta
         if isinstance(data_extractor, LabeledUnlabeledMixed):
@@ -25,7 +32,13 @@ class BCEWeighted(torch.nn.BCEWithLogitsLoss):
 
         super().__init__()
 
-    def set_pos_weight(self, input):
+    def set_pos_weight(self, input: torch.Tensor) -> None:
+        """
+        Sets the positive weights for the loss function based on the input tensor.
+
+        Args:
+            input (torch.Tensor): The input tensor for which to set the positive weights.
+        """
         if (
             self.beta is not None
             and self.data_extractor is not None
@@ -61,5 +74,15 @@ class BCEWeighted(torch.nn.BCEWithLogitsLoss):
             )
 
     def forward(self, input: torch.Tensor, target: torch.Tensor) -> torch.Tensor:
+        """
+        Forward pass for the loss calculation.
+
+        Args:
+            input (torch.Tensor): The input tensor (predictions).
+            target (torch.Tensor): The target tensor (labels).
+
+        Returns:
+            torch.Tensor: The computed loss.
+        """
         self.set_pos_weight(input)
         return super().forward(input, target)
