@@ -170,16 +170,3 @@ def load_results_from_buffer(buffer_dir, device):
         test_labels = None
 
     return test_preds, test_labels
-
-
-if __name__ == "__main__":
-    import sys
-
-    buffer_dir = os.path.join("results_buffer", sys.argv[1], "ChEBIOver100_train")
-    buffer_dir_concat = os.path.join(
-        "results_buffer", "concatenated", sys.argv[1], "ChEBIOver100_train"
-    )
-    os.makedirs(buffer_dir_concat, exist_ok=True)
-    preds, labels = load_results_from_buffer(buffer_dir, "cpu")
-    torch.save(preds, os.path.join(buffer_dir_concat, f"preds000.pt"))
-    torch.save(labels, os.path.join(buffer_dir_concat, f"labels000.pt"))
