@@ -1146,6 +1146,10 @@ class ChEBIOver100SELFIES(ChEBIOverXSELFIES, ChEBIOver100):
     pass
 
 
+class ChEBIOver50SELFIES(ChEBIOverXSELFIES, ChEBIOver50):
+    pass
+
+
 class ChEBIOverXPartial(ChEBIOverX):
     """
     Dataset that doesn't use the full ChEBI, but extracts a part of ChEBI (subclasses of a given top class)

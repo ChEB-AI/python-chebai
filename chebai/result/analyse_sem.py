@@ -98,6 +98,7 @@ def load_preds_labels_from_wandb(
         buffer_dir=buffer_dir,
         filename=f"{kind}.pt",
         skip_existing_preds=True,
+        batch_size=1,
     )
     preds, labels = load_results_from_buffer(buffer_dir, device=DEVICE)
     del model
@@ -395,11 +396,13 @@ def run_all(
         "_semloss_eval",
         f"semloss_results_pc-dis-200k_{timestamp}{'_violations_removed' if remove_violations else ''}.csv",
     )
-    label_names = get_label_names(ChEBIOver100(chebi_version=chebi_version))
-    chebi_graph = get_chebi_graph(
-        ChEBIOver100(chebi_version=chebi_version), label_names
-    )
-    disjoint_groups = get_disjoint_groups()
+
+    if remove_violations:
+        label_names = get_label_names(ChEBIOver100(chebi_version=chebi_version))
+        chebi_graph = get_chebi_graph(
+            ChEBIOver100(chebi_version=chebi_version), label_names
+        )
+        disjoint_groups = get_disjoint_groups()
 
     api = wandb.Api()
     for run_id in run_ids:
@@ -473,7 +476,7 @@ def run_all(
                     )
         except Exception as e:
             print(f"Failed for run {run_id}: {e}")
-            print(traceback.format_exc())
+            # print(traceback.format_exc())
 
     if nonwandb_runs:
         for run_name, epoch in nonwandb_runs:
