@@ -1,14 +1,15 @@
 import csv
+import math
 import os
 import pickle
 
-import math
 import torch
+
 from typing import Literal, Union
 
-from chebai.preprocessing.datasets.chebi import _ChEBIDataExtractor, ChEBIOver100
-from chebai.preprocessing.datasets.pubchem import LabeledUnlabeledMixed
 from chebai.loss.bce_weighted import BCEWeighted
+from chebai.preprocessing.datasets.chebi import ChEBIOver100, _ChEBIDataExtractor
+from chebai.preprocessing.datasets.pubchem import LabeledUnlabeledMixed
 
 
 class ImplicationLoss(torch.nn.Module):

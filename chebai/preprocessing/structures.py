@@ -1,6 +1,6 @@
-from torch.utils.data.dataset import T_co
 import networkx as nx
 import torch
+from torch.utils.data.dataset import T_co
 
 
 class XYData(torch.utils.data.Dataset):

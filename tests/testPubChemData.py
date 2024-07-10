@@ -1,6 +1,8 @@
-import unittest
 import os
+import unittest
+
 import torch
+
 from chebai.preprocessing.datasets.pubchem import PubChem
 
 
