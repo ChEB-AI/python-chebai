@@ -19,9 +19,9 @@ class ChebaiBaseNet(LightningModule):
     Args:
         criterion (torch.nn.Module, optional): The loss criterion for the model. Defaults to None.
         out_dim (int, optional): The output dimension of the model. Defaults to None.
-        train_metrics (Dict[str, Metric], optional): The metrics to be used during training. Defaults to None.
-        val_metrics (Dict[str, Metric], optional): The metrics to be used during validation. Defaults to None.
-        test_metrics (Dict[str, Metric], optional): The metrics to be used during testing. Defaults to None.
+        train_metrics (torch.nn.Module, optional): The metrics to be used during training. Defaults to None.
+        val_metrics (torch.nn.Module, optional): The metrics to be used during validation. Defaults to None.
+        test_metrics (torch.nn.Module, optional): The metrics to be used during testing. Defaults to None.
         pass_loss_kwargs (bool, optional): Whether to pass loss kwargs to the criterion. Defaults to True.
         optimizer_kwargs (Dict[str, Any], optional): Additional keyword arguments for the optimizer. Defaults to None.
         **kwargs: Additional keyword arguments.
@@ -36,9 +36,9 @@ class ChebaiBaseNet(LightningModule):
         self,
         criterion: torch.nn.Module = None,
         out_dim: Optional[int] = None,
-        train_metrics: Optional[Dict[str, Metric]] = None,
-        val_metrics: Optional[Dict[str, Metric]] = None,
-        test_metrics: Optional[Dict[str, Metric]] = None,
+        train_metrics: Optional[torch.nn.Module] = None,
+        val_metrics: Optional[torch.nn.Module] = None,
+        test_metrics: Optional[torch.nn.Module] = None,
         pass_loss_kwargs: bool = True,
         optimizer_kwargs: Optional[Dict[str, Any]] = None,
         **kwargs,
@@ -207,7 +207,7 @@ class ChebaiBaseNet(LightningModule):
         self,
         batch: XYData,
         batch_idx: int,
-        metrics: Dict[str, Metric],
+        metrics: Optional[torch.nn.Module] = None,
         prefix: Optional[str] = "",
         log: Optional[bool] = True,
         sync_dist: Optional[bool] = False,
@@ -218,7 +218,7 @@ class ChebaiBaseNet(LightningModule):
         Args:
             batch (XYData): The input batch of data.
             batch_idx (int): The index of the current batch.
-            metrics (Dict[str, Metric]): A dictionary of metrics to track.
+            metrics (torch.nn.Module): A dictionary of metrics to track.
             prefix (str, optional): A prefix to add to the metric names. Defaults to "".
             log (bool, optional): Whether to log the metrics. Defaults to True.
             sync_dist (bool, optional): Whether to synchronize distributed training. Defaults to False.
@@ -275,13 +275,13 @@ class ChebaiBaseNet(LightningModule):
                 self._log_metrics(prefix, metrics, len(batch))
         return d
 
-    def _log_metrics(self, prefix: str, metrics: Dict[str, Metric], batch_size: int):
+    def _log_metrics(self, prefix: str, metrics: torch.nn.Module, batch_size: int):
         """
         Logs the metrics for the given prefix.
 
         Args:
             prefix (str): The prefix to be added to the metric names.
-            metrics (Dict[str, Metric]): A dictionary containing the metrics to be logged.
+            metrics (torch.nn.Module): A dictionary containing the metrics to be logged.
             batch_size (int): The batch size used for logging.
 
         Returns:
