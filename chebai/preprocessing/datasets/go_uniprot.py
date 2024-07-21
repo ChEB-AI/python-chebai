@@ -8,14 +8,14 @@
 # https://www.ebi.ac.uk/GOA/downloads
 
 
-__all__ = ["GOUniprotDataModule"]
+# __all__ = ["_GOUniprotDataModule"]
 
 import gzip
 import os
 from abc import ABC, abstractmethod
 from collections import OrderedDict
 from tempfile import NamedTemporaryFile, TemporaryDirectory, gettempdir
-from typing import Any, Dict, Generator, List
+from typing import Any, Dict, Generator, List, Optional, Tuple, Union
 from urllib import request
 
 import fastobo
@@ -24,16 +24,71 @@ import pandas as pd
 import requests
 import torch
 from Bio import SwissProt
-from iterstrat.ml_stratifiers import MultilabelStratifiedShuffleSplit
+from iterstrat.ml_stratifiers import (
+    MultilabelStratifiedKFold,
+    MultilabelStratifiedShuffleSplit,
+)
 
+from chebai.preprocessing import reader as dr
 from chebai.preprocessing.datasets import XYBaseDataModule
 
 
 class _GOUniprotDataExtractor(XYBaseDataModule, ABC):
+    """
+    A class for extracting and processing data from the ChEBI dataset.
+
+    Args:
+        chebi_version_train (int, optional): The version of ChEBI to use for training and validation. If not set,
+            chebi_version will be used for training, validation and test. Defaults to None.
+        single_class (int, optional): The ID of the single class to predict. If not set, all available labels will be
+            predicted. Defaults to None.
+        dynamic_data_split_seed (int, optional): The seed for random data splitting. Defaults to 42.
+        splits_file_path (str, optional): Path to the splits CSV file. Defaults to None.
+        **kwargs: Additional keyword arguments (passed to XYBaseDataModule).
+
+    Attributes:
+        single_class (Optional[int]): The ID of the single class to predict.
+        chebi_version_train (Optional[int]): The version of ChEBI to use for training and validation.
+        dynamic_data_split_seed (int): The seed for random data splitting, default is 42.
+        dynamic_df_train (Optional[pd.DataFrame]): DataFrame to store the training data split.
+        dynamic_df_test (Optional[pd.DataFrame]): DataFrame to store the test data split.
+        dynamic_df_val (Optional[pd.DataFrame]): DataFrame to store the validation data split.
+        splits_file_path (Optional[str]): Path to csv file containing split assignments.
+    """
+
     _GO_DATA_INIT = "GO"
 
-    def __init__(self):
-        pass
+    def __init__(
+        self,
+        # chebi_version_train: Optional[int] = None,
+        # single_class: Optional[int] = None,
+        **kwargs,
+    ):
+        # predict only single class (given as id of one of the classes present in the raw data set)
+        # self.single_class = single_class
+        super(_GOUniprotDataExtractor, self).__init__(**kwargs)
+        # use different version of chebi for training and validation (if not None)
+        # (still uses self.chebi_version for test set)
+        # self.chebi_version_train = chebi_version_train
+        self.dynamic_data_split_seed = int(kwargs.get("seed", 42))  # default is 42
+        # Class variables to store the dynamics splits
+        self.dynamic_df_train = None
+        self.dynamic_df_test = None
+        self.dynamic_df_val = None
+
+        # if self.chebi_version_train is not None:
+        #     # Instantiate another same class with "chebi_version" as "chebi_version_train", if train_version is given
+        #     # This is to get the data from respective directory related to "chebi_version_train"
+        #     _init_kwargs = kwargs
+        #     _init_kwargs["chebi_version"] = self.chebi_version_train
+        #     self._chebi_version_train_obj = self.__class__(
+        #         single_class=self.single_class,
+        #         **_init_kwargs,
+        #     )
+        # Path of csv file which contains a list of chebi ids & their assignment to a dataset (either train, validation or test).
+        # self.splits_file_path = self._validate_splits_file_path(
+        #     kwargs.get("splits_file_path", None)
+        # )
 
     @property
     def dynamic_split_dfs(self) -> Dict[str, pd.DataFrame]:
@@ -283,19 +338,17 @@ class _GOUniprotDataExtractor(XYBaseDataModule, ABC):
         os.makedirs(self.processed_dir, exist_ok=True)
 
         processed_name = self.processed_file_names_dict["data"]
-        if not os.path.isfile(
-            os.path.join(self.processed_dir, self.processed_dir_file_names["data"])
-        ):
+        if not os.path.isfile(os.path.join(self.processed_dir, processed_name)):
             print("Missing transformed `data.pt` file. Transforming data.... ")
 
             torch.save(
                 self._load_data_from_file(
                     os.path.join(
                         self.processed_dir_main,
-                        self.processed_dir_main_file_names["data"],
+                        self.processed_dir_main_file_names_dict["data"],
                     )
                 ),
-                os.path.join(self.processed_dir, self.processed_file_names["data"]),
+                os.path.join(self.processed_dir, processed_name),
             )
 
     def _load_dict(self, input_file_path: str) -> Generator[Dict[str, Any], None, None]:
@@ -316,9 +369,8 @@ class _GOUniprotDataExtractor(XYBaseDataModule, ABC):
     def prepare_data(self) -> None:
         print("Checking for processed data in", self.processed_dir_main)
 
-        if not os.path.isfile(
-            self.processed_dir_main, self.processed_dir_main_names_dict["GO"]
-        ):
+        processed_name = self.processed_dir_main_file_names_dict["data"]
+        if not os.path.isfile(os.path.join(self.processed_dir, processed_name)):
             print("Missing Gene Ontology processed data")
             os.makedirs(self.processed_dir_main, exist_ok=True)
             # swiss_path = self._download_swiss_uni_prot_data()
@@ -326,10 +378,10 @@ class _GOUniprotDataExtractor(XYBaseDataModule, ABC):
             go_path = self._download_gene_ontology_data()
             g = self._extract_go_class_hierarchy(go_path)
             data_df = self._graph_to_raw_dataset(g)
-            self.save_processed(data_df, self.processed_dir_main_file_names["data"])
+            self.save_processed(data_df, processed_name)
 
     @abstractmethod
-    def select_classes(self, g, *args, **kwargs):
+    def select_classes(self, g: nx.DiGraph, *args, **kwargs):
         raise NotImplementedError
 
     def _graph_to_raw_dataset(self, g: nx.DiGraph) -> pd.DataFrame:
@@ -342,40 +394,40 @@ class _GOUniprotDataExtractor(XYBaseDataModule, ABC):
         Returns:
             pd.DataFrame: The raw dataset created from the graph.
         """
+        sequences = nx.get_node_attributes(g, "sequence")
         names = nx.get_node_attributes(g, "name")
-        ids = nx.get_node_attributes(g, "id")
-        go_to_swiss_mapping = self._get_go_swiss_data_mapping()
+        swiss_idents = nx.get_node_attributes(g, "swiss_ident")
 
         print(f"Processing graph")
 
-        terms = list(g.nodes)
-        data = OrderedDict(id=terms)
-
         data_list = []
-        for node in terms:
-            data_list.append(
-                (
-                    names.get(node),
-                    ids.get(node),
-                    go_to_swiss_mapping.get(ids.get(node))["sequence"],
-                    go_to_swiss_mapping.get(ids.get(node))["swiss_ident"],
+        for node_id, sequence in sequences.items():
+            if sequence:
+                data_list.append(
+                    (
+                        node_id,
+                        names.get(node_id),
+                        sequence,
+                        swiss_idents.get(node_id),
+                    )
                 )
-            )
 
-        names_list, ids_list, sequences_list, swiss_identifier_list = zip(*data_list)
+        node_ids, names_list, sequences_list, swiss_identifier_list = zip(*data_list)
+        data = OrderedDict(id=node_ids)
 
-        data["go_id"] = ids_list
         data["name"] = names_list
         data["sequence"] = sequences_list
         data["swiss_ident"] = swiss_identifier_list
 
         # Assuming select_classes is implemented and returns a list of class IDs
         for n in self.select_classes(g):
-            data[n] = [((n in g.predecessors(node)) or (n == node)) for node in terms]
+            data[n] = [
+                ((n in g.predecessors(node)) or (n == node)) for node in node_ids
+            ]
 
         return pd.DataFrame(data)
 
-    def _get_go_swiss_data_mapping(self) -> Dict[int : Dict[str:str]]:
+    def _get_go_swiss_data_mapping(self) -> Dict[int, Dict[str, str]]:
         #  ---------  ---------------------------     ------------------------------
         #  Line code  Content                         Occurrence in an entry
         #  ---------  ---------------------------     ------------------------------
@@ -395,7 +447,10 @@ class _GOUniprotDataExtractor(XYBaseDataModule, ABC):
 
         swiss_go_mapping = {}
         swiss_data = SwissProt.parse(
-            open(self.raw_file_names_dict["SwissUniProt"], "r")
+            open(
+                os.path.join(self.raw_dir, self.raw_file_names_dict["SwissUniProt"]),
+                "r",
+            )
         )
 
         for record in swiss_data:
@@ -425,6 +480,7 @@ class _GOUniprotDataExtractor(XYBaseDataModule, ABC):
                 # xref: BFO:0000050
                 # is_transitive: true
                 continue
+
             if (
                 term
                 and isinstance(term.id, fastobo.id.PrefixedIdent)
@@ -435,15 +491,19 @@ class _GOUniprotDataExtractor(XYBaseDataModule, ABC):
                 if term_dict:
                     elements.append(term_dict)
 
+        go_to_swiss_mapping = self._get_go_swiss_data_mapping()
+
         g = nx.DiGraph()
         for n in elements:
-            g.add_node(n["id"], **n)
+            node_mapping_dict = go_to_swiss_mapping.get(n["id"], {})
+            # Combine the dictionaries for node attributes
+            node_attributes = {**n, **node_mapping_dict}
+            g.add_node(n["id"], **node_attributes)
         g.add_edges_from([(p, q["id"]) for q in elements for p in q["parents"]])
 
         print("Compute transitive closure")
-        g = nx.transitive_closure_dag(g)
         # g = g.subgraph(list(nx.descendants(g, self.top_class_id)) + [self.top_class_id])
-        return g
+        return nx.transitive_closure_dag(g)
 
     @staticmethod
     def term_callback(term: fastobo.term.TermFrame) -> dict:
@@ -619,15 +679,123 @@ class _GOUniprotDataExtractor(XYBaseDataModule, ABC):
         )
 
     @property
-    def processed_dir_main_file_names(self) -> dict:
+    def processed_dir_main_file_names_dict(self) -> dict:
         return {"data": "data.pkl"}
 
     @property
-    def processed_file_names(self) -> dict:
+    def processed_file_names_dict(self) -> dict:
         return {"data": "data.pt"}
 
 
-class GOUniprotDataModule(_GOUniprotDataExtractor):
+class _GoUniProtOverX(_GOUniprotDataExtractor, ABC):
+    """
+    A class for extracting data from the ChEBI dataset with a threshold for selecting classes.
+
+    Attributes:
+        LABEL_INDEX (int): The index of the label in the dataset.
+        SMILES_INDEX (int): The index of the SMILES string in the dataset.
+        READER (ChemDataReader): The reader used for reading the dataset.
+        THRESHOLD (None): The threshold for selecting classes.
+    """
+
+    LABEL_INDEX: int = 3
+    SMILES_INDEX: int = 2
+    READER: dr.ChemDataReader = dr.ChemDataReader
+
+    THRESHOLD: int = None
+
     @property
-    def _name(self):
-        return f"GoUniProt_v1"
+    @abstractmethod
+    def label_number(self) -> int:
+        raise NotImplementedError
+
+    @property
+    def _name(self) -> str:
+        """
+        Returns the name of the dataset.
+
+        Returns:
+            str: The dataset name.
+        """
+        return f"GoUniProt_OverX"
+
+    def select_classes(self, g: nx.Graph, *args, **kwargs) -> List:
+        """
+        Selects classes from the ChEBI dataset.
+
+        Args:
+            g (nx.Graph): The graph representing the dataset.
+            go_to_swiss_mapping: Mapping from GO data to Swiss UniProt data.
+            *args: Additional arguments (not used).
+            **kwargs: Additional keyword arguments (not used).
+
+        Returns:
+            list: The list of selected classes.
+        """
+        sequences = nx.get_node_attributes(g, "sequence")
+        nodes = []
+        for node in g.nodes:
+            # Counts the number of successors (child nodes) for each node and takes into account only the nodes
+            # with successors more than certain threshold for given node
+            no_of_successors = 0
+            for s_node in g.successors(node):
+                if sequences.get(s_node, None):
+                    no_of_successors += 1
+
+            if no_of_successors >= self.THRESHOLD:
+                nodes.append(node)
+
+        nodes.sort()
+
+        filename = "classes.txt"
+        with open(os.path.join(self.processed_dir_main, filename), "wt") as fout:
+            fout.writelines(str(node) + "\n" for node in nodes)
+        return nodes
+
+
+class GoUniProtOver100(_GoUniProtOverX):
+    """
+    A class for extracting data from the ChEBI dataset with a threshold of 100 for selecting classes.
+
+    Inherits from ChEBIOverX.
+
+    Attributes:
+        THRESHOLD (int): The threshold for selecting classes (100).
+    """
+
+    THRESHOLD: int = 100
+
+    def label_number(self) -> int:
+        """
+        Returns the number of labels in the dataset.
+
+        Overrides the base class method to return the correct number of labels for this threshold.
+
+        Returns:
+            int: The number of labels.
+        """
+        return 854
+
+
+class GoUniProtOver50(_GoUniProtOverX):
+    """
+    A class for extracting data from the ChEBI dataset with a threshold of 50 for selecting classes.
+
+    Inherits from ChEBIOverX.
+
+    Attributes:
+        THRESHOLD (int): The threshold for selecting classes (50).
+    """
+
+    THRESHOLD: int = 50
+
+    def label_number(self) -> int:
+        """
+        Returns the number of labels in the dataset.
+
+        Overrides the base class method to return the correct number of labels for this threshold.
+
+        Returns:
+            int: The number of labels.
+        """
+        return 1332
