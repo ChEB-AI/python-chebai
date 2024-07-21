@@ -400,6 +400,7 @@ class _GOUniprotDataExtractor(XYBaseDataModule, ABC):
 
         print(f"Processing graph")
 
+        # Gets list of node ids, names, sequences, swiss identifier where sequence is not empty/None.
         data_list = []
         for node_id, sequence in sequences.items():
             if sequence:
@@ -425,7 +426,11 @@ class _GOUniprotDataExtractor(XYBaseDataModule, ABC):
                 ((n in g.predecessors(node)) or (n == node)) for node in node_ids
             ]
 
-        return pd.DataFrame(data)
+        data = pd.DataFrame(data)
+        # This filters the DataFrame to include only the rows where at least one value in the row from 5th column
+        # onwards is True/non-zero.
+        data = data[data.iloc[:, 4:].any(axis=1)]
+        return data
 
     def _get_go_swiss_data_mapping(self) -> Dict[int, Dict[str, str]]:
         #  ---------  ---------------------------     ------------------------------
@@ -686,6 +691,10 @@ class _GOUniprotDataExtractor(XYBaseDataModule, ABC):
     def processed_file_names_dict(self) -> dict:
         return {"data": "data.pt"}
 
+    @property
+    def processed_file_names(self) -> List[str]:
+        return list(self.processed_file_names_dict.values())
+
 
 class _GoUniProtOverX(_GOUniprotDataExtractor, ABC):
     """
@@ -721,16 +730,31 @@ class _GoUniProtOverX(_GOUniprotDataExtractor, ABC):
 
     def select_classes(self, g: nx.Graph, *args, **kwargs) -> List:
         """
-        Selects classes from the ChEBI dataset.
+        Selects classes from the GO dataset based on the number of successors meeting a specified threshold.
+
+        This method iterates over the nodes in the graph, counting the number of successors for each node.
+        Nodes with a number of successors greater than or equal to the defined threshold are selected.
 
         Args:
-            g (nx.Graph): The graph representing the dataset.
-            go_to_swiss_mapping: Mapping from GO data to Swiss UniProt data.
-            *args: Additional arguments (not used).
+            g (nx.Graph): The graph representing the dataset. Each node should have a 'sequence' attribute.
+            *args: Additional positional arguments (not used).
             **kwargs: Additional keyword arguments (not used).
 
         Returns:
-            list: The list of selected classes.
+            List: A sorted list of node IDs that meet the successor threshold criteria.
+
+        Side Effects:
+            Writes the list of selected nodes to a file named "classes.txt" in the specified processed directory.
+
+        Example:
+            To use this method, ensure the graph `g` is populated with nodes that have the 'sequence' attribute.
+            Call the method with the graph as the argument:
+
+            selected_classes = my_instance.select_classes(graph)
+
+        Notes:
+            - The `THRESHOLD` attribute should be defined in the class.
+            - Nodes without a 'sequence' attribute are ignored in the successor count.
         """
         sequences = nx.get_node_attributes(g, "sequence")
         nodes = []
@@ -747,6 +771,7 @@ class _GoUniProtOverX(_GOUniprotDataExtractor, ABC):
 
         nodes.sort()
 
+        # Write the selected node ids / classes to the file
         filename = "classes.txt"
         with open(os.path.join(self.processed_dir_main, filename), "wt") as fout:
             fout.writelines(str(node) + "\n" for node in nodes)
