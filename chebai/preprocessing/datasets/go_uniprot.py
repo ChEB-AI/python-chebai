@@ -50,9 +50,9 @@ class _GOUniprotDataExtractor(XYBaseDataModule, ABC):
         single_class (Optional[int]): The ID of the single class to predict.
         chebi_version_train (Optional[int]): The version of ChEBI to use for training and validation.
         dynamic_data_split_seed (int): The seed for random data splitting, default is 42.
-        dynamic_df_train (Optional[pd.DataFrame]): DataFrame to store the training data split.
-        dynamic_df_test (Optional[pd.DataFrame]): DataFrame to store the test data split.
-        dynamic_df_val (Optional[pd.DataFrame]): DataFrame to store the validation data split.
+        _dynamic_df_train (Optional[pd.DataFrame]): DataFrame to store the training data split.
+        _dynamic_df_test (Optional[pd.DataFrame]): DataFrame to store the test data split.
+        _dynamic_df_val (Optional[pd.DataFrame]): DataFrame to store the validation data split.
         splits_file_path (Optional[str]): Path to csv file containing split assignments.
     """
 
@@ -72,9 +72,9 @@ class _GOUniprotDataExtractor(XYBaseDataModule, ABC):
         # self.chebi_version_train = chebi_version_train
         self.dynamic_data_split_seed = int(kwargs.get("seed", 42))  # default is 42
         # Class variables to store the dynamics splits
-        self.dynamic_df_train = None
-        self.dynamic_df_test = None
-        self.dynamic_df_val = None
+        self._dynamic_df_train = None
+        self._dynamic_df_test = None
+        self._dynamic_df_val = None
 
         # if self.chebi_version_train is not None:
         #     # Instantiate another same class with "chebi_version" as "chebi_version_train", if train_version is given
@@ -86,16 +86,57 @@ class _GOUniprotDataExtractor(XYBaseDataModule, ABC):
         #         **_init_kwargs,
         #     )
         # Path of csv file which contains a list of chebi ids & their assignment to a dataset (either train, validation or test).
-        # self.splits_file_path = self._validate_splits_file_path(
-        #     kwargs.get("splits_file_path", None)
-        # )
+        self.splits_file_path = self._validate_splits_file_path(
+            kwargs.get("splits_file_path", None)
+        )
+
+    @staticmethod
+    def _validate_splits_file_path(splits_file_path: Optional[str]) -> Optional[str]:
+        """
+        Validates the file in provided splits file path.
+
+        Args:
+            splits_file_path (Optional[str]): Path to the splits CSV file.
+
+        Returns:
+            Optional[str]: Validated splits file path if checks pass, None if splits_file_path is None.
+
+        Raises:
+            FileNotFoundError: If the splits file does not exist.
+            ValueError: If the splits file is empty or missing required columns ('id' and/or 'split'), or not a CSV file.
+        """
+        if splits_file_path is None:
+            return None
+
+        if not os.path.isfile(splits_file_path):
+            raise FileNotFoundError(f"File {splits_file_path} does not exist")
+
+        file_size = os.path.getsize(splits_file_path)
+        if file_size == 0:
+            raise ValueError(f"File {splits_file_path} is empty")
+
+        # Check if the file has a CSV extension
+        if not splits_file_path.lower().endswith(".csv"):
+            raise ValueError(f"File {splits_file_path} is not a CSV file")
+
+        # Read the first row of CSV file into a DataFrame
+        splits_df = pd.read_csv(splits_file_path, nrows=1)
+
+        # Check if 'id' and 'split' columns are in the DataFrame
+        required_columns = {"id", "split"}
+        if not required_columns.issubset(splits_df.columns):
+            raise ValueError(
+                f"CSV file {splits_file_path} is missing required columns ('id' and/or 'split')."
+            )
+
+        return splits_file_path
 
     @property
     def dynamic_split_dfs(self) -> Dict[str, pd.DataFrame]:
         """
         Property to retrieve dynamic train, validation, and test splits.
 
-        This property checks if dynamic data splits (`dynamic_df_train`, `dynamic_df_val`, `dynamic_df_test`)
+        This property checks if dynamic data splits (`_dynamic_df_train`, `_dynamic_df_val`, `_dynamic_df_test`)
         are already loaded. If any of them is None, it either generates them dynamically or retrieves them
         from data file with help of pre-existing Split csv file (`splits_file_path`) containing splits assignments.
 
@@ -106,9 +147,9 @@ class _GOUniprotDataExtractor(XYBaseDataModule, ABC):
         if any(
             split is None
             for split in [
-                self.dynamic_df_test,
-                self.dynamic_df_val,
-                self.dynamic_df_train,
+                self._dynamic_df_test,
+                self._dynamic_df_val,
+                self._dynamic_df_train,
             ]
         ):
             if self.splits_file_path is None:
@@ -118,9 +159,9 @@ class _GOUniprotDataExtractor(XYBaseDataModule, ABC):
                 # If user has provided splits file path, use it to get the splits from the data
                 self._retrieve_splits_from_csv()
         return {
-            "train": self.dynamic_df_train,
-            "validation": self.dynamic_df_val,
-            "test": self.dynamic_df_test,
+            "train": self._dynamic_df_train,
+            "validation": self._dynamic_df_val,
+            "test": self._dynamic_df_test,
         }
 
     def _generate_dynamic_splits(self) -> None:
@@ -153,42 +194,13 @@ class _GOUniprotDataExtractor(XYBaseDataModule, ABC):
             df_chebi_version, seed=self.dynamic_data_split_seed
         )
 
-        if self.chebi_version_train is not None:
-            # Load encoded data derived from "chebi_version_train"
-            try:
-                filename_train = (
-                    self._chebi_version_train_obj.processed_file_names_dict["data"]
-                )
-                data_chebi_train_version = torch.load(
-                    os.path.join(
-                        self._chebi_version_train_obj.processed_dir, filename_train
-                    )
-                )
-            except FileNotFoundError:
-                raise FileNotFoundError(
-                    f"File data.pt doesn't exists related to chebi_version_train {self.chebi_version_train}."
-                    f"Please call 'prepare_data' and/or 'setup' methods to generate the dataset files"
-                )
-
-            df_chebi_train_version = pd.DataFrame(data_chebi_train_version)
-            # Get train/val split of data based on "chebi_version_train", but
-            # using test set from "chebi_version"
-            df_train, df_val = self.get_train_val_splits_given_test(
-                df_chebi_train_version,
-                df_test_chebi_ver,
-                seed=self.dynamic_data_split_seed,
-            )
-            # Modify test set from "chebi_version" to only include the labels that
-            # exists in "chebi_version_train", all other entries remains same.
-            df_test = self._setup_pruned_test_set(df_test_chebi_ver)
-        else:
-            # Get all splits based on "chebi_version"
-            df_train, df_val = self.get_train_val_splits_given_test(
-                train_df_chebi_ver,
-                df_test_chebi_ver,
-                seed=self.dynamic_data_split_seed,
-            )
-            df_test = df_test_chebi_ver
+        # Get all splits based on "chebi_version"
+        df_train, df_val = self.get_train_val_splits_given_test(
+            train_df_chebi_ver,
+            df_test_chebi_ver,
+            seed=self.dynamic_data_split_seed,
+        )
+        df_test = df_test_chebi_ver
 
         # Generate splits.csv file to store ids of each corresponding split
         split_assignment_list: List[pd.DataFrame] = [
@@ -202,9 +214,9 @@ class _GOUniprotDataExtractor(XYBaseDataModule, ABC):
         )
 
         # Store the splits in class variables
-        self.dynamic_df_train = df_train
-        self.dynamic_df_val = df_val
-        self.dynamic_df_test = df_test
+        self._dynamic_df_train = df_train
+        self._dynamic_df_val = df_val
+        self._dynamic_df_test = df_test
 
     def _retrieve_splits_from_csv(self) -> None:
         """
@@ -226,13 +238,13 @@ class _GOUniprotDataExtractor(XYBaseDataModule, ABC):
         validation_ids = splits_df[splits_df["split"] == "validation"]["id"]
         test_ids = splits_df[splits_df["split"] == "test"]["id"]
 
-        self.dynamic_df_train = df_chebi_version[
+        self._dynamic_df_train = df_chebi_version[
             df_chebi_version["ident"].isin(train_ids)
         ]
-        self.dynamic_df_val = df_chebi_version[
+        self._dynamic_df_val = df_chebi_version[
             df_chebi_version["ident"].isin(validation_ids)
         ]
-        self.dynamic_df_test = df_chebi_version[
+        self._dynamic_df_test = df_chebi_version[
             df_chebi_version["ident"].isin(test_ids)
         ]
 
@@ -336,20 +348,16 @@ class _GOUniprotDataExtractor(XYBaseDataModule, ABC):
     def setup_processed(self):
         print("Transform data")
         os.makedirs(self.processed_dir, exist_ok=True)
-
-        processed_name = self.processed_file_names_dict["data"]
-        if not os.path.isfile(os.path.join(self.processed_dir, processed_name)):
-            print("Missing transformed `data.pt` file. Transforming data.... ")
-
-            torch.save(
-                self._load_data_from_file(
-                    os.path.join(
-                        self.processed_dir_main,
-                        self.processed_dir_main_file_names_dict["data"],
-                    )
-                ),
-                os.path.join(self.processed_dir, processed_name),
-            )
+        print("Missing transformed `data.pt` file. Transforming data.... ")
+        torch.save(
+            self._load_data_from_file(
+                os.path.join(
+                    self.processed_dir_main,
+                    self.processed_dir_main_file_names_dict["data"],
+                )
+            ),
+            os.path.join(self.processed_dir, self.processed_file_names_dict["data"]),
+        )
 
     def _load_dict(self, input_file_path: str) -> Generator[Dict[str, Any], None, None]:
         """
@@ -363,15 +371,23 @@ class _GOUniprotDataExtractor(XYBaseDataModule, ABC):
         """
         with open(input_file_path, "rb") as input_file:
             df = pd.read_pickle(input_file)
+            # "id" at                 row index 0
+            # "name" at               row index 1
+            # "sequence" at           row index 2
+            # "swiss_ident" at        row index 3
+            # labels starting from    row index 4
             for row in df.values:
-                yield dict(features=row[2], labels=row[1], ident=row[0])
+                labels = row[4:].astype(bool)
+                # chebai.preprocessing.reader.DataReader only needs features, labels, ident, group
+                # "group" set to None, by default as no such entity for this data
+                yield dict(features=row[2], labels=labels, ident=row[0])
 
     def prepare_data(self) -> None:
         print("Checking for processed data in", self.processed_dir_main)
 
         processed_name = self.processed_dir_main_file_names_dict["data"]
-        if not os.path.isfile(os.path.join(self.processed_dir, processed_name)):
-            print("Missing Gene Ontology processed data")
+        if not os.path.isfile(os.path.join(self.processed_dir_main, processed_name)):
+            print("Missing Gene Ontology processed data (`data.pkl` file)")
             os.makedirs(self.processed_dir_main, exist_ok=True)
             # swiss_path = self._download_swiss_uni_prot_data()
 
@@ -381,13 +397,34 @@ class _GOUniprotDataExtractor(XYBaseDataModule, ABC):
             self.save_processed(data_df, processed_name)
 
     @abstractmethod
-    def select_classes(self, g: nx.DiGraph, *args, **kwargs):
+    def select_classes(self, g: nx.DiGraph, *args, **kwargs) -> List:
+        """
+        Selects classes from the GO dataset based on a specified criteria.
+
+        Args:
+            g (nx.Graph): The graph representing the dataset.
+            *args: Additional positional arguments.
+            **kwargs: Additional keyword arguments.
+
+        Returns:
+            List: A sorted list of node IDs that meet the specified criteria.
+
+        """
         raise NotImplementedError
 
     def _graph_to_raw_dataset(self, g: nx.DiGraph) -> pd.DataFrame:
         """
-        Preparation step before creating splits, uses the graph created by _extract_go_class_hierarchy().
+        Preparation step before creating splits,
+        uses the graph created by _extract_go_class_hierarchy() to extract the
+        raw data in Dataframe format with extra columns corresponding to each multi-label class.
 
+        Data Format: pd.DataFrame
+            - Column 0 : ID (Identifier from GO dataset)
+            - Column 1 : Name of the protein
+            - Column 2 : Sequence representation of the protein
+            - Column 3 : Unique identifier of the protein from swiss dataset.
+            - Column 4 to Column "n": Each column corresponding to a class with value True/False indicating where the
+                data instance belong to this class or not.
         Args:
             g (nx.DiGraph): The class hierarchy graph.
 
@@ -433,6 +470,14 @@ class _GOUniprotDataExtractor(XYBaseDataModule, ABC):
         return data
 
     def _get_go_swiss_data_mapping(self) -> Dict[int, Dict[str, str]]:
+        """
+        Parse the swiss protein data and returns a mapping from GO data ID to swiss ID along with sequence
+        representation of the protein.
+        This mapping is needs as the GO data does not have the representation for protein sequence.
+
+        Returns:
+
+        """
         #  ---------  ---------------------------     ------------------------------
         #  Line code  Content                         Occurrence in an entry
         #  ---------  ---------------------------     ------------------------------
@@ -474,10 +519,19 @@ class _GOUniprotDataExtractor(XYBaseDataModule, ABC):
         return swiss_go_mapping
 
     def _extract_go_class_hierarchy(self, go_path: str) -> nx.DiGraph:
+        """
+        Extracts the class hierarchy from the GO ontology.
+
+        Args:
+            go_path (str): The path to the GO ontology.
+
+        Returns:
+            nx.DiGraph: The class hierarchy.
+        """
         elements = []
         for term in fastobo.load(go_path):
             if isinstance(term, fastobo.typedef.TypedefFrame):
-                # To avoid term frame of the below format/structure
+                # ---- To avoid term frame of the below format/structure ----
                 # [Typedef]
                 # id: part_of
                 # name: part of
@@ -640,9 +694,6 @@ class _GOUniprotDataExtractor(XYBaseDataModule, ABC):
 
         return uni_prot_file_path
 
-    def select_classes(self, g, split_name, *args, **kwargs):
-        raise NotImplementedError
-
     def save_processed(self, data: pd.DataFrame, filename: str) -> None:
         """
         Save the processed dataset to a pickle file.
@@ -673,6 +724,7 @@ class _GOUniprotDataExtractor(XYBaseDataModule, ABC):
 
     @property
     def base_dir(self):
+        # All the data related to GO-Uniprot will be stored in data/Go_UniProt
         return os.path.join("data", f"Go_UniProt")
 
     @property
@@ -681,6 +733,13 @@ class _GOUniprotDataExtractor(XYBaseDataModule, ABC):
             self.base_dir,
             self._name,
             "processed",
+        )
+
+    @property
+    def processed_dir(self) -> str:
+        return os.path.join(
+            self.processed_dir_main,
+            *self.identifier,
         )
 
     @property
@@ -813,6 +872,16 @@ class GoUniProtOver50(_GoUniProtOverX):
     """
 
     THRESHOLD: int = 50
+
+    @property
+    def _name(self) -> str:
+        """
+        Returns the name of the dataset.
+
+        Returns:
+            str: The dataset name.
+        """
+        return f"GoUniProt_OverX"
 
     def label_number(self) -> int:
         """
