@@ -8,15 +8,15 @@
 # https://www.ebi.ac.uk/GOA/downloads
 
 
-# __all__ = ["_GOUniprotDataModule"]
+__all__ = ["GoUniProtOver100", "GoUniProtOver50"]
 
 import gzip
 import os
+import shutil
 from abc import ABC, abstractmethod
 from collections import OrderedDict
-from tempfile import NamedTemporaryFile, TemporaryDirectory, gettempdir
+from tempfile import NamedTemporaryFile
 from typing import Any, Dict, Generator, List, Optional, Tuple, Union
-from urllib import request
 
 import fastobo
 import networkx as nx
@@ -47,8 +47,6 @@ class _GOUniprotDataExtractor(XYBaseDataModule, ABC):
         **kwargs: Additional keyword arguments (passed to XYBaseDataModule).
 
     Attributes:
-        single_class (Optional[int]): The ID of the single class to predict.
-        chebi_version_train (Optional[int]): The version of ChEBI to use for training and validation.
         dynamic_data_split_seed (int): The seed for random data splitting, default is 42.
         _dynamic_df_train (Optional[pd.DataFrame]): DataFrame to store the training data split.
         _dynamic_df_test (Optional[pd.DataFrame]): DataFrame to store the test data split.
@@ -57,6 +55,18 @@ class _GOUniprotDataExtractor(XYBaseDataModule, ABC):
     """
 
     _GO_DATA_INIT = "GO"
+    # ---- Index for columns of processed `data.pkl` ------
+    # "id" at                 row index 0
+    # "name" at               row index 1
+    # "sequence" at           row index 2
+    # "swiss_ident" at        row index 3
+    # labels starting from    row index 4
+    _LABELS_STARTING_INDEX: int = 4
+    _SEQUENCE_INDEX: int = 2
+    _ID_INDEX = 0
+
+    _GO_DATA_URL = "http://purl.obolibrary.org/obo/go/go-basic.obo"
+    _SWISS_DATA_URL = "https://ftp.uniprot.org/pub/databases/uniprot/knowledgebase/complete/uniprot_sprot.dat.gz"
 
     def __init__(
         self,
@@ -377,10 +387,14 @@ class _GOUniprotDataExtractor(XYBaseDataModule, ABC):
             # "swiss_ident" at        row index 3
             # labels starting from    row index 4
             for row in df.values:
-                labels = row[4:].astype(bool)
+                labels = row[self._LABELS_STARTING_INDEX :].astype(bool)
                 # chebai.preprocessing.reader.DataReader only needs features, labels, ident, group
                 # "group" set to None, by default as no such entity for this data
-                yield dict(features=row[2], labels=labels, ident=row[0])
+                yield dict(
+                    features=row[self._SEQUENCE_INDEX],
+                    labels=labels,
+                    ident=row[self._ID_INDEX],
+                )
 
     def prepare_data(self) -> None:
         print("Checking for processed data in", self.processed_dir_main)
@@ -390,7 +404,7 @@ class _GOUniprotDataExtractor(XYBaseDataModule, ABC):
             print("Missing Gene Ontology processed data (`data.pkl` file)")
             os.makedirs(self.processed_dir_main, exist_ok=True)
             # swiss_path = self._download_swiss_uni_prot_data()
-
+            self._download_swiss_uni_prot_data()
             go_path = self._download_gene_ontology_data()
             g = self._extract_go_class_hierarchy(go_path)
             data_df = self._graph_to_raw_dataset(g)
@@ -466,7 +480,7 @@ class _GOUniprotDataExtractor(XYBaseDataModule, ABC):
         data = pd.DataFrame(data)
         # This filters the DataFrame to include only the rows where at least one value in the row from 5th column
         # onwards is True/non-zero.
-        data = data[data.iloc[:, 4:].any(axis=1)]
+        data = data[data.iloc[:, self._LABELS_STARTING_INDEX :].any(axis=1)]
         return data
 
     def _get_go_swiss_data_mapping(self) -> Dict[int, Dict[str, str]]:
@@ -565,7 +579,7 @@ class _GOUniprotDataExtractor(XYBaseDataModule, ABC):
         return nx.transitive_closure_dag(g)
 
     @staticmethod
-    def term_callback(term: fastobo.term.TermFrame) -> dict:
+    def term_callback(term: fastobo.term.TermFrame) -> Optional[Dict]:
         """
         Extracts information from a Gene Ontology (GO) term document.
 
@@ -634,13 +648,12 @@ class _GOUniprotDataExtractor(XYBaseDataModule, ABC):
         if not os.path.isfile(go_path):
             print("Missing Gene Ontology raw data")
             print(f"Downloading Gene Ontology data....")
-            url = f"http://purl.obolibrary.org/obo/go/go-basic.obo"
-            r = requests.get(url, allow_redirects=True)
+            r = requests.get(self._GO_DATA_URL, allow_redirects=True)
             r.raise_for_status()  # Check if the request was successful
             open(go_path, "wb").write(r.content)
         return go_path
 
-    def _download_swiss_uni_prot_data(self) -> str:
+    def _download_swiss_uni_prot_data(self) -> Optional[str]:
         """
         Download the Swiss-Prot data file from UniProt Knowledgebase.
 
@@ -658,39 +671,37 @@ class _GOUniprotDataExtractor(XYBaseDataModule, ABC):
             self.raw_dir, self.raw_file_names_dict["SwissUniProt"]
         )
         os.makedirs(os.path.dirname(uni_prot_file_path), exist_ok=True)
-        temp_dir = gettempdir()
 
         if not os.path.isfile(uni_prot_file_path):
             print(f"Downloading Swiss UniProt data....")
-            url = f"https://ftp.uniprot.org/pub/databases/uniprot/knowledgebase/complete/uniprot_sprot.dat.gz"
-            # TODO : Permission error, manually extracted the data as of now
-            temp_file_path = os.path.join(temp_dir, "uniprot_sprot.dat.gz")
+
+            # Create a temporary file
+            with NamedTemporaryFile(delete=False) as tf:
+                temp_filename = tf.name
+                print(f"Downloading to temporary file {temp_filename}")
+
+                # Download the file
+                response = requests.get(self._SWISS_DATA_URL, stream=True)
+                with open(temp_filename, "wb") as temp_file:
+                    shutil.copyfileobj(response.raw, temp_file)
+
+                print(f"Downloaded to {temp_filename}")
+
+            # Unpack the gzipped file
             try:
-                # Download the gzip file
-                request.urlretrieve(url, temp_file_path)
-                print(f"Downloaded to temporary file: {temp_file_path}")
+                print(f"Unzipping the file....")
+                with gzip.open(temp_filename, "rb") as f_in:
+                    output_file_path = uni_prot_file_path
+                    with open(output_file_path, "wb") as f_out:
+                        shutil.copyfileobj(f_in, f_out)
+                print(f"Unpacked and saved to {output_file_path}")
 
-                # Extract the gzip file
-                with gzip.open(temp_file_path, "rb") as gfile:
-                    file_content = gfile.read()
-                    print("Extracted the content from the gzip file.")
-
-                # Decode and write the contents to the target file
-                with open(uni_prot_file_path, "wt", encoding="utf-8") as fout:
-                    fout.write(file_content.decode("utf-8"))
-                    print(f"Data written to: {uni_prot_file_path}")
-
-            except PermissionError as e:
-                print(f"PermissionError: {e}")
-                return None
             except Exception as e:
-                print(f"An error occurred: {e}")
-                return None
+                print(f"Failed to unpack the file: {e}")
             finally:
                 # Clean up the temporary file
-                if os.path.exists(temp_file_path):
-                    os.remove(temp_file_path)
-                    print(f"Temporary file {temp_file_path} removed.")
+                os.remove(temp_filename)
+                print(f"Removed temporary file {temp_filename}")
 
         return uni_prot_file_path
 
@@ -724,8 +735,8 @@ class _GOUniprotDataExtractor(XYBaseDataModule, ABC):
 
     @property
     def base_dir(self):
-        # All the data related to GO-Uniprot will be stored in data/Go_UniProt
-        return os.path.join("data", f"Go_UniProt")
+        # All the data related to GO-Uniprot will be stored in data/GO_UniProt
+        return os.path.join("data", f"GO_UniProt")
 
     @property
     def processed_dir_main(self):
@@ -760,16 +771,11 @@ class _GoUniProtOverX(_GOUniprotDataExtractor, ABC):
     A class for extracting data from the ChEBI dataset with a threshold for selecting classes.
 
     Attributes:
-        LABEL_INDEX (int): The index of the label in the dataset.
-        SMILES_INDEX (int): The index of the SMILES string in the dataset.
         READER (ChemDataReader): The reader used for reading the dataset.
         THRESHOLD (None): The threshold for selecting classes.
     """
 
-    LABEL_INDEX: int = 3
-    SMILES_INDEX: int = 2
-    READER: dr.ChemDataReader = dr.ChemDataReader
-
+    READER: dr.ProteinDataReader = dr.ProteinDataReader
     THRESHOLD: int = None
 
     @property
@@ -785,9 +791,9 @@ class _GoUniProtOverX(_GOUniprotDataExtractor, ABC):
         Returns:
             str: The dataset name.
         """
-        return f"GoUniProt_OverX"
+        return f"GO{self.THRESHOLD}"
 
-    def select_classes(self, g: nx.Graph, *args, **kwargs) -> List:
+    def select_classes(self, g: nx.DiGraph, *args, **kwargs) -> List:
         """
         Selects classes from the GO dataset based on the number of successors meeting a specified threshold.
 
@@ -872,16 +878,6 @@ class GoUniProtOver50(_GoUniProtOverX):
     """
 
     THRESHOLD: int = 50
-
-    @property
-    def _name(self) -> str:
-        """
-        Returns the name of the dataset.
-
-        Returns:
-            str: The dataset name.
-        """
-        return f"GoUniProt_OverX"
 
     def label_number(self) -> int:
         """
