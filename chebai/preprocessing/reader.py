@@ -320,3 +320,45 @@ class OrdReader(DataReader):
     def _read_data(self, raw_data: str) -> List[int]:
         """Convert characters in raw data to their ordinal values."""
         return [ord(s) for s in raw_data]
+
+
+class ProteinDataReader(DataReader):
+    """
+    Data reader for Protein data using protein-sequence tokens.
+
+    Args:
+        collator_kwargs: Optional dictionary of keyword arguments for the collator.
+        token_path: Optional path for the token file.
+        kwargs: Additional keyword arguments.
+    """
+
+    COLLATOR = RaggedCollator
+
+    @classmethod
+    def name(cls) -> str:
+        """Returns the name of the data reader."""
+        return "sequence_token"
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        with open(self.token_path, "r") as pk:
+            self.cache = [x.strip() for x in pk]
+
+    def _get_token_index(self, token: str) -> int:
+        """Returns a unique number for each token, automatically adds new tokens."""
+        if not str(token) in self.cache:
+            self.cache.append(str(token))
+        return self.cache.index(str(token)) + EMBEDDING_OFFSET
+
+    def _read_data(self, raw_data: str) -> List[int]:
+        """Read and tokenize raw data."""
+        return [self._get_token_index(v[1]) for v in _tokenize(raw_data)]
+
+    def on_finish(self) -> None:
+        """Write contents of self.cache into tokens.txt."""
+        with open(self.token_path, "w") as pk:
+            print(f"saving {len(self.cache)} tokens to {self.token_path}...")
+            print(f"first 3 sequences tokens: {self.cache[:3]}")
+            for token in self.cache[:3]:
+                print(f"Sequence Token: {token}")
+            pk.writelines([f"{c}\n" for c in self.cache])
