@@ -159,7 +159,8 @@ class _ChEBIDataExtractor(XYBaseDataModule, ABC):
                 single_class=self.single_class,
                 **_init_kwargs,
             )
-        # Path of csv file which contains a list of chebi ids & their assignment to a dataset (either train, validation or test).
+        # Path of csv file which contains a list of chebi ids & their assignment to a dataset (either train,
+        # validation or test).
         self.splits_file_path = self._validate_splits_file_path(
             kwargs.get("splits_file_path", None)
         )
@@ -167,7 +168,7 @@ class _ChEBIDataExtractor(XYBaseDataModule, ABC):
     @staticmethod
     def _validate_splits_file_path(splits_file_path: Optional[str]) -> Optional[str]:
         """
-        Validates the provided splits file path.
+        Validates the file in provided splits file path.
 
         Args:
             splits_file_path (Optional[str]): Path to the splits CSV file.
@@ -230,6 +231,7 @@ class _ChEBIDataExtractor(XYBaseDataModule, ABC):
         return nx.transitive_closure_dag(g)
 
     def select_classes(self, g, split_name, *args, **kwargs):
+
         raise NotImplementedError
 
     def graph_to_raw_dataset(
@@ -269,6 +271,8 @@ class _ChEBIDataExtractor(XYBaseDataModule, ABC):
         data = pd.DataFrame(data)
         data = data[~data["SMILES"].isnull()]
         data = data[[name not in CHEBI_BLACKLIST for name, _ in data.iterrows()]]
+        # This filters the DataFrame to include only the rows where at least one value in the row from 4th column
+        # onwards is True/non-zero.
         data = data[data.iloc[:, 3:].any(axis=1)]
         return data
 
@@ -296,11 +300,26 @@ class _ChEBIDataExtractor(XYBaseDataModule, ABC):
         """
         Loads a dictionary from a pickled file, yielding individual dictionaries for each row.
 
+        This method reads data from a specified pickled file, processes each row to extract relevant
+        information, and yields dictionaries containing the keys `features`, `labels`, and `ident`.
+        If `single_class` is specified, it only includes the label for that specific class; otherwise,
+        it includes labels for all classes starting from the fourth column.
+
+        The pickled file is expected to contain rows with the following structure:
+            - Data at row index 0: ID of the chebi data instance
+            - Data at row index 2: SMILES representation for the chemical
+            - Data from row index 3 onwards: Labels
+
+        This method is used in `_load_data_from_file` to process each row of data and convert it
+        into the desired dictionary format before loading it into the model.
+
         Args:
-            input_file_path (str): The path to the file.
+            input_file_path (str): The path to the input pickled file.
 
         Yields:
-            Dict[str, Any]: The dictionary, keys are `features`, `labels` and `ident`.
+            Dict[str, Any]: A dictionary with keys `features`, `labels`, and `ident`.
+            `features` contains the sequence, `labels` contains the labels as boolean values,
+            and `ident` contains the identifier.
         """
         with open(input_file_path, "rb") as input_file:
             df = pd.read_pickle(input_file)
@@ -385,6 +404,11 @@ class _ChEBIDataExtractor(XYBaseDataModule, ABC):
     def setup_processed(self) -> None:
         """
         Transform and prepare processed data for the ChEBI dataset.
+
+        Main function of this method is to transform `data.pkl` into a model input data format (`data.pt`),
+        ensuring that the data is in a format compatible for input to the model.
+        The transformed data must contain the following keys: `ident`, `features`, `labels`, and `group`.
+        This method uses a subclass of Data Reader to perform the transformation.
 
         This method sets up the processed data directories and files based on the ChEBI version
         and train version (if specified). It ensures that the required processed data files exist
@@ -701,9 +725,12 @@ class _ChEBIDataExtractor(XYBaseDataModule, ABC):
         Prepares the data for the Chebi dataset.
 
         This method checks for the presence of raw data in the specified directory.
-        If the raw data is missing, it fetches the ontology and creates a test set.
-        If the test set already exists, it loads it from the file.
-        Then, it creates the train/validation split based on the test set.
+        If the raw data is missing, it fetches the ontology and creates a dataframe & saves it as data.pkl pickle file.
+
+        The resulting dataframe/pickle file is expected to contain columns with the following structure:
+            - Column at index 0: ID of chebi data instance
+            - Column at index 2: SMILES representation of the chemical
+            - Column from index 3 onwards: Labels
 
         Args:
             *args: Variable length argument list.
@@ -981,6 +1008,8 @@ class JCIExtendedBase(_ChEBIDataExtractor):
 class ChEBIOverX(_ChEBIDataExtractor):
     """
     A class for extracting data from the ChEBI dataset with a threshold for selecting classes.
+    This class is designed to filter Chebi classes based on a specified threshold, selecting only those classes
+    which have a certain number of subclasses in the hierarchy.
 
     Attributes:
         LABEL_INDEX (int): The index of the label in the dataset.
@@ -1014,18 +1043,28 @@ class ChEBIOverX(_ChEBIDataExtractor):
         """
         return f"ChEBI{self.THRESHOLD}"
 
-    def select_classes(self, g: nx.Graph, split_name: str, *args, **kwargs) -> List:
+    def select_classes(self, g: nx.DiGraph, split_name: str, *args, **kwargs) -> List:
         """
-        Selects classes from the ChEBI dataset.
+        Selects classes from the ChEBI dataset based on the number of successors meeting a specified threshold.
+
+        This method iterates over the nodes in the graph, counting the number of successors for each node.
+        Nodes with a number of successors greater than or equal to the defined threshold are selected.
 
         Args:
             g (nx.Graph): The graph representing the dataset.
-            split_name (str): The name of the split.
-            *args: Additional arguments (not used).
+            split_name (str) : Name of the split (not used).
+            *args: Additional positional arguments (not used).
             **kwargs: Additional keyword arguments (not used).
 
         Returns:
-            list: The list of selected classes.
+            List: A sorted list of node IDs that meet the successor threshold criteria.
+
+        Side Effects:
+            Writes the list of selected nodes to a file named "classes.txt" in the specified processed directory.
+
+        Notes:
+            - The `THRESHOLD` attribute should be defined in the subclass of this class.
+            - Nodes without a 'sequence' attribute are ignored in the successor count.
         """
         smiles = nx.get_node_attributes(g, "smiles")
         nodes = list(
