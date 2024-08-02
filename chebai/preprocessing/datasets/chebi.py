@@ -170,6 +170,8 @@ class _ChEBIDataExtractor(_DynamicDataset, ABC):
             - Column at index `self._DATA_REPRESENTATION_IDX`: SMILES representation of the chemical
             - Column from index `self._LABELS_START_IDX` onwards: Labels
 
+        It will pre-process the data related to `chebi_version_train`, if specified.
+
         Args:
             *args: Variable length argument list.
             **kwargs: Arbitrary keyword arguments.
@@ -194,6 +196,12 @@ class _ChEBIDataExtractor(_DynamicDataset, ABC):
                 self._chebi_version_train_obj.prepare_data(*args, **kwargs)
 
     def _download_required_data(self) -> str:
+        """
+        Downloads the required raw data related to chebi.
+
+        Returns:
+            str: Path to the downloaded data.
+        """
         return self._load_chebi(self.chebi_version)
 
     def _load_chebi(self, version: int) -> str:
@@ -222,6 +230,8 @@ class _ChEBIDataExtractor(_DynamicDataset, ABC):
     def _extract_class_hierarchy(self, data_path: str) -> nx.DiGraph:
         """
         Extracts the class hierarchy from the ChEBI ontology.
+        Constructs a directed graph (DiGraph) using NetworkX, where nodes are annotated with fields/terms from
+        the chebi term documents from `.obo` file.
 
         Args:
             data_path (str): The path to the ChEBI ontology.
@@ -245,8 +255,9 @@ class _ChEBIDataExtractor(_DynamicDataset, ABC):
 
     def _graph_to_raw_dataset(self, g: nx.DiGraph) -> pd.DataFrame:
         """
-        Preparation step before creating splits, uses graph created by extract_class_hierarchy(),
-        split_name is only relevant, if a separate train_version is set.
+        Converts the graph to a raw dataset.
+        Uses the graph created by `_extract_class_hierarchy` method to extract the
+        raw data in Dataframe format with additional columns corresponding to each multi-label class.
 
         Args:
             g (nx.DiGraph): The class hierarchy graph.
@@ -296,14 +307,7 @@ class _ChEBIDataExtractor(_DynamicDataset, ABC):
         The transformed data must contain the following keys: `ident`, `features`, `labels`, and `group`.
         This method uses a subclass of Data Reader to perform the transformation.
 
-        This method sets up the processed data directories and files based on the ChEBI version
-        and train version (if specified). It ensures that the required processed data files exist
-        by loading raw data, transforming it into processed format, and saving it.
-
-        It also handles special cases, such as generating a pruned test set if `chebi_version_train`
-        is specified and the test set does not already exist. This pruned test set includes only
-        classes that appear in the training set.
-
+        It will transform the data related to `chebi_version_train`, if specified.
         """
         super().setup_processed()
 
@@ -363,15 +367,29 @@ class _ChEBIDataExtractor(_DynamicDataset, ABC):
     # ------------------------------ Phase: Dynamic Splits -----------------------------------
     def _get_data_splits(self) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
         """
-        This method loads encoded data derived from either `chebi_version` or `chebi_version_train`
-        and generates train, validation, and test splits based on the loaded data.
-        If `chebi_version_train` is specified, the test set is pruned to include only labels that
-        exist in `chebi_version_train`.
+        Loads encoded/transformed data and generates training, validation, and test splits.
+
+        This method first loads encoded data from a file named `data.pt`, which is derived from either
+        `chebi_version` or `chebi_version_train`. It then splits the data into training, validation, and test sets.
+
+        If `chebi_version_train` is provided:
+            - Loads additional encoded data from `chebi_version_train`.
+            - Splits this data into training and validation sets, while using the test set from `chebi_version`.
+            - Prunes the test set from `chebi_version` to include only labels that exist in `chebi_version_train`.
+
+        If `chebi_version_train` is not provided:
+            - Splits the data from `chebi_version` into training, validation, and test sets without modification.
+
+        Raises:
+            FileNotFoundError: If the required `data.pt` file(s) do not exist. Ensure that `prepare_data`
+            and/or `setup` methods have been called to generate the dataset files.
 
         Returns:
-
+            Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]: A tuple containing three DataFrames:
+                - Training set
+                - Validation set
+                - Test set
         """
-        # Load encoded data derived from "chebi_version"
         try:
             filename = self.processed_file_names_dict["data"]
             data_chebi_version = torch.load(os.path.join(self.processed_dir, filename))
@@ -474,10 +492,6 @@ class _ChEBIDataExtractor(_DynamicDataset, ABC):
             # Update the labels from test instance from chebi_version to the new labels, which are compatible to both versions
             row["labels"] = new_labels
 
-        # torch.save(
-        #     chebi_ver_test_data,
-        #     os.path.join(self.processed_dir, self.processed_file_names_dict["test"]),
-        # )
         return df_test_chebi_version
 
     def load_processed_data(
