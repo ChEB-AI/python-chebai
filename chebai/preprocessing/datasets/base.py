@@ -616,7 +616,7 @@ class _DynamicDataset(XYBaseDataModule, ABC):
         splits_file_path (Optional[str]): Path to the CSV file containing split assignments.
     """
 
-    # ---- Index for columns of processed `data.pkl` ------
+    # ---- Index for columns of processed `data.pkl` (should be derived from `_graph_to_raw_dataset` method) ------
     _ID_IDX: int = None
     _DATA_REPRESENTATION_IDX: int = None
     _LABELS_START_IDX: int = None
