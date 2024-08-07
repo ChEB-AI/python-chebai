@@ -14,7 +14,7 @@ setup(
     author_email="martin.glauer@ovgu.de",
     description="",
     zip_safe=False,
-    python_requires="==3.11",
+    python_requires=">=3.9, <3.12",
     install_requires=[
         "certifi",
         "idna",
