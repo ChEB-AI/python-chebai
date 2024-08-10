@@ -877,15 +877,16 @@ class _DynamicDataset(XYBaseDataModule, ABC):
             pd.DataFrame({"id": df_val["ident"], "split": "validation"}),
             pd.DataFrame({"id": df_test["ident"], "split": "test"}),
         ]
+
         combined_split_assignment = pd.concat(split_assignment_list, ignore_index=True)
         combined_split_assignment.to_csv(
-            os.path.join(self.processed_dir_main, "splits.csv")
+            os.path.join(self.processed_dir_main, "splits.csv"), index=False
         )
 
         # Store the splits in class variables
-        self.dynamic_df_train = df_train
-        self.dynamic_df_val = df_val
-        self.dynamic_df_test = df_test
+        self._dynamic_df_train = df_train
+        self._dynamic_df_val = df_val
+        self._dynamic_df_test = df_test
 
     @abstractmethod
     def _get_data_splits(self) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
@@ -1016,6 +1017,58 @@ class _DynamicDataset(XYBaseDataModule, ABC):
         self._dynamic_df_train = df_data[df_data["ident"].isin(train_ids)]
         self._dynamic_df_val = df_data[df_data["ident"].isin(validation_ids)]
         self._dynamic_df_test = df_data[df_data["ident"].isin(test_ids)]
+
+    def load_processed_data(
+        self, kind: Optional[str] = None, filename: Optional[str] = None
+    ) -> List[Dict[str, Any]]:
+        """
+        Loads processed data from a specified dataset type or file.
+
+        This method retrieves processed data based on the dataset type (`kind`) such as "train",
+        "val", or "test", or directly from a provided filename. When `kind` is specified, the method
+        leverages the `dynamic_split_dfs` property to dynamically generate or retrieve the corresponding
+        data splits if they are not already loaded. If both `kind` and `filename` are provided, `filename`
+        takes precedence.
+
+        Args:
+            kind (str, optional): The type of dataset to load ("train", "val", or "test").
+                If `filename` is provided, this argument is ignored. Defaults to None.
+            filename (str, optional): The name of the file to load the dataset from.
+                If provided, this takes precedence over `kind`. Defaults to None.
+
+        Returns:
+            List[Dict[str, Any]]: A list of dictionaries, where each dictionary contains
+            the processed data for an individual data point.
+
+        Raises:
+            ValueError: If both `kind` and `filename` are None, as one of them is required to load the dataset.
+            KeyError: If the specified `kind` does not exist in the `dynamic_split_dfs` property or
+                `processed_file_names_dict`, when expected.
+            FileNotFoundError: If the file corresponding to the provided `filename` does not exist.
+        """
+        if kind is None and filename is None:
+            raise ValueError(
+                "Either kind or filename is required to load the correct dataset, both are None"
+            )
+
+        # If both kind and filename are given, use filename
+        if kind is not None and filename is None:
+            try:
+                if self.use_inner_cross_validation and kind != "test":
+                    filename = self.processed_file_names_dict[
+                        f"fold_{self.fold_index}_{kind}"
+                    ]
+                else:
+                    data_df = self.dynamic_split_dfs[kind]
+                    return data_df.to_dict(orient="records")
+            except KeyError:
+                kind = f"{kind}"
+
+        # If filename is provided
+        try:
+            return torch.load(os.path.join(self.processed_dir, filename))
+        except FileNotFoundError:
+            raise FileNotFoundError(f"File {filename} doesn't exist")
 
     # ------------------------------ Phase: Raw Properties -----------------------------------
     @property

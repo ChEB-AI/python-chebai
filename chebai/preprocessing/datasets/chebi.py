@@ -185,7 +185,9 @@ class _ChEBIDataExtractor(_DynamicDataset, ABC):
             if not os.path.isfile(
                 os.path.join(
                     self._chebi_version_train_obj.processed_dir_main,
-                    self._chebi_version_train_obj.raw_file_names_dict["data"],
+                    self._chebi_version_train_obj.processed_dir_main_file_names_dict[
+                        "data"
+                    ],
                 )
             ):
                 print(
@@ -315,7 +317,7 @@ class _ChEBIDataExtractor(_DynamicDataset, ABC):
         if self.chebi_version_train is not None and not os.path.isfile(
             os.path.join(
                 self._chebi_version_train_obj.processed_dir,
-                self._chebi_version_train_obj.raw_file_names_dict["data"],
+                self._chebi_version_train_obj.processed_file_names_dict["data"],
             )
         ):
             print(
@@ -493,47 +495,6 @@ class _ChEBIDataExtractor(_DynamicDataset, ABC):
             row["labels"] = new_labels
 
         return df_test_chebi_version
-
-    def load_processed_data(
-        self, kind: Optional[str] = None, filename: Optional[str] = None
-    ) -> List[Dict[str, Any]]:
-        """
-        Load processed data from a file.
-
-        Args:
-            kind (str, optional): The kind of dataset to load such as "train", "val", or "test". Defaults to None.
-            filename (str, optional): The name of the file to load the dataset from. Defaults to None.
-
-        Returns:
-            List[Dict[str, Any]] : The loaded processed data.
-
-        Raises:
-            KeyError: If specified kind key doesn't exist.
-            FileNotFoundError: If the specified file does not exist.
-        """
-        if kind is None and filename is None:
-            raise ValueError(
-                "Either kind or filename is required to load the correct dataset, both are None"
-            )
-
-        # If both kind and filename are given, use filename
-        if kind is not None and filename is None:
-            try:
-                if self.use_inner_cross_validation and kind != "test":
-                    filename = self.processed_file_names_dict[
-                        f"fold_{self.fold_index}_{kind}"
-                    ]
-                else:
-                    data_df = self.dynamic_split_dfs[kind]
-                    return data_df.to_dict(orient="records")
-            except KeyError:
-                kind = f"{kind}"
-
-        # If filename is provided
-        try:
-            return torch.load(os.path.join(self.processed_dir, filename))
-        except FileNotFoundError:
-            raise FileNotFoundError(f"File {filename} doesn't exist")
 
     # ------------------------------ Phase: Raw Properties -----------------------------------
     @property
