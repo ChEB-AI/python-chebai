@@ -348,6 +348,12 @@ class _GOUniprotDataExtractor(_DynamicDataset, ABC):
         Note:
             This mapping is necessary because the GO data does not include the protein sequence representation.
 
+            Quote from the DeepGo Paper:
+            `We select proteins with annotations having experimental evidence codes
+            (EXP, IDA, IPI, IMP, IGI, IEP, TAS, IC) and filter the proteins by a
+            maximum length of 1002, ignoring proteins with ambiguous amino acid codes
+            (B, O, J, U, X, Z) in their sequence.`
+
             Check the link below for keyword details:
             https://ftp.uniprot.org/pub/databases/uniprot/current_release/knowledgebase/complete/docs/keywlist.txt
 
@@ -366,30 +372,50 @@ class _GOUniprotDataExtractor(_DynamicDataset, ABC):
             )
         )
 
+        experimental_evidence_codes = {
+            "EXP",
+            "IDA",
+            "IPI",
+            "IMP",
+            "IGI",
+            "IEP",
+            "TAS",
+            "IC",
+        }
+        ambiguous_amino_acids = {"B", "O", "J", "U", "X", "Z"}
+        max_length = 1002
+
         for record in swiss_data:
             if record.data_class != "Reviewed":
                 # To consider only manually-annotated swiss data
                 continue
 
-            if not record.sequence:
-                # Consider protein with only sequence representation
+            if not record.sequence or record.sequence_length > max_length:
+                # Consider protein with only sequence representation and a maximum length of 1002
+                continue
+
+            if any(aa in ambiguous_amino_acids for aa in record.sequence):
+                # Skip proteins with ambiguous amino acid codes
                 continue
 
             go_ids = []
+            evidence_codes = set()
+
             for cross_ref in record.cross_references:
                 if cross_ref[0] == self._GO_DATA_INIT:
                     # One swiss data protein can correspond to many GO data instances
                     go_ids.append(self._parse_go_id(cross_ref[1]))
+                    if len(cross_ref) > 3:
+                        evidence_codes.add(cross_ref[3].split(":")[0])
 
-            if not go_ids:
-                # Swiss protein with no mapping to Gene Ontology is skipped
+            if not go_ids or not (experimental_evidence_codes & evidence_codes):
+                # Skip Swiss proteins without mapping to GO data or without the required experimental evidence codes
                 continue
-
-            go_ids.sort()
 
             swiss_ids.append(record.entry_name)
             sequences.append(record.sequence)
             accessions.append(",".join(record.accessions))
+            go_ids.sort()
             go_ids_list.append(go_ids)
 
         data_dict = OrderedDict(
