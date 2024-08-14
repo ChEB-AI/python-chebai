@@ -46,7 +46,7 @@ class _GOUniprotDataExtractor(_DynamicDataset, ABC):
     _GO_DATA_INIT = "GO"
     _SWISS_DATA_INIT = "SWISS"
 
-    # ---- Index for columns of processed `data.pkl` (derived from `_graph_to_raw_dataset` method) ------
+    # -- Index for columns of processed `data.pkl` (derived from `_get_swiss_to_go_mapping` & `_graph_to_raw_dataset`
     # "swiss_id" at           row index 0
     # "accession" at          row index 1
     # "go_ids" at             row index 2
@@ -76,6 +76,20 @@ class _GOUniprotDataExtractor(_DynamicDataset, ABC):
 
     @classmethod
     def _get_go_branch(cls, **kwargs) -> str:
+        """
+        Retrieves the Gene Ontology (GO) branch based on provided keyword arguments.
+        This method checks if a valid GO branch value is provided in the keyword arguments.
+
+        Args:
+            **kwargs: Arbitrary keyword arguments. Specifically looks for:
+                - "go_branch" (str): The desired GO branch.
+        Returns:
+            str: The GO branch value. This will be one of the allowed values.
+
+        Raises:
+            ValueError: If the provided 'go_branch' value is not in the allowed list of values.
+        """
+
         go_branch_value = kwargs.get("go_branch", cls._ALL_GO_BRANCHES)
         allowed_values = list(cls._GO_BRANCH_NAMESPACE.keys()) + [cls._ALL_GO_BRANCHES]
         if go_branch_value not in allowed_values:
@@ -177,8 +191,7 @@ class _GOUniprotDataExtractor(_DynamicDataset, ABC):
     def _extract_class_hierarchy(self, data_path: str) -> nx.DiGraph:
         """
         Extracts the class hierarchy from the GO ontology.
-        Constructs a directed graph (DiGraph) using NetworkX, where nodes are annotated with GO term data
-        and corresponding Swiss-Prot data (obtained via `_get_go_swiss_data_mapping`).
+        Constructs a directed graph (DiGraph) using NetworkX, where nodes are annotated with GO term data.
 
         Args:
             data_path (str): The path to the GO ontology.
@@ -214,18 +227,10 @@ class _GOUniprotDataExtractor(_DynamicDataset, ABC):
 
         # Add GO term nodes to the graph and their hierarchical ontology
         for n in elements:
-            g.add_node(n["go_id"], node_type=f"{self._GO_DATA_INIT}", **n)
+            g.add_node(n["go_id"], **n)
         g.add_edges_from(
             [(parent, node["go_id"]) for node in elements for parent in node["parents"]]
         )
-
-        swiss_to_go_mapping = self._get_swiss_to_go_mapping()
-        # Add SwissProt proteins and their associations with GO terms
-        for swiss_id, swiss_info in swiss_to_go_mapping.items():
-            g.add_node(swiss_id, node_type=f"{self._SWISS_DATA_INIT}", **swiss_info)
-            for go_id in swiss_info.get("go_ids", []):
-                if go_id in g.nodes:
-                    g.add_edges_from((swiss_id, go_id))
 
         print("Compute transitive closure")
         return nx.transitive_closure_dag(g)
@@ -233,7 +238,6 @@ class _GOUniprotDataExtractor(_DynamicDataset, ABC):
     def term_callback(self, term: fastobo.term.TermFrame) -> Union[Dict, bool]:
         """
         Extracts information from a Gene Ontology (GO) term document.
-        It also checks if the term is marked as obsolete and skips such terms.
 
         Args:
             term: A Gene Ontology term Frame document.
@@ -254,20 +258,21 @@ class _GOUniprotDataExtractor(_DynamicDataset, ABC):
                     self.go_branch != self._ALL_GO_BRANCHES
                     and clause.namespace != self._GO_BRANCH_NAMESPACE[self.go_branch]
                 ):
+                    # if the term document is not related to given go branch (except `all`), skip this document.
                     return False
 
             if isinstance(clause, fastobo.term.IsObsoleteClause):
                 if clause.obsolete:
-                    # if the term contains clause as obsolete as true, skips this term
+                    # if the term document contains clause as obsolete as true, skips this document.
                     return False
 
             if isinstance(clause, fastobo.term.IsAClause):
-                parents.append(_GOUniprotDataExtractor._parse_go_id(clause.term))
+                parents.append(self._parse_go_id(clause.term))
             elif isinstance(clause, fastobo.term.NameClause):
                 name = clause.name
 
         return {
-            "go_id": _GOUniprotDataExtractor._parse_go_id(term.id),
+            "go_id": self._parse_go_id(term.id),
             "parents": parents,
             "name": name,
         }
@@ -283,62 +288,21 @@ class _GOUniprotDataExtractor(_DynamicDataset, ABC):
         Returns:
             str: The parsed and normalized GO term ID.
         """
-        # `is_a` clause has GO id in the following format:
+        # `is_a` clause has GO id in the following formats:
         # GO:0009968 ! negative regulation of signal transduction
+        # GO:0046780
         return int(str(go_id).split(":")[1].split("!")[0].strip())
-
-    def _get_swiss_to_go_mapping(self) -> Dict[str, Dict[str, Union[str, List[int]]]]:
-        """
-        Parses the Swiss-Prot data and returns a mapping from Gene Ontology (GO) data ID to Swiss-Prot ID
-        along with the sequence representation of the protein.
-
-        This mapping is necessary because the GO data does not include the protein sequence representation.
-
-        Note:
-            Check below link for keyword details.
-            https://ftp.uniprot.org/pub/databases/uniprot/current_release/knowledgebase/complete/docs/keywlist.txt
-
-        Returns:
-            Dict[int, Dict[str, str]]: A dictionary where the keys are GO data IDs (int) and the values are
-                dictionaries containing:
-                    - "sequence" (str): The protein sequence.
-                    - "swiss_ident" (str): The unique identifier for each Swiss-Prot record.
-        """
-        print("Parsing swiss uniprot raw data....")
-
-        swiss_to_go_mapping = {}
-
-        swiss_data = SwissProt.parse(
-            open(
-                os.path.join(self.raw_dir, self.raw_file_names_dict["SwissUniProt"]),
-                "r",
-            )
-        )
-
-        for record in swiss_data:
-            if record.data_class != "Reviewed":
-                # To consider only manually-annotated swiss data
-                continue
-
-            go_ids = []
-            for cross_ref in record.cross_references:
-                if cross_ref[0] == self._GO_DATA_INIT:
-
-                    # One swiss data protein can correspond to many GO data instances
-                    go_ids.append(cross_ref[1])
-
-            swiss_to_go_mapping[record.entry_name] = {
-                "sequence": record.sequence,
-                "accessions": ",".join(record.accessions),
-                "go_ids": go_ids,
-            }
-
-        return swiss_to_go_mapping
 
     def _graph_to_raw_dataset(self, g: nx.DiGraph) -> pd.DataFrame:
         """
-        Uses the graph created by _extract_class_hierarchy() to extract the
-        raw data in DataFrame format with extra columns corresponding to each multi-label class.
+        Processes a directed acyclic graph (DAG) to create a raw dataset in DataFrame format. The dataset includes
+        Swiss-Prot protein data and their associations with Gene Ontology (GO) terms.
+
+        Note:
+            - GO classes are used as labels in the dataset. Each GO term is represented as a column, and its value
+                indicates whether a Swiss-Prot protein is associated with that GO term.
+            - Swiss-Prot proteins serve as samples. There is no 1-to-1 correspondence between Swiss-Prot proteins
+                and GO terms.
 
         Data Format: pd.DataFrame
             - Column 0 : swiss_id (Identifier for SwissProt protein)
@@ -356,37 +320,86 @@ class _GOUniprotDataExtractor(_DynamicDataset, ABC):
         """
         print(f"Processing graph")
 
-        sequences, accessions, go_ids, swiss_nodes, go_nodes = [], [], [], [], []
-        for node_id, attr in g.nodes(data=True):
-            if attr.get("node_type") == self._SWISS_DATA_INIT:
-                if attr["sequence"]:
-                    sequences.append(attr["sequence"])
-                    accessions.append(attr["accessions"])
-                    go_ids.append(attr["go_ids"])
-                    swiss_nodes.append(node_id)
-            elif attr.get("node_type") == self._GO_DATA_INIT:
-                go_nodes.append(node_id)
+        data_df = self._get_swiss_to_go_mapping()
 
-        data = OrderedDict(
-            swiss_id=swiss_nodes,  # swiss_id column at index 0
+        # Initialize the GO term labels/columns to False
+        data_df[self.select_classes(g)] = False
+        # Set True for the corresponding GO IDs in the DataFrame go labels/columns
+        for index, row in data_df.iterrows():
+            for go_id in row["go_ids"]:
+                if go_id in data_df.columns:
+                    data_df.at[index, go_id] = True
+
+        # This filters the DataFrame to include only the rows where at least one value in the row from 5th column
+        # onwards is True/non-zero.
+        data_df = data_df[data_df.iloc[:, self._LABELS_START_IDX :].any(axis=1)]
+        return data_df
+
+    def _get_swiss_to_go_mapping(self) -> pd.DataFrame:
+        """
+        Parses the Swiss-Prot data and returns a DataFrame mapping Swiss-Prot records to Gene Ontology (GO) data.
+
+        The DataFrame includes the following columns:
+            - "swiss_id": The unique identifier for each Swiss-Prot record.
+            - "sequence": The protein sequence.
+            - "accessions": Comma-separated list of accession numbers.
+            - "go_ids": List of GO IDs associated with the Swiss-Prot record.
+
+        Note:
+            This mapping is necessary because the GO data does not include the protein sequence representation.
+
+            Check the link below for keyword details:
+            https://ftp.uniprot.org/pub/databases/uniprot/current_release/knowledgebase/complete/docs/keywlist.txt
+
+        Returns:
+            pd.DataFrame: A DataFrame where each row corresponds to a Swiss-Prot record with its associated GO data.
+        """
+
+        print("Parsing swiss uniprot raw data....")
+
+        swiss_ids, sequences, accessions, go_ids_list = [], [], [], []
+
+        swiss_data = SwissProt.parse(
+            open(
+                os.path.join(self.raw_dir, self.raw_file_names_dict["SwissUniProt"]),
+                "r",
+            )
+        )
+
+        for record in swiss_data:
+            if record.data_class != "Reviewed":
+                # To consider only manually-annotated swiss data
+                continue
+
+            if not record.sequence:
+                # Consider protein with only sequence representation
+                continue
+
+            go_ids = []
+            for cross_ref in record.cross_references:
+                if cross_ref[0] == self._GO_DATA_INIT:
+                    # One swiss data protein can correspond to many GO data instances
+                    go_ids.append(self._parse_go_id(cross_ref[1]))
+
+            if not go_ids:
+                # Swiss protein with no mapping to Gene Ontology is skipped
+                continue
+
+            go_ids.sort()
+
+            swiss_ids.append(record.entry_name)
+            sequences.append(record.sequence)
+            accessions.append(",".join(record.accessions))
+            go_ids_list.append(go_ids)
+
+        data_dict = OrderedDict(
+            swiss_id=swiss_ids,  # swiss_id column at index 0
             accession=accessions,  # Accession column at index 1
-            go_ids=go_ids,  # Go_ids (data representation) column at index 2
+            go_ids=go_ids_list,  # Go_ids (data representation) column at index 2
             sequence=sequences,  # Sequence column at index 3
         )
 
-        # For each selected GO node, a new column is added to data with True/False values indicating whether the
-        # SwissProt node is associated with that GO node.
-        go_subgraph = g.subgraph(go_nodes).copy()
-        for go_node in self.select_classes(go_subgraph):
-            data[go_node] = [
-                go_node in g.successors(swiss_node) for swiss_node in swiss_nodes
-            ]
-
-        data = pd.DataFrame(data)
-        # This filters the DataFrame to include only the rows where at least one value in the row from 5th column
-        # onwards is True/non-zero.
-        data = data[data.iloc[:, self._LABELS_START_IDX :].any(axis=1)]
-        return data
+        return pd.DataFrame(data_dict)
 
     # ------------------------------ Phase: Setup data -----------------------------------
     def _load_dict(self, input_file_path: str) -> Generator[Dict[str, Any], None, None]:
@@ -516,7 +529,7 @@ class _GoUniProtOverX(_GOUniprotDataExtractor, ABC):
         Returns the name of the dataset.
 
         Returns:
-            str: The dataset name, formatted with the current threshold value.
+            str: The dataset name, formatted with the current threshold value and/or given go_branch.
         """
         if self.go_branch != self._ALL_GO_BRANCHES:
             return f"GO{self.THRESHOLD}_{self.go_branch}"
@@ -529,6 +542,9 @@ class _GoUniProtOverX(_GOUniprotDataExtractor, ABC):
 
         This method iterates over the nodes in the graph, counting the number of successors for each node.
         Nodes with a number of successors greater than or equal to the defined threshold are selected.
+
+        Note:
+            The input graph must be transitive closure of a directed acyclic graph.
 
         Args:
             g (nx.DiGraph): The graph representing the dataset. Each node should have a 'sequence' attribute.
@@ -543,11 +559,10 @@ class _GoUniProtOverX(_GOUniprotDataExtractor, ABC):
 
         Notes:
             - The `THRESHOLD` attribute should be defined in the subclass.
-            - Nodes without a 'sequence' attribute are ignored in the successor count.
         """
         nodes = []
         for node in g.nodes:
-            # Count the number of successors (child nodes) for each node
+            # Count the number of successors (direct child nodes) for each node
             if len(list(g.successors(node))) >= self.THRESHOLD:
                 nodes.append(node)
 
