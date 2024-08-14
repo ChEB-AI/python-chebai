@@ -243,15 +243,18 @@ class _ChEBIDataExtractor(_DynamicDataset, ABC):
         """
         with open(data_path, encoding="utf-8") as chebi:
             chebi = "\n".join(l for l in chebi if not l.startswith("xref:"))
+
         elements = [
             term_callback(clause)
             for clause in fastobo.loads(chebi)
             if clause and ":" in str(clause.id)
         ]
+
         g = nx.DiGraph()
         for n in elements:
             g.add_node(n["id"], **n)
         g.add_edges_from([(p, q["id"]) for q in elements for p in q["parents"]])
+
         print("Compute transitive closure")
         return nx.transitive_closure_dag(g)
 
@@ -582,6 +585,9 @@ class ChEBIOverX(_ChEBIDataExtractor):
         This method iterates over the nodes in the graph, counting the number of successors for each node.
         Nodes with a number of successors greater than or equal to the defined threshold are selected.
 
+        Note:
+            The input graph must be transitive closure of a directed acyclic graph.
+
         Args:
             g (nx.Graph): The graph representing the dataset.
             *args: Additional positional arguments (not used).
@@ -595,7 +601,7 @@ class ChEBIOverX(_ChEBIDataExtractor):
 
         Notes:
             - The `THRESHOLD` attribute should be defined in the subclass of this class.
-            - Nodes without a 'sequence' attribute are ignored in the successor count.
+            - Nodes without a 'smiles' attribute are ignored in the successor count.
         """
         smiles = nx.get_node_attributes(g, "smiles")
         nodes = list(

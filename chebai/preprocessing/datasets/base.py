@@ -868,7 +868,7 @@ class _DynamicDataset(XYBaseDataModule, ABC):
 
         This method loads encoded data and generates train, validation, and test splits based on the loaded data.
         """
-        print("Generate dynamic splits...")
+        print("\nGenerate dynamic splits...")
         df_train, df_val, df_test = self._get_data_splits()
 
         # Generate splits.csv file to store ids of each corresponding split
@@ -922,7 +922,7 @@ class _DynamicDataset(XYBaseDataModule, ABC):
         Raises:
             ValueError: If the DataFrame does not contain a column named "labels".
         """
-        print("\nGet test data split")
+        print("Get test data split")
 
         labels_list = df["labels"].tolist()
 
@@ -1003,7 +1003,7 @@ class _DynamicDataset(XYBaseDataModule, ABC):
         It then loads the encoded data (`data.pt`) and filters it based on the IDs retrieved from
         splits.csv to reconstruct the train, validation, and test splits.
         """
-        print(f"Loading splits from {self.splits_file_path}...")
+        print(f"\nLoading splits from {self.splits_file_path}...")
         splits_df = pd.read_csv(self.splits_file_path)
 
         filename = self.processed_file_names_dict["data"]
