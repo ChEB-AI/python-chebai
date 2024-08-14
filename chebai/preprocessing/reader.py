@@ -146,11 +146,21 @@ class ChemDataReader(DataReader):
         return self.cache.index(str(token)) + EMBEDDING_OFFSET
 
     def _read_data(self, raw_data: str) -> List[int]:
-        """Read and tokenize raw data."""
+        """
+        Reads and tokenizes raw SMILES data into a list of token indices.
+
+        Args:
+            raw_data (str): The raw SMILES string to be tokenized.
+
+        Returns:
+            List[int]: A list of integers representing the indices of the SMILES tokens.
+        """
         return [self._get_token_index(v[1]) for v in _tokenize(raw_data)]
 
     def on_finish(self) -> None:
-        """Write contents of self.cache into tokens.txt."""
+        """
+        Saves the current cache of tokens to the token file. This method is called after all data processing is complete.
+        """
         with open(self.token_path, "w") as pk:
             print(f"saving {len(self.cache)} tokens to {self.token_path}...")
             print(f"first 10 tokens: {self.cache[:10]}")
@@ -324,11 +334,15 @@ class OrdReader(DataReader):
 
 class ProteinDataReader(DataReader):
     """
-    Data reader for Protein data using protein-sequence tokens.
+    Data reader for protein sequences using amino acid tokens. This class processes raw protein sequences into a format
+    suitable for model input by tokenizing them and assigning unique indices to each token.
+
+    Note:
+        Refer for amino acid sequence:  https://en.wikipedia.org/wiki/Protein_primary_structure
 
     Args:
-        collator_kwargs: Optional dictionary of keyword arguments for the collator.
-        token_path: Optional path for the token file.
+        collator_kwargs (Optional[Dict[str, Any]]): Optional dictionary of keyword arguments for configuring the collator.
+        token_path (Optional[str]): Path to the token file. If not provided, it will be created automatically.
         kwargs: Additional keyword arguments.
     """
 
@@ -336,29 +350,59 @@ class ProteinDataReader(DataReader):
 
     @classmethod
     def name(cls) -> str:
-        """Returns the name of the data reader."""
-        return "sequence_token"
+        """
+        Returns the name of the data reader. This method identifies the specific type of data reader.
+
+        Returns:
+            str: The name of the data reader, which is "protein_token".
+        """
+        return "protein_token"
 
     def __init__(self, *args, **kwargs):
+        """
+        Initializes the ProteinDataReader, loading existing tokens from the specified token file.
+
+        Args:
+            *args: Additional positional arguments passed to the base class.
+            **kwargs: Additional keyword arguments passed to the base class.
+        """
         super().__init__(*args, **kwargs)
+        # Load the existing tokens from the token file into a cache
         with open(self.token_path, "r") as pk:
             self.cache = [x.strip() for x in pk]
 
     def _get_token_index(self, token: str) -> int:
-        """Returns a unique number for each token, automatically adds new tokens."""
-        if not str(token) in self.cache:
+        """
+        Returns a unique index for each token (amino acid). If the token is not already in the cache, it is added.
+
+        Args:
+            token (str): The amino acid token to retrieve or add.
+
+        Returns:
+            int: The index of the token, offset by the predefined EMBEDDING_OFFSET.
+        """
+        if str(token) not in self.cache:
             self.cache.append(str(token))
         return self.cache.index(str(token)) + EMBEDDING_OFFSET
 
     def _read_data(self, raw_data: str) -> List[int]:
-        """Read and tokenize raw data."""
-        return [self._get_token_index(v[1]) for v in _tokenize(raw_data)]
+        """
+        Reads and tokenizes raw protein sequence data into a list of token indices.
+
+        Args:
+            raw_data (str): The raw protein sequence to be tokenized (e.g., "MKTFF...").
+
+        Returns:
+            List[int]: A list of integers representing the indices of the amino acid tokens.
+        """
+        # In the case of protein sequences, each amino acid is typically represented by a single letter.
+        return [self._get_token_index(aa) for aa in raw_data]
 
     def on_finish(self) -> None:
-        """Write contents of self.cache into tokens.txt."""
+        """
+        Saves the current cache of tokens to the token file. This method is called after all data processing is complete.
+        """
         with open(self.token_path, "w") as pk:
-            print(f"saving {len(self.cache)} tokens to {self.token_path}...")
-            print(f"first 3 sequences tokens: {self.cache[:3]}")
-            for token in self.cache[:3]:
-                print(f"Sequence Token: {token}")
+            print(f"Saving {len(self.cache)} tokens to {self.token_path}...")
+            print(f"First 10 tokens: {self.cache[:10]}")
             pk.writelines([f"{c}\n" for c in self.cache])
