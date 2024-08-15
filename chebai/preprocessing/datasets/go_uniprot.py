@@ -329,7 +329,8 @@ class _GOUniprotDataExtractor(_DynamicDataset, ABC):
         data_df = self._get_swiss_to_go_mapping()
 
         # Initialize the GO term labels/columns to False
-        data_df[self.select_classes(g)] = False
+        data_df[self.select_classes(g, data_df=data_df)] = False
+
         # Set True for the corresponding GO IDs in the DataFrame go labels/columns
         for index, row in data_df.iterrows():
             for go_id in row["go_ids"]:
@@ -408,17 +409,25 @@ class _GOUniprotDataExtractor(_DynamicDataset, ABC):
                 continue
 
             go_ids = []
-            evidence_codes = set()
 
             for cross_ref in record.cross_references:
                 if cross_ref[0] == self._GO_DATA_INIT:
                     # One swiss data protein can correspond to many GO data instances
-                    go_ids.append(self._parse_go_id(cross_ref[1]))
-                    if len(cross_ref) > 3:
-                        evidence_codes.add(cross_ref[3].split(":")[0])
 
-            if not go_ids or not (EXPERIMENTAL_EVIDENCE_CODES & evidence_codes):
-                # Skip Swiss proteins without mapping to GO data or without the required experimental evidence codes
+                    if len(cross_ref) <= 3:
+                        # No evidence code
+                        continue
+
+                    # https://github.com/bio-ontology-research-group/deepgo/blob/master/get_functions.py#L63-L66
+                    evidence_code = cross_ref[3].split(":")[0]
+                    if evidence_code not in EXPERIMENTAL_EVIDENCE_CODES:
+                        # Skip GO id  without the required experimental evidence codes
+                        continue
+
+                    go_ids.append(self._parse_go_id(cross_ref[1]))
+
+            if not go_ids:
+                # Skip Swiss proteins without mapping to GO data
                 continue
 
             swiss_ids.append(record.entry_name)
@@ -571,43 +580,86 @@ class _GoUniProtOverX(_GOUniprotDataExtractor, ABC):
 
         return f"GO{self.THRESHOLD}"
 
-    def select_classes(self, g: nx.DiGraph, *args, **kwargs) -> List:
+    def select_classes(
+        self, g: nx.DiGraph, *args: Any, **kwargs: Dict[str, Any]
+    ) -> List[int]:
         """
-        Selects classes from the GO dataset based on the number of successors meeting a specified threshold.
+        Selects classes (GO terms) from the Gene Ontology (GO) dataset based on the number of annotations meeting a
+        specified threshold.
 
-        This method iterates over the nodes in the graph, counting the number of successors for each node.
-        Nodes with a number of successors greater than or equal to the defined threshold are selected.
+        The selection process is based on the annotations of the GO terms with its ancestors across the dataset.
 
-        Note:
-            The input graph must be transitive closure of a directed acyclic graph.
+        Annotations are calculated by counting how many times each GO term, along with its ancestral hierarchy,
+        is annotated per protein across the dataset.
+        This means that for each protein, the GO terms associated with it are considered, and the entire hierarchical
+        structure (ancestors) of each GO term is taken into account. The total count for each GO term and its ancestors
+        reflects how frequently these terms are annotated across all proteins in the dataset.
 
         Args:
-            g (nx.DiGraph): The graph representing the dataset. Each node should have a 'sequence' attribute.
+            g (nx.DiGraph): The directed acyclic graph representing the GO dataset, where each node corresponds to a GO term.
             *args: Additional positional arguments (not used).
-            **kwargs: Additional keyword arguments (not used).
+            **kwargs: Additional keyword arguments, including:
+                - data_df (pd.DataFrame): A DataFrame containing the GO annotations for various proteins.
+                                          It should include a 'go_ids' column with the GO terms associated with each protein.
 
         Returns:
-            List: A sorted list of node IDs that meet the successor threshold criteria.
+            List[int]: A sorted list of selected GO term IDs that meet the annotation threshold criteria.
 
         Side Effects:
-            Writes the list of selected nodes to a file named "classes.txt" in the specified processed directory.
+            - Writes the list of selected GO term IDs to a file named "classes.txt" in the specified processed directory.
+
+        Raises:
+            AttributeError: If the 'data_df' argument is not provided in kwargs.
 
         Notes:
-            - The `THRESHOLD` attribute should be defined in the subclass.
+            - The `THRESHOLD` attribute, which defines the minimum number of annotations required to select a GO term, should be defined in the subclass.
         """
-        nodes = []
-        for node in g.nodes:
-            # Count the number of successors (direct child nodes) for each node
-            if len(list(g.successors(node))) >= self.THRESHOLD:
-                nodes.append(node)
+        # Retrieve the DataFrame containing GO annotations per protein from the keyword arguments
+        data_df: pd.DataFrame = kwargs.get("data_df", None)
+        if data_df is None or not isinstance(data_df, pd.DataFrame) or data_df.empty:
+            raise AttributeError(
+                "The 'data_df' argument must be provided and must be a non-empty pandas DataFrame."
+            )
 
-        nodes.sort()
+        print(f"Selecting GO terms based on given threshold: {self.THRESHOLD} ...")
+
+        # https://github.com/bio-ontology-research-group/deepgo/blob/master/get_functions.py#L59-L77
+        go_term_annot: Dict[int, int] = {}
+        for idx, row in data_df.iterrows():
+            # Set will contain go terms associated with the protein, along with all the ancestors of those
+            # associated go terms
+            associated_go_ids_with_ancestors = set()
+
+            # Collect all ancestors of the GO terms associated with this protein
+            for go_id in row["go_ids"]:
+                if go_id in g.nodes:
+                    associated_go_ids_with_ancestors.add(go_id)
+                    associated_go_ids_with_ancestors.update(
+                        g.predecessors(go_id)
+                    )  # Add all predecessors (ancestors) of go_id
+
+            # Count the annotations for each go_id **`per protein`**
+            for go_id in associated_go_ids_with_ancestors:
+                if go_id not in go_term_annot:
+                    go_term_annot[go_id] = 0
+                go_term_annot[go_id] += 1
+
+        # Select GO terms that meet or exceed the threshold of annotations
+        selected_nodes: List[int] = [
+            go_id
+            for go_id in g.nodes
+            if go_id in go_term_annot and go_term_annot[go_id] >= self.THRESHOLD
+        ]
+
+        # Sort the selected nodes (optional but often useful for consistent output)
+        selected_nodes.sort()
 
         # Write the selected node IDs/classes to the file
         filename = "classes.txt"
         with open(os.path.join(self.processed_dir_main, filename), "wt") as fout:
-            fout.writelines(str(node) + "\n" for node in nodes)
-        return nodes
+            fout.writelines(str(node) + "\n" for node in selected_nodes)
+
+        return selected_nodes
 
 
 class GoUniProtOver250(_GoUniProtOverX):
