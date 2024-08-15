@@ -8,7 +8,7 @@
 # https://ftp.uniprot.org/pub/databases/uniprot/current_release/knowledgebase/complete/docs/keywlist.txt
 # https://www.uniprot.org/uniprotkb
 
-__all__ = ["GoUniProtOver100", "GoUniProtOver50"]
+__all__ = ["GoUniProtOver250", "GoUniProtOver50"]
 
 import gzip
 import os
@@ -229,7 +229,12 @@ class _GOUniprotDataExtractor(_DynamicDataset, ABC):
         for n in elements:
             g.add_node(n["go_id"], **n)
         g.add_edges_from(
-            [(parent, node["go_id"]) for node in elements for parent in node["parents"]]
+            [
+                (parent_id, node_id)
+                for node_id in g.nodes
+                for parent_id in g.nodes[node_id]["parents"]
+                if parent_id in g.nodes
+            ]
         )
 
         print("Compute transitive closure")
@@ -256,7 +261,8 @@ class _GOUniprotDataExtractor(_DynamicDataset, ABC):
             if isinstance(clause, fastobo.term.NamespaceClause):
                 if (
                     self.go_branch != self._ALL_GO_BRANCHES
-                    and clause.namespace != self._GO_BRANCH_NAMESPACE[self.go_branch]
+                    and clause.namespace.escaped
+                    != self._GO_BRANCH_NAMESPACE[self.go_branch]
                 ):
                     # if the term document is not related to given go branch (except `all`), skip this document.
                     return False
@@ -332,6 +338,8 @@ class _GOUniprotDataExtractor(_DynamicDataset, ABC):
 
         # This filters the DataFrame to include only the rows where at least one value in the row from 5th column
         # onwards is True/non-zero.
+        # Quote from DeepGo Paper: `For training and testing, we use proteins which have been annotated with at least
+        # one GO term from the set of the GO terms for the model`
         data_df = data_df[data_df.iloc[:, self._LABELS_START_IDX :].any(axis=1)]
         return data_df
 
@@ -372,7 +380,7 @@ class _GOUniprotDataExtractor(_DynamicDataset, ABC):
             )
         )
 
-        experimental_evidence_codes = {
+        EXPERIMENTAL_EVIDENCE_CODES = {
             "EXP",
             "IDA",
             "IPI",
@@ -382,19 +390,20 @@ class _GOUniprotDataExtractor(_DynamicDataset, ABC):
             "TAS",
             "IC",
         }
-        ambiguous_amino_acids = {"B", "O", "J", "U", "X", "Z"}
-        max_length = 1002
+        # https://github.com/bio-ontology-research-group/deepgo/blob/d97447a05c108127fee97982fd2c57929b2cf7eb/aaindex.py#L8
+        AMBIGUOUS_AMINO_ACIDS = {"B", "O", "J", "U", "X", "Z", "*"}
+        MAX_LENGTH = 1002
 
         for record in swiss_data:
             if record.data_class != "Reviewed":
                 # To consider only manually-annotated swiss data
                 continue
 
-            if not record.sequence or record.sequence_length > max_length:
+            if not record.sequence or record.sequence_length > MAX_LENGTH:
                 # Consider protein with only sequence representation and a maximum length of 1002
                 continue
 
-            if any(aa in ambiguous_amino_acids for aa in record.sequence):
+            if any(aa in AMBIGUOUS_AMINO_ACIDS for aa in record.sequence):
                 # Skip proteins with ambiguous amino acid codes
                 continue
 
@@ -408,7 +417,7 @@ class _GOUniprotDataExtractor(_DynamicDataset, ABC):
                     if len(cross_ref) > 3:
                         evidence_codes.add(cross_ref[3].split(":")[0])
 
-            if not go_ids or not (experimental_evidence_codes & evidence_codes):
+            if not go_ids or not (EXPERIMENTAL_EVIDENCE_CODES & evidence_codes):
                 # Skip Swiss proteins without mapping to GO data or without the required experimental evidence codes
                 continue
 
@@ -601,17 +610,17 @@ class _GoUniProtOverX(_GOUniprotDataExtractor, ABC):
         return nodes
 
 
-class GoUniProtOver100(_GoUniProtOverX):
+class GoUniProtOver250(_GoUniProtOverX):
     """
-    A class for extracting data from the Gene Ontology (GO) dataset with a threshold of 100 for selecting classes.
+    A class for extracting data from the Gene Ontology (GO) dataset with a threshold of 250 for selecting classes.
 
-    Inherits from `_GoUniProtOverX` and sets the threshold for selecting classes to 100.
+    Inherits from `_GoUniProtOverX` and sets the threshold for selecting classes to 250.
 
     Attributes:
-        THRESHOLD (int): The threshold for selecting classes (100).
+        THRESHOLD (int): The threshold for selecting classes (250).
     """
 
-    THRESHOLD: int = 100
+    THRESHOLD: int = 250
 
     def label_number(self) -> int:
         """

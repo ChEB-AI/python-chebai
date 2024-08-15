@@ -348,6 +348,30 @@ class ProteinDataReader(DataReader):
 
     COLLATOR = RaggedCollator
 
+    # 20 natural amino acid notation
+    AA_LETTER = [
+        "A",
+        "R",
+        "N",
+        "D",
+        "C",
+        "Q",
+        "E",
+        "G",
+        "H",
+        "I",
+        "L",
+        "K",
+        "M",
+        "F",
+        "P",
+        "S",
+        "T",
+        "W",
+        "Y",
+        "V",
+    ]
+
     @classmethod
     def name(cls) -> str:
         """
@@ -381,6 +405,15 @@ class ProteinDataReader(DataReader):
         Returns:
             int: The index of the token, offset by the predefined EMBEDDING_OFFSET.
         """
+        if str(token) not in self.AA_LETTER:
+            raise KeyError(
+                f"Invalid token '{token}' encountered. "
+                f"Please ensure that the input only contains valid amino acids "
+                f"20 Valid natural amino acid notation:  {self.AA_LETTER}"
+                f"Refer to the amino acid sequence details here: "
+                f"https://en.wikipedia.org/wiki/Protein_primary_structure"
+            )
+
         if str(token) not in self.cache:
             self.cache.append(str(token))
         return self.cache.index(str(token)) + EMBEDDING_OFFSET
