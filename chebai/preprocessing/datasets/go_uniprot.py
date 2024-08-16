@@ -329,7 +329,11 @@ class _GOUniprotDataExtractor(_DynamicDataset, ABC):
         data_df = self._get_swiss_to_go_mapping()
 
         # Initialize the GO term labels/columns to False
-        data_df[self.select_classes(g, data_df=data_df)] = False
+        selected_classes = self.select_classes(g, data_df=data_df)
+        new_label_columns = pd.DataFrame(
+            False, index=data_df.index, columns=selected_classes
+        )
+        data_df = pd.concat([data_df, new_label_columns], axis=1)
 
         # Set True for the corresponding GO IDs in the DataFrame go labels/columns
         for index, row in data_df.iterrows():
