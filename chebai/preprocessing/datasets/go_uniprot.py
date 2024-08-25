@@ -8,7 +8,7 @@
 # https://ftp.uniprot.org/pub/databases/uniprot/current_release/knowledgebase/complete/docs/keywlist.txt
 # https://www.uniprot.org/uniprotkb
 
-__all__ = ["GoUniProtOver250", "GoUniProtOver50"]
+__all__ = ["GOUniProtOver250", "GOUniProtOver50"]
 
 import gzip
 import os
@@ -29,7 +29,7 @@ from chebai.preprocessing import reader as dr
 from chebai.preprocessing.datasets.base import _DynamicDataset
 
 
-class _GOUniprotDataExtractor(_DynamicDataset, ABC):
+class _GOUniProtDataExtractor(_DynamicDataset, ABC):
     """
     A class for extracting and processing data from the Gene Ontology (GO) dataset and the Swiss UniProt dataset.
 
@@ -72,7 +72,7 @@ class _GOUniprotDataExtractor(_DynamicDataset, ABC):
 
     def __init__(self, **kwargs):
         self.go_branch: str = self._get_go_branch(**kwargs)
-        super(_GOUniprotDataExtractor, self).__init__(**kwargs)
+        super(_GOUniProtDataExtractor, self).__init__(**kwargs)
 
     @classmethod
     def _get_go_branch(cls, **kwargs) -> str:
@@ -547,7 +547,7 @@ class _GOUniprotDataExtractor(_DynamicDataset, ABC):
         return {"GO": "go-basic.obo", "SwissUniProt": "uniprot_sprot.dat"}
 
 
-class _GoUniProtOverX(_GOUniprotDataExtractor, ABC):
+class _GOUniProtOverX(_GOUniProtDataExtractor, ABC):
     """
     A class for extracting data from the Gene Ontology (GO) dataset with a threshold for selecting classes based on
     the number of subclasses.
@@ -666,11 +666,11 @@ class _GoUniProtOverX(_GOUniprotDataExtractor, ABC):
         return selected_nodes
 
 
-class GoUniProtOver250(_GoUniProtOverX):
+class GOUniProtOver250(_GOUniProtOverX):
     """
     A class for extracting data from the Gene Ontology (GO) dataset with a threshold of 250 for selecting classes.
 
-    Inherits from `_GoUniProtOverX` and sets the threshold for selecting classes to 250.
+    Inherits from `_GOUniProtOverX` and sets the threshold for selecting classes to 250.
 
     Attributes:
         THRESHOLD (int): The threshold for selecting classes (250).
@@ -690,11 +690,11 @@ class GoUniProtOver250(_GoUniProtOverX):
         return 854
 
 
-class GoUniProtOver50(_GoUniProtOverX):
+class GOUniProtOver50(_GOUniProtOverX):
     """
     A class for extracting data from the Gene Ontology (GO) dataset with a threshold of 50 for selecting classes.
 
-    Inherits from `_GoUniProtOverX` and sets the threshold for selecting classes to 50.
+    Inherits from `_GOUniProtOverX` and sets the threshold for selecting classes to 50.
 
     Attributes:
         THRESHOLD (int): The threshold for selecting classes (50).
