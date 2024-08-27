@@ -24,10 +24,15 @@ from iterstrat.ml_stratifiers import (
     MultilabelStratifiedKFold,
     MultilabelStratifiedShuffleSplit,
 )
-from rdkit import Chem
+from rdkit import Chem, RDLogger
+from tqdm import tqdm
 
 from chebai.preprocessing import reader as dr
 from chebai.preprocessing.datasets.base import XYBaseDataModule
+import random
+
+# Suppress RDKit warnings and errors
+RDLogger.DisableLog('rdApp.*')  # Disable all RDKit logging
 
 # exclude some entities from the dataset because the violate disjointness axioms
 CHEBI_BLACKLIST = [
@@ -815,7 +820,7 @@ class _ChEBIDataExtractor(XYBaseDataModule, ABC):
 
                 # Process each row in the original DataFrame
                 print("Generating New SMILES")
-                for _, row in data.iterrows():
+                for _, row in tqdm(data.iterrows(), total=len(data), desc="Processing Rows", unit="row"):
                     original_smiles = row['SMILES']
                     # Generate new SMILES variations
                     variations = self.generate_smiles_variations(original_smiles)
@@ -838,9 +843,40 @@ class _ChEBIDataExtractor(XYBaseDataModule, ABC):
     def save_file(self, dataset: pd.DataFrame, file_path: str):
         pd.to_pickle(dataset, open(file_path, "wb"))
 
+    # # Function to generate SMILES variations using different configurations
+    # def generate_smiles_variations1(self, original_smiles):
+    #     num_variations=5
+    #     # print(type(original_smiles), original_smiles)
+    #     if not isinstance(original_smiles, str):
+    #         print(f"Non-string SMILES found: {original_smiles}")
+    #     mol = Chem.MolFromSmiles(original_smiles)
+    #     if mol is None:
+    #         return []  # Return an empty list if conversion fails
+    #
+    #     variations = set()
+    #
+    #     # Loop through all combinations of doRandom and rootedAtAtom values
+    #     for do_random in [True, False]:
+    #         for rooted_at_atom in [5, 4, 3, 2, 1, 0, -1, -2, -3, -4, -5]:
+    #             try:
+    #                 # Generate SMILES with the given configuration
+    #                 variant = Chem.MolToSmiles(mol, doRandom=do_random, rootedAtAtom=rooted_at_atom)
+    #                 if variant != original_smiles:  # Avoid duplicates with the original SMILES
+    #                     variations.add(variant)
+    #
+    #                 # Check the number of variations after adding
+    #                 if len(variations) >= num_variations:
+    #                     return list(variations)  # Return immediately when enough variations are found
+    #
+    #             except Exception as e:
+    #                 # Skip invalid configurations
+    #                 continue
+    #
+    #     return list(variations)
+
     # Function to generate SMILES variations using different configurations
     def generate_smiles_variations(self, original_smiles):
-        num_variations=5
+        num_variations = 5
         print(type(original_smiles), original_smiles)
         if not isinstance(original_smiles, str):
             print(f"Non-string SMILES found: {original_smiles}")
@@ -850,13 +886,37 @@ class _ChEBIDataExtractor(XYBaseDataModule, ABC):
 
         variations = set()
 
+        # List of rootedAtAtom values to pick from randomly
+        rooted_at_atoms = [5, 4, 3, 2, 1, 0, -1, -2, -3, -4, -5]
+        random.shuffle(rooted_at_atoms)  # Randomize the order of rootedAtAtom values
+
+        # Flag to track if we've already computed a SMILES with doRandom=False and a negative rootedAtAtom
+        already_computed_negative_rooted = False
+
         # Loop through all combinations of doRandom and rootedAtAtom values
         for do_random in [True, False]:
-            for rooted_at_atom in [5, 4, 3, 2, 1, 0, -1, -2, -3, -4, -5]:
+            for rooted_at_atom in rooted_at_atoms:
                 try:
+                    # Skip redundant computations
+                    if not do_random and rooted_at_atom < 0:
+                        if already_computed_negative_rooted:
+                            continue
+                        already_computed_negative_rooted = True
+
                     # Generate SMILES with the given configuration
-                    variant = Chem.MolToSmiles(mol, doRandom=do_random, rootedAtAtom=rooted_at_atom)
-                    if variant != original_smiles:  # Avoid duplicates with the original SMILES
+                    variant = Chem.MolToSmiles(
+                        mol,
+                        doRandom=do_random,
+                        rootedAtAtom=rooted_at_atom,
+                        canonical=False
+                    )
+
+                    # # Print the configuration and the generated SMILES string
+                    # print(
+                    #     f"Config: doRandom={do_random}, rootedAtAtom={rooted_at_atom}, canonical={False} -> SMILES: {variant}")
+
+                    # Avoid duplicates with the original SMILES
+                    if variant != original_smiles:
                         variations.add(variant)
 
                     # Check the number of variations after adding
