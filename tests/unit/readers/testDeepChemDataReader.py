@@ -34,6 +34,9 @@ class TestDeepChemDataReader(unittest.TestCase):
         """
         raw_data = "c1ccccc1C(Br)(OC)I[Ni-2]"
 
+        # benzene is c1ccccc1 in SMILES but cccccc6 in DeepSMILES
+        # SMILES C(Br)(OC)I can be converted to the DeepSMILES CBr)OC))I.
+        # Resultant String: "cccccc6CBr)OC))I[Ni-2]"
         # Expected output as per the tokens already in the cache, and new tokens getting added to it.
         expected_output: List[int] = [
             EMBEDDING_OFFSET + 2,  # c
