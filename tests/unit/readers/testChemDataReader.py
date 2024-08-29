@@ -8,6 +8,8 @@ from chebai.preprocessing.reader import EMBEDDING_OFFSET, ChemDataReader
 class TestChemDataReader(unittest.TestCase):
     """
     Unit tests for the ChemDataReader class.
+
+    Note: Test methods within a TestCase class are not guaranteed to be executed in any specific order.
     """
 
     @patch(
@@ -30,7 +32,7 @@ class TestChemDataReader(unittest.TestCase):
         """
         Test the _read_data method with a SMILES string to ensure it correctly tokenizes the string.
         """
-        raw_data = "CC(=O)NC1"
+        raw_data = "CC(=O)NC1[Mg-2]"
         # Expected output as per the tokens already in the cache, and ")" getting added to it.
         expected_output: List[int] = [
             EMBEDDING_OFFSET + 0,  # C
@@ -38,10 +40,11 @@ class TestChemDataReader(unittest.TestCase):
             EMBEDDING_OFFSET + 5,  # =
             EMBEDDING_OFFSET + 3,  # O
             EMBEDDING_OFFSET + 1,  # N
-            EMBEDDING_OFFSET + 6,  # (
+            EMBEDDING_OFFSET + len(self.reader.cache),  # (
             EMBEDDING_OFFSET + 2,  # C
             EMBEDDING_OFFSET + 0,  # C
             EMBEDDING_OFFSET + 4,  # 1
+            EMBEDDING_OFFSET + len(self.reader.cache) + 1,  # [Mg-2]
         ]
         result = self.reader._read_data(raw_data)
         self.assertEqual(result, expected_output)
@@ -53,7 +56,6 @@ class TestChemDataReader(unittest.TestCase):
         """
         raw_data = "[H-]"
 
-        # Note: test methods within a TestCase class are not guaranteed to be executed in any specific order.
         # Determine the index for the new token based on the current size of the cache.
         index_for_last_token = len(self.reader.cache)
         expected_output: List[int] = [EMBEDDING_OFFSET + index_for_last_token]
