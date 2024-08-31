@@ -12,21 +12,22 @@ class TestChemDataReader(unittest.TestCase):
     Note: Test methods within a TestCase class are not guaranteed to be executed in any specific order.
     """
 
+    @classmethod
     @patch(
         "chebai.preprocessing.reader.open",
         new_callable=mock_open,
         read_data="C\nO\nN\n=\n1\n(",
     )
-    def setUp(self, mock_file: mock_open) -> None:
+    def setUpClass(cls, mock_file: mock_open) -> None:
         """
         Set up the test environment by initializing a ChemDataReader instance with a mocked token file.
 
         Args:
             mock_file: Mock object for file operations.
         """
-        self.reader = ChemDataReader(token_path="/mock/path")
-        # After initializing, self.reader.cache should now be set to ['C', 'O', 'N', '=', '1', '(']
-        self.assertEqual(self.reader.cache, ["C", "O", "N", "=", "1", "("])
+        cls.reader = ChemDataReader(token_path="/mock/path")
+        # After initializing, cls.reader.cache should now be set to ['C', 'O', 'N', '=', '1', '(']
+        assert cls.reader.cache == ["C", "O", "N", "=", "1", "("]
 
     def test_read_data(self) -> None:
         """

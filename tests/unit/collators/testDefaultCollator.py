@@ -10,11 +10,12 @@ class TestDefaultCollator(unittest.TestCase):
     Unit tests for the DefaultCollator class.
     """
 
-    def setUp(self) -> None:
+    @classmethod
+    def setUpClass(cls) -> None:
         """
         Set up the test environment by initializing a DefaultCollator instance.
         """
-        self.collator = DefaultCollator()
+        cls.collator = DefaultCollator()
 
     def test_call_with_valid_data(self) -> None:
         """

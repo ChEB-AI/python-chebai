@@ -9,11 +9,12 @@ class TestDataReader(unittest.TestCase):
     Unit tests for the DataReader class.
     """
 
-    def setUp(self) -> None:
+    @classmethod
+    def setUpClass(cls) -> None:
         """
         Set up the test environment by initializing a DataReader instance.
         """
-        self.reader = DataReader()
+        cls.reader = DataReader()
 
     def test_to_data(self) -> None:
         """

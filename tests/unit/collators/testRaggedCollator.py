@@ -12,11 +12,12 @@ class TestRaggedCollator(unittest.TestCase):
     Unit tests for the RaggedCollator class.
     """
 
-    def setUp(self) -> None:
+    @classmethod
+    def setUpClass(cls) -> None:
         """
         Set up the test environment by initializing a RaggedCollator instance.
         """
-        self.collator = RaggedCollator()
+        cls.collator = RaggedCollator()
 
     def test_call_with_valid_data(self) -> None:
         """

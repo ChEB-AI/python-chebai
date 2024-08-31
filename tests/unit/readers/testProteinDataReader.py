@@ -10,21 +10,22 @@ class TestProteinDataReader(unittest.TestCase):
     Unit tests for the ProteinDataReader class.
     """
 
+    @classmethod
     @patch(
         "chebai.preprocessing.reader.open",
         new_callable=mock_open,
         read_data="M\nK\nT\nF\nR\nN",
     )
-    def setUp(self, mock_file: mock_open) -> None:
+    def setUpClass(cls, mock_file: mock_open) -> None:
         """
         Set up the test environment by initializing a ProteinDataReader instance with a mocked token file.
 
         Args:
             mock_file: Mock object for file operations.
         """
-        self.reader = ProteinDataReader(token_path="/mock/path")
-        # After initializing, self.reader.cache should now be set to ['M', 'K', 'T', 'F', 'R', 'N']
-        self.assertEqual(self.reader.cache, ["M", "K", "T", "F", "R", "N"])
+        cls.reader = ProteinDataReader(token_path="/mock/path")
+        # After initializing, cls.reader.cache should now be set to ['M', 'K', 'T', 'F', 'R', 'N']
+        assert cls.reader.cache == ["M", "K", "T", "F", "R", "N"]
 
     def test_read_data(self) -> None:
         """
