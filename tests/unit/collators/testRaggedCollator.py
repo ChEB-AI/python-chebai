@@ -1,0 +1,150 @@
+import unittest
+from typing import Dict, List, Tuple
+
+import torch
+
+from chebai.preprocessing.collate import RaggedCollator
+from chebai.preprocessing.structures import XYData
+
+
+class TestRaggedCollator(unittest.TestCase):
+    """
+    Unit tests for the RaggedCollator class.
+    """
+
+    def setUp(self) -> None:
+        """
+        Set up the test environment by initializing a RaggedCollator instance.
+        """
+        self.collator = RaggedCollator()
+
+    def test_call_with_valid_data(self) -> None:
+        """
+        Test the __call__ method with valid ragged data to ensure features, labels, and masks are correctly handled.
+        """
+        data: List[Dict] = [
+            {"features": [1, 2], "labels": [1, 0], "ident": "sample1"},
+            {"features": [3, 4, 5], "labels": [0, 1, 1], "ident": "sample2"},
+            {"features": [6], "labels": [1], "ident": "sample3"},
+        ]
+
+        result: XYData = self.collator(data)
+
+        expected_x = torch.tensor([[1, 2, 0], [3, 4, 5], [6, 0, 0]])
+        expected_y = torch.tensor([[1, 0, 0], [0, 1, 1], [1, 0, 0]])
+        expected_mask_for_x = torch.tensor(
+            [[True, True, False], [True, True, True], [True, False, False]]
+        )
+        expected_lens_for_x = torch.tensor([2, 3, 1])
+
+        self.assertTrue(torch.equal(result.x, expected_x))
+        self.assertTrue(torch.equal(result.y, expected_y))
+        self.assertTrue(
+            torch.equal(
+                result.additional_fields["model_kwargs"]["mask"], expected_mask_for_x
+            )
+        )
+        self.assertTrue(
+            torch.equal(
+                result.additional_fields["model_kwargs"]["lens"], expected_lens_for_x
+            )
+        )
+        self.assertEqual(
+            result.additional_fields["idents"], ("sample1", "sample2", "sample3")
+        )
+
+    def test_call_with_missing_entire_labels(self) -> None:
+        """
+        Test the __call__ method with data where some samples are missing labels.
+        """
+        data: List[Dict] = [
+            {"features": [1, 2], "labels": [1, 0], "ident": "sample1"},
+            {"features": [3, 4, 5], "labels": None, "ident": "sample2"},
+            {"features": [6], "labels": [1], "ident": "sample3"},
+        ]
+
+        result: XYData = self.collator(data)
+
+        expected_x = torch.tensor([[1, 2], [6, 0]])
+        expected_y = torch.tensor([[1, 0], [1, 0]])
+        expected_mask_for_x = torch.tensor([[True, True], [True, False]])
+        expected_lens_for_x = torch.tensor([2, 1])
+
+        self.assertTrue(torch.equal(result.x, expected_x))
+        self.assertTrue(torch.equal(result.y, expected_y))
+        self.assertTrue(
+            torch.equal(
+                result.additional_fields["model_kwargs"]["mask"], expected_mask_for_x
+            )
+        )
+        self.assertTrue(
+            torch.equal(
+                result.additional_fields["model_kwargs"]["lens"], expected_lens_for_x
+            )
+        )
+        self.assertEqual(
+            result.additional_fields["loss_kwargs"]["non_null_labels"], [0, 2]
+        )
+        self.assertEqual(
+            result.additional_fields["idents"], ("sample1", "sample2", "sample3")
+        )
+
+    def test_call_with_none_in_labels(self) -> None:
+        """
+        Test the __call__ method with data where one of the elements in the labels is None.
+        """
+        data: List[Dict] = [
+            {"features": [1, 2], "labels": [None, 1], "ident": "sample1"},
+            {"features": [3, 4, 5], "labels": [1, 0], "ident": "sample2"},
+            {"features": [6], "labels": [1], "ident": "sample3"},
+        ]
+
+        result: XYData = self.collator(data)
+
+        expected_x = torch.tensor([[1, 2, 0], [3, 4, 5], [6, 0, 0]])
+        expected_y = torch.tensor([[0, 1], [1, 0], [1, 0]])  # None is replaced by 0
+        expected_mask_for_x = torch.tensor(
+            [[True, True, False], [True, True, True], [True, False, False]]
+        )
+        expected_lens_for_x = torch.tensor([2, 3, 1])
+
+        self.assertTrue(torch.equal(result.x, expected_x))
+        self.assertTrue(torch.equal(result.y, expected_y))
+        self.assertTrue(
+            torch.equal(
+                result.additional_fields["model_kwargs"]["mask"], expected_mask_for_x
+            )
+        )
+        self.assertTrue(
+            torch.equal(
+                result.additional_fields["model_kwargs"]["lens"], expected_lens_for_x
+            )
+        )
+        self.assertEqual(
+            result.additional_fields["idents"], ("sample1", "sample2", "sample3")
+        )
+
+    def test_call_with_empty_data(self) -> None:
+        """
+        Test the __call__ method with an empty list to ensure it raises an error.
+        """
+        data: List[Dict] = []
+
+        with self.assertRaises(Exception):
+            self.collator(data)
+
+    def test_process_label_rows(self) -> None:
+        """
+        Test the process_label_rows method to ensure it pads label sequences correctly.
+        """
+        labels: Tuple = ([1, 0], [0, 1, 1], [1])
+
+        result: torch.Tensor = self.collator.process_label_rows(labels)
+
+        expected_output = torch.tensor([[1, 0, 0], [0, 1, 1], [1, 0, 0]])
+
+        self.assertTrue(torch.equal(result, expected_output))
+
+
+if __name__ == "__main__":
+    unittest.main()
