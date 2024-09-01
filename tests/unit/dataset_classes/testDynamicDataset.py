@@ -26,8 +26,8 @@ class TestDynamicDataset(unittest.TestCase):
         """
 
         # Mocking properties
-        mock_base_dir_property.return_value = "MockedBaseDirProperty"
-        mock_name_property.return_value = "MockedNameProperty"
+        mock_base_dir_property.return_value = "MockedBaseDirPropertyDynamicDataset"
+        mock_name_property.return_value = "MockedNamePropertyDynamicDataset"
 
         # Assigning a static variable READER with ProteinDataReader (to get rid of default Abstract DataReader)
         _DynamicDataset.READER = ProteinDataReader

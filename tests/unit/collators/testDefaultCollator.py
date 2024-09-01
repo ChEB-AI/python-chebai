@@ -27,13 +27,23 @@ class TestDefaultCollator(unittest.TestCase):
         ]
 
         result: XYData = self.collator(data)
-        self.assertIsInstance(result, XYData)
+        self.assertIsInstance(
+            result, XYData, "The result should be an instance of XYData."
+        )
 
         expected_x = ([1.0, 2.0], [3.0, 4.0])
         expected_y = ([True, False, True], [False, False, True])
 
-        self.assertEqual(result.x, expected_x)
-        self.assertEqual(result.y, expected_y)
+        self.assertEqual(
+            result.x,
+            expected_x,
+            "The feature data 'x' does not match the expected output.",
+        )
+        self.assertEqual(
+            result.y,
+            expected_y,
+            "The label data 'y' does not match the expected output.",
+        )
 
     def test_call_with_empty_data(self) -> None:
         """
@@ -45,7 +55,9 @@ class TestDefaultCollator(unittest.TestCase):
             self.collator(data)
 
         self.assertEqual(
-            str(context.exception), "not enough values to unpack (expected 2, got 0)"
+            str(context.exception),
+            "not enough values to unpack (expected 2, got 0)",
+            "The exception message for empty data is not as expected.",
         )
 
 

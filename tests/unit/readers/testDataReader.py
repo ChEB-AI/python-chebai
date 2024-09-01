@@ -45,7 +45,11 @@ class TestDataReader(unittest.TestCase):
             "extra_key": "extra_value",
         }
 
-        self.assertEqual(self.reader.to_data(row), expected)
+        self.assertEqual(
+            self.reader.to_data(row),
+            expected,
+            "The to_data method did not process the input row as expected.",
+        )
 
 
 if __name__ == "__main__":

@@ -25,7 +25,14 @@ class TestProteinDataReader(unittest.TestCase):
         """
         cls.reader = ProteinDataReader(token_path="/mock/path")
         # After initializing, cls.reader.cache should now be set to ['M', 'K', 'T', 'F', 'R', 'N']
-        assert cls.reader.cache == ["M", "K", "T", "F", "R", "N"]
+        assert cls.reader.cache == [
+            "M",
+            "K",
+            "T",
+            "F",
+            "R",
+            "N",
+        ], "Cache initialization did not match expected tokens."
 
     def test_read_data(self) -> None:
         """
@@ -44,7 +51,11 @@ class TestProteinDataReader(unittest.TestCase):
             EMBEDDING_OFFSET + 5,  # N
         ]
         result = self.reader._read_data(raw_data)
-        self.assertEqual(result, expected_output)
+        self.assertEqual(
+            result,
+            expected_output,
+            "The _read_data method did not produce the expected tokenized output.",
+        )
 
     def test_read_data_with_new_token(self) -> None:
         """
@@ -63,12 +74,22 @@ class TestProteinDataReader(unittest.TestCase):
         ]
 
         result = self.reader._read_data(raw_data)
-        self.assertEqual(result, expected_output)
+        self.assertEqual(
+            result,
+            expected_output,
+            "The _read_data method did not correctly handle a new token.",
+        )
 
         # Verify that 'Y' was added to the cache
-        self.assertIn("Y", self.reader.cache)
+        self.assertIn(
+            "Y", self.reader.cache, "The new token 'Y' was not added to the cache."
+        )
         # Ensure it's at the correct index
-        self.assertEqual(self.reader.cache.index("Y"), len(self.reader.cache) - 1)
+        self.assertEqual(
+            self.reader.cache.index("Y"),
+            len(self.reader.cache) - 1,
+            "The new token 'Y' was not added at the correct index in the cache.",
+        )
 
     def test_read_data_with_invalid_token(self) -> None:
         """
@@ -79,7 +100,11 @@ class TestProteinDataReader(unittest.TestCase):
         with self.assertRaises(KeyError) as context:
             self.reader._read_data(raw_data)
 
-        self.assertIn("Invalid token 'Z' encountered", str(context.exception))
+        self.assertIn(
+            "Invalid token 'Z' encountered",
+            str(context.exception),
+            "The KeyError did not contain the expected message for an invalid token.",
+        )
 
     def test_read_data_with_empty_sequence(self) -> None:
         """
@@ -88,7 +113,11 @@ class TestProteinDataReader(unittest.TestCase):
         raw_data = ""
 
         result = self.reader._read_data(raw_data)
-        self.assertEqual(result, [])
+        self.assertEqual(
+            result,
+            [],
+            "The _read_data method did not return an empty list for an empty input sequence.",
+        )
 
     def test_read_data_with_repeated_tokens(self) -> None:
         """
@@ -99,7 +128,11 @@ class TestProteinDataReader(unittest.TestCase):
         expected_output: List[int] = [EMBEDDING_OFFSET + 0] * 5  # All tokens are 'M'
 
         result = self.reader._read_data(raw_data)
-        self.assertEqual(result, expected_output)
+        self.assertEqual(
+            result,
+            expected_output,
+            "The _read_data method did not correctly handle repeated tokens.",
+        )
 
 
 if __name__ == "__main__":

@@ -12,13 +12,13 @@ class TestXYBaseDataModule(unittest.TestCase):
 
     @classmethod
     @patch.object(XYBaseDataModule, "_name", new_callable=PropertyMock)
-    def setUpClass(cls, mock_name_property) -> None:
+    def setUpClass(cls, mock_name_property: PropertyMock) -> None:
         """
         Set up a base instance of XYBaseDataModule for testing.
         """
 
         # Mock the _name property of XYBaseDataModule
-        mock_name_property.return_value = "MockedXYBaseDataModule"
+        mock_name_property.return_value = "MockedNamePropXYBaseDataModule"
 
         # Assign a static variable READER with ProteinDataReader (to get rid of default Abstract DataReader)
         XYBaseDataModule.READER = ProteinDataReader
@@ -41,13 +41,21 @@ class TestXYBaseDataModule(unittest.TestCase):
         filtered_row = self.module._filter_labels(row)
         expected_labels = [3]  # Only the label at index 1 should be kept
 
-        self.assertEqual(filtered_row["labels"], expected_labels)
+        self.assertEqual(
+            filtered_row["labels"],
+            expected_labels,
+            "The filtered labels do not match the expected labels.",
+        )
 
         row = {
             "features": ["feature1", "feature2"],
             "labels": [True, False, True, True],
         }
-        self.assertEqual(self.module._filter_labels(row)["labels"], [False])
+        self.assertEqual(
+            self.module._filter_labels(row)["labels"],
+            [False],
+            "The filtered labels for the boolean case do not match the expected labels.",
+        )
 
     def test_filter_labels_no_filter(self) -> None:
         """
@@ -57,7 +65,9 @@ class TestXYBaseDataModule(unittest.TestCase):
         self.module.label_filter = None
         row = {"features": ["feature1", "feature2"], "labels": [False, True]}
         # Handle the case where the index is out of bounds
-        with self.assertRaises(TypeError):
+        with self.assertRaises(
+            TypeError, msg="Expected a TypeError when no label filter is provided."
+        ):
             self.module._filter_labels(row)
 
     def test_filter_labels_invalid_index(self) -> None:
@@ -68,7 +78,10 @@ class TestXYBaseDataModule(unittest.TestCase):
         self.module.label_filter = 10
         row = {"features": ["feature1", "feature2"], "labels": [False, True]}
         # Handle the case where the index is out of bounds
-        with self.assertRaises(IndexError):
+        with self.assertRaises(
+            IndexError,
+            msg="Expected an IndexError when the label filter index is out of bounds.",
+        ):
             self.module._filter_labels(row)
 
 

@@ -27,7 +27,12 @@ class TestDeepChemDataReader(unittest.TestCase):
         """
         cls.reader = DeepChemDataReader(token_path="/mock/path")
         # After initializing, cls.reader.cache should now be set to ['C', 'O', 'c', ')']
-        assert cls.reader.cache == ["C", "O", "c", ")"]
+        assert cls.reader.cache == [
+            "C",
+            "O",
+            "c",
+            ")",
+        ], "Cache initialization did not match expected tokens."
 
     def test_read_data(self) -> None:
         """
@@ -58,7 +63,11 @@ class TestDeepChemDataReader(unittest.TestCase):
             EMBEDDING_OFFSET + len(self.reader.cache) + 3,  # [Ni-2] (new token)
         ]
         result = self.reader._read_data(raw_data)
-        self.assertEqual(result, expected_output)
+        self.assertEqual(
+            result,
+            expected_output,
+            "The _read_data method did not produce the expected tokenized output for the SMILES string.",
+        )
 
     def test_read_data_with_new_token(self) -> None:
         """
@@ -72,12 +81,24 @@ class TestDeepChemDataReader(unittest.TestCase):
         expected_output: List[int] = [EMBEDDING_OFFSET + index_for_last_token]
 
         result = self.reader._read_data(raw_data)
-        self.assertEqual(result, expected_output)
+        self.assertEqual(
+            result,
+            expected_output,
+            "The _read_data method did not produce the expected output for a SMILES string with a new token.",
+        )
 
         # Verify that '[H-]' was added to the cache
-        self.assertIn("[H-]", self.reader.cache)
+        self.assertIn(
+            "[H-]",
+            self.reader.cache,
+            "The new token '[H-]' was not added to the cache as expected.",
+        )
         # Ensure it's at the correct index
-        self.assertEqual(self.reader.cache.index("[H-]"), index_for_last_token)
+        self.assertEqual(
+            self.reader.cache.index("[H-]"),
+            index_for_last_token,
+            "The new token '[H-]' was not added to the correct index in the cache.",
+        )
 
 
 if __name__ == "__main__":

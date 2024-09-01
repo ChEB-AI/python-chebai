@@ -40,20 +40,30 @@ class TestRaggedCollator(unittest.TestCase):
         )
         expected_lens_for_x = torch.tensor([2, 3, 1])
 
-        self.assertTrue(torch.equal(result.x, expected_x))
-        self.assertTrue(torch.equal(result.y, expected_y))
+        self.assertTrue(
+            torch.equal(result.x, expected_x),
+            "The feature tensor 'x' does not match the expected output.",
+        )
+        self.assertTrue(
+            torch.equal(result.y, expected_y),
+            "The label tensor 'y' does not match the expected output.",
+        )
         self.assertTrue(
             torch.equal(
                 result.additional_fields["model_kwargs"]["mask"], expected_mask_for_x
-            )
+            ),
+            "The mask tensor does not match the expected output.",
         )
         self.assertTrue(
             torch.equal(
                 result.additional_fields["model_kwargs"]["lens"], expected_lens_for_x
-            )
+            ),
+            "The lens tensor does not match the expected output.",
         )
         self.assertEqual(
-            result.additional_fields["idents"], ("sample1", "sample2", "sample3")
+            result.additional_fields["idents"],
+            ("sample1", "sample2", "sample3"),
+            "The identifiers do not match the expected output.",
         )
 
     def test_call_with_missing_entire_labels(self) -> None:
@@ -75,23 +85,35 @@ class TestRaggedCollator(unittest.TestCase):
         expected_mask_for_x = torch.tensor([[True, True], [True, False]])
         expected_lens_for_x = torch.tensor([2, 1])
 
-        self.assertTrue(torch.equal(result.x, expected_x))
-        self.assertTrue(torch.equal(result.y, expected_y))
+        self.assertTrue(
+            torch.equal(result.x, expected_x),
+            "The feature tensor 'x' does not match the expected output when labels are missing.",
+        )
+        self.assertTrue(
+            torch.equal(result.y, expected_y),
+            "The label tensor 'y' does not match the expected output when labels are missing.",
+        )
         self.assertTrue(
             torch.equal(
                 result.additional_fields["model_kwargs"]["mask"], expected_mask_for_x
-            )
+            ),
+            "The mask tensor does not match the expected output when labels are missing.",
         )
         self.assertTrue(
             torch.equal(
                 result.additional_fields["model_kwargs"]["lens"], expected_lens_for_x
-            )
+            ),
+            "The lens tensor does not match the expected output when labels are missing.",
         )
         self.assertEqual(
-            result.additional_fields["loss_kwargs"]["non_null_labels"], [0, 2]
+            result.additional_fields["loss_kwargs"]["non_null_labels"],
+            [0, 2],
+            "The non-null labels list does not match the expected output.",
         )
         self.assertEqual(
-            result.additional_fields["idents"], ("sample1", "sample2", "sample3")
+            result.additional_fields["idents"],
+            ("sample1", "sample2", "sample3"),
+            "The identifiers do not match the expected output when labels are missing.",
         )
 
     def test_call_with_none_in_labels(self) -> None:
@@ -115,20 +137,30 @@ class TestRaggedCollator(unittest.TestCase):
         )
         expected_lens_for_x = torch.tensor([2, 3, 1])
 
-        self.assertTrue(torch.equal(result.x, expected_x))
-        self.assertTrue(torch.equal(result.y, expected_y))
+        self.assertTrue(
+            torch.equal(result.x, expected_x),
+            "The feature tensor 'x' does not match the expected output when labels contain None.",
+        )
+        self.assertTrue(
+            torch.equal(result.y, expected_y),
+            "The label tensor 'y' does not match the expected output when labels contain None.",
+        )
         self.assertTrue(
             torch.equal(
                 result.additional_fields["model_kwargs"]["mask"], expected_mask_for_x
-            )
+            ),
+            "The mask tensor does not match the expected output when labels contain None.",
         )
         self.assertTrue(
             torch.equal(
                 result.additional_fields["model_kwargs"]["lens"], expected_lens_for_x
-            )
+            ),
+            "The lens tensor does not match the expected output when labels contain None.",
         )
         self.assertEqual(
-            result.additional_fields["idents"], ("sample1", "sample2", "sample3")
+            result.additional_fields["idents"],
+            ("sample1", "sample2", "sample3"),
+            "The identifiers do not match the expected output when labels contain None.",
         )
 
     def test_call_with_empty_data(self) -> None:
@@ -137,7 +169,9 @@ class TestRaggedCollator(unittest.TestCase):
         """
         data: List[Dict] = []
 
-        with self.assertRaises(Exception):
+        with self.assertRaises(
+            Exception, msg="Expected an Error when no data is provided"
+        ):
             self.collator(data)
 
     def test_process_label_rows(self) -> None:
@@ -152,7 +186,10 @@ class TestRaggedCollator(unittest.TestCase):
             [[True, False, False], [False, True, True], [True, False, False]]
         )
 
-        self.assertTrue(torch.equal(result, expected_output))
+        self.assertTrue(
+            torch.equal(result, expected_output),
+            "The processed label rows tensor does not match the expected output.",
+        )
 
 
 if __name__ == "__main__":
