@@ -22,15 +22,15 @@ class TestDefaultCollator(unittest.TestCase):
         Test the __call__ method with valid data to ensure features and labels are correctly extracted.
         """
         data: List[Dict] = [
-            {"features": [1.0, 2.0], "labels": 0},
-            {"features": [3.0, 4.0], "labels": 1},
+            {"features": [1.0, 2.0], "labels": [True, False, True]},
+            {"features": [3.0, 4.0], "labels": [False, False, True]},
         ]
 
         result: XYData = self.collator(data)
         self.assertIsInstance(result, XYData)
 
         expected_x = ([1.0, 2.0], [3.0, 4.0])
-        expected_y = (0, 1)
+        expected_y = ([True, False, True], [False, False, True])
 
         self.assertEqual(result.x, expected_x)
         self.assertEqual(result.y, expected_y)

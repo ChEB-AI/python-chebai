@@ -24,15 +24,17 @@ class TestRaggedCollator(unittest.TestCase):
         Test the __call__ method with valid ragged data to ensure features, labels, and masks are correctly handled.
         """
         data: List[Dict] = [
-            {"features": [1, 2], "labels": [1, 0], "ident": "sample1"},
-            {"features": [3, 4, 5], "labels": [0, 1, 1], "ident": "sample2"},
-            {"features": [6], "labels": [1], "ident": "sample3"},
+            {"features": [1, 2], "labels": [True, False], "ident": "sample1"},
+            {"features": [3, 4, 5], "labels": [False, True, True], "ident": "sample2"},
+            {"features": [6], "labels": [True], "ident": "sample3"},
         ]
 
         result: XYData = self.collator(data)
 
         expected_x = torch.tensor([[1, 2, 0], [3, 4, 5], [6, 0, 0]])
-        expected_y = torch.tensor([[1, 0, 0], [0, 1, 1], [1, 0, 0]])
+        expected_y = torch.tensor(
+            [[True, False, False], [False, True, True], [True, False, False]]
+        )
         expected_mask_for_x = torch.tensor(
             [[True, True, False], [True, True, True], [True, False, False]]
         )
@@ -59,15 +61,17 @@ class TestRaggedCollator(unittest.TestCase):
         Test the __call__ method with data where some samples are missing labels.
         """
         data: List[Dict] = [
-            {"features": [1, 2], "labels": [1, 0], "ident": "sample1"},
+            {"features": [1, 2], "labels": [True, False], "ident": "sample1"},
             {"features": [3, 4, 5], "labels": None, "ident": "sample2"},
-            {"features": [6], "labels": [1], "ident": "sample3"},
+            {"features": [6], "labels": [True], "ident": "sample3"},
         ]
 
         result: XYData = self.collator(data)
 
         expected_x = torch.tensor([[1, 2], [6, 0]])
-        expected_y = torch.tensor([[1, 0], [1, 0]])
+        expected_y = torch.tensor(
+            [[True, False], [True, False]]
+        )  # True -> 1, False -> 0
         expected_mask_for_x = torch.tensor([[True, True], [True, False]])
         expected_lens_for_x = torch.tensor([2, 1])
 
@@ -95,15 +99,17 @@ class TestRaggedCollator(unittest.TestCase):
         Test the __call__ method with data where one of the elements in the labels is None.
         """
         data: List[Dict] = [
-            {"features": [1, 2], "labels": [None, 1], "ident": "sample1"},
-            {"features": [3, 4, 5], "labels": [1, 0], "ident": "sample2"},
-            {"features": [6], "labels": [1], "ident": "sample3"},
+            {"features": [1, 2], "labels": [None, True], "ident": "sample1"},
+            {"features": [3, 4, 5], "labels": [True, False], "ident": "sample2"},
+            {"features": [6], "labels": [True], "ident": "sample3"},
         ]
 
         result: XYData = self.collator(data)
 
         expected_x = torch.tensor([[1, 2, 0], [3, 4, 5], [6, 0, 0]])
-        expected_y = torch.tensor([[0, 1], [1, 0], [1, 0]])  # None is replaced by 0
+        expected_y = torch.tensor(
+            [[False, True], [True, False], [True, False]]
+        )  # None -> False
         expected_mask_for_x = torch.tensor(
             [[True, True, False], [True, True, True], [True, False, False]]
         )
@@ -138,11 +144,13 @@ class TestRaggedCollator(unittest.TestCase):
         """
         Test the process_label_rows method to ensure it pads label sequences correctly.
         """
-        labels: Tuple = ([1, 0], [0, 1, 1], [1])
+        labels: Tuple = ([True, False], [False, True, True], [True])
 
         result: torch.Tensor = self.collator.process_label_rows(labels)
 
-        expected_output = torch.tensor([[1, 0, 0], [0, 1, 1], [1, 0, 0]])
+        expected_output = torch.tensor(
+            [[True, False, False], [False, True, True], [True, False, False]]
+        )
 
         self.assertTrue(torch.equal(result, expected_output))
 
