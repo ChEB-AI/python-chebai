@@ -1,5 +1,12 @@
+from typing import Set, Tuple
+
+
 class ChebiMockOntology:
     """
+    A mock ontology representing a simplified ChEBI (Chemical Entities of Biological Interest) structure.
+    This class is used for testing purposes and includes nodes and edges representing chemical compounds
+    and their relationships in a graph structure.
+
     Nodes:
     - CHEBI:12345 (Compound A)
     - CHEBI:54321 (Compound B)
@@ -7,7 +14,7 @@ class ChebiMockOntology:
     - CHEBI:11111 (Compound D)
     - CHEBI:22222 (Compound E)
     - CHEBI:99999 (Compound F)
-    - CHEBI:77533 (Compound F, Obsolete node)
+    - CHEBI:77533 (Compound G, Obsolete node)
     - CHEBI:77564 (Compound H, Obsolete node)
     - CHEBI:88888 (Compound I)
 
@@ -16,22 +23,69 @@ class ChebiMockOntology:
     - CHEBI:67890 -> CHEBI:12345
     - CHEBI:67890 -> CHEBI:88888
     - CHEBI:11111 -> CHEBI:54321
-    - CHEBI:77564 -> CHEBI:54321 (Ignored due to obsolete status)
     - CHEBI:22222 -> CHEBI:67890
     - CHEBI:12345 -> CHEBI:99999
-    - CHEBI:77533 -> CHEBI:99999 (Ignored due to obsolete status)
+
+    The class also includes methods to retrieve nodes, edges, and transitive closure of the graph.
     """
 
     @staticmethod
-    def get_nodes():
+    def get_nodes() -> Set[int]:
+        """
+        Get the set of valid node IDs in the mock ontology.
+
+        Returns:
+        - Set[int]: A set of integers representing the valid ChEBI node IDs.
+        """
         return {12345, 54321, 67890, 11111, 22222, 99999, 88888}
 
     @staticmethod
-    def get_number_of_nodes():
+    def get_number_of_nodes() -> int:
+        """
+        Get the number of valid nodes in the mock ontology.
+
+        Returns:
+        - int: The number of valid nodes.
+        """
         return len(ChebiMockOntology.get_nodes())
 
     @staticmethod
-    def get_edges_of_transitive_closure_graph():
+    def get_edges() -> Set[Tuple[int, int]]:
+        """
+        Get the set of valid edges in the mock ontology.
+
+        Returns:
+        - Set[Tuple[int, int]]: A set of tuples representing the directed edges
+          between ChEBI nodes.
+        """
+        return {
+            (54321, 12345),
+            (67890, 12345),
+            (67890, 88888),
+            (11111, 54321),
+            (22222, 67890),
+            (12345, 99999),
+        }
+
+    @staticmethod
+    def get_number_of_edges() -> int:
+        """
+        Get the number of valid edges in the mock ontology.
+
+        Returns:
+        - int: The number of valid edges.
+        """
+        return len(ChebiMockOntology.get_edges())
+
+    @staticmethod
+    def get_edges_of_transitive_closure_graph() -> Set[Tuple[int, int]]:
+        """
+        Get the set of edges derived from the transitive closure of the mock ontology graph.
+
+        Returns:
+        - Set[Tuple[int, int]]: A set of tuples representing the directed edges
+          in the transitive closure of the ChEBI graph.
+        """
         return {
             (54321, 12345),
             (54321, 99999),
@@ -49,31 +103,33 @@ class ChebiMockOntology:
         }
 
     @staticmethod
-    def get_number_of_transitive_edges():
+    def get_number_of_transitive_edges() -> int:
+        """
+        Get the number of edges in the transitive closure of the mock ontology graph.
+
+        Returns:
+        - int: The number of edges in the transitive closure graph.
+        """
         return len(ChebiMockOntology.get_edges_of_transitive_closure_graph())
 
     @staticmethod
-    def get_edges():
-        return {
-            (54321, 12345),
-            (67890, 12345),
-            (67890, 88888),
-            (11111, 54321),
-            (22222, 67890),
-            (12345, 99999),
-        }
+    def get_obsolete_nodes_ids() -> Set[int]:
+        """
+        Get the set of obsolete node IDs in the mock ontology.
 
-    @staticmethod
-    def get_number_of_edges():
-        return len(ChebiMockOntology.get_edges())
-
-    @staticmethod
-    def get_obsolete_nodes_ids():
+        Returns:
+        - Set[int]: A set of integers representing the obsolete ChEBI node IDs.
+        """
         return {77533, 77564}
 
     @staticmethod
-    def get_raw_data():
-        # Create mock terms with a complex hierarchy, names, and SMILES strings
+    def get_raw_data() -> str:
+        """
+        Get the raw data representing the mock ontology in OBO format.
+
+        Returns:
+        - str: A string containing the raw OBO data for the mock ChEBI terms.
+        """
         return """
         [Term]
         id: CHEBI:12345
