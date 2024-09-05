@@ -1,4 +1,7 @@
-from typing import Set, Tuple
+from collections import OrderedDict
+from typing import List, Set, Tuple
+
+import pandas as pd
 
 
 class ChebiMockOntology:
@@ -30,14 +33,14 @@ class ChebiMockOntology:
     """
 
     @staticmethod
-    def get_nodes() -> Set[int]:
+    def get_nodes() -> List[int]:
         """
         Get the set of valid node IDs in the mock ontology.
 
         Returns:
         - Set[int]: A set of integers representing the valid ChEBI node IDs.
         """
-        return {12345, 54321, 67890, 11111, 22222, 99999, 88888}
+        return [11111, 12345, 22222, 54321, 67890, 88888, 99999]
 
     @staticmethod
     def get_number_of_nodes() -> int:
@@ -200,3 +203,74 @@ class ChebiMockOntology:
         property_value: http://purl.obolibrary.org/obo/chebi/smiles "C1=CC=CC=C1[Mg+]" xsd:string
         is_a: CHEBI:67890
         """
+
+    @staticmethod
+    def get_data_in_dataframe():
+        data = OrderedDict(
+            id=[
+                12345,
+                54321,
+                67890,
+                11111,
+                22222,
+                99999,
+                88888,
+            ],
+            name=[
+                "Compound A",
+                "Compound B",
+                "Compound C",
+                "Compound D",
+                "Compound E",
+                "Compound F",
+                "Compound I",
+            ],
+            SMILES=[
+                "C1=CC=CC=C1",
+                "C1=CC=CC=C1O",
+                "C1=CC=CC=C1N",
+                "C1=CC=CC=C1F",
+                "C1=CC=CC=C1Cl",
+                "C1=CC=CC=C1Br",
+                "C1=CC=CC=C1[Mg+]",
+            ],
+            # Relationships {
+            #  12345: [11111, 54321, 22222, 67890],
+            #  67890: [22222],
+            #  99999: [67890, 11111, 54321, 22222, 12345],
+            #  54321: [11111],
+            #  88888: [22222, 67890]
+            #  11111: []
+            #  22222: []
+            # }
+            **{
+                # -row- [11111, 12345, 22222, 54321, 67890, 88888, 99999]
+                11111: [False, False, False, False, False, False, False],
+                12345: [True, True, True, True, True, False, False],
+                22222: [False, False, False, False, False, False, False],
+                54321: [True, False, False, True, False, False, False],
+                67890: [False, False, True, False, True, False, False],
+                88888: [False, False, True, False, True, True, False],
+                99999: [True, True, True, True, True, False, True],
+            }
+        )
+
+        data_df = pd.DataFrame(data)
+
+        # ------------- Code Approach -------
+        # ancestors_of_nodes = {}
+        # for parent, child in ChebiMockOntology.get_edges_of_transitive_closure_graph():
+        #     if child not in ancestors_of_nodes:
+        #         ancestors_of_nodes[child] = set()
+        #     if parent not in ancestors_of_nodes:
+        #         ancestors_of_nodes[parent] = set()
+        #     ancestors_of_nodes[child].add(parent)
+        #     ancestors_of_nodes[child].add(child)
+        #
+        # # For each node in the ontology, create a column to check if it's an ancestor of any other node or itself
+        # for node in ChebiMockOntology.get_nodes():
+        #     data_df[node] = data_df['id'].apply(
+        #         lambda x: (x == node) or (node in ancestors_of_nodes[x])
+        #     )
+
+        return data_df
