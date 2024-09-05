@@ -1,8 +1,7 @@
 import unittest
-from unittest.mock import PropertyMock, patch
+from unittest.mock import MagicMock, PropertyMock, patch
 
 from chebai.preprocessing.datasets.base import XYBaseDataModule
-from chebai.preprocessing.reader import ProteinDataReader
 
 
 class TestXYBaseDataModule(unittest.TestCase):
@@ -21,7 +20,10 @@ class TestXYBaseDataModule(unittest.TestCase):
         mock_name_property.return_value = "MockedNamePropXYBaseDataModule"
 
         # Assign a static variable READER with ProteinDataReader (to get rid of default Abstract DataReader)
-        XYBaseDataModule.READER = ProteinDataReader
+        # Mock Data Reader
+        ReaderMock = MagicMock()
+        ReaderMock.name.return_value = "MockedReader"
+        XYBaseDataModule.READER = ReaderMock
 
         # Initialize the module with a label_filter
         cls.module = XYBaseDataModule(

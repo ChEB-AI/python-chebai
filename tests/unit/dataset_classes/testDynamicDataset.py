@@ -1,11 +1,10 @@
 import unittest
 from typing import Tuple
-from unittest.mock import PropertyMock, patch
+from unittest.mock import MagicMock, PropertyMock, patch
 
 import pandas as pd
 
 from chebai.preprocessing.datasets.base import _DynamicDataset
-from chebai.preprocessing.reader import ProteinDataReader
 
 
 class TestDynamicDataset(unittest.TestCase):
@@ -29,8 +28,10 @@ class TestDynamicDataset(unittest.TestCase):
         mock_base_dir_property.return_value = "MockedBaseDirPropertyDynamicDataset"
         mock_name_property.return_value = "MockedNamePropertyDynamicDataset"
 
-        # Assigning a static variable READER with ProteinDataReader (to get rid of default Abstract DataReader)
-        _DynamicDataset.READER = ProteinDataReader
+        # Mock Data Reader
+        ReaderMock = MagicMock()
+        ReaderMock.name.return_value = "MockedReader"
+        _DynamicDataset.READER = ReaderMock
 
         # Creating an instance of the dataset
         cls.dataset: _DynamicDataset = _DynamicDataset()
@@ -72,7 +73,7 @@ class TestDynamicDataset(unittest.TestCase):
             [True, False],
             [True, True],
         ]
-        cls.df = pd.DataFrame(
+        cls.data_df = pd.DataFrame(
             {"ident": [f"id{i + 1}" for i in range(len(X))], "features": X, "labels": y}
         )
 
@@ -82,7 +83,7 @@ class TestDynamicDataset(unittest.TestCase):
         """
         self.dataset.train_split = 0.5
         # Test size will be 0.25 * 16 = 4
-        train_df, test_df = self.dataset.get_test_split(self.df, seed=0)
+        train_df, test_df = self.dataset.get_test_split(self.data_df, seed=0)
 
         # Assert the correct number of rows in train and test sets
         self.assertEqual(len(train_df), 12, "Train set should contain 12 samples.")
@@ -127,8 +128,8 @@ class TestDynamicDataset(unittest.TestCase):
         """
         Test that splitting the dataset with the same seed produces consistent results.
         """
-        train_df1, test_df1 = self.dataset.get_test_split(self.df, seed=42)
-        train_df2, test_df2 = self.dataset.get_test_split(self.df, seed=42)
+        train_df1, test_df1 = self.dataset.get_test_split(self.data_df, seed=42)
+        train_df2, test_df2 = self.dataset.get_test_split(self.data_df, seed=42)
 
         pd.testing.assert_frame_equal(
             train_df1,
@@ -145,7 +146,7 @@ class TestDynamicDataset(unittest.TestCase):
         """
         self.dataset.use_inner_cross_validation = False
         self.dataset.train_split = 0.5
-        df_train_main, test_df = self.dataset.get_test_split(self.df, seed=0)
+        df_train_main, test_df = self.dataset.get_test_split(self.data_df, seed=0)
         train_df, val_df = self.dataset.get_train_val_splits_given_test(
             df_train_main, test_df, seed=42
         )
@@ -192,12 +193,12 @@ class TestDynamicDataset(unittest.TestCase):
         """
         Test that splitting the dataset into train and validation sets with the same seed produces consistent results.
         """
-        test_df = self.df.iloc[12:]  # Assume rows 12 onward are for testing
+        test_df = self.data_df.iloc[12:]  # Assume rows 12 onward are for testing
         train_df1, val_df1 = self.dataset.get_train_val_splits_given_test(
-            self.df, test_df, seed=42
+            self.data_df, test_df, seed=42
         )
         train_df2, val_df2 = self.dataset.get_train_val_splits_given_test(
-            self.df, test_df, seed=42
+            self.data_df, test_df, seed=42
         )
 
         pd.testing.assert_frame_equal(
