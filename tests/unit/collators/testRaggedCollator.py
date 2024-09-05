@@ -78,12 +78,15 @@ class TestRaggedCollator(unittest.TestCase):
 
         result: XYData = self.collator(data)
 
-        expected_x = torch.tensor([[1, 2], [6, 0]])
+        # https://github.com/ChEB-AI/python-chebai/pull/48#issuecomment-2324393829
+        expected_x = torch.tensor([[1, 2, 0], [3, 4, 5], [6, 0, 0]])
         expected_y = torch.tensor(
             [[True, False], [True, False]]
         )  # True -> 1, False -> 0
-        expected_mask_for_x = torch.tensor([[True, True], [True, False]])
-        expected_lens_for_x = torch.tensor([2, 1])
+        expected_mask_for_x = torch.tensor(
+            [[True, True, False], [True, True, True], [True, False, False]]
+        )
+        expected_lens_for_x = torch.tensor([2, 3, 1])
 
         self.assertTrue(
             torch.equal(result.x, expected_x),
@@ -109,6 +112,11 @@ class TestRaggedCollator(unittest.TestCase):
             result.additional_fields["loss_kwargs"]["non_null_labels"],
             [0, 2],
             "The non-null labels list does not match the expected output.",
+        )
+        self.assertEqual(
+            len(result.additional_fields["loss_kwargs"]["non_null_labels"]),
+            result.y.shape[1],
+            "The length of non null labels list must match with target label variable size",
         )
         self.assertEqual(
             result.additional_fields["idents"],
