@@ -1,1 +1,3 @@
 class_path: chebai.preprocessing.datasets.chebi.ChEBIOver50
+init_args:
+  aug_data: True

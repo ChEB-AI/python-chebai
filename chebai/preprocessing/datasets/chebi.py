@@ -142,6 +142,7 @@ class _ChEBIDataExtractor(XYBaseDataModule, ABC):
         self,
         chebi_version_train: Optional[int] = None,
         single_class: Optional[int] = None,
+        aug_data: Optional[bool] = False,
         **kwargs,
     ):
         # predict only single class (given as id of one of the classes present in the raw data set)
@@ -155,6 +156,7 @@ class _ChEBIDataExtractor(XYBaseDataModule, ABC):
         self.dynamic_df_train = None
         self.dynamic_df_test = None
         self.dynamic_df_val = None
+        self.aug_data = aug_data
 
         if self.chebi_version_train is not None:
             # Instantiate another same class with "chebi_version" as "chebi_version_train", if train_version is given
@@ -456,7 +458,10 @@ class _ChEBIDataExtractor(XYBaseDataModule, ABC):
                 os.path.join(self.processed_dir, processed_name),
             )
 
-        if not os.path.isfile(os.path.join(self.processed_dir, "augmented_data.pt")):
+        augmented_dir = os.path.join("data", "augmented_dataset")
+
+        # Define the augmented data file path
+        if not os.path.isfile(os.path.join(augmented_dir, "augmented_data.pt")):
             print(
                 f"Missing encoded data related to version {self.chebi_version}, transform augmented data into encoded data:",
                 "augmented_data.pt",
@@ -464,12 +469,13 @@ class _ChEBIDataExtractor(XYBaseDataModule, ABC):
             torch.save(
                 self._load_data_from_file(
                     os.path.join(
-                        self.processed_dir_main,
+                        augmented_dir,
                         "augmented_data.pkl",
                     )
                 ),
-                os.path.join(self.processed_dir, "augmented_data.pt"),
+                os.path.join(augmented_dir, "augmented_data.pt"),
             )
+
 
         # Transform the data related to "chebi_version_train" to encoded data, if it doesn't exist
         if self.chebi_version_train is not None and not os.path.isfile(
@@ -621,6 +627,16 @@ class _ChEBIDataExtractor(XYBaseDataModule, ABC):
             str: The base directory path for data.
         """
         return os.path.join("data", f"chebi_v{self.chebi_version}")
+
+    @property
+    def augmented_dir(self) -> str:
+        """
+        Return the base directory path for data.
+
+        Returns:
+            str: The base directory path for data.
+        """
+        return os.path.join("data", "chebi_augmented")
 
     @property
     def processed_file_names_dict(self) -> dict:
@@ -803,42 +819,56 @@ class _ChEBIDataExtractor(XYBaseDataModule, ABC):
 
     def augment_data(self, path: str) -> None:
         print(("inside_augment_data"))
-        if not os.path.isfile(
-                os.path.join(
-                    path, "augmented_data.pkl")):
+        if self.aug_data:
             if os.path.isfile(os.path.join(
-                         path, self.raw_file_names_dict["data"]
-                    )):
-                data = self.read_file(os.path.join(
-                         path, self.raw_file_names_dict["data"]))
-                print("Original Dataset size:",data.shape)
-                # Create a new empty DataFrame for storing new variations
-                new_df = pd.DataFrame(columns=data.columns)
+                    path, self.raw_file_names_dict["data"])):
 
-                # Set to keep track of already seen SMILES to avoid duplicates
-                seen_smiles = set(data['SMILES'])
+                augmented_dir = os.path.join("data", "augmented_dataset")
 
-                # Process each row in the original DataFrame
-                print("Generating New SMILES")
-                for _, row in tqdm(data.iterrows(), total=len(data), desc="Processing Rows", unit="row"):
-                    original_smiles = row['SMILES']
-                    # Generate new SMILES variations
-                    variations = self.generate_smiles_variations(original_smiles)
+                # Check if the augmented directory exists, if not, create it
+                os.makedirs(augmented_dir, exist_ok=True)
 
-                    # Filter out variations that are already seen
-                    variations = [var for var in variations if var not in seen_smiles]
+                # Define the augmented data file path
+                augmented_data_file = os.path.join(augmented_dir, "augmented_data.pkl")
 
-                    for var in variations:
-                        # Create a new row with the new SMILES and the rest of the features and labels unchanged
-                        new_row = row.copy()
-                        new_row['SMILES'] = var
-                        new_df = pd.concat([new_df, pd.DataFrame([new_row])], ignore_index=True)
+                # If augmented_data.pkl does not already exist, proceed with the logic
+                if not os.path.isfile(augmented_data_file):
 
-                        # Add the new SMILES to the seen set to avoid duplicates
-                        seen_smiles.add(var)
+                    data = self.read_file(os.path.join(
+                        path, self.raw_file_names_dict["data"]))
+                    print("Original Dataset size:", data.shape)
+                    # Create a new empty DataFrame for storing new variations
+                    # #testing
+                    # data=data[:5]
+                    # print("Test Dataset size:", data.shape)
+                    new_df = pd.DataFrame(columns=data.columns)
 
-                new_dataset = pd.concat([data, new_df], ignore_index=True)
-                self.save_file(new_dataset, os.path.join(path, "augmented_data.pkl"))
+                    # Set to keep track of already seen SMILES to avoid duplicates
+                    seen_smiles = set(data['SMILES'])
+
+                    # Process each row in the original DataFrame
+                    print("Generating New SMILES")
+                    for _, row in tqdm(data.iterrows(), total=len(data), desc="Processing Rows", unit="row"):
+                        original_smiles = row['SMILES']
+                        # Generate new SMILES variations
+                        variations = self.generate_smiles_variations(original_smiles)
+
+                        # Filter out variations that are already seen
+                        variations = [var for var in variations if var not in seen_smiles]
+
+                        for var in variations:
+                            # Create a new row with the new SMILES and the rest of the features and labels unchanged
+                            new_row = row.copy()
+                            new_row['SMILES'] = var
+                            new_df = pd.concat([new_df, pd.DataFrame([new_row])], ignore_index=True)
+
+                            # Add the new SMILES to the seen set to avoid duplicates
+                            seen_smiles.add(var)
+
+                    new_dataset = pd.concat([data, new_df], ignore_index=True)
+                    self.save_file(new_dataset, os.path.join(augmented_dir, "augmented_data.pkl"))
+        else:
+            print("Data Augmentation config is False")
 
     def save_file(self, dataset: pd.DataFrame, file_path: str):
         pd.to_pickle(dataset, open(file_path, "wb"))
