@@ -1,6 +1,7 @@
 from collections import OrderedDict
-from typing import List, Set, Tuple
+from typing import Dict, List, Set, Tuple
 
+import networkx as nx
 import pandas as pd
 
 
@@ -30,6 +31,18 @@ class ChebiMockOntology:
     - CHEBI:12345 -> CHEBI:99999
 
     The class also includes methods to retrieve nodes, edges, and transitive closure of the graph.
+
+    Visual Representation Graph with Valid Nodes and Edges:
+
+                                       22222
+                                        /
+                       11111         67890
+                         \\         /  \
+                        54321     /    88888
+                           \\   /
+                           12345
+                             \
+                            99999
     """
 
     @staticmethod
@@ -205,7 +218,7 @@ class ChebiMockOntology:
         """
 
     @staticmethod
-    def get_data_in_dataframe():
+    def get_data_in_dataframe() -> pd.DataFrame:
         data = OrderedDict(
             id=[
                 12345,
@@ -274,3 +287,20 @@ class ChebiMockOntology:
         #     )
 
         return data_df
+
+    @staticmethod
+    def get_transitively_closed_graph() -> nx.DiGraph:
+        """
+        Create a directed graph, compute its transitive closure, and return it.
+
+        Returns:
+            g (nx.DiGraph): A transitively closed directed graph.
+        """
+        g = nx.DiGraph()
+
+        for node in ChebiMockOntology.get_nodes():
+            g.add_node(node, **{"smiles": "test_smiles_placeholder"})
+
+        g.add_edges_from(ChebiMockOntology.get_edges_of_transitive_closure_graph())
+
+        return g
