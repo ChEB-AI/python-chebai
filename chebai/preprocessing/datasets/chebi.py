@@ -139,11 +139,12 @@ class _ChEBIDataExtractor(XYBaseDataModule, ABC):
     """
 
     def __init__(
-        self,
-        chebi_version_train: Optional[int] = None,
-        single_class: Optional[int] = None,
-        aug_data: Optional[bool] = False,
-        **kwargs,
+            self,
+            chebi_version_train: Optional[int] = None,
+            single_class: Optional[int] = None,
+            aug_data: Optional[bool] = False,
+            batch_size_:Optional[int]= 5000,
+            **kwargs,
     ):
         # predict only single class (given as id of one of the classes present in the raw data set)
         self.single_class = single_class
@@ -157,6 +158,7 @@ class _ChEBIDataExtractor(XYBaseDataModule, ABC):
         self.dynamic_df_test = None
         self.dynamic_df_val = None
         self.aug_data = aug_data
+        self.batch_size_=batch_size_
 
         if self.chebi_version_train is not None:
             # Instantiate another same class with "chebi_version" as "chebi_version_train", if train_version is given
@@ -801,14 +803,13 @@ class _ChEBIDataExtractor(XYBaseDataModule, ABC):
             g = self.extract_class_hierarchy(chebi_path)
             df = self.graph_to_raw_dataset(g, self.raw_file_names_dict["data"])
             self.save_processed(df, filename=self.raw_file_names_dict["data"])
-            print("Reached before augment data")
-            self.augment_data(self.processed_dir_main)
+            self.augment_data(self.processed_dir_main,self.batch_size_)
             if self.chebi_version_train is not None:
                 if not os.path.isfile(
-                    os.path.join(
-                        self._chebi_version_train_obj.processed_dir_main,
-                        self._chebi_version_train_obj.raw_file_names_dict["data"],
-                    )
+                        os.path.join(
+                            self._chebi_version_train_obj.processed_dir_main,
+                            self._chebi_version_train_obj.raw_file_names_dict["data"],
+                        )
                 ):
                     print(
                         f"Missing processed data related to train version: {self.chebi_version_train}"
@@ -817,17 +818,14 @@ class _ChEBIDataExtractor(XYBaseDataModule, ABC):
                     # Generate the "chebi_version_train" data if it doesn't exist
                     self._chebi_version_train_obj.prepare_data(*args, **kwargs)
 
-    def augment_data(self, path: str) -> None:
+    def augment_data(self, path: str, batch_size) -> None:
         print(("inside_augment_data"))
         if self.aug_data:
             if os.path.isfile(os.path.join(
                     path, self.raw_file_names_dict["data"])):
-
                 augmented_dir = os.path.join("data", "augmented_dataset")
-
                 # Check if the augmented directory exists, if not, create it
                 os.makedirs(augmented_dir, exist_ok=True)
-
                 # Define the augmented data file path
                 augmented_data_file = os.path.join(augmented_dir, "augmented_data.pkl")
 
@@ -837,72 +835,50 @@ class _ChEBIDataExtractor(XYBaseDataModule, ABC):
                     data = self.read_file(os.path.join(
                         path, self.raw_file_names_dict["data"]))
                     print("Original Dataset size:", data.shape)
-                    # Create a new empty DataFrame for storing new variations
-                    # #testing
-                    # data=data[:5]
-                    # print("Test Dataset size:", data.shape)
-                    new_df = pd.DataFrame(columns=data.columns)
+                    total_rows = data.shape[0]
+                    # Calculate the total number of batches
+                    total_batches = (total_rows + batch_size - 1) // batch_size
 
-                    # Set to keep track of already seen SMILES to avoid duplicates
-                    seen_smiles = set(data['SMILES'])
+                    for batch_num, start in enumerate(range(0, total_rows, batch_size), start=1):
+                        end = min(start + batch_size, total_rows)
+                        batch = data[start:end]
+                        print(f"Processing batch {batch_num}/{total_batches} ({start} to {end})")
 
-                    # Process each row in the original DataFrame
-                    print("Generating New SMILES")
-                    for _, row in tqdm(data.iterrows(), total=len(data), desc="Processing Rows", unit="row"):
-                        original_smiles = row['SMILES']
-                        # Generate new SMILES variations
-                        variations = self.generate_smiles_variations(original_smiles)
+                        # Set to keep track of already seen SMILES
+                        seen_smiles = set(batch['SMILES'])
 
-                        # Filter out variations that are already seen
-                        variations = [var for var in variations if var not in seen_smiles]
+                        # Store new rows in a list instead of concatenating directly
+                        new_rows = []
 
-                        for var in variations:
-                            # Create a new row with the new SMILES and the rest of the features and labels unchanged
-                            new_row = row.copy()
-                            new_row['SMILES'] = var
-                            new_df = pd.concat([new_df, pd.DataFrame([new_row])], ignore_index=True)
+                        # Updated tqdm to show batch number and total batches
+                        for _, row in tqdm(batch.iterrows(), total=len(batch),
+                                           desc=f"Batch {batch_num}/{total_batches}", unit="row"):
+                            original_smiles = row['SMILES']
+                            variations = self.generate_smiles_variations(original_smiles)
+                            variations = [var for var in variations if var not in seen_smiles]
 
-                            # Add the new SMILES to the seen set to avoid duplicates
-                            seen_smiles.add(var)
+                            for var in variations:
+                                new_row = row.copy()
+                                new_row['SMILES'] = var
+                                new_rows.append(new_row)
+                                seen_smiles.add(var)
 
-                    new_dataset = pd.concat([data, new_df], ignore_index=True)
-                    self.save_file(new_dataset, os.path.join(augmented_dir, "augmented_data.pkl"))
+                        # Create a DataFrame from the new rows
+                        new_df = pd.DataFrame(new_rows)
+
+                        # Concatenate the batch and new variations, and save incrementally
+                        batch_with_variations = pd.concat([batch, new_df], ignore_index=True)
+
+                        # Append batch to augmented file
+                        self.save_file(batch_with_variations, augmented_data_file, append=True)
         else:
             print("Data Augmentation config is False")
 
-    def save_file(self, dataset: pd.DataFrame, file_path: str):
+    def save_file(self, dataset: pd.DataFrame, file_path: str, append=False):
+        if append and os.path.isfile(file_path):
+            existing_data = pd.read_pickle(file_path)
+            dataset = pd.concat([existing_data, dataset], ignore_index=True)
         pd.to_pickle(dataset, open(file_path, "wb"))
-
-    # # Function to generate SMILES variations using different configurations
-    # def generate_smiles_variations1(self, original_smiles):
-    #     num_variations=5
-    #     # print(type(original_smiles), original_smiles)
-    #     if not isinstance(original_smiles, str):
-    #         print(f"Non-string SMILES found: {original_smiles}")
-    #     mol = Chem.MolFromSmiles(original_smiles)
-    #     if mol is None:
-    #         return []  # Return an empty list if conversion fails
-    #
-    #     variations = set()
-    #
-    #     # Loop through all combinations of doRandom and rootedAtAtom values
-    #     for do_random in [True, False]:
-    #         for rooted_at_atom in [5, 4, 3, 2, 1, 0, -1, -2, -3, -4, -5]:
-    #             try:
-    #                 # Generate SMILES with the given configuration
-    #                 variant = Chem.MolToSmiles(mol, doRandom=do_random, rootedAtAtom=rooted_at_atom)
-    #                 if variant != original_smiles:  # Avoid duplicates with the original SMILES
-    #                     variations.add(variant)
-    #
-    #                 # Check the number of variations after adding
-    #                 if len(variations) >= num_variations:
-    #                     return list(variations)  # Return immediately when enough variations are found
-    #
-    #             except Exception as e:
-    #                 # Skip invalid configurations
-    #                 continue
-    #
-    #     return list(variations)
 
     # Function to generate SMILES variations using different configurations
     def generate_smiles_variations(self, original_smiles):
@@ -959,7 +935,7 @@ class _ChEBIDataExtractor(XYBaseDataModule, ABC):
 
         return list(variations)
 
-    def read_file(self,file_path : str):
+    def read_file(self, file_path: str):
         df = pd.read_pickle(
             open(file_path, "rb"
                  )
