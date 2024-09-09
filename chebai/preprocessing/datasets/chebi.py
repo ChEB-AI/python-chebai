@@ -754,7 +754,7 @@ class ChEBIOverXPartial(ChEBIOverX):
             "processed",
         )
 
-    def extract_class_hierarchy(self, chebi_path: str) -> nx.DiGraph:
+    def _extract_class_hierarchy(self, chebi_path: str) -> nx.DiGraph:
         """
         Extracts a subset of ChEBI based on subclasses of the top class ID.
 
