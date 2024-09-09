@@ -29,7 +29,7 @@ class TestChEBIOverX(unittest.TestCase):
         """
         # Mock the output of fastobo.loads
         self.chebi_extractor.top_class_id = 11111
-        graph: nx.DiGraph = self.chebi_extractor.extract_class_hierarchy("fake_path")
+        graph: nx.DiGraph = self.chebi_extractor._extract_class_hierarchy("fake_path")
 
         # Validate the graph structure
         self.assertIsInstance(
@@ -73,7 +73,7 @@ class TestChEBIOverX(unittest.TestCase):
         )
 
         self.chebi_extractor.top_class_id = 22222
-        graph = self.chebi_extractor.extract_class_hierarchy("fake_path")
+        graph = self.chebi_extractor._extract_class_hierarchy("fake_path")
 
         # Check nodes with top class as 22222
         self.assertEqual(
@@ -94,7 +94,7 @@ class TestChEBIOverX(unittest.TestCase):
         Test the extraction of class hierarchy and validate the structure of the resulting graph.
         """
         self.chebi_extractor.top_class_id = 88888
-        graph: nx.DiGraph = self.chebi_extractor.extract_class_hierarchy("fake_path")
+        graph: nx.DiGraph = self.chebi_extractor._extract_class_hierarchy("fake_path")
 
         # Check nodes with top class as 88888
         self.assertEqual(
