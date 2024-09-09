@@ -155,6 +155,8 @@ class XYBaseDataModule(LightningDataModule):
     def _filter_labels(self, row: dict) -> dict:
         """
         Filter labels based on `label_filter`.
+        This method selects specific labels from the `labels` list within the row dictionary
+        according to the index or indices provided by the `label_filter` attribute of the class.
 
         Args:
             row (dict): A dictionary containing the row data.
