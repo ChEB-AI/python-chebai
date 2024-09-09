@@ -1,3 +1,4 @@
+from abc import ABC, abstractmethod
 from collections import OrderedDict
 from typing import Dict, List, Set, Tuple
 
@@ -5,7 +6,115 @@ import networkx as nx
 import pandas as pd
 
 
-class ChebiMockOntology:
+class MockOntologyGraphData(ABC):
+    """
+    Abstract base class for mocking ontology graph data.
+
+    This class provides a set of static methods that must be implemented by subclasses
+    to return various elements of an ontology graph such as nodes, edges, and dataframes.
+    """
+
+    @staticmethod
+    @abstractmethod
+    def get_nodes() -> List[int]:
+        """
+        Get a list of node IDs in the ontology graph.
+
+        Returns:
+            List[int]: A list of node IDs.
+        """
+        pass
+
+    @staticmethod
+    @abstractmethod
+    def get_number_of_nodes() -> int:
+        """
+        Get the number of nodes in the ontology graph.
+
+        Returns:
+            int: The total number of nodes.
+        """
+        pass
+
+    @staticmethod
+    @abstractmethod
+    def get_edges() -> Set[Tuple[int, int]]:
+        """
+        Get the set of edges in the ontology graph.
+
+        Returns:
+            Set[Tuple[int, int]]: A set of tuples where each tuple represents an edge between two nodes.
+        """
+        pass
+
+    @staticmethod
+    @abstractmethod
+    def get_number_of_edges() -> int:
+        """
+        Get the number of edges in the ontology graph.
+
+        Returns:
+            int: The total number of edges.
+        """
+        pass
+
+    @staticmethod
+    @abstractmethod
+    def get_edges_of_transitive_closure_graph() -> Set[Tuple[int, int]]:
+        """
+        Get the set of edges in the transitive closure of the ontology graph.
+
+        Returns:
+            Set[Tuple[int, int]]: A set of tuples representing the transitive closure edges.
+        """
+        pass
+
+    @staticmethod
+    @abstractmethod
+    def get_number_of_transitive_edges() -> int:
+        """
+        Get the number of edges in the transitive closure of the ontology graph.
+
+        Returns:
+            int: The total number of transitive edges.
+        """
+        pass
+
+    @staticmethod
+    @abstractmethod
+    def get_obsolete_nodes_ids() -> Set[int]:
+        """
+        Get the set of obsolete node IDs in the ontology graph.
+
+        Returns:
+            Set[int]: A set of obsolete node IDs.
+        """
+        pass
+
+    @staticmethod
+    @abstractmethod
+    def get_transitively_closed_graph() -> nx.DiGraph:
+        """
+        Get the transitive closure of the ontology graph.
+
+        Returns:
+            nx.DiGraph: A directed graph representing the transitive closure of the ontology graph.
+        """
+        pass
+
+    @staticmethod
+    @abstractmethod
+    def get_data_in_dataframe() -> pd.DataFrame:
+        """
+        Get the ontology data as a Pandas DataFrame.
+
+        Returns:
+            pd.DataFrame: A DataFrame containing ontology data.
+        """
+        pass
+
+
+class ChebiMockOntology(MockOntologyGraphData):
     """
     A mock ontology representing a simplified ChEBI (Chemical Entities of Biological Interest) structure.
     This class is used for testing purposes and includes nodes and edges representing chemical compounds
@@ -265,7 +374,7 @@ class ChebiMockOntology:
                 67890: [False, False, True, False, True, False, False],
                 88888: [False, False, True, False, True, True, False],
                 99999: [True, True, True, True, True, False, True],
-            }
+            },
         )
 
         data_df = pd.DataFrame(data)
@@ -304,3 +413,349 @@ class ChebiMockOntology:
         g.add_edges_from(ChebiMockOntology.get_edges_of_transitive_closure_graph())
 
         return g
+
+
+class GOUniProtMockData(MockOntologyGraphData):
+    """
+    A mock ontology representing a simplified version of the Gene Ontology (GO) structure with nodes and edges
+    representing GO terms and their relationships in a directed acyclic graph (DAG).
+
+    Nodes:
+        - GO_1
+        - GO_2
+        - GO_3
+        - GO_4
+        - GO_5
+        - GO_6
+
+    Edges (Parent-Child Relationships):
+        - GO_1 -> GO_2
+        - GO_1 -> GO_3
+        - GO_2 -> GO_4
+        - GO_2 -> GO_5
+        - GO_3 -> GO_4
+        - GO_4 -> GO_6
+
+    This mock ontology structure is useful for testing methods related to GO hierarchy, graph extraction, and transitive
+    closure operations.
+
+    The class also includes methods to retrieve nodes, edges, and transitive closure of the graph.
+
+    Visual Representation Graph with Valid Nodes and Edges:
+
+                                GO_1
+                               /    \
+                             GO_2   GO_3
+                            /  \    /
+                         GO_5   GO_4
+                                   \
+                                   GO_6
+
+    Valid Swiss Proteins with mapping to valid GO ids
+    Swiss_Prot_1 -> GO_2, GO_3, GO_5
+    Swiss_Prot_2 -> GO_2, GO_5
+    """
+
+    @staticmethod
+    def get_nodes() -> List[int]:
+        """
+        Get a sorted list of node IDs.
+
+        Returns:
+            List[int]: A sorted list of node IDs in the ontology graph.
+        """
+        return sorted([1, 2, 3, 4, 5, 6])
+
+    @staticmethod
+    def get_number_of_nodes() -> int:
+        """
+        Get the total number of nodes in the ontology graph.
+
+        Returns:
+            int: The number of nodes.
+        """
+        return len(GOUniProtMockData.get_nodes())
+
+    @staticmethod
+    def get_edges() -> Set[Tuple[int, int]]:
+        """
+        Get the set of edges in the ontology graph.
+
+        Returns:
+            Set[Tuple[int, int]]: A set of tuples where each tuple represents an edge between two nodes.
+        """
+        return {(1, 2), (1, 3), (2, 4), (2, 5), (3, 4), (4, 6)}
+
+    @staticmethod
+    def get_number_of_edges() -> int:
+        """
+        Get the total number of edges in the ontology graph.
+
+        Returns:
+            int: The number of edges.
+        """
+        return len(GOUniProtMockData.get_edges())
+
+    @staticmethod
+    def get_edges_of_transitive_closure_graph() -> Set[Tuple[int, int]]:
+        """
+        Get the set of edges in the transitive closure of the ontology graph.
+
+        Returns:
+            Set[Tuple[int, int]]: A set of tuples representing edges in the transitive closure graph.
+        """
+        return {
+            (1, 2),
+            (1, 3),
+            (1, 4),
+            (1, 5),
+            (1, 6),
+            (2, 4),
+            (2, 5),
+            (2, 6),
+            (3, 4),
+            (3, 6),
+            (4, 6),
+        }
+
+    @staticmethod
+    def get_number_of_transitive_edges() -> int:
+        """
+        Get the total number of edges in the transitive closure graph.
+
+        Returns:
+            int: The number of transitive edges.
+        """
+        return len(GOUniProtMockData.get_edges_of_transitive_closure_graph())
+
+    @staticmethod
+    def get_obsolete_nodes_ids() -> Set[int]:
+        """
+        Get the set of obsolete node IDs in the ontology graph.
+
+        Returns:
+            Set[int]: A set of node IDs representing obsolete nodes.
+        """
+        return {7, 8}
+
+    @staticmethod
+    def get_GO_raw_data() -> str:
+        """
+        Get raw data in string format for GO ontology.
+
+        This data simulates a basic GO ontology in a format typically used for testing.
+
+        Returns:
+            str: The raw GO data in string format.
+        """
+        return """
+        [Term]
+        id: GO:0000001
+        name: GO_1
+        namespace: molecular_function
+        def: "OBSOLETE. Assists in the correct assembly of ribosomes or ribosomal subunits in vivo, but is not a component of the assembled ribosome when performing its normal biological function." [GOC:jl, PMID:12150913]
+        comment: This term was made obsolete because it refers to a class of gene products and a biological process rather than a molecular function.
+        synonym: "ribosomal chaperone activity" EXACT []
+        xref: MetaCyc:BETAGALACTOSID-RXN
+        xref: Reactome:R-HSA-189062 "lactose + H2O => D-glucose + D-galactose"
+        xref: Reactome:R-HSA-5658001 "Defective LCT does not hydrolyze Lac"
+        xref: RHEA:10076
+
+        [Term]
+        id: GO:0000002
+        name: GO_2
+        namespace: biological_process
+        is_a: GO:0000001 ! hydrolase activity, hydrolyzing O-glycosyl compounds
+
+        [Term]
+        id: GO:0000003
+        name: GO_3
+        namespace: cellular_component
+        is_a: GO:0000001 ! regulation of DNA recombination
+
+        [Term]
+        id: GO:0000004
+        name: GO_4
+        namespace: biological_process
+        is_a: GO:0000003 ! regulation of DNA recombination
+        is_a: GO:0000002 ! hydrolase activity, hydrolyzing O-glycosyl compounds
+
+        [Term]
+        id: GO:0000005
+        name: GO_5
+        namespace: molecular_function
+        is_a: GO:0000002 ! regulation of DNA recombination
+
+        [Term]
+        id: GO:0000006
+        name: GO_6
+        namespace: cellular_component
+        is_a: GO:0000004 ! glucoside transport
+
+        [Term]
+        id: GO:0000007
+        name: GO_7
+        namespace: biological_process
+        is_a: GO:0000003 ! glucoside transport
+        is_obsolete: true
+
+        [Term]
+        id: GO:0000008
+        name: GO_8
+        namespace: molecular_function
+        is_a: GO:0000001 ! glucoside transport
+        is_obsolete: true
+
+        [Typedef]
+        id: term_tracker_item
+        name: term tracker item
+        namespace: external
+        xref: IAO:0000233
+        is_metadata_tag: true
+        is_class_level: true
+        """
+
+    @staticmethod
+    def protein_sequences() -> Dict[str, str]:
+        """
+        Get the protein sequences for Swiss-Prot proteins.
+
+        Returns:
+            Dict[str, str]: A dictionary where keys are Swiss-Prot IDs and values are their respective sequences.
+        """
+        return {
+            "Swiss_Prot_1": "MAFSAEDVLK EYDRRRRMEA LLLSLYYPND RKLLDYKEWS PPRVQVECPK".replace(
+                " ", ""
+            ),
+            "Swiss_Prot_2": "EKGLIVGHFS GIKYKGEKAQ ASEVDVNKMC CWVSKFKDAM RRYQGIQTCK".replace(
+                " ", ""
+            ),
+        }
+
+    @staticmethod
+    def get_UniProt_raw_data() -> str:
+        """
+        Get raw data in string format for UniProt proteins.
+
+        This mock data contains six Swiss-Prot proteins with different properties:
+        - Swiss_Prot_1 and Swiss_Prot_2 are valid proteins.
+        - Swiss_Prot_3 has a sequence length greater than 1002.
+        - Swiss_Prot_4 contains "X", a non-valid amino acid in its sequence.
+        - Swiss_Prot_5 has no GO IDs mapped to it.
+        - Swiss_Prot_6 has GO IDs mapped, but no evidence codes.
+
+        Returns:
+            str: The raw UniProt data in string format.
+        """
+        protein_sq_1 = GOUniProtMockData.protein_sequences()["Swiss_Prot_1"]
+        protein_sq_2 = GOUniProtMockData.protein_sequences()["Swiss_Prot_2"]
+        raw_str = (
+            f"ID   Swiss_Prot_1              Reviewed;         {len(protein_sq_1)} AA. \n"
+            + "AC   Q6GZX4;\n"
+            + "DR   GO; GO:0000002; C:membrane; EXP:UniProtKB-KW.\n"
+            + "DR   GO; GO:0000003; C:membrane; IDA:UniProtKB-KW.\n"
+            + "DR   GO; GO:0000005; P:regulation of viral transcription; IPI:InterPro.\n"
+            + "DR   GO; GO:0000004; P:regulation of viral transcription; IEA:SGD.\n"
+            + f"SQ   SEQUENCE   {len(protein_sq_1)} AA;  29735 MW;  B4840739BF7D4121 CRC64;\n"
+            + f"     {protein_sq_1}\n"
+            + "//\n"
+            + f"ID   Swiss_Prot_2              Reviewed;         {len(protein_sq_2)} AA.\n"
+            + "AC   DCGZX4;\n"
+            + "DR   EMBL; AY548484; AAT09660.1; -; Genomic_DNA.\n"
+            + "DR   GO; GO:0000002; P:regulation of viral transcription; IMP:InterPro.\n"
+            + "DR   GO; GO:0000005; P:regulation of viral transcription; IGI:InterPro.\n"
+            + "DR   GO; GO:0000006; P:regulation of viral transcription; IEA:PomBase.\n"
+            + f"SQ   SEQUENCE   {len(protein_sq_2)} AA;  29735 MW;  B4840739BF7D4121 CRC64;\n"
+            + f"     {protein_sq_2}\n"
+            + "//\n"
+            + "ID   Swiss_Prot_3              Reviewed;         1165 AA.\n"
+            + "AC   Q6GZX4;\n"
+            + "DR   EMBL; AY548484; AAT09660.1; -; Genomic_DNA.\n"
+            + "DR   GO; GO:0000002; P:regulation of viral transcription; IEP:InterPro.\n"
+            + "DR   GO; GO:0000005; P:regulation of viral transcription; TAS:InterPro.\n"
+            + "DR   GO; GO:0000006; P:regulation of viral transcription; EXP:PomBase.\n"
+            + "SQ   SEQUENCE   1165 AA;  129118 MW;  FE2984658CED53A8 CRC64;\n"
+            + "     MRVVVNAKAL EVPVGMSFTE WTRTLSPGSS PRFLAWNPVR PRTFKDVTDP FWNGKVFDLL\n"
+            + "     GVVNGKDDLL FPASEIQEWL EYAPNVDLAE LERIFVATHR HRGMMGFAAA VQDSLVHVDP\n"
+            + "     DSVDVTRVKD GLHKELDEHA SKAAATDVRL KRLRSVKPVD GFSDPVLIRT VFSVTVPEFG\n"
+            + "     DRTAYEIVDS AVPTGSCPYI SAGPFVKTIP GFKPAPEWPA QTAHAEGAVF FKADAEFPDT\n"
+            + "     KPLKDMYRKY SGAAVVPGDV TYPAVITFDV PQGSRHVPPE DFAARVAESL SLDLRGRPLV\n"
+            + "     EMGRVVSVRL DGMRFRPYVL TDLLVSDPDA SHVMQTDELN RAHKIKGTVY AQVCGTGQTV\n"
+            + "     SFQEKTDEDS GEAYISLRVR ARDRKGVEEL MEAAGRVMAI YSRRESEIVS FYALYDKTVA\n"
+            + "     KEAAPPRPPR KSKAPEPTGD KADRKLLRTL APDIFLPTYS RKCLHMPVIL RGAELEDARK\n"
+            + "     KGLNLMDFPL FGESERLTYA CKHPQHPYPG LRANLLPNKA KYPFVPCCYS KDQAVRPNSK\n"
+            + "     WTAYTTGNAE ARRQGRIREG VMQAEPLPEG ALIFLRRVLG QETGSKFFAL RTTGVPETPV\n"
+            + "     NAVHVAVFQR SLTAEEQAEE RAAMALDPSA MGACAQELYV EPDVDWDRWR REMGDPNVPF\n"
+            + "     NLLKYFRALE TRYDCDIYIM DNKGIIHTKA VRGRLRYRSR RPTVILHLRE ESCVPVMTPP\n"
+            + "     SDWTRGPVRN GILTFSPIDP ITVKLHDLYQ DSRPVYVDGV RVPPLRSDWL PCSGQVVDRA\n"
+            + "     GKARVFVVTP TGKMSRGSFT LVTWPMPPLA APILRTDTGF PRGRSDSPLS FLGSRFVPSG\n"
+            + "     YRRSVETGAI REITGILDGA CEACLLTHDP VLVPDPSWSD GGPPVYEDPV PSRALEGFTG\n"
+            + "     AEKKARMLVE YAKKAISIRE GSCTQESVRS FAANGGFVVS PGALDGMKVF NPRFEAPGPF\n"
+            + "     AEADWAVKVP DVKTARRLVY ALRVASVNGT CPVQEYASAS LVPNFYKTST DFVQSPAYTI\n"
+            + "     NVWRNDLDQS AVKKTRRAVV DWERGLAVPW PLPETELGFS YSLRFAGISR TFMAMNHPTW\n"
+            + "     ESAAFAALTW AKSGYCPGVT SNQIPEGEKV PTYACVKGMK PAKVLESGDG TLKLDKSSYG\n"
+            + "     DVRVSGVMIY RASEGKPMQY VSLLM\n"
+            + "//\n"
+            + "ID   Swiss_Prot_4              Reviewed;         60 AA.\n"
+            + "AC   Q6GZX4;\n"
+            + "DR   EMBL; AY548484; AAT09660.1; -; Genomic_DNA.\n"
+            + "DR   GO; GO:0000002; P:regulation of viral transcription; EXP:InterPro.\n"
+            + "DR   GO; GO:0000005; P:regulation of viral transcription; IEA:InterPro.\n"
+            + "DR   GO; GO:0000006; P:regulation of viral transcription; EXP:PomBase.\n"
+            + "SQ   SEQUENCE   60 AA;  29735 MW;  B4840739BF7D4121 CRC64;\n"
+            + "     XAFSAEDVLK EYDRRRRMEA LLLSLYYPND RKLLDYKEWS PPRVQVECPK APVEWNNPPS\n"
+            + "//\n"
+            + "ID   Swiss_Prot_5              Reviewed;         60 AA.\n"
+            + "AC   Q6GZX4;\n"
+            + "DR   EMBL; AY548484; AAT09660.1; -; Genomic_DNA.\n"
+            + "SQ   SEQUENCE   60 AA;  29735 MW;  B4840739BF7D4121 CRC64;\n"
+            + "     MAFSAEDVLK EYDRRRRMEA LLLSLYYPND RKLLDYKEWS PPRVQVECPK APVEWNNPPS\n"
+            + "//\n"
+            + "ID   Swiss_Prot_5              Reviewed;         60 AA.\n"
+            + "AC   Q6GZX4;\n"
+            + "DR   GO; GO:0000005; P:regulation of viral transcription;\n"
+            + "SQ   SEQUENCE   60 AA;  29735 MW;  B4840739BF7D4121 CRC64;\n"
+            + "     MAFSAEDVLK EYDRRRRMEA LLLSLYYPND RKLLDYKEWS PPRVQVECPK APVEWNNPPS\n"
+            + "//"
+        )
+
+        return raw_str
+
+    @staticmethod
+    def get_data_in_dataframe() -> pd.DataFrame:
+        """
+        Get a mock DataFrame representing UniProt data.
+
+        The DataFrame contains Swiss-Prot protein data, including identifiers, accessions, GO terms, sequences,
+        and binary label columns representing whether each protein is associated with certain GO classes.
+
+        Returns:
+            pd.DataFrame: A DataFrame containing mock UniProt data with columns for 'swiss_id', 'accession', 'go_ids', 'sequence',
+                          and binary labels for GO classes.
+        """
+        expected_data = OrderedDict(
+            swiss_id=["Swiss_Prot_1", "Swiss_Prot_2"],
+            accession=["Q6GZX4", "DCGZX4"],
+            go_ids=[[2, 3, 5], [2, 5]],
+            sequence=list(GOUniProtMockData.protein_sequences().values()),
+            **{
+                #   SP_1,  SP_2
+                1: [False, False],
+                2: [True, True],
+                3: [True, False],
+                4: [False, False],
+                5: [True, True],
+                6: [False, False],
+            },
+        )
+        return pd.DataFrame(expected_data)
+
+    @staticmethod
+    def get_transitively_closed_graph() -> nx.DiGraph:
+        """
+        Get the transitive closure of the ontology graph.
+
+        Returns:
+            nx.DiGraph: A directed graph representing the transitive closure of the ontology graph.
+        """
+        pass
