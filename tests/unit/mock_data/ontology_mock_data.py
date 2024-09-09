@@ -758,4 +758,7 @@ class GOUniProtMockData(MockOntologyGraphData):
         Returns:
             nx.DiGraph: A directed graph representing the transitive closure of the ontology graph.
         """
-        pass
+        g = nx.DiGraph()
+        g.add_nodes_from(node for node in ChebiMockOntology.get_nodes())
+        g.add_edges_from(GOUniProtMockData.get_edges_of_transitive_closure_graph())
+        return g
