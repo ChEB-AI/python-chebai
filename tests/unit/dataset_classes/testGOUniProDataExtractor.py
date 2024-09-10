@@ -27,7 +27,7 @@ class TestGOUniProtDataExtractor(unittest.TestCase):
         mock_base_dir_property.return_value = "MockedBaseDirPropGOUniProtDataExtractor"
         mock_name_property.return_value = "MockedNamePropGOUniProtDataExtractor"
         ReaderMock = MagicMock()
-        ReaderMock.name.return_value = "MockedReader"
+        ReaderMock.name.return_value = "MockedReaderGOUniProtDataExtractor"
         _GOUniProtDataExtractor.READER = ReaderMock
 
         cls.extractor = _GOUniProtDataExtractor()
