@@ -7,7 +7,7 @@ import torch
 from sklearn.model_selection import GroupShuffleSplit
 
 from chebai.preprocessing.datasets.tox21 import Tox21MolNet
-from tests.unit.mock_data.tox_mock_data import Tox21MockData
+from tests.unit.mock_data.tox_mock_data import Tox21MolNetMockData
 
 
 class TestTox21MolNet(unittest.TestCase):
@@ -25,7 +25,7 @@ class TestTox21MolNet(unittest.TestCase):
     @patch(
         "builtins.open",
         new_callable=mock_open,
-        read_data=Tox21MockData.get_raw_data(),
+        read_data=Tox21MolNetMockData.get_raw_data(),
     )
     def test_load_data_from_file(self, mock_open_file: mock_open) -> None:
         """
@@ -34,7 +34,7 @@ class TestTox21MolNet(unittest.TestCase):
         Args:
             mock_open_file (mock_open): Mocked open function to simulate file reading.
         """
-        expected_data = Tox21MockData.get_processed_data()
+        expected_data = Tox21MolNetMockData.get_processed_data()
         actual_data = self.data_module._load_data_from_file("fake/file/path.csv")
 
         self.assertEqual(
@@ -46,7 +46,7 @@ class TestTox21MolNet(unittest.TestCase):
     @patch.object(
         Tox21MolNet,
         "_load_data_from_file",
-        return_value=Tox21MockData.get_processed_data(),
+        return_value=Tox21MolNetMockData.get_processed_data(),
     )
     @patch("torch.save")
     def test_setup_processed_simple_split(
@@ -71,7 +71,7 @@ class TestTox21MolNet(unittest.TestCase):
     # @patch("os.path.isfile", return_value=False)
     # @patch.object(Tox21MolNet,
     #               "_load_data_from_file",
-    #               return_value= Tox21MockData.get_processed_grouped_data())
+    #               return_value= Tox21MolNetMockData.get_processed_grouped_data())
     # @patch("torch.save")
     # @patch("torch.load")
     # @patch("chebai.preprocessing.datasets.tox21.GroupShuffleSplit")
