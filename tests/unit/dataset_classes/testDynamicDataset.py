@@ -17,8 +17,12 @@ class TestDynamicDataset(unittest.TestCase):
     @patch.multiple(_DynamicDataset, __abstractmethods__=frozenset())
     @patch.object(_DynamicDataset, "base_dir", new_callable=PropertyMock)
     @patch.object(_DynamicDataset, "_name", new_callable=PropertyMock)
+    @patch("os.makedirs", return_value=None)
     def setUpClass(
-        cls, mock_base_dir_property: PropertyMock, mock_name_property: PropertyMock
+        cls,
+        mock_makedirs,
+        mock_base_dir_property: PropertyMock,
+        mock_name_property: PropertyMock,
     ) -> None:
         """
         Set up a base instance of _DynamicDataset for testing with mocked properties.

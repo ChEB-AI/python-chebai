@@ -9,11 +9,13 @@ class TestChEBIOverX(unittest.TestCase):
     @classmethod
     @patch.multiple(ChEBIOverX, __abstractmethods__=frozenset())
     @patch.object(ChEBIOverX, "processed_dir_main", new_callable=PropertyMock)
-    def setUpClass(cls, mock_processed_dir_main: PropertyMock) -> None:
+    @patch("os.makedirs", return_value=None)
+    def setUpClass(cls, mock_makedirs, mock_processed_dir_main: PropertyMock) -> None:
         """
         Set up the ChEBIOverX instance with a mock processed directory path and a test graph.
 
         Args:
+            mock_makedirs: This patches os.makedirs to do nothing
             mock_processed_dir_main (PropertyMock): Mocked property for the processed directory path.
         """
         mock_processed_dir_main.return_value = "/mock/processed_dir"

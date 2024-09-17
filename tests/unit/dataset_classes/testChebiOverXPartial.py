@@ -11,7 +11,8 @@ class TestChEBIOverX(unittest.TestCase):
 
     @classmethod
     @patch.multiple(ChEBIOverXPartial, __abstractmethods__=frozenset())
-    def setUpClass(cls) -> None:
+    @patch("os.makedirs", return_value=None)
+    def setUpClass(cls, mock_makedirs) -> None:
         """
         Set up the ChEBIOverXPartial instance with a mock processed directory path and a test graph.
         """

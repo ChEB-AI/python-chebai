@@ -17,7 +17,8 @@ class TestTox21Challenge(unittest.TestCase):
     """
 
     @classmethod
-    def setUpClass(cls) -> None:
+    @patch("os.makedirs", return_value=None)
+    def setUpClass(cls, mock_makedirs) -> None:
         """
         Set up the Tox21Challenge instance and mock data for testing.
         This is run once for the test class.

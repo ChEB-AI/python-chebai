@@ -12,7 +12,8 @@ from tests.unit.mock_data.ontology_mock_data import GOUniProtMockData
 class TestGOUniProtOverX(unittest.TestCase):
     @classmethod
     @patch.multiple(_GOUniProtOverX, __abstractmethods__=frozenset())
-    def setUpClass(cls) -> None:
+    @patch("os.makedirs", return_value=None)
+    def setUpClass(cls, mock_makedirs) -> None:
         """
         Set up the class for tests by initializing the extractor, graph, and input DataFrame.
         """

@@ -18,8 +18,12 @@ class TestGOUniProtDataExtractor(unittest.TestCase):
     @patch.multiple(_GOUniProtDataExtractor, __abstractmethods__=frozenset())
     @patch.object(_GOUniProtDataExtractor, "base_dir", new_callable=PropertyMock)
     @patch.object(_GOUniProtDataExtractor, "_name", new_callable=PropertyMock)
+    @patch("os.makedirs", return_value=None)
     def setUpClass(
-        cls, mock_name_property: PropertyMock, mock_base_dir_property: PropertyMock
+        cls,
+        mock_makedirs,
+        mock_name_property: PropertyMock,
+        mock_base_dir_property: PropertyMock,
     ) -> None:
         """
         Class setup for mocking abstract properties of _GOUniProtDataExtractor.

@@ -14,8 +14,12 @@ class TestChEBIDataExtractor(unittest.TestCase):
     @patch.multiple(_ChEBIDataExtractor, __abstractmethods__=frozenset())
     @patch.object(_ChEBIDataExtractor, "base_dir", new_callable=PropertyMock)
     @patch.object(_ChEBIDataExtractor, "_name", new_callable=PropertyMock)
+    @patch("os.makedirs", return_value=None)
     def setUpClass(
-        cls, mock_name_property: PropertyMock, mock_base_dir_property: PropertyMock
+        cls,
+        mock_makedirs,
+        mock_name_property: PropertyMock,
+        mock_base_dir_property: PropertyMock,
     ) -> None:
         """
         Set up a base instance of _ChEBIDataExtractor for testing with mocked properties.

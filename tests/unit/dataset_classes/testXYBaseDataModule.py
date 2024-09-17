@@ -11,7 +11,8 @@ class TestXYBaseDataModule(unittest.TestCase):
 
     @classmethod
     @patch.object(XYBaseDataModule, "_name", new_callable=PropertyMock)
-    def setUpClass(cls, mock_name_property: PropertyMock) -> None:
+    @patch("os.makedirs", return_value=None)
+    def setUpClass(cls, mock_makedirs, mock_name_property: PropertyMock) -> None:
         """
         Set up a base instance of XYBaseDataModule for testing.
         """
