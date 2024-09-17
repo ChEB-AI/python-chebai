@@ -1,3 +1,6 @@
+from typing import Dict, List
+
+
 class Tox21MolNetMockData:
     """
     A utility class providing mock data for testing the Tox21MolNet dataset.
@@ -27,7 +30,7 @@ class Tox21MolNetMockData:
         )
 
     @staticmethod
-    def get_processed_data() -> list:
+    def get_processed_data() -> List[Dict]:
         """
         Returns a list of dictionaries simulating the processed data for the Tox21MolNet dataset.
         Each dictionary contains 'ident', 'features', and 'labels'.
@@ -180,7 +183,7 @@ class Tox21MolNetMockData:
         ]
 
     @staticmethod
-    def get_processed_grouped_data():
+    def get_processed_grouped_data() -> List[Dict]:
         """
         Returns a list of dictionaries simulating the processed data for the Tox21MolNet dataset.
         Each dictionary contains 'ident', 'features', and 'labels'.
@@ -223,7 +226,7 @@ class Tox21ChallengeMockData:
     FEATURE_OF_SMILES = [19, 42, 19, 19, 19, 42]
 
     @staticmethod
-    def get_raw_train_data():
+    def get_raw_train_data() -> bytes:
         raw_str = (
             Tox21ChallengeMockData.MOL_BINARY_STR + b">  <DSSTox_CID>\n"
             b"25848\n\n"
@@ -280,7 +283,7 @@ class Tox21ChallengeMockData:
         return raw_str
 
     @staticmethod
-    def data_in_dict_format():
+    def data_in_dict_format() -> List[Dict]:
         data_list = [
             {
                 "labels": [
@@ -391,3 +394,114 @@ class Tox21ChallengeMockData:
             dict_["group"] = None
 
         return data_list
+
+    @staticmethod
+    def get_raw_smiles_data() -> str:
+        """
+        Returns mock SMILES data in a tab-delimited format (mocks test.smiles file).
+
+        The data represents molecules and their associated sample IDs.
+
+        Returns:
+            str: A string containing SMILES representations and corresponding sample IDs.
+        """
+        return (
+            "#SMILES\tSample ID\n"
+            f"{Tox21ChallengeMockData.SMILES_OF_MOL}\tNCGC00260869-01\n"
+            f"{Tox21ChallengeMockData.SMILES_OF_MOL}\tNCGC00261776-01\n"
+            f"{Tox21ChallengeMockData.SMILES_OF_MOL}\tNCGC00261380-01\n"
+            f"{Tox21ChallengeMockData.SMILES_OF_MOL}\tNCGC00261842-01\n"
+            f"{Tox21ChallengeMockData.SMILES_OF_MOL}\tNCGC00261662-01\n"
+            f"{Tox21ChallengeMockData.SMILES_OF_MOL}\tNCGC00261190-01\n"
+        )
+
+    @staticmethod
+    def get_raw_score_txt_data() -> str:
+        """
+        Returns mock score data in a tab-delimited format (mocks test_results.txt file).
+
+        The data represents toxicity test results for different molecular samples, including several toxicity endpoints.
+
+        Returns:
+            str: A string containing toxicity scores for each molecular sample and corresponding toxicity endpoints.
+        """
+        return (
+            "Sample ID\tNR-AhR\tNR-AR\tNR-AR-LBD\tNR-Aromatase\tNR-ER\tNR-ER-LBD\tNR-PPAR-gamma\t"
+            "SR-ARE\tSR-ATAD5\tSR-HSE\tSR-MMP\tSR-p53\n"
+            "NCGC00260869-01\t0\t0\t0\t0\t0\t0\t0\t0\t0\t0\t0\t0\n"
+            "NCGC00261776-01\t1\t1\t1\t1\t1\t1\t1\t1\t1\t1\t1\t1\n"
+            "NCGC00261380-01\tx\tx\tx\tx\tx\tx\tx\tx\tx\tx\tx\tx\n"
+            "NCGC00261842-01\t0\t0\t0\tx\t0\t0\t0\t0\t0\t0\tx\t1\n"
+            "NCGC00261662-01\t1\t0\t0\tx\t1\t1\t1\tx\t1\t1\tx\t1\n"
+            "NCGC00261190-01\tx\t0\t0\tx\t1\t0\t0\t1\t0\t0\t1\t1\n"
+        )
+
+    @staticmethod
+    def get_setup_processed_output_data() -> List[Dict]:
+        """
+        Returns mock processed data used for testing the `setup_processed` method.
+
+        The data contains molecule identifiers and their corresponding toxicity labels for multiple endpoints.
+        Each dictionary in the list represents a molecule with its associated labels, features, and group information.
+
+        Returns:
+            List[Dict]: A list of dictionaries where each dictionary contains:
+                        - "features": The SMILES features of the molecule.
+                        - "labels": A list of toxicity endpoint labels (0, 1, or None).
+                        - "ident": The sample identifier.
+                        - "group": None (default value for the group key).
+        """
+
+        # "NR-AR", "NR-AR-LBD", "NR-AhR", "NR-Aromatase", "NR-ER", "NR-ER-LBD", "NR-PPAR-gamma", "SR-ARE", "SR-ATAD5",
+        # "SR-HSE", "SR-MMP", "SR-p53",
+        data_list = [
+            {
+                "labels": [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+                "ident": "NCGC00260869-01",
+            },
+            {
+                "labels": [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+                "ident": "NCGC00261776-01",
+            },
+            {
+                "labels": [
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                ],
+                "ident": "NCGC00261380-01",
+            },
+            {
+                "labels": [0, 0, 0, None, 0, 0, 0, 0, 0, 0, None, 1],
+                "ident": "NCGC00261842-01",
+            },
+            {
+                "labels": [0, 0, 1, None, 1, 1, 1, None, 1, 1, None, 1],
+                "ident": "NCGC00261662-01",
+            },
+            {
+                "labels": [0, 0, None, None, 1, 0, 0, 1, 0, 0, 1, 1],
+                "ident": "NCGC00261190-01",
+            },
+        ]
+
+        complete_list = []
+        for dict_ in data_list:
+            complete_list.append(
+                {
+                    "features": Tox21ChallengeMockData.FEATURE_OF_SMILES,
+                    **dict_,
+                    "group": None,
+                }
+            )
+
+        return complete_list
