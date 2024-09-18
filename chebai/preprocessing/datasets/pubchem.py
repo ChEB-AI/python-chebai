@@ -290,13 +290,14 @@ class PubChemDissimilar(PubChem):
 class PubChemKMeans(PubChem):
     """
     Dataset class representing a subset of PubChem dataset clustered using K-Means algorithm.
+    The idea is to create distinct distributions where pretraining and test sets are formed from dissimilar data.
     """
 
     def __init__(
         self,
         *args,
-        n_clusters: int = 1e4,
-        random_size: int = 1e6,
+        n_clusters: int = 10000,
+        random_size: int = 1000000,
         exclude_data_from: _ChEBIDataExtractor = None,
         validation_size_limit: int = 4000,
         include_min_n_clusters: int = 100,
@@ -306,9 +307,11 @@ class PubChemKMeans(PubChem):
         Args:
             n_clusters (int): Number of clusters to create using K-Means.
             random_size (int): Size of random dataset to download.
-            exclude_data_from (_ChEBIDataExtractor): Dataset extractor to exclude data clusters from.
-            validation_size_limit (int): Size limit for validation dataset.
-            include_min_n_clusters (int): Minimum number of clusters to include after exclusion.
+            exclude_data_from (_ChEBIDataExtractor): Dataset which should not overlap with selected clusters
+            (remove all clusters that contain data from this dataset).
+            validation_size_limit (int): Validation set will contain at most this number of instances.
+            include_min_n_clusters (int): Minimum number of clusters to keep if there are not enough clusters that don't
+            overlap with the `exclude_data_from` dataset.
 
             *args: Additional arguments for superclass initialization.
             **kwargs: Additional keyword arguments for superclass initialization.
@@ -354,6 +357,9 @@ class PubChemKMeans(PubChem):
     @property
     def fingerprints(self) -> pd.DataFrame:
         """
+        Creates random dataset, sanitises, creates Mol objects, generates fingerprints (RDKit)
+        Saves `fingerprints_df` to `fingerprints.pkl`
+
         Returns:
             pd.DataFrame: DataFrame containing SMILES and corresponding fingerprints.
         """
@@ -424,7 +430,13 @@ class PubChemKMeans(PubChem):
 
     def _exclude_clusters(self, cluster_centers: pd.DataFrame) -> pd.DataFrame:
         """
-        Excludes clusters based on data from an exclusion dataset.
+        Excludes clusters based on data from an exclusion dataset (in a training setup, this is the labeled dataset,
+        usually ChEBI). The goal is to avoid having similar data in the labeled training and the PubChem evaluation.
+
+         Loads data from `exclude_data_from` dataset, generates mols, fingerprints, finds closest cluster centre for
+         each fingerprint, saves data to `exclusion_data_clustered.pkl`, returns all clusters with no instances from the
+         exclusion data (or the n clusters with the lowest number of instances if there are less than n clusters with no
+         instances, n being the minimum number of clusters to include)
 
         Args:
             cluster_centers (pd.DataFrame): DataFrame of cluster centers.
@@ -491,6 +503,7 @@ class PubChemKMeans(PubChem):
     @property
     def cluster_centers(self) -> pd.DataFrame:
         """
+        Loads cluster centers from file if possible, otherwise calls `self._build_clusters()`.
         Returns:
             pd.DataFrame: DataFrame of cluster centers.
         """
@@ -505,6 +518,7 @@ class PubChemKMeans(PubChem):
     @property
     def fingerprints_clustered(self) -> pd.DataFrame:
         """
+        Loads fingerprints with assigned clusters from file if possible, otherwise calls `self._build_clusters()`.
         Returns:
             pd.DataFrame: DataFrame of clustered fingerprints.
         """
@@ -521,6 +535,10 @@ class PubChemKMeans(PubChem):
     @property
     def cluster_centers_superclustered(self) -> pd.DataFrame:
         """
+        Calls `_exclude_clusters()` which removes all clusters that contain data from the exclusion set (usually the
+        ChEBI, i.e., the labeled dataset).
+        Runs KMeans with 3 clusters on remaining data, saves cluster centres with assigned supercluster-labels to
+        `cluster_centers_superclustered.pkl`
         Returns:
             pd.DataFrame: DataFrame of superclustered cluster centers.
         """
@@ -559,7 +577,12 @@ class PubChemKMeans(PubChem):
 
     def download(self):
         """
-        Downloads the PubChemKMeans dataset.
+        Downloads the PubChemKMeans dataset. This function creates the complete dataset (including train, test, and
+        validation splits). Most of the steps are hidden in properties (e.g., `self.fingerprints_clustered` triggers
+        the download of a random dataset, the calculation of fingerprints for it and the KMeans clustering)
+        The final splits are created by assigning all fingerprints that belong to a cluster of a certain supercluster
+        to a dataset. This creates 3 datasets (for each of the 3 superclusters), the datasets are saved as validation,
+        test and train based on their size. The validation set is limited to `self.validation_size_limit` entries.
         """
         if self._k == PubChem.FULL:
             super().download()
