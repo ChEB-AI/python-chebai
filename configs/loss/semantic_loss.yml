@@ -6,5 +6,4 @@ init_args:
     init_args:
       beta: 0.99
   multiply_by_softmax: true
-  tnorm: product
   impl_loss_weight: 0.01

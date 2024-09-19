@@ -7,6 +7,7 @@ from typing import List, Literal, Union
 import torch
 
 from chebai.loss.bce_weighted import BCEWeighted
+from chebai.preprocessing.datasets import XYBaseDataModule
 from chebai.preprocessing.datasets.chebi import ChEBIOver100, _ChEBIDataExtractor
 from chebai.preprocessing.datasets.pubchem import LabeledUnlabeledMixed
 
@@ -27,7 +28,7 @@ class ImplicationLoss(torch.nn.Module):
 
     def __init__(
         self,
-        data_extractor: _ChEBIDataExtractor,
+        data_extractor: XYBaseDataModule,
         base_loss: torch.nn.Module = None,
         fuzzy_implication: Literal[
             "reichenbach", "rb", "lukasiewicz", "lk", "xu19"
@@ -41,7 +42,7 @@ class ImplicationLoss(torch.nn.Module):
         # automatically choose labeled subset for implication filter in case of mixed dataset
         if isinstance(data_extractor, LabeledUnlabeledMixed):
             data_extractor = data_extractor.labeled
-            assert isinstance(data_extractor, _ChEBIDataExtractor)
+        assert isinstance(data_extractor, _ChEBIDataExtractor)
         self.data_extractor = data_extractor
         # propagate data_extractor to base loss
         if isinstance(base_loss, BCEWeighted):
@@ -49,7 +50,7 @@ class ImplicationLoss(torch.nn.Module):
         self.base_loss = base_loss
         self.implication_cache_file = f"implications_{self.data_extractor.name}.cache"
         self.label_names = _load_label_names(
-            os.path.join(data_extractor.raw_dir, "classes.txt")
+            os.path.join(data_extractor.processed_dir_main, "classes.txt")
         )
         self.hierarchy = self._load_implications(
             os.path.join(data_extractor.raw_dir, "chebi.obo")
