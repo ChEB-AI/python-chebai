@@ -52,11 +52,7 @@ class ChebaiCLI(LightningCLI):
         )
         parser.link_arguments(
             "data.init_args.chebi_version",
-            "model.criterion.init_args.data_extractor.init_args.chebi_version",
-        )
-        parser.link_arguments(
-            "data.init_args.chebi_version",
-            "model.criterion.init_args.base_loss.init_args.data_extractor.init_args.chebi_version",
+            "model.init_args.criterion.init_args.data_extractor.init_args.chebi_version",
         )
 
     @staticmethod
