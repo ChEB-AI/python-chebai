@@ -16,7 +16,7 @@ class ImplicationLoss(torch.nn.Module):
     Implication Loss module.
 
     Args:
-        data_extractor (Union[_ChEBIDataExtractor, LabeledUnlabeledMixed]): Data extractor for labels.
+        data_extractor _ChEBIDataExtractor: Data extractor for labels.
         base_loss (torch.nn.Module, optional): Base loss function. Defaults to None.
         tnorm (Literal["product", "lukasiewicz", "xu19"], optional): T-norm type. Defaults to "product".
         impl_loss_weight (float, optional): Weight of implication loss relative to base loss. Defaults to 0.1.
@@ -27,9 +27,11 @@ class ImplicationLoss(torch.nn.Module):
 
     def __init__(
         self,
-        data_extractor: Union[_ChEBIDataExtractor, LabeledUnlabeledMixed],
+        data_extractor: _ChEBIDataExtractor,
         base_loss: torch.nn.Module = None,
-        tnorm: Literal["product", "lukasiewicz", "xu19"] = "product",
+        fuzzy_implication: Literal[
+            "reichenbach", "rb", "lukasiewicz", "lk", "xu19"
+        ] = "reichenbach",
         impl_loss_weight: float = 0.1,
         pos_scalar: int = 1,
         pos_epsilon: float = 0.01,
@@ -39,6 +41,7 @@ class ImplicationLoss(torch.nn.Module):
         # automatically choose labeled subset for implication filter in case of mixed dataset
         if isinstance(data_extractor, LabeledUnlabeledMixed):
             data_extractor = data_extractor.labeled
+            assert isinstance(data_extractor, _ChEBIDataExtractor)
         self.data_extractor = data_extractor
         # propagate data_extractor to base loss
         if isinstance(base_loss, BCEWeighted):
@@ -54,7 +57,7 @@ class ImplicationLoss(torch.nn.Module):
         implication_filter = _build_implication_filter(self.label_names, self.hierarchy)
         self.implication_filter_l = implication_filter[:, 0]
         self.implication_filter_r = implication_filter[:, 1]
-        self.tnorm = tnorm
+        self.fuzzy_implication = fuzzy_implication
         self.impl_weight = impl_loss_weight
         self.pos_scalar = pos_scalar
         self.eps = pos_epsilon
@@ -119,14 +122,18 @@ class ImplicationLoss(torch.nn.Module):
             one_min_r = torch.pow(1 - r, self.pos_scalar)
         else:
             one_min_r = 1 - r
-        if self.tnorm == "product":
+        if self.fuzzy_implication in ["reichenbach", "rb"]:
             individual_loss = l * one_min_r
-        elif self.tnorm == "xu19":
+        # xu19 (from Xu et al., 2019: Semantic loss) is not a fuzzy implication, but behaves similar to the Reichenbach
+        # implication
+        elif self.fuzzy_implication == "xu19":
             individual_loss = -torch.log(1 - l * one_min_r)
-        elif self.tnorm == "lukasiewicz":
+        elif self.fuzzy_implication in ["lukasiewicz", "lk"]:
             individual_loss = torch.relu(l + one_min_r - 1)
         else:
-            raise NotImplementedError(f"Unknown tnorm {self.tnorm}")
+            raise NotImplementedError(
+                f"Unknown fuzzy implication {self.fuzzy_implication}"
+            )
 
         if self.multiply_by_softmax:
             individual_loss = individual_loss * individual_loss.softmax(dim=-1)
