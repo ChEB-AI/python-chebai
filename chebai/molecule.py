@@ -66,7 +66,7 @@ class Molecule:
     max_number_of_parents = 7
 
     def __init__(
-        self, smile: str, logp: Optional[float] = None, contract_rings: bool = False
+            self, smile: str, logp: Optional[float] = None, contract_rings: bool = False
     ):
         """
         Initializes a Molecule object.
@@ -400,8 +400,8 @@ class Molecule:
             int: Total number of features.
         """
         return (
-            Molecule.max_number_of_parents * Molecule.num_bond_features()
-            + Molecule.num_atom_features()
+                Molecule.max_number_of_parents * Molecule.num_bond_features()
+                + Molecule.num_atom_features()
         )
 
     @staticmethod

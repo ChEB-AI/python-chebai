@@ -24,9 +24,15 @@ from iterstrat.ml_stratifiers import (
     MultilabelStratifiedKFold,
     MultilabelStratifiedShuffleSplit,
 )
+from rdkit import Chem, RDLogger
+from tqdm import tqdm
 
 from chebai.preprocessing import reader as dr
 from chebai.preprocessing.datasets.base import XYBaseDataModule
+import random
+
+# Suppress RDKit warnings and errors
+RDLogger.DisableLog('rdApp.*')  # Disable all RDKit logging
 
 # exclude some entities from the dataset because the violate disjointness axioms
 CHEBI_BLACKLIST = [
@@ -133,10 +139,12 @@ class _ChEBIDataExtractor(XYBaseDataModule, ABC):
     """
 
     def __init__(
-        self,
-        chebi_version_train: Optional[int] = None,
-        single_class: Optional[int] = None,
-        **kwargs,
+            self,
+            chebi_version_train: Optional[int] = None,
+            single_class: Optional[int] = None,
+            aug_data: Optional[bool] = False,
+            batch_size_:Optional[int]= 5000,
+            **kwargs,
     ):
         # predict only single class (given as id of one of the classes present in the raw data set)
         self.single_class = single_class
@@ -149,6 +157,8 @@ class _ChEBIDataExtractor(XYBaseDataModule, ABC):
         self.dynamic_df_train = None
         self.dynamic_df_test = None
         self.dynamic_df_val = None
+        self.aug_data = aug_data
+        self.batch_size_=batch_size_
 
         if self.chebi_version_train is not None:
             # Instantiate another same class with "chebi_version" as "chebi_version_train", if train_version is given
@@ -450,6 +460,25 @@ class _ChEBIDataExtractor(XYBaseDataModule, ABC):
                 os.path.join(self.processed_dir, processed_name),
             )
 
+        augmented_dir = os.path.join("data", "augmented_dataset")
+
+        # Define the augmented data file path
+        if not os.path.isfile(os.path.join(augmented_dir, "augmented_data.pt")):
+            print(
+                f"Missing encoded data related to version {self.chebi_version}, transform augmented data into encoded data:",
+                "augmented_data.pt",
+            )
+            torch.save(
+                self._load_data_from_file(
+                    os.path.join(
+                        augmented_dir,
+                        "augmented_data.pkl",
+                    )
+                ),
+                os.path.join(augmented_dir, "augmented_data.pt"),
+            )
+
+
         # Transform the data related to "chebi_version_train" to encoded data, if it doesn't exist
         if self.chebi_version_train is not None and not os.path.isfile(
             os.path.join(
@@ -602,6 +631,16 @@ class _ChEBIDataExtractor(XYBaseDataModule, ABC):
         return os.path.join("data", f"chebi_v{self.chebi_version}")
 
     @property
+    def augmented_dir(self) -> str:
+        """
+        Return the base directory path for data.
+
+        Returns:
+            str: The base directory path for data.
+        """
+        return os.path.join("data", "chebi_augmented")
+
+    @property
     def processed_file_names_dict(self) -> dict:
         """
         Return a dictionary of processed file names.
@@ -694,6 +733,11 @@ class _ChEBIDataExtractor(XYBaseDataModule, ABC):
             url = f"http://purl.obolibrary.org/obo/chebi/{version}/chebi.obo"
             r = requests.get(url, allow_redirects=True)
             open(chebi_path, "wb").write(r.content)
+            # # Define the source path of the backup file
+            # local_backup_path = r"D:\Knowledge\Hiwi\chebi_v231\raw\chebi.obo"
+            #  # Copy the file from the local backup to the target directory
+            # shutil.copy(local_backup_path, chebi_path)
+            # print(f"Copied local backup to {chebi_path}.")
         return chebi_path
 
     def prepare_data(self, *args: Any, **kwargs: Any) -> None:
@@ -759,13 +803,13 @@ class _ChEBIDataExtractor(XYBaseDataModule, ABC):
             g = self.extract_class_hierarchy(chebi_path)
             df = self.graph_to_raw_dataset(g, self.raw_file_names_dict["data"])
             self.save_processed(df, filename=self.raw_file_names_dict["data"])
-
+            self.augment_data(self.processed_dir_main,self.batch_size_)
             if self.chebi_version_train is not None:
                 if not os.path.isfile(
-                    os.path.join(
-                        self._chebi_version_train_obj.processed_dir_main,
-                        self._chebi_version_train_obj.raw_file_names_dict["data"],
-                    )
+                        os.path.join(
+                            self._chebi_version_train_obj.processed_dir_main,
+                            self._chebi_version_train_obj.raw_file_names_dict["data"],
+                        )
                 ):
                     print(
                         f"Missing processed data related to train version: {self.chebi_version_train}"
@@ -773,6 +817,130 @@ class _ChEBIDataExtractor(XYBaseDataModule, ABC):
                     print("Call the prepare_data method related to it")
                     # Generate the "chebi_version_train" data if it doesn't exist
                     self._chebi_version_train_obj.prepare_data(*args, **kwargs)
+
+    def augment_data(self, path: str, batch_size) -> None:
+        print(("inside_augment_data"))
+        if self.aug_data:
+            if os.path.isfile(os.path.join(
+                    path, self.raw_file_names_dict["data"])):
+                augmented_dir = os.path.join("data", "augmented_dataset")
+                # Check if the augmented directory exists, if not, create it
+                os.makedirs(augmented_dir, exist_ok=True)
+                # Define the augmented data file path
+                augmented_data_file = os.path.join(augmented_dir, "augmented_data.pkl")
+
+                # If augmented_data.pkl does not already exist, proceed with the logic
+                if not os.path.isfile(augmented_data_file):
+
+                    data = self.read_file(os.path.join(
+                        path, self.raw_file_names_dict["data"]))
+                    print("Original Dataset size:", data.shape)
+                    total_rows = data.shape[0]
+                    # Calculate the total number of batches
+                    total_batches = (total_rows + batch_size - 1) // batch_size
+
+                    for batch_num, start in enumerate(range(0, total_rows, batch_size), start=1):
+                        end = min(start + batch_size, total_rows)
+                        batch = data[start:end]
+                        print(f"Processing batch {batch_num}/{total_batches} ({start} to {end})")
+
+                        # Set to keep track of already seen SMILES
+                        seen_smiles = set(batch['SMILES'])
+
+                        # Store new rows in a list instead of concatenating directly
+                        new_rows = []
+
+                        # Updated tqdm to show batch number and total batches
+                        for _, row in tqdm(batch.iterrows(), total=len(batch),
+                                           desc=f"Batch {batch_num}/{total_batches}", unit="row"):
+                            original_smiles = row['SMILES']
+                            variations = self.generate_smiles_variations(original_smiles)
+                            variations = [var for var in variations if var not in seen_smiles]
+
+                            for var in variations:
+                                new_row = row.copy()
+                                new_row['SMILES'] = var
+                                new_rows.append(new_row)
+                                seen_smiles.add(var)
+
+                        # Create a DataFrame from the new rows
+                        new_df = pd.DataFrame(new_rows)
+
+                        # Concatenate the batch and new variations, and save incrementally
+                        batch_with_variations = pd.concat([batch, new_df], ignore_index=True)
+
+                        # Append batch to augmented file
+                        self.save_file(batch_with_variations, augmented_data_file, append=True)
+        else:
+            print("Data Augmentation config is False")
+
+    def save_file(self, dataset: pd.DataFrame, file_path: str, append=False):
+        if append and os.path.isfile(file_path):
+            existing_data = pd.read_pickle(file_path)
+            dataset = pd.concat([existing_data, dataset], ignore_index=True)
+        pd.to_pickle(dataset, open(file_path, "wb"))
+
+    # Function to generate SMILES variations using different configurations
+    def generate_smiles_variations(self, original_smiles):
+        num_variations = 5
+        print(type(original_smiles), original_smiles)
+        if not isinstance(original_smiles, str):
+            print(f"Non-string SMILES found: {original_smiles}")
+        mol = Chem.MolFromSmiles(original_smiles)
+        if mol is None:
+            return []  # Return an empty list if conversion fails
+
+        variations = set()
+
+        # List of rootedAtAtom values to pick from randomly
+        rooted_at_atoms = [5, 4, 3, 2, 1, 0, -1, -2, -3, -4, -5]
+        random.shuffle(rooted_at_atoms)  # Randomize the order of rootedAtAtom values
+
+        # Flag to track if we've already computed a SMILES with doRandom=False and a negative rootedAtAtom
+        already_computed_negative_rooted = False
+
+        # Loop through all combinations of doRandom and rootedAtAtom values
+        for do_random in [True, False]:
+            for rooted_at_atom in rooted_at_atoms:
+                try:
+                    # Skip redundant computations
+                    if not do_random and rooted_at_atom < 0:
+                        if already_computed_negative_rooted:
+                            continue
+                        already_computed_negative_rooted = True
+
+                    # Generate SMILES with the given configuration
+                    variant = Chem.MolToSmiles(
+                        mol,
+                        doRandom=do_random,
+                        rootedAtAtom=rooted_at_atom,
+                        canonical=False
+                    )
+
+                    # # Print the configuration and the generated SMILES string
+                    # print(
+                    #     f"Config: doRandom={do_random}, rootedAtAtom={rooted_at_atom}, canonical={False} -> SMILES: {variant}")
+
+                    # Avoid duplicates with the original SMILES
+                    if variant != original_smiles:
+                        variations.add(variant)
+
+                    # Check the number of variations after adding
+                    if len(variations) >= num_variations:
+                        return list(variations)  # Return immediately when enough variations are found
+
+                except Exception as e:
+                    # Skip invalid configurations
+                    continue
+
+        return list(variations)
+
+    def read_file(self, file_path: str):
+        df = pd.read_pickle(
+            open(file_path, "rb"
+                 )
+        )
+        return df
 
     def _generate_dynamic_splits(self) -> None:
         """
@@ -1929,3 +2097,6 @@ JCI_500_COLUMNS = [
 ]
 
 JCI_500_COLUMNS_INT = [int(n.split(":")[-1]) for n in JCI_500_COLUMNS]
+
+
+
