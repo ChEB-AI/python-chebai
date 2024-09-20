@@ -34,7 +34,7 @@ class ImplicationLoss(torch.nn.Module):
         data_extractor: XYBaseDataModule,
         base_loss: torch.nn.Module = None,
         fuzzy_implication: Literal[
-            "reichenbach", "rb", "lukasiewicz", "lk", "xu19", "kleene_dienes", "kd"
+            "reichenbach", "rc", "lukasiewicz", "lk", "xu19", "kleene_dienes", "kd"
         ] = "reichenbach",
         impl_loss_weight: float = 0.1,
         pos_scalar: int = 1,
@@ -130,7 +130,7 @@ class ImplicationLoss(torch.nn.Module):
             one_min_r = 1 - r
         # for each implication I, calculate 1 - I(l, 1-one_min_r)
         # for S-implications, this is equivalent to the t-norm
-        if self.fuzzy_implication in ["reichenbach", "rb"]:
+        if self.fuzzy_implication in ["reichenbach", "rc"]:
             individual_loss = l * one_min_r
         # xu19 (from Xu et al., 2019: Semantic loss) is not a fuzzy implication, but behaves similar to the Reichenbach
         # implication
