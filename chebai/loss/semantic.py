@@ -19,11 +19,14 @@ class ImplicationLoss(torch.nn.Module):
     Args:
         data_extractor _ChEBIDataExtractor: Data extractor for labels.
         base_loss (torch.nn.Module, optional): Base loss function. Defaults to None.
-        tnorm (Literal["product", "lukasiewicz", "xu19"], optional): T-norm type. Defaults to "product".
+        fuzzy_implication (Literal["product", "lukasiewicz", "xu19"], optional): T-norm type. Defaults to "product".
         impl_loss_weight (float, optional): Weight of implication loss relative to base loss. Defaults to 0.1.
         pos_scalar (int, optional): Positive scalar exponent. Defaults to 1.
         pos_epsilon (float, optional): Epsilon value for numerical stability. Defaults to 0.01.
         multiply_by_softmax (bool, optional): Whether to multiply by softmax. Defaults to False.
+        use_sigmoidal_implication (bool, optional): Whether to use the sigmoidal fuzzy implication based on the
+        specified fuzzy_implication (as defined by van Krieken et al., 2022: Analyzing Differentiable Fuzzy Logic
+        Operators). Defaults to False.
     """
 
     def __init__(
@@ -31,12 +34,13 @@ class ImplicationLoss(torch.nn.Module):
         data_extractor: XYBaseDataModule,
         base_loss: torch.nn.Module = None,
         fuzzy_implication: Literal[
-            "reichenbach", "rb", "lukasiewicz", "lk", "xu19"
+            "reichenbach", "rb", "lukasiewicz", "lk", "xu19", "kleene_dienes", "kd"
         ] = "reichenbach",
         impl_loss_weight: float = 0.1,
         pos_scalar: int = 1,
         pos_epsilon: float = 0.01,
         multiply_by_softmax: bool = False,
+        use_sigmoidal_implication: bool = False,
     ):
         super().__init__()
         # automatically choose labeled subset for implication filter in case of mixed dataset
@@ -63,6 +67,7 @@ class ImplicationLoss(torch.nn.Module):
         self.pos_scalar = pos_scalar
         self.eps = pos_epsilon
         self.multiply_by_softmax = multiply_by_softmax
+        self.use_sigmoidal_implication = use_sigmoidal_implication
 
     def forward(self, input: torch.Tensor, target: torch.Tensor, **kwargs) -> tuple:
         """
@@ -123,6 +128,8 @@ class ImplicationLoss(torch.nn.Module):
             one_min_r = torch.pow(1 - r, self.pos_scalar)
         else:
             one_min_r = 1 - r
+        # for each implication I, calculate 1 - I(l, 1-one_min_r)
+        # for S-implications, this is equivalent to the t-norm
         if self.fuzzy_implication in ["reichenbach", "rb"]:
             individual_loss = l * one_min_r
         # xu19 (from Xu et al., 2019: Semantic loss) is not a fuzzy implication, but behaves similar to the Reichenbach
@@ -131,10 +138,21 @@ class ImplicationLoss(torch.nn.Module):
             individual_loss = -torch.log(1 - l * one_min_r)
         elif self.fuzzy_implication in ["lukasiewicz", "lk"]:
             individual_loss = torch.relu(l + one_min_r - 1)
+        elif self.fuzzy_implication in ["kleene_dienes", "kd"]:
+            individual_loss = torch.min(l, 1 - r)
         else:
             raise NotImplementedError(
                 f"Unknown fuzzy implication {self.fuzzy_implication}"
             )
+
+        if self.use_sigmoidal_implication:
+            # formula by van Krieken, 2022, applied to fuzzy implication with default parameters: b_0 = 0.5, s = 9
+            # parts that only depend on b_0 and s are pre-calculated
+            implication = 1 - individual_loss
+            sigmoidal_implication = 90.028 * (
+                1.011 * torch.sigmoid(9 * (implication + 0.5)) - 1
+            )
+            individual_loss = 1 - sigmoidal_implication
 
         if self.multiply_by_softmax:
             individual_loss = individual_loss * individual_loss.softmax(dim=-1)
