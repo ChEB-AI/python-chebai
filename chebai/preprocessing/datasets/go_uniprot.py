@@ -595,11 +595,6 @@ class _GOUniProtOverX(_GOUniProtDataExtractor, ABC):
     THRESHOLD: int = None
 
     @property
-    @abstractmethod
-    def label_number(self) -> int:
-        raise NotImplementedError
-
-    @property
     def _name(self) -> str:
         """
         Returns the name of the dataset.
@@ -706,17 +701,6 @@ class GOUniProtOver250(_GOUniProtOverX):
 
     THRESHOLD: int = 250
 
-    def label_number(self) -> int:
-        """
-        Returns the number of labels in the dataset for this threshold.
-
-        Overrides the base class method to provide the correct number of labels for a threshold of 100.
-
-        Returns:
-            int: The number of labels (854).
-        """
-        return 854
-
 
 class GOUniProtOver50(_GOUniProtOverX):
     """
@@ -729,14 +713,3 @@ class GOUniProtOver50(_GOUniProtOverX):
     """
 
     THRESHOLD: int = 50
-
-    def label_number(self) -> int:
-        """
-        Returns the number of labels in the dataset for this threshold.
-
-        Overrides the base class method to provide the correct number of labels for a threshold of 50.
-
-        Returns:
-            int: The number of labels (1332).
-        """
-        return 1332
