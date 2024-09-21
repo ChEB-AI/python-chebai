@@ -24,6 +24,7 @@ import pandas as pd
 import requests
 import torch
 from Bio import SwissProt
+from torch.utils.data import DataLoader
 
 from chebai.preprocessing import reader as dr
 from chebai.preprocessing.datasets.base import _DynamicDataset
@@ -73,6 +74,11 @@ class _GOUniProtDataExtractor(_DynamicDataset, ABC):
     def __init__(self, **kwargs):
         self.go_branch: str = self._get_go_branch(**kwargs)
         super(_GOUniProtDataExtractor, self).__init__(**kwargs)
+
+        self.max_sequence_length: int = int(kwargs.get("max_sequence_length", 1002))
+        assert (
+            self.max_sequence_length >= 1
+        ), "Max sequence length should be greater than or equal to 1."
 
     @classmethod
     def _get_go_branch(cls, **kwargs) -> str:
@@ -397,15 +403,14 @@ class _GOUniProtDataExtractor(_DynamicDataset, ABC):
         }
         # https://github.com/bio-ontology-research-group/deepgo/blob/d97447a05c108127fee97982fd2c57929b2cf7eb/aaindex.py#L8
         AMBIGUOUS_AMINO_ACIDS = {"B", "O", "J", "U", "X", "Z", "*"}
-        MAX_LENGTH = 1002
 
         for record in swiss_data:
             if record.data_class != "Reviewed":
                 # To consider only manually-annotated swiss data
                 continue
 
-            if not record.sequence or record.sequence_length > MAX_LENGTH:
-                # Consider protein with only sequence representation and a maximum length of 1002
+            if not record.sequence:
+                # Consider protein with only sequence representation
                 continue
 
             if any(aa in AMBIGUOUS_AMINO_ACIDS for aa in record.sequence):
@@ -524,6 +529,29 @@ class _GOUniProtDataExtractor(_DynamicDataset, ABC):
 
         return df_train, df_val, df_test
 
+    # ------------------------------ Phase: DataLoaders -----------------------------------
+    def dataloader(self, kind: str, **kwargs) -> DataLoader:
+        """
+        Returns a DataLoader object with truncated sequences for the specified kind of data (train, val, or test).
+
+        This method overrides the dataloader method from the superclass. After fetching the dataset from the
+        superclass, it truncates the 'features' of each data instance to a maximum length specified by
+        `self.max_sequence_length`.
+
+        Args:
+            kind (str): The kind of data to load (e.g., 'train', 'val', 'test').
+            **kwargs: Additional keyword arguments passed to the superclass dataloader method.
+
+        Returns:
+            DataLoader: A DataLoader object with the truncated sequences.
+        """
+        dataloader = super().dataloader(kind, **kwargs)
+
+        # Truncate the 'features' to max_sequence_length for each instance
+        for instance in dataloader.dataset:
+            instance["features"] = instance["features"][: self.max_sequence_length]
+        return dataloader
+
     # ------------------------------ Phase: Raw Properties -----------------------------------
     @property
     def base_dir(self) -> str:
@@ -619,7 +647,7 @@ class _GOUniProtOverX(_GOUniProtDataExtractor, ABC):
             - The `THRESHOLD` attribute, which defines the minimum number of annotations required to select a GO term, should be defined in the subclass.
         """
         # Retrieve the DataFrame containing GO annotations per protein from the keyword arguments
-        data_df: pd.DataFrame = kwargs.get("data_df", None)
+        data_df = kwargs.get("data_df", None)
         if data_df is None or not isinstance(data_df, pd.DataFrame) or data_df.empty:
             raise AttributeError(
                 "The 'data_df' argument must be provided and must be a non-empty pandas DataFrame."
