@@ -564,6 +564,16 @@ class _GOUniProtDataExtractor(_DynamicDataset, ABC):
         return os.path.join("data", f"GO_UniProt")
 
     @property
+    def identifier(self) -> tuple:
+        """Identifier for the dataset."""
+        # overriding identifier instead of reader.name to keep same tokens.txt file, but different processed_dir folder
+        if not isinstance(self.reader, dr.ProteinDataReader):
+            raise ValueError("Need Protein DataReader for identifier")
+        if self.reader.n_gram is not None:
+            return (f"{self.reader.name()}_{self.reader.n_gram}_gram",)
+        return (self.reader.name(),)
+
+    @property
     def raw_file_names_dict(self) -> dict:
         """
         Returns a dictionary of raw file names used in data processing.

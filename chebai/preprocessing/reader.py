@@ -382,7 +382,7 @@ class ProteinDataReader(DataReader):
         """
         return "protein_token"
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, n_gram: Optional[int] = None, **kwargs):
         """
         Initializes the ProteinDataReader, loading existing tokens from the specified token file.
 
@@ -390,7 +390,16 @@ class ProteinDataReader(DataReader):
             *args: Additional positional arguments passed to the base class.
             **kwargs: Additional keyword arguments passed to the base class.
         """
+        if n_gram is not None:
+            assert (
+                int(n_gram) >= 2
+            ), "Ngrams must be greater than or equal to 2 if provided."
+            self.n_gram = int(n_gram)
+        else:
+            self.n_gram = None
+
         super().__init__(*args, **kwargs)
+
         # Load the existing tokens from the token file into a cache
         with open(self.token_path, "r") as pk:
             self.cache = [x.strip() for x in pk]
@@ -405,14 +414,25 @@ class ProteinDataReader(DataReader):
         Returns:
             int: The index of the token, offset by the predefined EMBEDDING_OFFSET.
         """
-        if str(token) not in self.AA_LETTER:
-            raise KeyError(
-                f"Invalid token '{token}' encountered. "
-                f"Please ensure that the input only contains valid amino acids "
-                f"20 Valid natural amino acid notation:  {self.AA_LETTER}"
-                f"Refer to the amino acid sequence details here: "
-                f"https://en.wikipedia.org/wiki/Protein_primary_structure"
-            )
+        error_str = (
+            f"Please ensure that the input only contains valid amino acids "
+            f"20 Valid natural amino acid notation:  {self.AA_LETTER}"
+            f"Refer to the amino acid sequence details here: "
+            f"https://en.wikipedia.org/wiki/Protein_primary_structure"
+        )
+
+        if self.n_gram is None:
+            # Single-letter amino acid token check
+            if str(token) not in self.AA_LETTER:
+                raise KeyError(f"Invalid token '{token}' encountered. " + error_str)
+        else:
+            # n-gram token validation, ensure that each component of the n-gram is valid
+            for aa in token:
+                if aa not in self.AA_LETTER:
+                    raise KeyError(
+                        f"Invalid token '{token}' encountered as part of n-gram {self.n_gram}. "
+                        + error_str
+                    )
 
         if str(token) not in self.cache:
             self.cache.append(str(token))
@@ -428,7 +448,15 @@ class ProteinDataReader(DataReader):
         Returns:
             List[int]: A list of integers representing the indices of the amino acid tokens.
         """
-        # In the case of protein sequences, each amino acid is typically represented by a single letter.
+        if self.n_gram is not None:
+            # Tokenize the sequence into n-grams
+            tokens = [
+                raw_data[i : i + self.n_gram]
+                for i in range(len(raw_data) - self.n_gram + 1)
+            ]
+            return [self._get_token_index(gram) for gram in tokens]
+
+        # If n_gram is None, tokenize the sequence at the amino acid level (single-letter representation)
         return [self._get_token_index(aa) for aa in raw_data]
 
     def on_finish(self) -> None:
