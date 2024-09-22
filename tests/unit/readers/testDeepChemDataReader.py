@@ -100,6 +100,16 @@ class TestDeepChemDataReader(unittest.TestCase):
             "The new token '[H-]' was not added to the correct index in the cache.",
         )
 
+    def test_read_data_with_invalid_input(self) -> None:
+        """
+        Test the _read_data method with an invalid input string.
+        The invalid token should raise an error or be handled appropriately.
+        """
+        raw_data = "CBr))(OCI"
+
+        with self.assertRaises(Exception):
+            self.reader._read_data(raw_data)
+
 
 if __name__ == "__main__":
     unittest.main()
