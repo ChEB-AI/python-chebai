@@ -146,11 +146,21 @@ class ChemDataReader(DataReader):
         return self.cache.index(str(token)) + EMBEDDING_OFFSET
 
     def _read_data(self, raw_data: str) -> List[int]:
-        """Read and tokenize raw data."""
+        """
+        Reads and tokenizes raw SMILES data into a list of token indices.
+
+        Args:
+            raw_data (str): The raw SMILES string to be tokenized.
+
+        Returns:
+            List[int]: A list of integers representing the indices of the SMILES tokens.
+        """
         return [self._get_token_index(v[1]) for v in _tokenize(raw_data)]
 
     def on_finish(self) -> None:
-        """Write contents of self.cache into tokens.txt."""
+        """
+        Saves the current cache of tokens to the token file. This method is called after all data processing is complete.
+        """
         with open(self.token_path, "w") as pk:
             print(f"saving {len(self.cache)} tokens to {self.token_path}...")
             print(f"first 10 tokens: {self.cache[:10]}")
@@ -320,3 +330,140 @@ class OrdReader(DataReader):
     def _read_data(self, raw_data: str) -> List[int]:
         """Convert characters in raw data to their ordinal values."""
         return [ord(s) for s in raw_data]
+
+
+class ProteinDataReader(DataReader):
+    """
+    Data reader for protein sequences using amino acid tokens. This class processes raw protein sequences into a format
+    suitable for model input by tokenizing them and assigning unique indices to each token.
+
+    Note:
+        Refer for amino acid sequence:  https://en.wikipedia.org/wiki/Protein_primary_structure
+
+    Args:
+        collator_kwargs (Optional[Dict[str, Any]]): Optional dictionary of keyword arguments for configuring the collator.
+        token_path (Optional[str]): Path to the token file. If not provided, it will be created automatically.
+        kwargs: Additional keyword arguments.
+    """
+
+    COLLATOR = RaggedCollator
+
+    # 20 natural amino acid notation
+    AA_LETTER = [
+        "A",
+        "R",
+        "N",
+        "D",
+        "C",
+        "Q",
+        "E",
+        "G",
+        "H",
+        "I",
+        "L",
+        "K",
+        "M",
+        "F",
+        "P",
+        "S",
+        "T",
+        "W",
+        "Y",
+        "V",
+    ]
+
+    @classmethod
+    def name(cls) -> str:
+        """
+        Returns the name of the data reader. This method identifies the specific type of data reader.
+
+        Returns:
+            str: The name of the data reader, which is "protein_token".
+        """
+        return "protein_token"
+
+    def __init__(self, *args, n_gram: Optional[int] = None, **kwargs):
+        """
+        Initializes the ProteinDataReader, loading existing tokens from the specified token file.
+
+        Args:
+            *args: Additional positional arguments passed to the base class.
+            **kwargs: Additional keyword arguments passed to the base class.
+        """
+        if n_gram is not None:
+            assert (
+                int(n_gram) >= 2
+            ), "Ngrams must be greater than or equal to 2 if provided."
+            self.n_gram = int(n_gram)
+        else:
+            self.n_gram = None
+
+        super().__init__(*args, **kwargs)
+
+        # Load the existing tokens from the token file into a cache
+        with open(self.token_path, "r") as pk:
+            self.cache = [x.strip() for x in pk]
+
+    def _get_token_index(self, token: str) -> int:
+        """
+        Returns a unique index for each token (amino acid). If the token is not already in the cache, it is added.
+
+        Args:
+            token (str): The amino acid token to retrieve or add.
+
+        Returns:
+            int: The index of the token, offset by the predefined EMBEDDING_OFFSET.
+        """
+        error_str = (
+            f"Please ensure that the input only contains valid amino acids "
+            f"20 Valid natural amino acid notation:  {self.AA_LETTER}"
+            f"Refer to the amino acid sequence details here: "
+            f"https://en.wikipedia.org/wiki/Protein_primary_structure"
+        )
+
+        if self.n_gram is None:
+            # Single-letter amino acid token check
+            if str(token) not in self.AA_LETTER:
+                raise KeyError(f"Invalid token '{token}' encountered. " + error_str)
+        else:
+            # n-gram token validation, ensure that each component of the n-gram is valid
+            for aa in token:
+                if aa not in self.AA_LETTER:
+                    raise KeyError(
+                        f"Invalid token '{token}' encountered as part of n-gram {self.n_gram}. "
+                        + error_str
+                    )
+
+        if str(token) not in self.cache:
+            self.cache.append(str(token))
+        return self.cache.index(str(token)) + EMBEDDING_OFFSET
+
+    def _read_data(self, raw_data: str) -> List[int]:
+        """
+        Reads and tokenizes raw protein sequence data into a list of token indices.
+
+        Args:
+            raw_data (str): The raw protein sequence to be tokenized (e.g., "MKTFF...").
+
+        Returns:
+            List[int]: A list of integers representing the indices of the amino acid tokens.
+        """
+        if self.n_gram is not None:
+            # Tokenize the sequence into n-grams
+            tokens = [
+                raw_data[i : i + self.n_gram]
+                for i in range(len(raw_data) - self.n_gram + 1)
+            ]
+            return [self._get_token_index(gram) for gram in tokens]
+
+        # If n_gram is None, tokenize the sequence at the amino acid level (single-letter representation)
+        return [self._get_token_index(aa) for aa in raw_data]
+
+    def on_finish(self) -> None:
+        """
+        Saves the current cache of tokens to the token file. This method is called after all data processing is complete.
+        """
+        with open(self.token_path, "w") as pk:
+            print(f"Saving {len(self.cache)} tokens to {self.token_path}...")
+            print(f"First 10 tokens: {self.cache[:10]}")
+            pk.writelines([f"{c}\n" for c in self.cache])
