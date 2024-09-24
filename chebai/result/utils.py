@@ -140,21 +140,24 @@ def evaluate_model(
             n_saved = 0
         n_saved += 1
 
-    if buffer_dir is None:
-        test_preds = torch.cat(preds_list)
-        if labels_list is not None:
-            test_labels = torch.cat(labels_list)
+    concat_preds = None
+    if preds_list is not None and len(preds_list) > 0:
+        concat_preds = torch.cat(preds_list)
+    concat_labels = None
+    if labels_list is not None and len(labels_list) > 0 and labels_list[0] is not None:
+        concat_labels = torch.cat(labels_list)
 
-            return test_preds, test_labels
-        return test_preds, None
+    if buffer_dir is None:
+        return concat_preds, concat_labels
     else:
-        torch.save(
-            torch.cat(preds_list),
-            os.path.join(buffer_dir, f"preds{save_ind:03d}.pt"),
-        )
-        if labels_list[0] is not None:
+        if concat_preds is not None:
             torch.save(
-                torch.cat(labels_list),
+                concat_preds,
+                os.path.join(buffer_dir, f"preds{save_ind:03d}.pt"),
+            )
+        if concat_labels is not None:
+            torch.save(
+                concat_labels,
                 os.path.join(buffer_dir, f"labels{save_ind:03d}.pt"),
             )
 

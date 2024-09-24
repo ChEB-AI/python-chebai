@@ -15,7 +15,7 @@ from chebai.loss.semantic import DisjointLoss
 from chebai.preprocessing.datasets.chebi import ChEBIOver100
 from chebai.preprocessing.datasets.pubchem import Hazardous
 
-DEVICE = "cpu"  # torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+DEVICE = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
 
 def binary(left, right):
@@ -78,11 +78,9 @@ def get_best_epoch(run):
 def load_preds_labels_from_wandb(
     run,
     epoch,
-    chebi_version,
-    test_on_data_cls=ChEBIOver100,  # use data from this class
+    data_module,  # use data from this class
     kind="test",  # specify segment of test_on_data_cls
 ):
-    data_module = test_on_data_cls(chebi_version=chebi_version)
 
     buffer_dir = os.path.join(
         "results_buffer",
@@ -107,10 +105,7 @@ def load_preds_labels_from_wandb(
     return preds, labels
 
 
-def load_preds_labels_from_nonwandb(
-    name, epoch, chebi_version, test_on_data_cls=ChEBIOver100, kind="test"
-):
-    data_module = test_on_data_cls(chebi_version=chebi_version)
+def load_preds_labels_from_nonwandb(name, epoch, data_module, kind="test"):
 
     buffer_dir = os.path.join(
         "results_buffer",
@@ -390,11 +385,14 @@ def run_all(
 ):
     # evaluate a list of runs on Hazardous and ChEBIOver100 datasets
     if datasets is None:
-        datasets = [(Hazardous, "all"), (ChEBIOver100, "test")]
+        datasets = [
+            (Hazardous(), "all"),
+            (ChEBIOver100(chebi_version=chebi_version), "test"),
+        ]
     timestamp = datetime.now().strftime("%y%m%d-%H%M")
     results_path = os.path.join(
-        "_semloss_eval",
-        f"semloss_results_pc-dis-200k_{timestamp}{'_violations_removed' if remove_violations else ''}.csv",
+        "_fuzzy_loss_eval",
+        f"results_pc-kmeans_{timestamp}{'_violations_removed' if remove_violations else ''}.csv",
     )
 
     if remove_violations:
@@ -414,14 +412,14 @@ def run_all(
                     "run-id": run_id,
                     "epoch": int(epoch),
                     "kind": kind,
-                    "data_module": test_on.__name__,
+                    "data_module": test_on.__class__.__name__,
                     "chebi_version": chebi_version,
                 }
                 buffer_dir_smoothed = os.path.join(
                     "results_buffer",
                     "smoothed3step",
                     f"{run.name}_ep{epoch}",
-                    f"{test_on.__name__}_{kind}",
+                    f"{test_on.__class__.__name__}_{kind}",
                 )
                 if remove_violations and os.path.exists(
                     os.path.join(buffer_dir_smoothed, "preds000.pt")
@@ -433,13 +431,13 @@ def run_all(
                 else:
                     if not skip_preds:
                         preds, labels = load_preds_labels_from_wandb(
-                            run, epoch, chebi_version, test_on, kind
+                            run, epoch, test_on, kind
                         )
                     else:
                         buffer_dir = os.path.join(
                             "results_buffer",
                             f"{run.name}_ep{epoch}",
-                            f"{test_on.__name__}_{kind}",
+                            f"{test_on.__class__.__name__}_{kind}",
                         )
                         preds, labels = load_results_from_buffer(
                             buffer_dir, device=DEVICE
@@ -455,7 +453,7 @@ def run_all(
                                 "results_buffer",
                                 "smoothed3step",
                                 f"{run.name}_ep{epoch}",
-                                f"{test_on.__name__}_{kind}",
+                                f"{test_on.__class__.__name__}_{kind}",
                             )
                             os.makedirs(buffer_dir_smoothed, exist_ok=True)
                             torch.save(
@@ -463,7 +461,7 @@ def run_all(
                             )
                 if not skip_analyse:
                     print(
-                        f"Calculating metrics for run {run.name} on {test_on.__name__} ({kind})"
+                        f"Calculating metrics for run {run.name} on {test_on.__class__.__name__} ({kind})"
                     )
                     analyse_run(
                         preds,
@@ -472,11 +470,10 @@ def run_all(
                         chebi_version=chebi_version,
                         results_path=results_path,
                         violation_metrics=violation_metrics,
-                        verbose_violation_output=True,
                     )
         except Exception as e:
             print(f"Failed for run {run_id}: {e}")
-            # print(traceback.format_exc())
+            print(traceback.format_exc())
 
     if nonwandb_runs:
         for run_name, epoch in nonwandb_runs:
@@ -486,18 +483,18 @@ def run_all(
                         "run-id": run_name,
                         "epoch": int(epoch),
                         "kind": kind,
-                        "data_module": test_on.__name__,
+                        "data_module": test_on.__class__.__name__,
                         "chebi_version": chebi_version,
                     }
                     if not skip_preds:
                         preds, labels = load_preds_labels_from_nonwandb(
-                            run_name, epoch, chebi_version, test_on, kind
+                            run_name, epoch, test_on, kind
                         )
                     else:
                         buffer_dir = os.path.join(
                             "results_buffer",
                             f"{run_name}_ep{epoch}",
-                            f"{test_on.__name__}_{kind}",
+                            f"{test_on.__class__.__name__}_{kind}",
                         )
                         preds, labels = load_results_from_buffer(
                             buffer_dir, device=DEVICE
@@ -511,7 +508,7 @@ def run_all(
                             )
                     if not skip_analyse:
                         print(
-                            f"Calculating metrics for run {run_name} on {test_on.__name__} ({kind})"
+                            f"Calculating metrics for run {run_name} on {test_on.__class__.__name__} ({kind})"
                         )
                         analyse_run(
                             preds,
@@ -570,8 +567,34 @@ def run_semloss_eval(mode="eval"):
         )
 
 
+# follow-up to NeSy submission
+def run_fuzzy_loss(tag="fuzzy_loss"):
+    api = wandb.Api()
+    runs = api.runs("chebai/chebai", filters={"tags": tag})
+    print(f"Found {len(runs)} wandb runs tagged with '{tag}'")
+    ids = [run.id for run in runs]
+    chebi_version = 231
+    run_all(
+        ids,
+        violation_metrics=[binary],
+        chebi_version=chebi_version,
+        datasets=[
+            (
+                ChEBIOver100(
+                    chebi_version=chebi_version,
+                    splits_file_path=os.path.join(
+                        ChEBIOver100(chebi_version=chebi_version).processed_dir_main,
+                        "splits.csv",
+                    ),
+                ),
+                "test",
+            )
+        ],
+    )
+
+
 if __name__ == "__main__":
     if len(sys.argv) > 1:
-        run_semloss_eval(sys.argv[1])
+        run_fuzzy_loss(sys.argv[1])
     else:
-        run_semloss_eval()
+        run_fuzzy_loss()
