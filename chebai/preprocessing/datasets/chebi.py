@@ -736,6 +736,9 @@ class ChEBIOverXPartial(ChEBIOverX):
             top_class_id (int): The ID of the top class from which to extract subclasses.
             **kwargs: Additional keyword arguments passed to the superclass initializer.
         """
+        if "top_class_id" not in kwargs:
+            kwargs["top_class_id"] = top_class_id
+
         self.top_class_id: int = top_class_id
         super().__init__(**kwargs)
 
