@@ -356,24 +356,15 @@ class ChebiMockOntology(MockOntologyGraphData):
                 "C1=CC=CC=C1Br",
                 "C1=CC=CC=C1[Mg+]",
             ],
-            # Relationships {
-            #  12345: [11111, 54321, 22222, 67890],
-            #  67890: [22222],
-            #  99999: [67890, 11111, 54321, 22222, 12345],
-            #  54321: [11111],
-            #  88888: [22222, 67890]
-            #  11111: []
-            #  22222: []
-            # }
             **{
-                # -row- [11111, 12345, 22222, 54321, 67890, 88888, 99999]
-                11111: [False, False, False, False, False, False, False],
-                12345: [True, True, True, True, True, False, False],
-                22222: [False, False, False, False, False, False, False],
-                54321: [True, False, False, True, False, False, False],
-                67890: [False, False, True, False, True, False, False],
-                88888: [False, False, True, False, True, True, False],
-                99999: [True, True, True, True, True, False, True],
+                # -row- [12345, 54321, 67890, 11111, 22222, 99999, 88888]
+                11111: [True, True, False, True, False, True, False],
+                12345: [True, False, False, False, False, True, False],
+                22222: [True, False, True, False, True, True, True],
+                54321: [True, True, False, False, False, True, False],
+                67890: [True, False, True, False, False, True, True],
+                88888: [False, False, False, False, False, False, True],
+                99999: [False, False, False, False, False, True, False],
             },
         )
 

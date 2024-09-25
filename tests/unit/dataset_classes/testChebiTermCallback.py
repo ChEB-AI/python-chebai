@@ -51,11 +51,13 @@ class TestChebiTermCallback(unittest.TestCase):
         """
         Test that `term_callback` correctly skips obsolete ChEBI terms.
         """
+        term_callback_output = []
+        for ident in ChebiMockOntology.get_obsolete_nodes_ids():
+            raw_term = self.callback_input_data.get(ident)
+            term_dict = term_callback(raw_term)
+            if term_dict:
+                term_callback_output.append(term_dict)
 
-        term_callback_output = [
-            term_callback(self.callback_input_data.get(ident))
-            for ident in ChebiMockOntology.get_obsolete_nodes_ids()
-        ]
         self.assertEqual(
             term_callback_output,
             [],
