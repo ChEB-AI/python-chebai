@@ -101,14 +101,15 @@ class ImplicationLoss(torch.nn.Module):
             "base_loss": base_loss,
             "unweighted_implication_loss": implication_loss,
         }
+        implication_loss_weighted = implication_loss
         if "current_epoch" in kwargs and self.weight_epoch_dependent:
             # sigmoid function centered around epoch 50
-            implication_loss *= torch.sigmoid(
-                (torch.tensor([kwargs["current_epoch"]]) - 50) / 10
+            implication_loss_weighted = implication_loss_weighted / (
+                1 + math.exp(-(kwargs["current_epoch"] - 50) / 10)
             )
-        implication_loss *= self.impl_weight
-        loss_components["weighted_implication_loss"] = implication_loss
-        return (base_loss + implication_loss, loss_components)
+        implication_loss_weighted *= self.impl_weight
+        loss_components["weighted_implication_loss"] = implication_loss_weighted
+        return base_loss + implication_loss, loss_components
 
     def _calculate_implication_loss(
         self, l: torch.Tensor, r: torch.Tensor
@@ -233,10 +234,13 @@ class DisjointLoss(ImplicationLoss):
         r = pred[:, self.disjoint_filter_r]
         disjointness_loss = self._calculate_implication_loss(l, 1 - r)
         loss_components["unweighted_disjointness_loss"] = disjointness_loss
+        disjointness_loss_weighted = disjointness_loss
         if "current_epoch" in kwargs and self.weight_epoch_dependent:
-            disjointness_loss *= torch.sigmoid((kwargs["current_epoch"] - 50) / 10)
-        disjointness_loss *= self.disjoint_weight
-        loss_components["weighted_disjointness_loss"] = disjointness_loss
+            disjointness_loss_weighted = disjointness_loss_weighted / (
+                1 + math.exp(-(kwargs["current_epoch"] - 50) / 10)
+            )
+        disjointness_loss_weighted *= self.disjoint_weight
+        loss_components["weighted_disjointness_loss"] = disjointness_loss_weighted
         return loss + disjointness_loss, loss_components
 
 
