@@ -258,7 +258,16 @@ class _ChEBIDataExtractor(_DynamicDataset, ABC):
         g = nx.DiGraph()
         for n in elements:
             g.add_node(n["id"], **n)
-        g.add_edges_from([(p, q["id"]) for q in elements for p in q["parents"]])
+
+        # Only take the edges which connects the existing nodes, to avoid internal creation of obsolete nodes
+        g.add_edges_from(
+            [
+                (p, q["id"])
+                for q in elements
+                for p in q["parents"]
+                if g.has_node(p) and g.has_node(q["id"])
+            ]
+        )
 
         print("Compute transitive closure")
         return nx.transitive_closure_dag(g)
