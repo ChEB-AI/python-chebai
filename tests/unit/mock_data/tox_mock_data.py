@@ -35,7 +35,7 @@ class Tox21MolNetMockData:
         Returns a list of dictionaries simulating the processed data for the Tox21MolNet dataset.
         Each dictionary contains 'ident', 'features', and 'labels'.
         """
-        return [
+        data_list = [
             {
                 "ident": "TOX958",
                 "features": "Nc1ccc([N+](=O)[O-])cc1N",
@@ -181,6 +181,9 @@ class Tox21MolNetMockData:
                 ],
             },
         ]
+
+        data_with_group = [{**data, "group": None} for data in data_list]
+        return data_with_group
 
     @staticmethod
     def get_processed_grouped_data() -> List[Dict]:

@@ -42,24 +42,51 @@ class TestTox21MolNet(unittest.TestCase):
             "The loaded data does not match the expected output.",
         )
 
-    @patch.object(
-        Tox21MolNet,
-        "_load_data_from_file",
-        return_value=Tox21MolNetMockData.get_processed_data(),
+    @patch(
+        "builtins.open",
+        new_callable=mock_open,
+        read_data=Tox21MolNetMockData.get_raw_data(),
     )
     @patch("torch.save")
     def test_setup_processed_simple_split(
-        self, mock_load_data: MagicMock, mock_torch_save: MagicMock
+        self,
+        mock_torch_save,
+        mock_open_file: mock_open,
     ) -> None:
         """
         Test the `setup_processed` method for basic data splitting and saving.
 
         Args:
-            mock_load_data (MagicMock): Mocked `_load_data_from_file` method to provide controlled data.
-            mock_torch_save (MagicMock): Mocked `torch.save` function to avoid actual file writes.
+            mock_torch_save : Mocked `torch.save` function to avoid actual file writes.
+            mock_open_file (mock_open): Mocked `open` builtin-method to provide custom data.
         """
-        # Facing technical error here
         self.data_module.setup_processed()
+
+        # Verify if torch.save was called for each split
+        self.assertEqual(mock_torch_save.call_count, 3)
+        call_args_list = mock_torch_save.call_args_list
+        self.assertIn("test", call_args_list[0][0][1])
+        self.assertIn("train", call_args_list[1][0][1])
+        self.assertIn("validation", call_args_list[2][0][1])
+
+        # Check for non-overlap between train, test, and validation
+        test_split = [d["ident"] for d in call_args_list[0][0][0]]
+        train_split = [d["ident"] for d in call_args_list[1][0][0]]
+        validation_split = [d["ident"] for d in call_args_list[2][0][0]]
+
+        # Assert no overlap between splits
+        self.assertTrue(
+            set(train_split).isdisjoint(test_split),
+            "There is an overlap between the train and test splits.",
+        )
+        self.assertTrue(
+            set(train_split).isdisjoint(validation_split),
+            "There is an overlap between the train and validation splits.",
+        )
+        self.assertTrue(
+            set(test_split).isdisjoint(validation_split),
+            "There is an overlap between the test and validation splits.",
+        )
 
 
 if __name__ == "__main__":
