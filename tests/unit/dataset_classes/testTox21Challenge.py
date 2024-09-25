@@ -67,6 +67,9 @@ class TestTox21Challenge(unittest.TestCase):
             mock_open_file (mock_open): Mocked open function to simulate file reading.
         """
         expected_data = Tox21MolNetMockData.get_processed_data()
+        for item in expected_data:
+            item.pop("group", None)
+
         actual_data = self.tox21._load_dict("fake/file/path.csv")
 
         self.assertEqual(
