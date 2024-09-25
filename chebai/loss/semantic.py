@@ -103,7 +103,9 @@ class ImplicationLoss(torch.nn.Module):
         }
         if "current_epoch" in kwargs and self.weight_epoch_dependent:
             # sigmoid function centered around epoch 50
-            implication_loss *= torch.sigmoid((kwargs["current_epoch"] - 50) / 10)
+            implication_loss *= torch.sigmoid(
+                (torch.tensor([kwargs["current_epoch"]]) - 50) / 10
+            )
         implication_loss *= self.impl_weight
         loss_components["weighted_implication_loss"] = implication_loss
         return (base_loss + implication_loss, loss_components)
@@ -235,7 +237,7 @@ class DisjointLoss(ImplicationLoss):
             disjointness_loss *= torch.sigmoid((kwargs["current_epoch"] - 50) / 10)
         disjointness_loss *= self.disjoint_weight
         loss_components["weighted_disjointness_loss"] = disjointness_loss
-        return (loss + disjointness_loss, loss_components)
+        return loss + disjointness_loss, loss_components
 
 
 def _load_label_names(path_to_label_names: str) -> List:
