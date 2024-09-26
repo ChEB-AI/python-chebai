@@ -1,4 +1,5 @@
 class_path: chebai.preprocessing.datasets.chebi.ChEBIOver50
 init_args:
   aug_data: True
-  batch_size_: 5000
+  augment_data_batch_size: 5000
+  num_smiles_variations: 5

@@ -143,7 +143,8 @@ class _ChEBIDataExtractor(XYBaseDataModule, ABC):
             chebi_version_train: Optional[int] = None,
             single_class: Optional[int] = None,
             aug_data: Optional[bool] = False,
-            batch_size_:Optional[int]= 5000,
+            augment_data_batch_size:Optional[int]= 10000,
+            num_smiles_variations:Optional[int]=7,
             **kwargs,
     ):
         # predict only single class (given as id of one of the classes present in the raw data set)
@@ -158,7 +159,8 @@ class _ChEBIDataExtractor(XYBaseDataModule, ABC):
         self.dynamic_df_test = None
         self.dynamic_df_val = None
         self.aug_data = aug_data
-        self.batch_size_=batch_size_
+        self.augment_data_batch_size=augment_data_batch_size
+        self.num_smiles_variations=num_smiles_variations
 
         if self.chebi_version_train is not None:
             # Instantiate another same class with "chebi_version" as "chebi_version_train", if train_version is given
@@ -803,7 +805,7 @@ class _ChEBIDataExtractor(XYBaseDataModule, ABC):
             g = self.extract_class_hierarchy(chebi_path)
             df = self.graph_to_raw_dataset(g, self.raw_file_names_dict["data"])
             self.save_processed(df, filename=self.raw_file_names_dict["data"])
-            self.augment_data(self.processed_dir_main,self.batch_size_)
+            self.augment_data(self.processed_dir_main, self.augment_data_batch_size)
             if self.chebi_version_train is not None:
                 if not os.path.isfile(
                         os.path.join(
@@ -820,6 +822,7 @@ class _ChEBIDataExtractor(XYBaseDataModule, ABC):
 
     def augment_data(self, path: str, batch_size) -> None:
         print(("inside_augment_data"))
+        print("batch_size",batch_size)
         if self.aug_data:
             if os.path.isfile(os.path.join(
                     path, self.raw_file_names_dict["data"])):
@@ -882,7 +885,8 @@ class _ChEBIDataExtractor(XYBaseDataModule, ABC):
 
     # Function to generate SMILES variations using different configurations
     def generate_smiles_variations(self, original_smiles):
-        num_variations = 5
+        num_variations = self.num_smiles_variations
+        print("num_variations",num_variations)
         print(type(original_smiles), original_smiles)
         if not isinstance(original_smiles, str):
             print(f"Non-string SMILES found: {original_smiles}")
@@ -890,25 +894,30 @@ class _ChEBIDataExtractor(XYBaseDataModule, ABC):
         if mol is None:
             return []  # Return an empty list if conversion fails
 
+        # Get the number of atoms in the molecule
+        num_atoms = mol.GetNumAtoms()
+
+        print("num_atoms", num_atoms)
+        print("num_variations", num_variations)
+
+        # Generate the rooted_at_atoms list based on the number of atoms
+        if num_atoms < num_variations:
+            rooted_at_atoms = list(range(0, num_atoms))  # [0, num_atoms)
+        else:
+            rooted_at_atoms = list(range(0, num_variations))  # [0, num_variations)
+
+        print("rooted_at_atoms", rooted_at_atoms)
+
+        # Shuffle the rooted_at_atoms list to randomize the order
+        random.shuffle(rooted_at_atoms)
+        print("shuffled rooted_at_atoms", rooted_at_atoms)
+
         variations = set()
-
-        # List of rootedAtAtom values to pick from randomly
-        rooted_at_atoms = [5, 4, 3, 2, 1, 0, -1, -2, -3, -4, -5]
-        random.shuffle(rooted_at_atoms)  # Randomize the order of rootedAtAtom values
-
-        # Flag to track if we've already computed a SMILES with doRandom=False and a negative rootedAtAtom
-        already_computed_negative_rooted = False
 
         # Loop through all combinations of doRandom and rootedAtAtom values
         for do_random in [True, False]:
             for rooted_at_atom in rooted_at_atoms:
                 try:
-                    # Skip redundant computations
-                    if not do_random and rooted_at_atom < 0:
-                        if already_computed_negative_rooted:
-                            continue
-                        already_computed_negative_rooted = True
-
                     # Generate SMILES with the given configuration
                     variant = Chem.MolToSmiles(
                         mol,
