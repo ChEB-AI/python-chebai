@@ -92,6 +92,8 @@ class ImplicationLoss(torch.nn.Module):
             base_loss = self.base_loss(labeled_input, target.float())
         else:
             base_loss = 0
+        if "current_epoch" in kwargs and kwargs["current_epoch"] < 10:
+            return base_loss, {"base_loss": base_loss}
         pred = torch.sigmoid(input)
         l = pred[:, self.implication_filter_l]
         r = pred[:, self.implication_filter_r]
@@ -102,11 +104,7 @@ class ImplicationLoss(torch.nn.Module):
             "unweighted_implication_loss": implication_loss,
         }
         implication_loss_weighted = implication_loss
-        if (
-            "current_epoch" in kwargs
-            and self.weight_epoch_dependent
-            and kwargs["current_epoch"] > 10
-        ):
+        if "current_epoch" in kwargs and self.weight_epoch_dependent:
             # sigmoid function centered around epoch 50
             implication_loss_weighted = implication_loss_weighted / (
                 1 + math.exp(-(kwargs["current_epoch"] - 50) / 10)
@@ -233,17 +231,15 @@ class DisjointLoss(ImplicationLoss):
             tuple: Tuple containing total loss, base loss, implication loss, and disjointness loss.
         """
         loss, loss_components = super().forward(input, target, **kwargs)
+        if "current_epoch" in kwargs and kwargs["current_epoch"] < 10:
+            return loss, loss_components
         pred = torch.sigmoid(input)
         l = pred[:, self.disjoint_filter_l]
         r = pred[:, self.disjoint_filter_r]
         disjointness_loss = self._calculate_implication_loss(l, 1 - r)
         loss_components["unweighted_disjointness_loss"] = disjointness_loss
         disjointness_loss_weighted = disjointness_loss
-        if (
-            "current_epoch" in kwargs
-            and self.weight_epoch_dependent
-            and kwargs["current_epoch"] > 10
-        ):
+        if "current_epoch" in kwargs and self.weight_epoch_dependent:
             disjointness_loss_weighted = disjointness_loss_weighted / (
                 1 + math.exp(-(kwargs["current_epoch"] - 50) / 10)
             )
