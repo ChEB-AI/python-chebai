@@ -102,7 +102,11 @@ class ImplicationLoss(torch.nn.Module):
             "unweighted_implication_loss": implication_loss,
         }
         implication_loss_weighted = implication_loss
-        if "current_epoch" in kwargs and self.weight_epoch_dependent:
+        if (
+            "current_epoch" in kwargs
+            and self.weight_epoch_dependent
+            and kwargs["current_epoch"] > 10
+        ):
             # sigmoid function centered around epoch 50
             implication_loss_weighted = implication_loss_weighted / (
                 1 + math.exp(-(kwargs["current_epoch"] - 50) / 10)
@@ -235,7 +239,11 @@ class DisjointLoss(ImplicationLoss):
         disjointness_loss = self._calculate_implication_loss(l, 1 - r)
         loss_components["unweighted_disjointness_loss"] = disjointness_loss
         disjointness_loss_weighted = disjointness_loss
-        if "current_epoch" in kwargs and self.weight_epoch_dependent:
+        if (
+            "current_epoch" in kwargs
+            and self.weight_epoch_dependent
+            and kwargs["current_epoch"] > 10
+        ):
             disjointness_loss_weighted = disjointness_loss_weighted / (
                 1 + math.exp(-(kwargs["current_epoch"] - 50) / 10)
             )
