@@ -83,7 +83,9 @@ class BCEWeighted(torch.nn.BCEWithLogitsLoss):
                 [w / mean for w in weights], device=input.device
             )
 
-    def forward(self, input: torch.Tensor, target: torch.Tensor) -> torch.Tensor:
+    def forward(
+        self, input: torch.Tensor, target: torch.Tensor, **kwargs
+    ) -> torch.Tensor:
         """
         Forward pass for the loss calculation.
 
