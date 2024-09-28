@@ -144,7 +144,7 @@ class _ChEBIDataExtractor(XYBaseDataModule, ABC):
             single_class: Optional[int] = None,
             aug_data: Optional[bool] = False,
             augment_data_batch_size:Optional[int]= 10000,
-            num_smiles_variations:Optional[int]=7,
+            num_smiles_variations:Optional[int]=5,
             **kwargs,
     ):
         # predict only single class (given as id of one of the classes present in the raw data set)
@@ -461,24 +461,24 @@ class _ChEBIDataExtractor(XYBaseDataModule, ABC):
                 ),
                 os.path.join(self.processed_dir, processed_name),
             )
+            if self.aug_data:
+                augmented_dir = self.augmented_dir_main
 
-        augmented_dir = os.path.join("data", "augmented_dataset")
-
-        # Define the augmented data file path
-        if not os.path.isfile(os.path.join(augmented_dir, "augmented_data.pt")):
-            print(
-                f"Missing encoded data related to version {self.chebi_version}, transform augmented data into encoded data:",
-                "augmented_data.pt",
-            )
-            torch.save(
-                self._load_data_from_file(
-                    os.path.join(
-                        augmented_dir,
-                        "augmented_data.pkl",
+                # Define the augmented data file path
+                if not os.path.isfile(os.path.join(augmented_dir, "augmented_data.pt")):
+                    print(
+                        f"Missing encoded data related to version {self.chebi_version}, transform augmented data into encoded data:",
+                        "augmented_data.pt",
                     )
-                ),
-                os.path.join(augmented_dir, "augmented_data.pt"),
-            )
+                    torch.save(
+                        self._load_data_from_file(
+                            os.path.join(
+                                augmented_dir,
+                                "augmented_data.pkl",
+                            )
+                        ),
+                        os.path.join(augmented_dir, "augmented_data.pt"),
+                    )
 
 
         # Transform the data related to "chebi_version_train" to encoded data, if it doesn't exist
@@ -606,6 +606,20 @@ class _ChEBIDataExtractor(XYBaseDataModule, ABC):
         )
 
     @property
+    def augmented_dir_main(self) -> str:
+        """
+        Return the main directory path for processed data.
+
+        Returns:
+            str: The path to the main processed data directory.
+        """
+        return os.path.join(
+            self.base_dir,
+            self._name,
+            "augmented",
+        )
+
+    @property
     def processed_dir(self) -> str:
         """
         Return the directory path for processed data.
@@ -631,16 +645,6 @@ class _ChEBIDataExtractor(XYBaseDataModule, ABC):
             str: The base directory path for data.
         """
         return os.path.join("data", f"chebi_v{self.chebi_version}")
-
-    @property
-    def augmented_dir(self) -> str:
-        """
-        Return the base directory path for data.
-
-        Returns:
-            str: The base directory path for data.
-        """
-        return os.path.join("data", "chebi_augmented")
 
     @property
     def processed_file_names_dict(self) -> dict:
@@ -826,7 +830,7 @@ class _ChEBIDataExtractor(XYBaseDataModule, ABC):
         if self.aug_data:
             if os.path.isfile(os.path.join(
                     path, self.raw_file_names_dict["data"])):
-                augmented_dir = os.path.join("data", "augmented_dataset")
+                augmented_dir = self.augmented_dir_main
                 # Check if the augmented directory exists, if not, create it
                 os.makedirs(augmented_dir, exist_ok=True)
                 # Define the augmented data file path
@@ -837,7 +841,7 @@ class _ChEBIDataExtractor(XYBaseDataModule, ABC):
 
                     data = self.read_file(os.path.join(
                         path, self.raw_file_names_dict["data"]))
-                    print("Original Dataset size:", data.shape)
+
                     total_rows = data.shape[0]
                     # Calculate the total number of batches
                     total_batches = (total_rows + batch_size - 1) // batch_size
@@ -886,7 +890,6 @@ class _ChEBIDataExtractor(XYBaseDataModule, ABC):
     # Function to generate SMILES variations using different configurations
     def generate_smiles_variations(self, original_smiles):
         num_variations = self.num_smiles_variations
-        print("num_variations",num_variations)
         print(type(original_smiles), original_smiles)
         if not isinstance(original_smiles, str):
             print(f"Non-string SMILES found: {original_smiles}")
@@ -897,20 +900,15 @@ class _ChEBIDataExtractor(XYBaseDataModule, ABC):
         # Get the number of atoms in the molecule
         num_atoms = mol.GetNumAtoms()
 
-        print("num_atoms", num_atoms)
-        print("num_variations", num_variations)
-
         # Generate the rooted_at_atoms list based on the number of atoms
         if num_atoms < num_variations:
             rooted_at_atoms = list(range(0, num_atoms))  # [0, num_atoms)
         else:
             rooted_at_atoms = list(range(0, num_variations))  # [0, num_variations)
 
-        print("rooted_at_atoms", rooted_at_atoms)
 
         # Shuffle the rooted_at_atoms list to randomize the order
         random.shuffle(rooted_at_atoms)
-        print("shuffled rooted_at_atoms", rooted_at_atoms)
 
         variations = set()
 
