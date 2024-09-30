@@ -92,8 +92,6 @@ class ImplicationLoss(torch.nn.Module):
             base_loss = self.base_loss(labeled_input, target.float())
         else:
             base_loss = 0
-        if "current_epoch" in kwargs and kwargs["current_epoch"] < 10:
-            return base_loss, {"base_loss": base_loss}
         pred = torch.sigmoid(input)
         l = pred[:, self.implication_filter_l]
         r = pred[:, self.implication_filter_r]
@@ -231,8 +229,6 @@ class DisjointLoss(ImplicationLoss):
             tuple: Tuple containing total loss, base loss, implication loss, and disjointness loss.
         """
         loss, loss_components = super().forward(input, target, **kwargs)
-        if "current_epoch" in kwargs and kwargs["current_epoch"] < 10:
-            return loss, loss_components
         pred = torch.sigmoid(input)
         l = pred[:, self.disjoint_filter_l]
         r = pred[:, self.disjoint_filter_r]
