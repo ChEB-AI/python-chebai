@@ -80,6 +80,12 @@ class _GOUniProtDataExtractor(_DynamicDataset, ABC):
             self.max_sequence_length >= 1
         ), "Max sequence length should be greater than or equal to 1."
 
+        if self.reader.n_gram is not None:
+            assert self.max_sequence_length >= self.reader.n_gram, (
+                f"max_sequence_length ({self.max_sequence_length}) must be greater than "
+                f"or equal to n_gram ({self.reader.n_gram})."
+            )
+
     @classmethod
     def _get_go_branch(cls, **kwargs) -> str:
         """
@@ -536,7 +542,8 @@ class _GOUniProtDataExtractor(_DynamicDataset, ABC):
 
         This method overrides the dataloader method from the superclass. After fetching the dataset from the
         superclass, it truncates the 'features' of each data instance to a maximum length specified by
-        `self.max_sequence_length`.
+        `self.max_sequence_length`. The truncation is adjusted based on the value of `n_gram` to ensure that
+        the correct number of amino acids is preserved in the truncated sequences.
 
         Args:
             kind (str): The kind of data to load (e.g., 'train', 'val', 'test').
@@ -547,9 +554,18 @@ class _GOUniProtDataExtractor(_DynamicDataset, ABC):
         """
         dataloader = super().dataloader(kind, **kwargs)
 
-        # Truncate the 'features' to max_sequence_length for each instance
+        if self.reader.n_gram is None:
+            # Truncate the 'features' to max_sequence_length for each instance
+            truncate_index = self.max_sequence_length
+        else:
+            # If n_gram is given, adjust truncation to ensure maximum sequence length refers to the maximum number of
+            # amino acids in sequence rather than number of n-grams. Eg, Sequence "ABCDEFGHIJ" can form 8 trigrams,
+            # if max length is 5, then only first 3 trigrams should be considered as they are formed by first 5 letters.
+            truncate_index = self.max_sequence_length - (self.reader.n_gram - 1)
+
         for instance in dataloader.dataset:
-            instance["features"] = instance["features"][: self.max_sequence_length]
+            instance["features"] = instance["features"][:truncate_index]
+
         return dataloader
 
     # ------------------------------ Phase: Raw Properties -----------------------------------
