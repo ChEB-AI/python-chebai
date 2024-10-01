@@ -532,12 +532,21 @@ class GOUniProtMockData(MockOntologyGraphData):
     @staticmethod
     def get_GO_raw_data() -> str:
         """
-        Get raw data in string format for GO ontology.
+        Get raw data in string format for a basic Gene Ontology (GO) structure.
 
-        This data simulates a basic GO ontology in a format typically used for testing.
+        This data simulates a basic GO ontology format typically used for testing purposes.
+        The data will include valid and obsolete GO terms with various relationships between them.
+
+        Scenarios covered:
+            - Obsolete terms being the parent of valid terms.
+            - Valid terms being the parent of obsolete terms.
+            - Both direct and indirect hierarchical relationships between terms.
+
+        The data is designed to help test the proper handling of obsolete and valid GO terms,
+        ensuring that the ontology parser can correctly manage both cases.
 
         Returns:
-            str: The raw GO data in string format.
+            str: The raw GO data in string format, structured as test input.
         """
         return """
         [Term]
@@ -557,6 +566,7 @@ class GOUniProtMockData(MockOntologyGraphData):
         name: GO_2
         namespace: biological_process
         is_a: GO:0000001 ! hydrolase activity, hydrolyzing O-glycosyl compounds
+        is_a: GO:0000008 ! hydrolase activity, hydrolyzing O-glycosyl compounds
 
         [Term]
         id: GO:0000003
@@ -594,7 +604,6 @@ class GOUniProtMockData(MockOntologyGraphData):
         id: GO:0000008
         name: GO_8
         namespace: molecular_function
-        is_a: GO:0000001 ! glucoside transport
         is_obsolete: true
 
         [Typedef]
