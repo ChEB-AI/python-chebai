@@ -260,13 +260,9 @@ class _ChEBIDataExtractor(_DynamicDataset, ABC):
             g.add_node(n["id"], **n)
 
         # Only take the edges which connects the existing nodes, to avoid internal creation of obsolete nodes
+        # https://github.com/ChEB-AI/python-chebai/pull/55#issuecomment-2386654142
         g.add_edges_from(
-            [
-                (p, q["id"])
-                for q in elements
-                for p in q["parents"]
-                if g.has_node(p) and g.has_node(q["id"])
-            ]
+            [(p, q["id"]) for q in elements for p in q["parents"] if g.has_node(p)]
         )
 
         print("Compute transitive closure")
