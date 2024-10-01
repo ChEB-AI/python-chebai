@@ -14,6 +14,7 @@ from iterstrat.ml_stratifiers import (
 )
 from lightning.pytorch.core.datamodule import LightningDataModule
 from lightning_utilities.core.rank_zero import rank_zero_info
+from sklearn.model_selection import StratifiedShuffleSplit
 from torch.utils.data import DataLoader
 
 from chebai.preprocessing import reader as dr
@@ -929,11 +930,17 @@ class _DynamicDataset(XYBaseDataModule, ABC):
         labels_list = df["labels"].tolist()
 
         test_size = 1 - self.train_split - (1 - self.train_split) ** 2
-        msss = MultilabelStratifiedShuffleSplit(
-            n_splits=1, test_size=test_size, random_state=seed
-        )
 
-        train_indices, test_indices = next(msss.split(labels_list, labels_list))
+        if len(labels_list[0]) > 1:
+            splitter = MultilabelStratifiedShuffleSplit(
+                n_splits=1, test_size=test_size, random_state=seed
+            )
+        else:
+            splitter = StratifiedShuffleSplit(
+                n_splits=1, test_size=test_size, random_state=seed
+            )
+
+        train_indices, test_indices = next(splitter.split(labels_list, labels_list))
 
         df_train = df.iloc[train_indices]
         df_test = df.iloc[test_indices]
@@ -985,12 +992,18 @@ class _DynamicDataset(XYBaseDataModule, ABC):
 
         # scale val set size by 1/self.train_split to compensate for (hypothetical) test set size (1-self.train_split)
         test_size = ((1 - self.train_split) ** 2) / self.train_split
-        msss = MultilabelStratifiedShuffleSplit(
-            n_splits=1, test_size=test_size, random_state=seed
-        )
+
+        if len(labels_list_trainval[0]) > 1:
+            splitter = MultilabelStratifiedShuffleSplit(
+                n_splits=1, test_size=test_size, random_state=seed
+            )
+        else:
+            splitter = StratifiedShuffleSplit(
+                n_splits=1, test_size=test_size, random_state=seed
+            )
 
         train_indices, validation_indices = next(
-            msss.split(labels_list_trainval, labels_list_trainval)
+            splitter.split(labels_list_trainval, labels_list_trainval)
         )
 
         df_validation = df_trainval.iloc[validation_indices]

@@ -750,6 +750,9 @@ class ChEBIOverXPartial(ChEBIOverX):
             top_class_id (int): The ID of the top class from which to extract subclasses.
             **kwargs: Additional keyword arguments passed to the superclass initializer.
         """
+        if "top_class_id" not in kwargs:
+            kwargs["top_class_id"] = top_class_id
+
         self.top_class_id: int = top_class_id
         super().__init__(**kwargs)
 
@@ -772,27 +775,18 @@ class ChEBIOverXPartial(ChEBIOverX):
         """
         Extracts a subset of ChEBI based on subclasses of the top class ID.
 
+        This method calls the superclass method to extract the full class hierarchy,
+        then extracts the subgraph containing only the descendants of the top class ID, including itself.
+
         Args:
             chebi_path (str): The file path to the ChEBI ontology file.
 
         Returns:
-            nx.DiGraph: The extracted class hierarchy as a directed graph.
+            nx.DiGraph: The extracted class hierarchy as a directed graph, limited to the
+            descendants of the top class ID.
         """
-        with open(chebi_path, encoding="utf-8") as chebi:
-            chebi = "\n".join(l for l in chebi if not l.startswith("xref:"))
-        elements = [
-            term_callback(clause)
-            for clause in fastobo.loads(chebi)
-            if clause and ":" in str(clause.id)
-        ]
-        g = nx.DiGraph()
-        for n in elements:
-            g.add_node(n["id"], **n)
-        g.add_edges_from([(p, q["id"]) for q in elements for p in q["parents"]])
-
-        g = nx.transitive_closure_dag(g)
-        g = g.subgraph(list(nx.descendants(g, self.top_class_id)) + [self.top_class_id])
-        print("Compute transitive closure")
+        g = super()._extract_class_hierarchy(chebi_path)
+        g = g.subgraph(list(g.successors(self.top_class_id)) + [self.top_class_id])
         return g
 
 
