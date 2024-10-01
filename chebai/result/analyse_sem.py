@@ -461,7 +461,7 @@ def run_all(
                             )
                 if not skip_analyse:
                     print(
-                        f"Calculating metrics for run {run.name} on {test_on.__class__.__name__} ({kind})"
+                        f"Calculating metrics for run {run.name} on {test_on.__class__.__name__} (epoch {epoch}, {kind})"
                     )
                     analyse_run(
                         preds,
@@ -576,6 +576,8 @@ def run_fuzzy_loss(tag="fuzzy_loss"):
     chebi_version = 231
     run_all(
         ids,
+        # nonwandb_runs=[("chebi100_semrc_epoch-dependent100-100k_weighted_v231_pc_kmeans_240927-1219", 97),
+        #               ("chebi100_semrc_epoch-dependent100-100k_weighted_v231_pc_kmeans_240927-1220", 99)],
         violation_metrics=[binary],
         chebi_version=chebi_version,
         datasets=[
