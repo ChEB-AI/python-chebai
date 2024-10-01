@@ -309,26 +309,41 @@ def analyse_run(
                                         f", {label_names[dl_filter_r[j]]} -> {preds[k, dl_filter_r[j]]:.3f})"
                                     )
 
-            m_cls = {}
+            m_l_agg = {}
             for key, value in m.items():
-                m_cls[key] = _sort_results_by_label(
+                m_l_agg[key] = _sort_results_by_label(
                     n_labels,
                     value,
-                    (dl_filter_l),
+                    dl_filter_l,
+                )
+            m_r_agg = {}
+            for key, value in m.items():
+                m_r_agg[key] = _sort_results_by_label(
+                    n_labels,
+                    value,
+                    dl_filter_r,
                 )
 
-            df_new[i][f"micro-sem-recall-{filter_type}"] = (
-                torch.sum(m["tps"]) / (torch.sum(m[f"tps"]) + torch.sum(m[f"fns"]))
-            ).item()
-            macro_recall = m_cls[f"tps"] / (m_cls[f"tps"] + m_cls[f"fns"])
-            df_new[i][f"macro-sem-recall-{filter_type}"] = torch.mean(
-                macro_recall[~macro_recall.isnan()]
-            ).item()
+            df_new[i][f"micro-fnr-{filter_type}"] = (
+                1
+                - (
+                    torch.sum(m["tps"]) / (torch.sum(m[f"tps"]) + torch.sum(m[f"fns"]))
+                ).item()
+            )
+            macro_recall_l = m_l_agg[f"tps"] / (m_l_agg[f"tps"] + m_l_agg[f"fns"])
+            df_new[i][f"lmacro-fnr-{filter_type}"] = (
+                1 - torch.mean(macro_recall_l[~macro_recall_l.isnan()]).item()
+            )
+            macro_recall_r = m_r_agg[f"tps"] / (m_r_agg[f"tps"] + m_r_agg[f"fns"])
+            df_new[i][f"rmacro-fnr-{filter_type}"] = (
+                1 - torch.mean(macro_recall_r[~macro_recall_r.isnan()]).item()
+            )
             df_new[i][f"fn-sum-{filter_type}"] = torch.sum(m["fns"]).item()
             df_new[i][f"tp-sum-{filter_type}"] = torch.sum(m["tps"]).item()
 
             del m
-            del m_cls
+            del m_l_agg
+            del m_r_agg
 
             gc.collect()
             df_new[i] = pd.DataFrame(df_new[i], index=[0])
