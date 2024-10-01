@@ -56,14 +56,16 @@ class Tox21MolNet(XYBaseDataModule):
 
     def download(self) -> None:
         """Downloads and extracts the dataset."""
-        with NamedTemporaryFile("rb") as gout:
-            request.urlretrieve(
-                "https://deepchemdata.s3-us-west-1.amazonaws.com/datasets/tox21.csv.gz",
-                gout.name,
-            )
-            with gzip.open(gout.name) as gfile:
-                with open(os.path.join(self.raw_dir, "tox21.csv"), "wt") as fout:
-                    fout.write(gfile.read().decode())
+        gout = NamedTemporaryFile("rb")
+        gout.close()
+
+        request.urlretrieve(
+            "https://deepchemdata.s3-us-west-1.amazonaws.com/datasets/tox21.csv.gz",
+            gout.name,
+        )
+        with gzip.open(gout.name) as gfile:
+            with open(os.path.join(self.raw_dir, "tox21.csv"), "wt") as fout:
+                fout.write(gfile.read().decode())
 
     def setup_processed(self) -> None:
         """Processes and splits the dataset."""
