@@ -42,6 +42,7 @@ class ImplicationLoss(torch.nn.Module):
         multiply_by_softmax: bool = False,
         use_sigmoidal_implication: bool = False,
         weight_epoch_dependent: bool = False,
+        start_at_epoch: int = 0,
     ):
         super().__init__()
         # automatically choose labeled subset for implication filter in case of mixed dataset
@@ -70,6 +71,7 @@ class ImplicationLoss(torch.nn.Module):
         self.multiply_by_softmax = multiply_by_softmax
         self.use_sigmoidal_implication = use_sigmoidal_implication
         self.weight_epoch_dependent = weight_epoch_dependent
+        self.start_at_epoch = start_at_epoch
 
     def forward(self, input: torch.Tensor, target: torch.Tensor, **kwargs) -> tuple:
         """
@@ -92,10 +94,11 @@ class ImplicationLoss(torch.nn.Module):
             base_loss = self.base_loss(labeled_input, target.float())
         else:
             base_loss = 0
+        if "current_epoch" in kwargs and self.start_at_epoch > kwargs["current_epoch"]:
+            return base_loss, {"base_loss": base_loss}
         pred = torch.sigmoid(input)
         l = pred[:, self.implication_filter_l]
         r = pred[:, self.implication_filter_r]
-        # implication_loss = torch.sqrt(torch.mean(torch.sum(l*(1-r), dim=-1), dim=0))
         implication_loss = self._calculate_implication_loss(l, r)
         loss_components = {
             "base_loss": base_loss,
@@ -109,7 +112,7 @@ class ImplicationLoss(torch.nn.Module):
             )
         implication_loss_weighted *= self.impl_weight
         loss_components["weighted_implication_loss"] = implication_loss_weighted
-        return base_loss + implication_loss, loss_components
+        return base_loss + implication_loss_weighted, loss_components
 
     def _calculate_implication_loss(
         self, l: torch.Tensor, r: torch.Tensor
@@ -229,6 +232,8 @@ class DisjointLoss(ImplicationLoss):
             tuple: Tuple containing total loss, base loss, implication loss, and disjointness loss.
         """
         loss, loss_components = super().forward(input, target, **kwargs)
+        if "current_epoch" in kwargs and self.start_at_epoch > kwargs["current_epoch"]:
+            return loss, loss_components
         pred = torch.sigmoid(input)
         l = pred[:, self.disjoint_filter_l]
         r = pred[:, self.disjoint_filter_r]
@@ -241,7 +246,7 @@ class DisjointLoss(ImplicationLoss):
             )
         disjointness_loss_weighted *= self.disjoint_weight
         loss_components["weighted_disjointness_loss"] = disjointness_loss_weighted
-        return loss + disjointness_loss, loss_components
+        return loss + disjointness_loss_weighted, loss_components
 
 
 def _load_label_names(path_to_label_names: str) -> List:
