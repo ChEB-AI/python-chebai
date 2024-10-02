@@ -18,7 +18,7 @@ def get_checkpoint_from_wandb(
     root: str = os.path.join("logs", "downloaded_ckpts"),
     model_class: Optional[Union[Electra, ChebaiBaseNet]] = None,
     map_device_to: Optional[torch.device] = None,
-) -> Optional[ChebaiBaseNet]:
+):
     """
     Gets a wandb checkpoint based on run and epoch, downloads it if necessary.
 
@@ -30,7 +30,7 @@ def get_checkpoint_from_wandb(
         map_device_to: The device to map the model to.
 
     Returns:
-        The loaded model or None if no checkpoint is found.
+        The location of the downloaded checkpoint.
     """
     api = wandb.Api()
     if model_class is None:
@@ -45,9 +45,7 @@ def get_checkpoint_from_wandb(
             if not os.path.isfile(dest_path):
                 print(f"Downloading checkpoint to {dest_path}")
                 wandb_util.download_file_from_url(dest_path, file.url, api.api_key)
-            return model_class.load_from_checkpoint(
-                dest_path, strict=False, map_location=map_device_to
-            )
+            return dest_path
     print(f"No model found for epoch {epoch}")
     return None
 
