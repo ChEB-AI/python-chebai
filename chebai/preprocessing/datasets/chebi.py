@@ -28,6 +28,7 @@ from rdkit import Chem, RDLogger
 from tqdm import tqdm
 
 from chebai.preprocessing import reader as dr
+from chebai.preprocessing.datasets.aug import augment_data
 from chebai.preprocessing.datasets.base import XYBaseDataModule
 import random
 
@@ -446,39 +447,40 @@ class _ChEBIDataExtractor(XYBaseDataModule, ABC):
         #     )
 
         # Transform the processed data into encoded data
-        processed_name = self.processed_file_names_dict["data"]
-        if not os.path.isfile(os.path.join(self.processed_dir, processed_name)):
-            print(
-                f"Missing encoded data related to version {self.chebi_version}, transform processed data into encoded data:",
-                processed_name,
-            )
-            torch.save(
-                self._load_data_from_file(
-                    os.path.join(
-                        self.processed_dir_main,
-                        self.raw_file_names_dict["data"],
-                    )
-                ),
-                os.path.join(self.processed_dir, processed_name),
-            )
-            if self.aug_data:
-                augmented_dir = self.augmented_dir_main
+        if not self.aug_data:
+            processed_name = self.processed_file_names_dict["data"]
+            if not os.path.isfile(os.path.join(self.processed_dir, processed_name)):
+                print(
+                    f"Missing encoded data related to version {self.chebi_version}, transform processed data into encoded data:",
+                    processed_name,
+                )
+                torch.save(
+                    self._load_data_from_file(
+                        os.path.join(
+                            self.processed_dir_main,
+                            self.raw_file_names_dict["data"],
+                        )
+                    ),
+                    os.path.join(self.processed_dir, processed_name),
+                )
+        else:
+            augmented_dir = self.augmented_dir_main
 
-                # Define the augmented data file path
-                if not os.path.isfile(os.path.join(augmented_dir, "augmented_data.pt")):
-                    print(
-                        f"Missing encoded data related to version {self.chebi_version}, transform augmented data into encoded data:",
-                        "augmented_data.pt",
-                    )
-                    torch.save(
-                        self._load_data_from_file(
-                            os.path.join(
-                                augmented_dir,
-                                "augmented_data.pkl",
-                            )
-                        ),
-                        os.path.join(augmented_dir, "augmented_data.pt"),
-                    )
+            # Define the augmented data file path
+            if not os.path.isfile(os.path.join(augmented_dir, "augmented_data.pt")):
+                print(
+                    f"Missing encoded data related to version {self.chebi_version}, transform augmented data into encoded data:",
+                    "augmented_data.pt",
+                )
+                torch.save(
+                    self._load_data_from_file(
+                        os.path.join(
+                            augmented_dir,
+                            "data.pkl",
+                        )
+                    ),
+                    os.path.join(augmented_dir, "data.pt"),
+                )
 
 
         # Transform the data related to "chebi_version_train" to encoded data, if it doesn't exist
@@ -826,7 +828,6 @@ class _ChEBIDataExtractor(XYBaseDataModule, ABC):
 
     def augment_data(self, path: str, batch_size) -> None:
         print(("inside_augment_data"))
-        print("batch_size",batch_size)
         if self.aug_data:
             if os.path.isfile(os.path.join(
                     path, self.raw_file_names_dict["data"])):
@@ -834,9 +835,9 @@ class _ChEBIDataExtractor(XYBaseDataModule, ABC):
                 # Check if the augmented directory exists, if not, create it
                 os.makedirs(augmented_dir, exist_ok=True)
                 # Define the augmented data file path
-                augmented_data_file = os.path.join(augmented_dir, "augmented_data.pkl")
+                augmented_data_file = os.path.join(augmented_dir, "data.pkl")
 
-                # If augmented_data.pkl does not already exist, proceed with the logic
+                # If data.pkl(augmented) does not already exist in augmented dir, proceed with the logic
                 if not os.path.isfile(augmented_data_file):
 
                     data = self.read_file(os.path.join(
