@@ -161,8 +161,8 @@ class ImplicationLoss(torch.nn.Module):
             # formula by van Krieken, 2022, applied to fuzzy implication with default parameters: b_0 = 0.5, s = 9
             # parts that only depend on b_0 and s are pre-calculated
             implication = 1 - individual_loss
-            sigmoidal_implication = 90.028 * (
-                1.011 * torch.sigmoid(9 * (implication + 0.5)) - 1
+            sigmoidal_implication = 0.0112338 * (
+                91.0171 * torch.sigmoid(9 * (implication - 0.5)) - 1
             )
             individual_loss = 1 - sigmoidal_implication
 
