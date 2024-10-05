@@ -508,7 +508,9 @@ class _GOUniProtDataExtractor(_DynamicDataset, ABC):
         """
         try:
             filename = self.processed_file_names_dict["data"]
-            data_go = torch.load(os.path.join(self.processed_dir, filename))
+            data_go = torch.load(
+                os.path.join(self.processed_dir, filename), weights_only=False
+            )
         except FileNotFoundError:
             raise FileNotFoundError(
                 f"File data.pt doesn't exists. "
