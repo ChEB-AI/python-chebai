@@ -38,7 +38,7 @@ class TestTox21Challenge(unittest.TestCase):
         mock_file = mock_open(read_data=Tox21ChallengeMockData.get_raw_train_data())
         with patch("builtins.open", mock_file):
             with open(
-                r"G:\github-aditya0by0\chebai_data\tox21_challenge\tox21_10k_data_all.sdf\tox21_10k_data_all.sdf",
+                r"fake/path",
                 "rb",
             ) as f:
                 suppl = Chem.ForwardSDMolSupplier(f)
