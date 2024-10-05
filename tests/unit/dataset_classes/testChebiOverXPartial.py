@@ -104,6 +104,72 @@ class TestChEBIOverX(unittest.TestCase):
             f"The graph nodes do not match the expected nodes for top class {self.chebi_extractor.top_class_id} hierarchy.",
         )
 
+    @patch("pandas.DataFrame.to_csv")
+    @patch("pandas.read_pickle")
+    @patch.object(ChEBIOverXPartial, "_get_data_size", return_value=4.0)
+    @patch("torch.load")
+    @patch(
+        "builtins.open",
+        new_callable=mock_open,
+        read_data=ChebiMockOntology.get_raw_data(),
+    )
+    def test_single_label_data_split(
+        self, mock_open, mock_load, mock_get_data_size, mock_read_pickle, mock_to_csv
+    ) -> None:
+        """
+        Test the single-label data splitting functionality of the ChebiExtractor class.
+
+        This test mocks several key methods (file operations, torch loading, and pandas functions)
+        to ensure that the class hierarchy is properly extracted, data is processed into a raw dataset,
+        and the data splitting logic works as intended without actual file I/O.
+
+        It also verifies that there is no overlap between training, validation, and test sets.
+        """
+        self.chebi_extractor.top_class_id = 11111
+        self.chebi_extractor.THRESHOLD = 3
+        self.chebi_extractor.chebi_version_train = None
+
+        graph: nx.DiGraph = self.chebi_extractor._extract_class_hierarchy("fake_path")
+        data_df = self.chebi_extractor._graph_to_raw_dataset(graph)
+
+        mock_read_pickle.return_value = data_df
+        data_pt = self.chebi_extractor._load_data_from_file("fake/path")
+
+        # Verify that the data contains only 1 label
+        self.assertEqual(len(data_pt[0]["labels"]), 1)
+
+        mock_load.return_value = data_pt
+
+        # Retrieve the data splits (train, validation, and test)
+        train_split = self.chebi_extractor.dynamic_split_dfs["train"]
+        validation_split = self.chebi_extractor.dynamic_split_dfs["validation"]
+        test_split = self.chebi_extractor.dynamic_split_dfs["test"]
+
+        train_idents = set(train_split["ident"])
+        val_idents = set(validation_split["ident"])
+        test_idents = set(test_split["ident"])
+
+        # Ensure there is no overlap between train and test sets
+        self.assertEqual(
+            len(train_idents.intersection(test_idents)),
+            0,
+            "Train and test sets should not overlap.",
+        )
+
+        # Ensure there is no overlap between validation and test sets
+        self.assertEqual(
+            len(val_idents.intersection(test_idents)),
+            0,
+            "Validation and test sets should not overlap.",
+        )
+
+        # Ensure there is no overlap between train and validation sets
+        self.assertEqual(
+            len(train_idents.intersection(val_idents)),
+            0,
+            "Train and validation sets should not overlap.",
+        )
+
 
 if __name__ == "__main__":
     unittest.main()
