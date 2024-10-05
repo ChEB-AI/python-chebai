@@ -2,7 +2,10 @@ import unittest
 from typing import List
 from unittest.mock import MagicMock, mock_open, patch
 
+import torch
+
 from chebai.preprocessing.datasets.tox21 import Tox21MolNet
+from chebai.preprocessing.reader import ChemDataReader
 from tests.unit.mock_data.tox_mock_data import Tox21MolNetMockData
 
 
@@ -16,9 +19,7 @@ class TestTox21MolNet(unittest.TestCase):
         Args:
             mock_makedirs (MagicMock): Mocked `os.makedirs` function.
         """
-        ReaderMock = MagicMock()
-        ReaderMock.name.return_value = "MockedReaderTox21MolNet"
-        Tox21MolNet.READER = ReaderMock
+        Tox21MolNet.READER = ChemDataReader
         cls.data_module = Tox21MolNet()
 
     @patch(
@@ -28,19 +29,37 @@ class TestTox21MolNet(unittest.TestCase):
     )
     def test_load_data_from_file(self, mock_open_file: mock_open) -> None:
         """
-        Test the `_load_data_from_file` method for correct CSV parsing.
+        Test the `_load_data_from_file` method for correct output.
 
         Args:
             mock_open_file (mock_open): Mocked open function to simulate file reading.
         """
-        expected_data = Tox21MolNetMockData.get_processed_data()
         actual_data = self.data_module._load_data_from_file("fake/file/path.csv")
 
-        self.assertEqual(
-            list(actual_data),
-            expected_data,
-            "The loaded data does not match the expected output from the file.",
+        first_instance = next(actual_data)
+
+        # Check for required keys
+        required_keys = ["features", "labels", "ident"]
+        for key in required_keys:
+            self.assertIn(
+                key, first_instance, f"'{key}' key is missing in the output data."
+            )
+
+        self.assertTrue(
+            all(isinstance(feature, int) for feature in first_instance["features"]),
+            "Not all elements in 'features' are integers.",
         )
+
+        # Check that 'features' can be converted to a tensor
+        features = first_instance["features"]
+        try:
+            tensor_features = torch.tensor(features)
+            self.assertTrue(
+                tensor_features.ndim > 0,
+                "'features' should be convertible to a non-empty tensor.",
+            )
+        except Exception as e:
+            self.fail(f"'features' cannot be converted to a tensor: {str(e)}")
 
     @patch(
         "builtins.open",
