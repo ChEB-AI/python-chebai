@@ -216,6 +216,142 @@ class TestDynamicDataset(unittest.TestCase):
             obj="Validation sets should be identical for the same seed.",
         )
 
+    def test_get_test_split_stratification(self) -> None:
+        """
+        Test that the split into train and test sets maintains the stratification of labels.
+        """
+        self.dataset.train_split = 0.5
+        train_df, test_df = self.dataset.get_test_split(self.data_df, seed=0)
+
+        number_of_labels = len(self.data_df["labels"][0])
+
+        # Check the label distribution in the original dataset
+        original_pos_count, original_neg_count = (
+            self.get_positive_negative_labels_counts(self.data_df)
+        )
+        total_count = len(self.data_df) * number_of_labels
+
+        # Calculate the expected proportions
+        original_pos_proportion = original_pos_count / total_count
+        original_neg_proportion = original_neg_count / total_count
+
+        # Check the label distribution in the train set
+        train_pos_count, train_neg_count = self.get_positive_negative_labels_counts(
+            train_df
+        )
+        train_total_count = len(train_df) * number_of_labels
+
+        # Calculate the train set proportions
+        train_pos_proportion = train_pos_count / train_total_count
+        train_neg_proportion = train_neg_count / train_total_count
+
+        # Assert that the proportions are similar to the original dataset
+        self.assertAlmostEqual(
+            train_pos_proportion,
+            original_pos_proportion,
+            places=1,
+            msg="Train set labels should maintain original positive label proportion.",
+        )
+        self.assertAlmostEqual(
+            train_neg_proportion,
+            original_neg_proportion,
+            places=1,
+            msg="Train set labels should maintain original negative label proportion.",
+        )
+
+        # Check the label distribution in the test set
+        test_pos_count, test_neg_count = self.get_positive_negative_labels_counts(
+            test_df
+        )
+        test_total_count = len(test_df) * number_of_labels
+
+        # Calculate the test set proportions
+        test_pos_proportion = test_pos_count / test_total_count
+        test_neg_proportion = test_neg_count / test_total_count
+
+        # Assert that the proportions are similar to the original dataset
+        self.assertAlmostEqual(
+            test_pos_proportion,
+            original_pos_proportion,
+            places=1,
+            msg="Test set labels should maintain original positive label proportion.",
+        )
+        self.assertAlmostEqual(
+            test_neg_proportion,
+            original_neg_proportion,
+            places=1,
+            msg="Test set labels should maintain original negative label proportion.",
+        )
+
+    def test_get_train_val_splits_given_test_stratification(self) -> None:
+        """
+        Test that the split into train and validation sets maintains the stratification of labels.
+        """
+        self.dataset.use_inner_cross_validation = False
+        self.dataset.train_split = 0.5
+        df_train_main, test_df = self.dataset.get_test_split(self.data_df, seed=0)
+        train_df, val_df = self.dataset.get_train_val_splits_given_test(
+            df_train_main, test_df, seed=42
+        )
+
+        number_of_labels = len(self.data_df["labels"][0])
+
+        # Check the label distribution in the original dataset
+        original_pos_count, original_neg_count = (
+            self.get_positive_negative_labels_counts(self.data_df)
+        )
+        total_count = len(self.data_df) * number_of_labels
+
+        # Calculate the expected proportions
+        original_pos_proportion = original_pos_count / total_count
+        original_neg_proportion = original_neg_count / total_count
+
+        # Check the label distribution in the train set
+        train_pos_count, train_neg_count = self.get_positive_negative_labels_counts(
+            train_df
+        )
+        train_total_count = len(train_df) * number_of_labels
+
+        # Calculate the train set proportions
+        train_pos_proportion = train_pos_count / train_total_count
+        train_neg_proportion = train_neg_count / train_total_count
+
+        # Assert that the proportions are similar to the original dataset
+        self.assertAlmostEqual(
+            train_pos_proportion,
+            original_pos_proportion,
+            places=1,
+            msg="Train set labels should maintain original positive label proportion.",
+        )
+        self.assertAlmostEqual(
+            train_neg_proportion,
+            original_neg_proportion,
+            places=1,
+            msg="Train set labels should maintain original negative label proportion.",
+        )
+
+        # Check the label distribution in the validation set
+        val_pos_count, val_neg_count = self.get_positive_negative_labels_counts(val_df)
+        val_total_count = len(val_df) * number_of_labels
+
+        # Calculate the validation set proportions
+        val_pos_proportion = val_pos_count / val_total_count
+        val_neg_proportion = val_neg_count / val_total_count
+
+        # Assert that the proportions are similar to the original dataset
+        self.assertAlmostEqual(
+            val_pos_proportion,
+            original_pos_proportion,
+            places=1,
+            msg="Validation set labels should maintain original positive label proportion.",
+        )
+        self.assertAlmostEqual(
+            val_neg_proportion,
+            original_neg_proportion,
+            places=1,
+            msg="Validation set labels should maintain original negative label proportion.",
+        )
+
     @staticmethod
     def get_positive_negative_labels_counts(df: pd.DataFrame) -> Tuple[int, int]:
         """
