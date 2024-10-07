@@ -135,8 +135,14 @@ class ImplicationLoss(torch.nn.Module):
         Returns:
             torch.Tensor: Calculated implication loss.
         """
-        assert not l.isnan().any()
-        assert not r.isnan().any()
+        assert not l.isnan().any(), (
+            f"l contains NaN values - l.shape: {l.shape}, l.isnan().sum(): {l.isnan().sum()}, "
+            f"l: {l}"
+        )
+        assert not r.isnan().any(), (
+            f"r contains NaN values - r.shape: {r.shape}, r.isnan().sum(): {r.isnan().sum()}, "
+            f"r: {r}"
+        )
         if self.pos_scalar != 1:
             l = (
                 torch.pow(l + self.eps, 1 / self.pos_scalar)
