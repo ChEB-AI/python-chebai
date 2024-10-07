@@ -34,7 +34,15 @@ class ImplicationLoss(torch.nn.Module):
         data_extractor: XYBaseDataModule,
         base_loss: torch.nn.Module = None,
         fuzzy_implication: Literal[
-            "reichenbach", "rc", "lukasiewicz", "lk", "xu19", "kleene_dienes", "kd"
+            "reichenbach",
+            "rc",
+            "lukasiewicz",
+            "lk",
+            "xu19",
+            "kleene_dienes",
+            "kd",
+            "goedel",
+            "g",
         ] = "reichenbach",
         impl_loss_weight: float = 0.1,
         pos_scalar: int = 1,
