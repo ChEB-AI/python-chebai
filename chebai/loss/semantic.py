@@ -161,7 +161,9 @@ class ImplicationLoss(torch.nn.Module):
         elif self.fuzzy_implication in ["kleene_dienes", "kd"]:
             individual_loss = torch.min(l, 1 - r)
         elif self.fuzzy_implication in ["goedel", "g"]:
-            individual_loss = 0 if l <= r else one_min_r
+            individual_loss = (
+                torch.relu(l - r) / (l - r) * one_min_r
+            )  # 0 if l <= r else one_min_r
         else:
             raise NotImplementedError(
                 f"Unknown fuzzy implication {self.fuzzy_implication}"
