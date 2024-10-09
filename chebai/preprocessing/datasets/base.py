@@ -200,7 +200,9 @@ class XYBaseDataModule(LightningDataModule):
                     filename = self.processed_file_names_dict[kind]
             except NotImplementedError:
                 filename = f"{kind}.pt"
-        return torch.load(os.path.join(self.processed_dir, filename))
+        return torch.load(
+            os.path.join(self.processed_dir, filename), weights_only=False
+        )
 
     def dataloader(self, kind: str, **kwargs) -> DataLoader:
         """
@@ -519,7 +521,7 @@ class MergedDataset(XYBaseDataModule):
             DataLoader: DataLoader object for the specified subset.
         """
         subdatasets = [
-            torch.load(os.path.join(s.processed_dir, f"{kind}.pt"))
+            torch.load(os.path.join(s.processed_dir, f"{kind}.pt"), weights_only=False)
             for s in self.subsets
         ]
         dataset = [
@@ -1022,7 +1024,9 @@ class _DynamicDataset(XYBaseDataModule, ABC):
         splits_df = pd.read_csv(self.splits_file_path)
 
         filename = self.processed_file_names_dict["data"]
-        data = torch.load(os.path.join(self.processed_dir, filename))
+        data = torch.load(
+            os.path.join(self.processed_dir, filename), weights_only=False
+        )
         df_data = pd.DataFrame(data)
 
         train_ids = splits_df[splits_df["split"] == "train"]["id"]
@@ -1081,7 +1085,9 @@ class _DynamicDataset(XYBaseDataModule, ABC):
 
         # If filename is provided
         try:
-            return torch.load(os.path.join(self.processed_dir, filename))
+            return torch.load(
+                os.path.join(self.processed_dir, filename), weights_only=False
+            )
         except FileNotFoundError:
             raise FileNotFoundError(f"File {filename} doesn't exist")
 

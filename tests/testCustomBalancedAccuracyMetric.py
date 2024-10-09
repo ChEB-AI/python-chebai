@@ -49,7 +49,9 @@ class TestCustomBalancedAccuracyMetric(unittest.TestCase):
 
         # load single file to get the num of labels for metric class instantiation
         labels = torch.load(
-            f"{directory_path}/labels{0:03d}.pt", map_location=torch.device(self.device)
+            f"{directory_path}/labels{0:03d}.pt",
+            map_location=torch.device(self.device),
+            weights_only=False,
         )
         num_labels = labels.shape[1]
         balanced_acc_custom = BalancedAccuracy(num_labels=num_labels)
@@ -58,10 +60,12 @@ class TestCustomBalancedAccuracyMetric(unittest.TestCase):
             labels = torch.load(
                 f"{directory_path}/labels{i:03d}.pt",
                 map_location=torch.device(self.device),
+                weights_only=False,
             )
             preds = torch.load(
                 f"{directory_path}/preds{i:03d}.pt",
                 map_location=torch.device(self.device),
+                weights_only=False,
             )
             balanced_acc_custom.update(preds, labels)
 
