@@ -3,7 +3,11 @@ import sys
 from datetime import datetime
 from typing import List, LiteralString
 
-from torchmetrics.functional.classification import multilabel_auroc, multilabel_f1_score
+from torchmetrics.functional.classification import (
+    multilabel_auroc,
+    multilabel_average_precision,
+    multilabel_f1_score,
+)
 from utils import *
 
 from chebai.loss.semantic import DisjointLoss
@@ -49,7 +53,7 @@ def _filter_to_one_hot(preds, idx_filter):
 
 
 def _sort_results_by_label(n_labels, results, filter):
-    by_label = torch.zeros(n_labels, device=DEVICE)
+    by_label = torch.zeros(n_labels, device=DEVICE, dtype=torch.int)
     for r, filter_l in zip(results, filter):
         by_label[filter_l] += r
     return by_label
@@ -66,9 +70,9 @@ def get_best_epoch(run):
                 best_ep = int(file.name.split("=")[1].split("_")[0])
                 best_micro_f1 = micro_f1
     if best_ep is None:
-        raise Exception(f"Could not find any 'best' checkpoint for run {run.name}")
+        raise Exception(f"Could not find any 'best' checkpoint for run {run.id}")
     else:
-        print(f"Best epoch for run {run.name}: {best_ep}")
+        print(f"Best epoch for run {run.id}: {best_ep}")
     return best_ep
 
 
@@ -227,12 +231,15 @@ def run_consistency_metrics(
     data_module_labeled=None,  # use labels from this dataset for violations
     violation_metrics=None,
     verbose_violation_output=False,
+    save_details_to=None,
 ):
     """Calculates all semantic metrics for given predictions (and supervised metrics if labels are provided)"""
     if violation_metrics is None:
         violation_metrics = ALL_CONSISTENCY_METRICS
     if data_module_labeled is None:
         data_module_labeled = ChEBIOver100(chebi_version=231)
+    if save_details_to is not None:
+        os.makedirs(save_details_to, exist_ok=True)
 
     n_labels = preds.size(1)
     print(f"Found {preds.shape[0]} predictions ({n_labels} classes)")
@@ -307,6 +314,47 @@ def run_consistency_metrics(
                     dl_filter_r,
                 )
 
+            if save_details_to is not None:
+                with open(
+                    os.path.join(
+                        save_details_to, f"{metric.__name__}_{filter_type}_all.csv"
+                    ),
+                    "w+",
+                ) as f:
+                    f.write("left,right,tps,fns\n")
+                    for left, right, tps, fns in zip(
+                        dl_filter_l,
+                        dl_filter_r,
+                        metric_results["tps"],
+                        metric_results["fns"],
+                    ):
+                        f.write(f"{left},{right},{tps},{fns}\n")
+                with open(
+                    os.path.join(
+                        save_details_to, f"{metric.__name__}_{filter_type}_l.csv"
+                    ),
+                    "w+",
+                ) as f:
+                    f.write("left,tps,fns\n")
+                    for left in range(n_labels):
+                        f.write(
+                            f"{left},{m_l_agg['tps'][left].item()},{m_l_agg['fns'][left].item()}\n"
+                        )
+                with open(
+                    os.path.join(
+                        save_details_to, f"{metric.__name__}_{filter_type}_r.csv"
+                    ),
+                    "w+",
+                ) as f:
+                    f.write("right,tps,fns\n")
+                    for right in range(n_labels):
+                        f.write(
+                            f"{right},{m_r_agg['tps'][right].item()},{m_r_agg['fns'][right].item()}\n"
+                        )
+                print(
+                    f"Saved unaggregated consistency metrics ({metric.__name__}, {filter_type}) to {save_details_to}"
+                )
+
             results[metric.__name__][f"micro-fnr-{filter_type}"] = (
                 1
                 - (
@@ -344,7 +392,7 @@ def run_consistency_metrics(
     return results
 
 
-def run_supervised_metrics(preds, labels):
+def run_supervised_metrics(preds, labels, save_details_to=None):
     # calculate supervised metrics
     results = {}
     if labels is not None:
@@ -360,6 +408,31 @@ def run_supervised_metrics(preds, labels):
         results["macro-roc-auc"] = multilabel_auroc(
             preds, labels, num_labels=preds.size(1), average="macro"
         ).item()
+
+        results["micro-ap"] = multilabel_average_precision(
+            preds, labels, num_labels=preds.size(1), average="micro"
+        ).item()
+        results["macro-ap"] = multilabel_average_precision(
+            preds, labels, num_labels=preds.size(1), average="macro"
+        ).item()
+
+    if save_details_to is not None:
+        f1_by_label = multilabel_f1_score(
+            preds, labels, num_labels=preds.size(1), average=None
+        )
+        roc_by_label = multilabel_auroc(
+            preds, labels, num_labels=preds.size(1), average=None
+        )
+        ap_by_label = multilabel_average_precision(
+            preds, labels, num_labels=preds.size(1), average=None
+        )
+        with open(os.path.join(save_details_to, f"supervised.csv"), "w+") as f:
+            f.write("label,f1,roc-auc,ap\n")
+            for right in range(preds.size(1)):
+                f.write(
+                    f"{right},{f1_by_label[right].item()},{roc_by_label[right].item()},{ap_by_label[right].item()}\n"
+                )
+        print(f"Saved class-wise supervised metrics to {save_details_to}")
 
     del preds
     del labels
@@ -444,7 +517,14 @@ def run_all(
         results_dir,
         f"supervised_metrics_{timestamp}{'_violations_removed' if remove_violations else ''}.csv",
     )
-    supervised_keys = ["micro-f1", "macro-f1", "micro-roc-auc", "macro-roc-auc"]
+    supervised_keys = [
+        "micro-f1",
+        "macro-f1",
+        "micro-roc-auc",
+        "macro-roc-auc",
+        "micro-ap",
+        "macro-ap",
+    ]
     with open(results_path_supervised, "x") as f:
         f.write("run-id,epoch,datamodule," + ",".join(supervised_keys) + "\n")
 
@@ -476,11 +556,16 @@ def run_all(
             # for wandb runs, use short id as name, otherwise use ckpt dir name
             if wandb_id is not None:
                 run_name = wandb_id
+            details_path = os.path.join(
+                results_dir,
+                f"{run_name}_ep{epoch}_{dataset.__class__.__name__}_{dataset_key}",
+            )
             metrics_dict = run_consistency_metrics(
                 preds,
                 check_consistency_on,
                 consistency_metrics,
                 verbose_violation_output,
+                save_details_to=details_path,
             )
             with open(results_path_consistency, "a") as f:
                 for metric in metrics_dict:
@@ -489,13 +574,19 @@ def run_all(
                         f"{run_name},{epoch},{dataset.__class__.__name__},{metric},"
                         f"{','.join([str(values[k]) for k in consistency_keys])}\n"
                     )
+            print(
+                f"Consistency metrics have been written to {results_path_consistency}"
+            )
 
-            metrics_dict = run_supervised_metrics(preds, labels)
+            metrics_dict = run_supervised_metrics(
+                preds, labels, save_details_to=details_path
+            )
             with open(results_path_supervised, "a") as f:
                 f.write(
-                    f"{run_name},{epoch},{dataset.__class__.__name__},{metric},"
+                    f"{run_name},{epoch},{dataset.__class__.__name__},"
                     f"{','.join([str(metrics_dict[k]) for k in supervised_keys])}\n"
                 )
+            print(f"Supervised metrics have been written to {results_path_supervised}")
 
 
 # follow-up to NeSy submission
@@ -512,12 +603,6 @@ def run_fuzzy_loss(tag="fuzzy_loss"):
     )
     run_all(
         ids,
-        [
-            (
-                "chebi100_semrc_epoch-dependent100-1m_start-at10_weighted_v231_pc_kmeans_241001-0836",
-                196,
-            )
-        ],
         # [("chebi100_semrc_epoch-dependent100-100k_weighted_v231_pc_kmeans_240927-1219", 97),
         #               ("chebi100_semrc_epoch-dependent100-100k_weighted_v231_pc_kmeans_240927-1220", 99)],
         consistency_metrics=[binary],

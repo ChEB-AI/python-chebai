@@ -16,7 +16,6 @@ def get_checkpoint_from_wandb(
     epoch: int,
     run: wandb.apis.public.Run,
     root: str = os.path.join("logs", "downloaded_ckpts"),
-    model_class: Optional[Union[Electra, ChebaiBaseNet]] = None,
     map_device_to: Optional[torch.device] = None,
 ):
     """
@@ -33,8 +32,6 @@ def get_checkpoint_from_wandb(
         The location of the downloaded checkpoint.
     """
     api = wandb.Api()
-    if model_class is None:
-        model_class = Electra
 
     files = run.files()
     for file in files:
