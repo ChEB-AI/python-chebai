@@ -45,7 +45,7 @@ class ImplicationLoss(torch.nn.Module):
             "g",
         ] = "reichenbach",
         impl_loss_weight: float = 0.1,
-        pos_scalar: int = 1,
+        pos_scalar: Union[int, float] = 1,
         pos_epsilon: float = 0.01,
         multiply_by_softmax: bool = False,
         use_sigmoidal_implication: bool = False,
