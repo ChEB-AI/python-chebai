@@ -1,12 +1,20 @@
 import os
 import random
-from typing import Any, Dict, Generator, List, Optional, Union
+from abc import ABC, abstractmethod
+from typing import Any, Dict, Generator, List, Optional, Tuple, Union
 
 import lightning as pl
+import networkx as nx
+import pandas as pd
 import torch
 import tqdm
+from iterstrat.ml_stratifiers import (
+    MultilabelStratifiedKFold,
+    MultilabelStratifiedShuffleSplit,
+)
 from lightning.pytorch.core.datamodule import LightningDataModule
 from lightning_utilities.core.rank_zero import rank_zero_info
+from sklearn.model_selection import StratifiedShuffleSplit
 from torch.utils.data import DataLoader
 
 from chebai.preprocessing import reader as dr
@@ -148,6 +156,8 @@ class XYBaseDataModule(LightningDataModule):
     def _filter_labels(self, row: dict) -> dict:
         """
         Filter labels based on `label_filter`.
+        This method selects specific labels from the `labels` list within the row dictionary
+        according to the index or indices provided by the `label_filter` attribute of the class.
 
         Args:
             row (dict): A dictionary containing the row data.
@@ -190,7 +200,9 @@ class XYBaseDataModule(LightningDataModule):
                     filename = self.processed_file_names_dict[kind]
             except NotImplementedError:
                 filename = f"{kind}.pt"
-        return torch.load(os.path.join(self.processed_dir, filename))
+        return torch.load(
+            os.path.join(self.processed_dir, filename), weights_only=False
+        )
 
     def dataloader(self, kind: str, **kwargs) -> DataLoader:
         """
@@ -509,7 +521,7 @@ class MergedDataset(XYBaseDataModule):
             DataLoader: DataLoader object for the specified subset.
         """
         subdatasets = [
-            torch.load(os.path.join(s.processed_dir, f"{kind}.pt"))
+            torch.load(os.path.join(s.processed_dir, f"{kind}.pt"), weights_only=False)
             for s in self.subsets
         ]
         dataset = [
@@ -583,3 +595,570 @@ class MergedDataset(XYBaseDataModule):
         Returns None, assuming no limits on data slicing.
         """
         return None
+
+
+class _DynamicDataset(XYBaseDataModule, ABC):
+    """
+    A class for extracting and processing data from the given dataset.
+
+    The processed and transformed data is stored in `data.pkl` and `data.pt` format as a whole respectively,
+    rather than as separate  train, validation, and test splits, with dynamic splitting of data.pt occurring at runtime.
+    The `_DynamicDataset` class manages data splits by either generating them during execution or retrieving them from
+    a CSV file.
+    If no split file path is provided, `_generate_dynamic_splits` creates the training, validation, and test splits
+    from the encoded/transformed data, storing them in `_dynamic_df_train`, `_dynamic_df_val`, and `_dynamic_df_test`.
+    When a split file path is provided, `_retrieve_splits_from_csv` loads splits from the CSV file, which must
+    include 'id' and 'split' columns.
+    The `dynamic_split_dfs` property ensures that the necessary splits are loaded as required.
+
+    Args:
+        dynamic_data_split_seed (int, optional): The seed for random data splitting. Defaults to 42.
+        splits_file_path (str, optional): Path to the splits CSV file. Defaults to None.
+        **kwargs: Additional keyword arguments passed to XYBaseDataModule.
+
+    Attributes:
+        dynamic_data_split_seed (int): The seed for random data splitting, default is 42.
+        splits_file_path (Optional[str]): Path to the CSV file containing split assignments.
+    """
+
+    # ---- Index for columns of processed `data.pkl` (should be derived from `_graph_to_raw_dataset` method) ------
+    _ID_IDX: int = None
+    _DATA_REPRESENTATION_IDX: int = None
+    _LABELS_START_IDX: int = None
+
+    def __init__(
+        self,
+        **kwargs,
+    ):
+        super(_DynamicDataset, self).__init__(**kwargs)
+        self.dynamic_data_split_seed = int(kwargs.get("seed", 42))  # default is 42
+        # Class variables to store the dynamics splits
+        self._dynamic_df_train = None
+        self._dynamic_df_test = None
+        self._dynamic_df_val = None
+        # Path of csv file which contains a list of ids & their assignment to a dataset (either train,
+        # validation or test).
+        self.splits_file_path = self._validate_splits_file_path(
+            kwargs.get("splits_file_path", None)
+        )
+
+    @staticmethod
+    def _validate_splits_file_path(splits_file_path: Optional[str]) -> Optional[str]:
+        """
+        Validates the file in provided splits file path.
+
+        Args:
+            splits_file_path (Optional[str]): Path to the splits CSV file.
+
+        Returns:
+            Optional[str]: Validated splits file path if checks pass, None if splits_file_path is None.
+
+        Raises:
+            FileNotFoundError: If the splits file does not exist.
+            ValueError: If splits file is empty or missing required columns ('id' and/or 'split'), or not a CSV file.
+        """
+        if splits_file_path is None:
+            return None
+
+        if not os.path.isfile(splits_file_path):
+            raise FileNotFoundError(f"File {splits_file_path} does not exist")
+
+        file_size = os.path.getsize(splits_file_path)
+        if file_size == 0:
+            raise ValueError(f"File {splits_file_path} is empty")
+
+        # Check if the file has a CSV extension
+        if not splits_file_path.lower().endswith(".csv"):
+            raise ValueError(f"File {splits_file_path} is not a CSV file")
+
+        # Read the first row of CSV file into a DataFrame
+        splits_df = pd.read_csv(splits_file_path, nrows=1)
+
+        # Check if 'id' and 'split' columns are in the DataFrame
+        required_columns = {"id", "split"}
+        if not required_columns.issubset(splits_df.columns):
+            raise ValueError(
+                f"CSV file {splits_file_path} is missing required columns ('id' and/or 'split')."
+            )
+
+        return splits_file_path
+
+    # ------------------------------ Phase: Prepare data -----------------------------------
+    def prepare_data(self, *args: Any, **kwargs: Any) -> None:
+        """
+        Prepares the data for the dataset.
+
+        This method checks for the presence of raw data in the specified directory.
+        If the raw data is missing, it fetches the ontology and creates a dataframe and saves it to a data.pkl file.
+
+        The resulting dataframe/pickle file is expected to contain columns with the following structure:
+            - Column at index `self._ID_IDX`: ID of data instance
+            - Column at index `self._DATA_REPRESENTATION_IDX`: Sequence representation of the protein
+            - Column from index `self._LABELS_START_IDX` onwards: Labels
+
+        Args:
+            *args: Variable length argument list.
+            **kwargs: Arbitrary keyword arguments.
+
+        Returns:
+            None
+        """
+        print("Checking for processed data in", self.processed_dir_main)
+
+        processed_name = self.processed_dir_main_file_names_dict["data"]
+        if not os.path.isfile(os.path.join(self.processed_dir_main, processed_name)):
+            print("Missing processed data file (`data.pkl` file)")
+            os.makedirs(self.processed_dir_main, exist_ok=True)
+            data_path = self._download_required_data()
+            g = self._extract_class_hierarchy(data_path)
+            data_df = self._graph_to_raw_dataset(g)
+            self.save_processed(data_df, processed_name)
+
+    @abstractmethod
+    def _download_required_data(self) -> str:
+        """
+        Downloads the required raw data.
+
+        Returns:
+            str: Path to the downloaded data.
+        """
+        pass
+
+    @abstractmethod
+    def _extract_class_hierarchy(self, data_path: str) -> nx.DiGraph:
+        """
+        Extracts the class hierarchy from the data.
+        Constructs a directed graph (DiGraph) using NetworkX, where nodes are annotated with fields/terms from
+        the term documents.
+
+        Args:
+            data_path (str): Path to the data.
+
+        Returns:
+            nx.DiGraph: The class hierarchy graph.
+        """
+        pass
+
+    @abstractmethod
+    def _graph_to_raw_dataset(self, graph: nx.DiGraph) -> pd.DataFrame:
+        """
+        Converts the graph to a raw dataset.
+        Uses the graph created by `_extract_class_hierarchy` method to extract the
+        raw data in Dataframe format with additional columns corresponding to each multi-label class.
+
+        Args:
+            graph (nx.DiGraph): The class hierarchy graph.
+
+        Returns:
+            pd.DataFrame: The raw dataset.
+        """
+        pass
+
+    @abstractmethod
+    def select_classes(self, g: nx.DiGraph, *args, **kwargs) -> List:
+        """
+        Selects classes from the dataset based on a specified criteria.
+
+        Args:
+            g (nx.Graph): The graph representing the dataset.
+            *args: Additional positional arguments.
+            **kwargs: Additional keyword arguments.
+
+        Returns:
+            List: A sorted list of node IDs that meet the specified criteria.
+        """
+        pass
+
+    def save_processed(self, data: pd.DataFrame, filename: str) -> None:
+        """
+        Save the processed dataset to a pickle file.
+
+        Args:
+            data (pd.DataFrame): The processed dataset to be saved.
+            filename (str): The filename for the pickle file.
+        """
+        pd.to_pickle(data, open(os.path.join(self.processed_dir_main, filename), "wb"))
+
+    # ------------------------------ Phase: Setup data -----------------------------------
+    def setup_processed(self) -> None:
+        """
+        Transforms `data.pkl` into a model input data format (`data.pt`), ensuring that the data is in a format
+        compatible for input to the model.
+        The transformed data contains the following keys: `ident`, `features`, `labels`, and `group`.
+        This method uses a subclass of Data Reader to perform the transformation.
+
+        Returns:
+            None
+        """
+        os.makedirs(self.processed_dir, exist_ok=True)
+        print("Missing transformed data (`data.pt` file). Transforming data.... ")
+        torch.save(
+            self._load_data_from_file(
+                os.path.join(
+                    self.processed_dir_main,
+                    self.processed_dir_main_file_names_dict["data"],
+                )
+            ),
+            os.path.join(self.processed_dir, self.processed_file_names_dict["data"]),
+        )
+
+    @staticmethod
+    def _get_data_size(input_file_path: str) -> int:
+        """
+        Get the size of the data from a pickled file.
+
+        Args:
+            input_file_path (str): The path to the file.
+
+        Returns:
+            int: The size of the data.
+        """
+        with open(input_file_path, "rb") as f:
+            return len(pd.read_pickle(f))
+
+    @abstractmethod
+    def _load_dict(self, input_file_path: str) -> Generator[Dict[str, Any], None, None]:
+        """
+        Loads data from given pickled file and yields individual dictionaries for each row.
+
+        This method is used by `_load_data_from_file` to generate dictionaries that are then
+        processed and converted into a list of dictionaries containing the features and labels.
+
+        Args:
+            input_file_path (str): The path to the pickled input file.
+
+        Yields:
+            Generator[Dict[str, Any], None, None]: Generator yielding dictionaries.
+
+        """
+        pass
+
+    # ------------------------------ Phase: Dynamic Splits -----------------------------------
+    @property
+    def dynamic_split_dfs(self) -> Dict[str, pd.DataFrame]:
+        """
+        Property to retrieve dynamic train, validation, and test splits.
+
+        This property checks if dynamic data splits (`_dynamic_df_train`, `_dynamic_df_val`, `_dynamic_df_test`)
+        are already loaded. If any of them is None, it either generates them dynamically or retrieves them
+        from data file with help of pre-existing split csv file (`splits_file_path`) containing splits assignments.
+
+        Returns:
+            dict: A dictionary containing the dynamic train, validation, and test DataFrames.
+                Keys are 'train', 'validation', and 'test'.
+        """
+        if any(
+            split is None
+            for split in [
+                self._dynamic_df_test,
+                self._dynamic_df_val,
+                self._dynamic_df_train,
+            ]
+        ):
+            if self.splits_file_path is None:
+                # Generate splits based on given seed, create csv file to records the splits
+                self._generate_dynamic_splits()
+            else:
+                # If user has provided splits file path, use it to get the splits from the data
+                self._retrieve_splits_from_csv()
+        return {
+            "train": self._dynamic_df_train,
+            "validation": self._dynamic_df_val,
+            "test": self._dynamic_df_test,
+        }
+
+    def _generate_dynamic_splits(self) -> None:
+        """
+        Generate data splits during runtime and save them in class variables.
+
+        This method loads encoded data and generates train, validation, and test splits based on the loaded data.
+        """
+        print("\nGenerate dynamic splits...")
+        df_train, df_val, df_test = self._get_data_splits()
+
+        # Generate splits.csv file to store ids of each corresponding split
+        split_assignment_list: List[pd.DataFrame] = [
+            pd.DataFrame({"id": df_train["ident"], "split": "train"}),
+            pd.DataFrame({"id": df_val["ident"], "split": "validation"}),
+            pd.DataFrame({"id": df_test["ident"], "split": "test"}),
+        ]
+
+        combined_split_assignment = pd.concat(split_assignment_list, ignore_index=True)
+        combined_split_assignment.to_csv(
+            os.path.join(self.processed_dir_main, "splits.csv"), index=False
+        )
+
+        # Store the splits in class variables
+        self._dynamic_df_train = df_train
+        self._dynamic_df_val = df_val
+        self._dynamic_df_test = df_test
+
+    @abstractmethod
+    def _get_data_splits(self) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+        """
+        Retrieve the train, validation, and test data splits for the dataset.
+
+        This method returns data splits according to specific criteria implemented
+        in the subclasses.
+
+        Returns:
+            tuple: A tuple containing DataFrames for train, validation, and test splits.
+        """
+        pass
+
+    def get_test_split(
+        self, df: pd.DataFrame, seed: Optional[int] = None
+    ) -> Tuple[pd.DataFrame, pd.DataFrame]:
+        """
+        Split the input DataFrame into training and testing sets based on multilabel stratified sampling.
+
+        This method uses MultilabelStratifiedShuffleSplit to split the data such that the distribution of labels
+        in the training and testing sets is approximately the same. The split is based on the "labels" column
+        in the DataFrame.
+
+        Args:
+            df (pd.DataFrame): The input DataFrame containing the data to be split. It must contain a column
+                               named "labels" with the multilabel data.
+            seed (int, optional): The random seed to be used for reproducibility. Default is None.
+
+        Returns:
+            Tuple[pd.DataFrame, pd.DataFrame]: A tuple containing the training set and testing set DataFrames.
+
+        Raises:
+            ValueError: If the DataFrame does not contain a column named "labels".
+        """
+        print("Get test data split")
+
+        labels_list = df["labels"].tolist()
+
+        test_size = 1 - self.train_split - (1 - self.train_split) ** 2
+
+        if len(labels_list[0]) > 1:
+            splitter = MultilabelStratifiedShuffleSplit(
+                n_splits=1, test_size=test_size, random_state=seed
+            )
+        else:
+            splitter = StratifiedShuffleSplit(
+                n_splits=1, test_size=test_size, random_state=seed
+            )
+
+        train_indices, test_indices = next(splitter.split(labels_list, labels_list))
+
+        df_train = df.iloc[train_indices]
+        df_test = df.iloc[test_indices]
+        return df_train, df_test
+
+    def get_train_val_splits_given_test(
+        self, df: pd.DataFrame, test_df: pd.DataFrame, seed: int = None
+    ) -> Union[Dict[str, pd.DataFrame], Tuple[pd.DataFrame, pd.DataFrame]]:
+        """
+        Split the dataset into train and validation sets, given a test set.
+        Use test set (e.g., loaded from another source or generated in get_test_split), to avoid overlap
+
+        Args:
+            df (pd.DataFrame): The original dataset.
+            test_df (pd.DataFrame): The test dataset.
+            seed (int, optional): The random seed to be used for reproducibility. Default is None.
+
+        Returns:
+            Union[Dict[str, pd.DataFrame], Tuple[pd.DataFrame, pd.DataFrame]]: A dictionary containing train and
+                validation sets if self.use_inner_cross_validation is True, otherwise a tuple containing the train
+                and validation DataFrames. The keys are the names of the train and validation sets, and the values
+                are the corresponding DataFrames.
+        """
+        print(f"Split dataset into train / val with given test set")
+
+        test_ids = test_df["ident"].tolist()
+        df_trainval = df[~df["ident"].isin(test_ids)]
+        labels_list_trainval = df_trainval["labels"].tolist()
+
+        if self.use_inner_cross_validation:
+            folds = {}
+            kfold = MultilabelStratifiedKFold(
+                n_splits=self.inner_k_folds, random_state=seed
+            )
+            for fold, (train_ids, val_ids) in enumerate(
+                kfold.split(
+                    labels_list_trainval,
+                    labels_list_trainval,
+                )
+            ):
+                df_validation = df_trainval.iloc[val_ids]
+                df_train = df_trainval.iloc[train_ids]
+                folds[self.raw_file_names_dict[f"fold_{fold}_train"]] = df_train
+                folds[self.raw_file_names_dict[f"fold_{fold}_validation"]] = (
+                    df_validation
+                )
+
+            return folds
+
+        # scale val set size by 1/self.train_split to compensate for (hypothetical) test set size (1-self.train_split)
+        test_size = ((1 - self.train_split) ** 2) / self.train_split
+
+        if len(labels_list_trainval[0]) > 1:
+            splitter = MultilabelStratifiedShuffleSplit(
+                n_splits=1, test_size=test_size, random_state=seed
+            )
+        else:
+            splitter = StratifiedShuffleSplit(
+                n_splits=1, test_size=test_size, random_state=seed
+            )
+
+        train_indices, validation_indices = next(
+            splitter.split(labels_list_trainval, labels_list_trainval)
+        )
+
+        df_validation = df_trainval.iloc[validation_indices]
+        df_train = df_trainval.iloc[train_indices]
+        return df_train, df_validation
+
+    def _retrieve_splits_from_csv(self) -> None:
+        """
+        Retrieve previously saved data splits from splits.csv file or from provided file path.
+
+        This method loads the splits.csv file located at `self.splits_file_path`.
+        It then loads the encoded data (`data.pt`) and filters it based on the IDs retrieved from
+        splits.csv to reconstruct the train, validation, and test splits.
+        """
+        print(f"\nLoading splits from {self.splits_file_path}...")
+        splits_df = pd.read_csv(self.splits_file_path)
+
+        filename = self.processed_file_names_dict["data"]
+        data = torch.load(
+            os.path.join(self.processed_dir, filename), weights_only=False
+        )
+        df_data = pd.DataFrame(data)
+
+        train_ids = splits_df[splits_df["split"] == "train"]["id"]
+        validation_ids = splits_df[splits_df["split"] == "validation"]["id"]
+        test_ids = splits_df[splits_df["split"] == "test"]["id"]
+
+        self._dynamic_df_train = df_data[df_data["ident"].isin(train_ids)]
+        self._dynamic_df_val = df_data[df_data["ident"].isin(validation_ids)]
+        self._dynamic_df_test = df_data[df_data["ident"].isin(test_ids)]
+
+    def load_processed_data(
+        self, kind: Optional[str] = None, filename: Optional[str] = None
+    ) -> List[Dict[str, Any]]:
+        """
+        Loads processed data from a specified dataset type or file.
+
+        This method retrieves processed data based on the dataset type (`kind`) such as "train",
+        "val", or "test", or directly from a provided filename. When `kind` is specified, the method
+        leverages the `dynamic_split_dfs` property to dynamically generate or retrieve the corresponding
+        data splits if they are not already loaded. If both `kind` and `filename` are provided, `filename`
+        takes precedence.
+
+        Args:
+            kind (str, optional): The type of dataset to load ("train", "val", or "test").
+                If `filename` is provided, this argument is ignored. Defaults to None.
+            filename (str, optional): The name of the file to load the dataset from.
+                If provided, this takes precedence over `kind`. Defaults to None.
+
+        Returns:
+            List[Dict[str, Any]]: A list of dictionaries, where each dictionary contains
+            the processed data for an individual data point.
+
+        Raises:
+            ValueError: If both `kind` and `filename` are None, as one of them is required to load the dataset.
+            KeyError: If the specified `kind` does not exist in the `dynamic_split_dfs` property or
+                `processed_file_names_dict`, when expected.
+            FileNotFoundError: If the file corresponding to the provided `filename` does not exist.
+        """
+        if kind is None and filename is None:
+            raise ValueError(
+                "Either kind or filename is required to load the correct dataset, both are None"
+            )
+
+        # If both kind and filename are given, use filename
+        if kind is not None and filename is None:
+            try:
+                if self.use_inner_cross_validation and kind != "test":
+                    filename = self.processed_file_names_dict[
+                        f"fold_{self.fold_index}_{kind}"
+                    ]
+                else:
+                    data_df = self.dynamic_split_dfs[kind]
+                    return data_df.to_dict(orient="records")
+            except KeyError:
+                kind = f"{kind}"
+
+        # If filename is provided
+        try:
+            return torch.load(
+                os.path.join(self.processed_dir, filename), weights_only=False
+            )
+        except FileNotFoundError:
+            raise FileNotFoundError(f"File {filename} doesn't exist")
+
+    # ------------------------------ Phase: Raw Properties -----------------------------------
+    @property
+    @abstractmethod
+    def base_dir(self) -> str:
+        """
+        Returns the base directory path for storing data.
+
+        Returns:
+            str: The path to the base directory.
+        """
+        pass
+
+    @property
+    def processed_dir_main(self) -> str:
+        """
+        Returns the main directory path where processed data is stored.
+
+        Returns:
+            str: The path to the main processed data directory, based on the base directory and the instance's name.
+        """
+        return os.path.join(
+            self.base_dir,
+            self._name,
+            "processed",
+        )
+
+    @property
+    def processed_dir(self) -> str:
+        """
+        Returns the specific directory path for processed data, including identifiers.
+
+        Returns:
+            str: The path to the processed data directory, including additional identifiers.
+        """
+        return os.path.join(
+            self.processed_dir_main,
+            *self.identifier,
+        )
+
+    @property
+    def processed_dir_main_file_names_dict(self) -> dict:
+        """
+        Returns a dictionary mapping processed data file names, processed by `prepare_data` method.
+
+        Returns:
+            dict: A dictionary mapping dataset types to their respective processed file names.
+                  For example, {"data": "data.pkl"}.
+        """
+        return {"data": "data.pkl"}
+
+    @property
+    def processed_file_names_dict(self) -> dict:
+        """
+        Returns a dictionary mapping processed and transformed data file names to their final formats, which are
+        processed by `setup` method.
+
+        Returns:
+            dict: A dictionary mapping dataset types to their respective final file names.
+                  For example, {"data": "data.pt"}.
+        """
+        return {"data": "data.pt"}
+
+    @property
+    def processed_file_names(self) -> List[str]:
+        """
+        Returns a list of file names for processed data.
+
+        Returns:
+            List[str]: A list of file names corresponding to the processed data.
+        """
+        return list(self.processed_file_names_dict.values())

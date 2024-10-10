@@ -914,10 +914,10 @@ class LabeledUnlabeledMixed(XYBaseDataModule):
             DataLoader: DataLoader instance.
         """
         labeled_data = torch.load(
-            os.path.join(self.labeled.processed_dir, f"{kind}.pt")
+            os.path.join(self.labeled.processed_dir, f"{kind}.pt"), weights_only=False
         )
         unlabeled_data = torch.load(
-            os.path.join(self.unlabeled.processed_dir, f"{kind}.pt")
+            os.path.join(self.unlabeled.processed_dir, f"{kind}.pt"), weights_only=False
         )
         if self.data_limit is not None:
             labeled_data = labeled_data[: self.data_limit]

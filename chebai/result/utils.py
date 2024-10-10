@@ -180,6 +180,7 @@ def load_results_from_buffer(
             torch.load(
                 os.path.join(buffer_dir, filename),
                 map_location=torch.device(device),
+                weights_only=False,
             )
         )
         i += 1
@@ -192,6 +193,7 @@ def load_results_from_buffer(
             torch.load(
                 os.path.join(buffer_dir, filename),
                 map_location=torch.device(device),
+                weights_only=False,
             )
         )
         i += 1

@@ -50,6 +50,7 @@ setup(
         "chardet",
         "pyyaml",
         "torchmetrics",
+        "biopython",
     ],
     extras_require={"dev": ["black", "isort", "pre-commit"]},
 )
