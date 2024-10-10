@@ -151,7 +151,13 @@ class ImplicationLoss(torch.nn.Module):
                 math.pow(1 + self.eps, 1 / self.pos_scalar)
                 - math.pow(self.eps, 1 / self.pos_scalar)
             )
-            one_min_r = torch.pow(1 - r, self.pos_scalar)
+            one_min_r = (
+                torch.pow(1 - r + self.eps, 1 / self.pos_scalar)
+                - math.pow(self.eps, 1 / self.pos_scalar)
+            ) / (
+                math.pow(1 + self.eps, 1 / self.pos_scalar)
+                - math.pow(self.eps, 1 / self.pos_scalar)
+            )
         else:
             one_min_r = 1 - r
         # for each implication I, calculate 1 - I(l, 1-one_min_r)
@@ -168,9 +174,8 @@ class ImplicationLoss(torch.nn.Module):
             individual_loss = torch.min(l, 1 - r)
         elif self.fuzzy_implication in ["goedel", "g"]:
             individual_loss = torch.where(l <= r, 0, one_min_r)
-            # individual_loss = (
-            #    torch.relu(l - r) / (l - r) * one_min_r
-            # )  # 0 if l <= r else one_min_r
+        elif self.fuzzy_implication in ["reverse-goedel", "rg"]:
+            individual_loss = torch.where(l <= r, 0, l)
         else:
             raise NotImplementedError(
                 f"Unknown fuzzy implication {self.fuzzy_implication}"
