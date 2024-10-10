@@ -58,9 +58,13 @@ class ChebaiBaseNet(LightningModule):
         self.test_metrics = test_metrics
         self.pass_loss_kwargs = pass_loss_kwargs
 
-        # allows resuming training without strict loading (e.g., ignoring loss weights),
-        # see https://lightning.ai/docs/pytorch/stable/common/checkpointing_intermediate.html#resume-from-a-partial-checkpoint
-        self.strict_loading = False
+    def on_load_checkpoint(self, checkpoint: Dict[str, Any]) -> None:
+        # avoid errors due to unexpected keys (e.g., if loading checkpoint from a bce model and using it with a
+        # different loss)
+        if "criterion.base_loss.pos_weight" in checkpoint["state_dict"]:
+            del checkpoint["state_dict"]["criterion.base_loss.pos_weight"]
+        if "criterion.pos_weight" in checkpoint["state_dict"]:
+            del checkpoint["state_dict"]["criterion.pos_weight"]
 
     def __init_subclass__(cls, **kwargs):
         """
