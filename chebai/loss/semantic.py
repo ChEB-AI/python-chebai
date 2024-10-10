@@ -43,13 +43,15 @@ class ImplicationLoss(torch.nn.Module):
             "kd",
             "goedel",
             "g",
+            "reverse-goedel",
+            "rg",
         ] = "reichenbach",
         impl_loss_weight: float = 0.1,
         pos_scalar: Union[int, float] = 1,
         pos_epsilon: float = 0.01,
         multiply_by_softmax: bool = False,
         use_sigmoidal_implication: bool = False,
-        weight_epoch_dependent: bool = False,
+        weight_epoch_dependent: Union[bool | tuple[int, int]] = False,
         start_at_epoch: int = 0,
     ):
         super().__init__()
@@ -114,9 +116,20 @@ class ImplicationLoss(torch.nn.Module):
         }
         implication_loss_weighted = implication_loss
         if "current_epoch" in kwargs and self.weight_epoch_dependent:
+            sigmoid_center = (
+                self.weight_epoch_dependent[0]
+                if isinstance(self.weight_epoch_dependent, tuple)
+                else 50
+            )
+            sigmoid_spread = (
+                self.weight_epoch_dependent[1]
+                if isinstance(self.weight_epoch_dependent, tuple)
+                else 10
+            )
             # sigmoid function centered around epoch 50
             implication_loss_weighted = implication_loss_weighted / (
-                1 + math.exp(-(kwargs["current_epoch"] - 50) / 10)
+                1
+                + math.exp(-(kwargs["current_epoch"] - sigmoid_center) / sigmoid_spread)
             )
         implication_loss_weighted *= self.impl_weight
         loss_components["weighted_implication_loss"] = implication_loss_weighted
