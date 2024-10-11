@@ -168,7 +168,7 @@ class ChebiDataMigration:
         df_list: List[pd.DataFrame] = []
         for split, file_name in old_splits_file_names.items():
             file_path = os.path.join(old_dir, file_name)
-            file_df = pd.DataFrame(torch.load(file_path))
+            file_df = pd.DataFrame(torch.load(file_path, weights_only=False))
             df_list.append(file_df)
 
         return pd.concat(df_list, ignore_index=True)

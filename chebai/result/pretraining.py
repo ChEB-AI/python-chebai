@@ -34,7 +34,7 @@ def evaluate_model(logs_base_path, model_filename, data_module):
     collate = data_module.reader.COLLATOR()
     test_file = "test.pt"
     data_path = os.path.join(data_module.processed_dir, test_file)
-    data_list = torch.load(data_path)
+    data_list = torch.load(data_path, weights_only=False)
     preds_list = []
     labels_list = []
 
