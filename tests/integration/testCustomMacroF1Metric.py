@@ -119,7 +119,9 @@ class TestCustomMacroF1Metric(unittest.TestCase):
 
         # Load single file to get the number of labels for metric class instantiation
         labels = torch.load(
-            f"{directory_path}/labels{0:03d}.pt", map_location=torch.device(self.device)
+            f"{directory_path}/labels{0:03d}.pt",
+            map_location=torch.device(self.device),
+            weights_only=False,
         )
         num_labels = labels.shape[1]
         macro_f1_custom = MacroF1(num_labels=num_labels)
@@ -130,10 +132,12 @@ class TestCustomMacroF1Metric(unittest.TestCase):
             labels = torch.load(
                 f"{directory_path}/labels{i:03d}.pt",
                 map_location=torch.device(self.device),
+                weights_only=False,
             )
             preds = torch.load(
                 f"{directory_path}/preds{i:03d}.pt",
                 map_location=torch.device(self.device),
+                weights_only=False,
             )
             macro_f1_standard.update(preds, labels)
             macro_f1_custom.update(preds, labels)

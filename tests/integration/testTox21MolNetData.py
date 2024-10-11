@@ -37,9 +37,15 @@ class TestTox21Data(unittest.TestCase):
         processed_path = os.path.join(os.getcwd(), cls.tox21.processed_dir)
         print(f"Checking Data from - {processed_path}")
 
-        train_set = torch.load(os.path.join(processed_path, "train.pt"))
-        val_set = torch.load(os.path.join(processed_path, "validation.pt"))
-        test_set = torch.load(os.path.join(processed_path, "test.pt"))
+        train_set = torch.load(
+            os.path.join(processed_path, "train.pt"), weights_only=False
+        )
+        val_set = torch.load(
+            os.path.join(processed_path, "validation.pt"), weights_only=False
+        )
+        test_set = torch.load(
+            os.path.join(processed_path, "test.pt"), weights_only=False
+        )
 
         train_smiles, train_smiles_ids = cls.get_features_ids(train_set)
         val_smiles, val_smiles_ids = cls.get_features_ids(val_set)
