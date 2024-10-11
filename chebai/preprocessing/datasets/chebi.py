@@ -13,7 +13,7 @@ import os
 import pickle
 from abc import ABC
 from collections import OrderedDict
-from typing import Any, Dict, Generator, List, Optional, Tuple
+from typing import Any, Dict, Generator, List, Optional, Tuple, Union
 
 import fastobo
 import networkx as nx
@@ -244,16 +244,26 @@ class _ChEBIDataExtractor(_DynamicDataset, ABC):
         with open(data_path, encoding="utf-8") as chebi:
             chebi = "\n".join(l for l in chebi if not l.startswith("xref:"))
 
-        elements = [
-            term_callback(clause)
-            for clause in fastobo.loads(chebi)
-            if clause and ":" in str(clause.id)
-        ]
+        elements = []
+        for term_doc in fastobo.loads(chebi):
+            if (
+                term_doc
+                and isinstance(term_doc.id, fastobo.id.PrefixedIdent)
+                and term_doc.id.prefix == "CHEBI"
+            ):
+                term_dict = term_callback(term_doc)
+                if term_dict:
+                    elements.append(term_dict)
 
         g = nx.DiGraph()
         for n in elements:
             g.add_node(n["id"], **n)
-        g.add_edges_from([(p, q["id"]) for q in elements for p in q["parents"]])
+
+        # Only take the edges which connects the existing nodes, to avoid internal creation of obsolete nodes
+        # https://github.com/ChEB-AI/python-chebai/pull/55#issuecomment-2386654142
+        g.add_edges_from(
+            [(p, q["id"]) for q in elements for p in q["parents"] if g.has_node(p)]
+        )
 
         print("Compute transitive closure")
         return nx.transitive_closure_dag(g)
@@ -397,7 +407,9 @@ class _ChEBIDataExtractor(_DynamicDataset, ABC):
         """
         try:
             filename = self.processed_file_names_dict["data"]
-            data_chebi_version = torch.load(os.path.join(self.processed_dir, filename))
+            data_chebi_version = torch.load(
+                os.path.join(self.processed_dir, filename), weights_only=False
+            )
         except FileNotFoundError:
             raise FileNotFoundError(
                 f"File data.pt doesn't exists. "
@@ -418,7 +430,8 @@ class _ChEBIDataExtractor(_DynamicDataset, ABC):
                 data_chebi_train_version = torch.load(
                     os.path.join(
                         self._chebi_version_train_obj.processed_dir, filename_train
-                    )
+                    ),
+                    weights_only=False,
                 )
             except FileNotFoundError:
                 raise FileNotFoundError(
@@ -812,7 +825,7 @@ def chebi_to_int(s: str) -> int:
     return int(s[s.index(":") + 1 :])
 
 
-def term_callback(doc) -> dict:
+def term_callback(doc: fastobo.term.TermFrame) -> Union[Dict, bool]:
     """
     Extracts information from a ChEBI term document.
     This function takes a ChEBI term document as input and extracts relevant information such as the term ID, parents,
@@ -852,6 +865,12 @@ def term_callback(doc) -> dict:
             parents.append(chebi_to_int(str(clause.term)))
         elif isinstance(clause, fastobo.term.NameClause):
             name = str(clause.name)
+
+        if isinstance(clause, fastobo.term.IsObsoleteClause):
+            if clause.obsolete:
+                # if the term document contains clause as obsolete as true, skips this document.
+                return False
+
     return {
         "id": chebi_to_int(str(doc.id)),
         "parents": parents,
