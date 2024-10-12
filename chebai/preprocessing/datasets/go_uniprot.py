@@ -73,12 +73,13 @@ class _GOUniProtDataExtractor(_DynamicDataset, ABC):
 
     def __init__(self, **kwargs):
         self.go_branch: str = self._get_go_branch(**kwargs)
-        super(_GOUniProtDataExtractor, self).__init__(**kwargs)
 
         self.max_sequence_length: int = int(kwargs.get("max_sequence_length", 1002))
         assert (
             self.max_sequence_length >= 1
         ), "Max sequence length should be greater than or equal to 1."
+
+        super(_GOUniProtDataExtractor, self).__init__(**kwargs)
 
         if self.reader.n_gram is not None:
             assert self.max_sequence_length >= self.reader.n_gram, (
@@ -415,7 +416,7 @@ class _GOUniProtDataExtractor(_DynamicDataset, ABC):
                 # To consider only manually-annotated swiss data
                 continue
 
-            if not record.sequence or record.sequence > self.max_sequence_length:
+            if not record.sequence or len(record.sequence) > self.max_sequence_length:
                 # Consider protein with only sequence representation and seq. length not greater than max seq. length
                 continue
 
