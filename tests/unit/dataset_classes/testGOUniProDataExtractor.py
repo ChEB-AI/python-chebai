@@ -1,11 +1,12 @@
 import unittest
-from unittest.mock import MagicMock, PropertyMock, mock_open, patch
+from unittest.mock import PropertyMock, mock_open, patch
 
 import fastobo
 import networkx as nx
 import pandas as pd
 
 from chebai.preprocessing.datasets.go_uniprot import _GOUniProtDataExtractor
+from chebai.preprocessing.reader import ProteinDataReader
 from tests.unit.mock_data.ontology_mock_data import GOUniProtMockData
 
 
@@ -30,9 +31,8 @@ class TestGOUniProtDataExtractor(unittest.TestCase):
         """
         mock_base_dir_property.return_value = "MockedBaseDirPropGOUniProtDataExtractor"
         mock_name_property.return_value = "MockedNamePropGOUniProtDataExtractor"
-        ReaderMock = MagicMock()
-        ReaderMock.name.return_value = "MockedReaderGOUniProtDataExtractor"
-        _GOUniProtDataExtractor.READER = ReaderMock
+
+        _GOUniProtDataExtractor.READER = ProteinDataReader
 
         cls.extractor = _GOUniProtDataExtractor()
 
