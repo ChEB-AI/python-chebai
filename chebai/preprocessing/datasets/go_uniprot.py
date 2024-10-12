@@ -73,12 +73,19 @@ class _GOUniProtDataExtractor(_DynamicDataset, ABC):
 
     def __init__(self, **kwargs):
         self.go_branch: str = self._get_go_branch(**kwargs)
-        super(_GOUniProtDataExtractor, self).__init__(**kwargs)
 
         self.max_sequence_length: int = int(kwargs.get("max_sequence_length", 1002))
         assert (
             self.max_sequence_length >= 1
         ), "Max sequence length should be greater than or equal to 1."
+
+        super(_GOUniProtDataExtractor, self).__init__(**kwargs)
+
+        if self.reader.n_gram is not None:
+            assert self.max_sequence_length >= self.reader.n_gram, (
+                f"max_sequence_length ({self.max_sequence_length}) must be greater than "
+                f"or equal to n_gram ({self.reader.n_gram})."
+            )
 
     @classmethod
     def _get_go_branch(cls, **kwargs) -> str:
@@ -409,8 +416,8 @@ class _GOUniProtDataExtractor(_DynamicDataset, ABC):
                 # To consider only manually-annotated swiss data
                 continue
 
-            if not record.sequence:
-                # Consider protein with only sequence representation
+            if not record.sequence or len(record.sequence) > self.max_sequence_length:
+                # Consider protein with only sequence representation and seq. length not greater than max seq. length
                 continue
 
             if any(aa in AMBIGUOUS_AMINO_ACIDS for aa in record.sequence):
@@ -531,29 +538,6 @@ class _GOUniProtDataExtractor(_DynamicDataset, ABC):
 
         return df_train, df_val, df_test
 
-    # ------------------------------ Phase: DataLoaders -----------------------------------
-    def dataloader(self, kind: str, **kwargs) -> DataLoader:
-        """
-        Returns a DataLoader object with truncated sequences for the specified kind of data (train, val, or test).
-
-        This method overrides the dataloader method from the superclass. After fetching the dataset from the
-        superclass, it truncates the 'features' of each data instance to a maximum length specified by
-        `self.max_sequence_length`.
-
-        Args:
-            kind (str): The kind of data to load (e.g., 'train', 'val', 'test').
-            **kwargs: Additional keyword arguments passed to the superclass dataloader method.
-
-        Returns:
-            DataLoader: A DataLoader object with the truncated sequences.
-        """
-        dataloader = super().dataloader(kind, **kwargs)
-
-        # Truncate the 'features' to max_sequence_length for each instance
-        for instance in dataloader.dataset:
-            instance["features"] = instance["features"][: self.max_sequence_length]
-        return dataloader
-
     # ------------------------------ Phase: Raw Properties -----------------------------------
     @property
     def base_dir(self) -> str:
@@ -564,16 +548,6 @@ class _GOUniProtDataExtractor(_DynamicDataset, ABC):
             str: The path to the base directory, which is "data/GO_UniProt".
         """
         return os.path.join("data", f"GO_UniProt")
-
-    @property
-    def identifier(self) -> tuple:
-        """Identifier for the dataset."""
-        # overriding identifier instead of reader.name to keep same tokens.txt file, but different processed_dir folder
-        if not isinstance(self.reader, dr.ProteinDataReader):
-            raise ValueError("Need Protein DataReader for identifier")
-        if self.reader.n_gram is not None:
-            return (f"{self.reader.name()}_{self.reader.n_gram}_gram",)
-        return (self.reader.name(),)
 
     @property
     def raw_file_names_dict(self) -> dict:
@@ -611,13 +585,16 @@ class _GOUniProtOverX(_GOUniProtDataExtractor, ABC):
         """
         Returns the name of the dataset.
 
+        'max_sequence_length' in the name indicates that proteins with sequence lengths exceeding  are ignored
+        in the dataset.
+
         Returns:
             str: The dataset name, formatted with the current threshold value and/or given go_branch.
         """
         if self.go_branch != self._ALL_GO_BRANCHES:
-            return f"GO{self.THRESHOLD}_{self.go_branch}"
+            return f"GO{self.THRESHOLD}_{self.go_branch}_{self.max_sequence_length}"
 
-        return f"GO{self.THRESHOLD}"
+        return f"GO{self.THRESHOLD}_{self.max_sequence_length}"
 
     def select_classes(
         self, g: nx.DiGraph, *args: Any, **kwargs: Dict[str, Any]
