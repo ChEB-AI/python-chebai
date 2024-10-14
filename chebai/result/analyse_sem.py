@@ -11,7 +11,9 @@ from torchmetrics.functional.classification import (
 from utils import *
 
 from chebai.loss.semantic import DisjointLoss
+from chebai.preprocessing.datasets.base import _DynamicDataset
 from chebai.preprocessing.datasets.chebi import ChEBIOver100
+from chebai.preprocessing.datasets.pubchem import PubChemKMeans
 
 DEVICE = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
@@ -98,11 +100,17 @@ def load_preds_labels(
             f"{data_module.__class__.__name__}_{data_subset_key}",
         )
     model = Electra.load_from_checkpoint(ckpt_path, map_location="cuda:0", strict=False)
-    print(f"Calculating predictions...")
+    print(
+        f"Calculating predictions on {data_module.__class__.__name__} ({data_subset_key})..."
+    )
     evaluate_model(
         model,
         data_module,
         buffer_dir=buffer_dir,
+        # for chebi, use kinds, otherwise use file names
+        filename=(
+            data_subset_key if not isinstance(buffer_dir, _DynamicDataset) else None
+        ),
         kind=data_subset_key,
         skip_existing_preds=True,
     )
@@ -512,7 +520,11 @@ def run_all(
         "tp-sum-disj",
     ]
     with open(results_path_consistency, "x") as f:
-        f.write("run-id,epoch,datamodule,metric," + ",".join(consistency_keys) + "\n")
+        f.write(
+            "run-id,epoch,datamodule,data_key,metric,"
+            + ",".join(consistency_keys)
+            + "\n"
+        )
     results_path_supervised = os.path.join(
         results_dir,
         f"supervised_metrics_{timestamp}{'_violations_removed' if remove_violations else ''}.csv",
@@ -526,67 +538,73 @@ def run_all(
         "macro-ap",
     ]
     with open(results_path_supervised, "x") as f:
-        f.write("run-id,epoch,datamodule," + ",".join(supervised_keys) + "\n")
+        f.write("run-id,epoch,datamodule,data_key" + ",".join(supervised_keys) + "\n")
 
     ckpts = [(run_name, ep, None) for run_name, ep in local_ckpts] + [
         (None, None, wandb_id) for wandb_id in wandb_ids
     ]
 
     for run_name, epoch, wandb_id in ckpts:
-        ckpt_dir = os.path.join("logs", "downloaded_ckpts")
-        if wandb_id is not None:
-            ckpt_path, epoch = download_model_from_wandb(wandb_id, ckpt_dir)
-        else:
-            ckpt_path = None
-            for file in os.listdir(os.path.join(ckpt_dir, run_name)):
-                if file.startswith(f"best_epoch={epoch}_") or file.startswith(
-                    f"per_epoch={epoch}_"
-                ):
-                    ckpt_path = os.path.join(os.path.join(ckpt_dir, run_name, file))
-            assert (
-                ckpt_path is not None
-            ), f"Failed to find checkpoint for epoch {epoch} in {os.path.join(ckpt_dir, run_name)}"
-
-        for dataset, dataset_key in prediction_datasets:
-            preds, labels = load_preds_labels(ckpt_path, dataset, dataset_key)
-
-            # identity function if remove_violations is False
-            smooth_preds(preds)
-
+        try:
+            ckpt_dir = os.path.join("logs", "downloaded_ckpts")
             # for wandb runs, use short id as name, otherwise use ckpt dir name
             if wandb_id is not None:
                 run_name = wandb_id
-            details_path = os.path.join(
-                results_dir,
-                f"{run_name}_ep{epoch}_{dataset.__class__.__name__}_{dataset_key}",
-            )
-            metrics_dict = run_consistency_metrics(
-                preds,
-                check_consistency_on,
-                consistency_metrics,
-                verbose_violation_output,
-                save_details_to=details_path,
-            )
-            with open(results_path_consistency, "a") as f:
-                for metric in metrics_dict:
-                    values = metrics_dict[metric]
-                    f.write(
-                        f"{run_name},{epoch},{dataset.__class__.__name__},{metric},"
-                        f"{','.join([str(values[k]) for k in consistency_keys])}\n"
-                    )
-            print(
-                f"Consistency metrics have been written to {results_path_consistency}"
-            )
+                ckpt_path, epoch = download_model_from_wandb(run_name, ckpt_dir)
+            else:
+                ckpt_path = None
+                for file in os.listdir(os.path.join(ckpt_dir, run_name)):
+                    if file.startswith(f"best_epoch={epoch}_") or file.startswith(
+                        f"per_epoch={epoch}_"
+                    ):
+                        ckpt_path = os.path.join(os.path.join(ckpt_dir, run_name, file))
+                assert (
+                    ckpt_path is not None
+                ), f"Failed to find checkpoint for epoch {epoch} in {os.path.join(ckpt_dir, run_name)}"
+            print(f"Starting run {run_name} (epoch {epoch})")
+            for dataset, dataset_key in prediction_datasets:
+                preds, labels = load_preds_labels(ckpt_path, dataset, dataset_key)
 
-            metrics_dict = run_supervised_metrics(
-                preds, labels, save_details_to=details_path
-            )
-            with open(results_path_supervised, "a") as f:
-                f.write(
-                    f"{run_name},{epoch},{dataset.__class__.__name__},"
-                    f"{','.join([str(metrics_dict[k]) for k in supervised_keys])}\n"
+                # identity function if remove_violations is False
+                smooth_preds(preds)
+
+                details_path = os.path.join(
+                    results_dir,
+                    f"{run_name}_ep{epoch}_{dataset.__class__.__name__}_{dataset_key}",
                 )
-            print(f"Supervised metrics have been written to {results_path_supervised}")
+                metrics_dict = run_consistency_metrics(
+                    preds,
+                    check_consistency_on,
+                    consistency_metrics,
+                    verbose_violation_output,
+                    save_details_to=details_path,
+                )
+                with open(results_path_consistency, "a") as f:
+                    for metric in metrics_dict:
+                        values = metrics_dict[metric]
+                        f.write(
+                            f"{run_name},{epoch},{dataset.__class__.__name__},{dataset_key},{metric},"
+                            f"{','.join([str(values[k]) for k in consistency_keys])}\n"
+                        )
+                print(
+                    f"Consistency metrics have been written to {results_path_consistency}"
+                )
+
+                metrics_dict = run_supervised_metrics(
+                    preds, labels, save_details_to=details_path
+                )
+                with open(results_path_supervised, "a") as f:
+                    f.write(
+                        f"{run_name},{epoch},{dataset.__class__.__name__},{dataset_key},"
+                        f"{','.join([str(metrics_dict[k]) for k in supervised_keys])}\n"
+                    )
+                print(
+                    f"Supervised metrics have been written to {results_path_supervised}"
+                )
+        except Exception as e:
+            print(
+                f"Error during run {wandb_id if wandb_id is not None else run_name}: {e}"
+            )
 
 
 # follow-up to NeSy submission
@@ -601,17 +619,23 @@ def run_fuzzy_loss(tag="fuzzy_loss"):
             "data", "chebi_v231", "ChEBI100", "fuzzy_loss_splits.csv"
         ),
     )
+    pubchem_kmeans = PubChemKMeans()
     run_all(
-        ids,
-        # [("chebi100_semrc_epoch-dependent100-100k_weighted_v231_pc_kmeans_240927-1219", 97),
-        #               ("chebi100_semrc_epoch-dependent100-100k_weighted_v231_pc_kmeans_240927-1220", 99)],
+        [],  # ids,
+        [
+            (
+                "chebi100_semg_epoch-dependent1-1k_start-at=10_batch3_weighted_v231_pc_kmeans_241010-0814",
+                199,
+            )
+        ],
         consistency_metrics=[binary],
         check_consistency_on=chebi100,
         prediction_datasets=[
-            (
-                chebi100,
-                "test",
-            )
+            (chebi100, "test"),
+            (pubchem_kmeans, "cluster1.pt"),
+            (pubchem_kmeans, "cluster2.pt"),
+            (pubchem_kmeans, "chebi_close.pt"),
+            (pubchem_kmeans, "ten_from_each_cluster.pt"),
         ],
     )
 

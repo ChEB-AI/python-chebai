@@ -185,9 +185,7 @@ class _ChEBIDataExtractor(_DynamicDataset, ABC):
             if not os.path.isfile(
                 os.path.join(
                     self._chebi_version_train_obj.processed_dir_main,
-                    self._chebi_version_train_obj.processed_dir_main_file_names_dict[
-                        "data"
-                    ],
+                    self._chebi_version_train_obj.raw_file_names_dict["data"],
                 )
             ):
                 print(
