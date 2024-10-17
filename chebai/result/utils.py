@@ -1,4 +1,5 @@
 import os
+import shutil
 from typing import Optional, Tuple, Union
 
 import torch
@@ -16,7 +17,6 @@ def get_checkpoint_from_wandb(
     epoch: int,
     run: wandb.apis.public.Run,
     root: str = os.path.join("logs", "downloaded_ckpts"),
-    map_device_to: Optional[torch.device] = None,
 ):
     """
     Gets a wandb checkpoint based on run and epoch, downloads it if necessary.
@@ -25,8 +25,6 @@ def get_checkpoint_from_wandb(
         epoch: The epoch number of the checkpoint to retrieve.
         run: The wandb run object.
         root: The root directory to save the downloaded checkpoint.
-        model_class: The class of the model to load.
-        map_device_to: The device to map the model to.
 
     Returns:
         The location of the downloaded checkpoint.
@@ -38,10 +36,19 @@ def get_checkpoint_from_wandb(
         if file.name.startswith(
             f"checkpoints/per_epoch={epoch}"
         ) or file.name.startswith(f"checkpoints/best_epoch={epoch}"):
-            dest_path = os.path.join(root, run.name, file.name.split("/")[-1])
+            dest_path = os.path.join(
+                root, run.id, file.name.split("/")[-1].split("_")[1] + ".ckpt"
+            )
+            # legacy: also look for ckpts in the old format
+            old_dest_path = os.path.join(root, run.name, file.name.split("/")[-1])
             if not os.path.isfile(dest_path):
-                print(f"Downloading checkpoint to {dest_path}")
-                wandb_util.download_file_from_url(dest_path, file.url, api.api_key)
+                if os.path.isfile(old_dest_path):
+                    print(f"Copying checkpoint from {old_dest_path} to {dest_path}")
+                    os.makedirs(os.path.dirname(dest_path), exist_ok=True)
+                    shutil.copy2(old_dest_path, dest_path)
+                else:
+                    print(f"Downloading checkpoint to {dest_path}")
+                    wandb_util.download_file_from_url(dest_path, file.url, api.api_key)
             return dest_path
     print(f"No model found for epoch {epoch}")
     return None

@@ -1,5 +1,6 @@
 import gc
 import sys
+import traceback
 from datetime import datetime
 from typing import List, LiteralString
 
@@ -85,7 +86,7 @@ def download_model_from_wandb(
     run = api.run(f"chebai/chebai/{run_id}")
     epoch = get_best_epoch(run)
     return (
-        get_checkpoint_from_wandb(epoch, run, root=base_dir, map_device_to="cuda:0"),
+        get_checkpoint_from_wandb(epoch, run, root=base_dir),
         epoch,
     )
 
@@ -113,8 +114,9 @@ def load_preds_labels(
         ),
         kind=data_subset_key,
         skip_existing_preds=True,
+        batch_size=1,
     )
-    return load_results_from_buffer(buffer_dir, device=DEVICE)
+    return load_results_from_buffer(buffer_dir, device=torch.device("cpu"))
 
 
 def get_label_names(data_module):
@@ -234,8 +236,24 @@ class PredictionSmoother:
         return preds
 
 
+def build_prediction_filter(data_module_labeled=None):
+    if data_module_labeled is None:
+        data_module_labeled = ChEBIOver100(chebi_version=231)
+    # prepare filters
+    print(f"Loading implication / disjointness filters...")
+    dl = DisjointLoss(
+        path_to_disjointness=os.path.join("data", "disjoint.csv"),
+        data_extractor=data_module_labeled,
+    )
+    return [
+        (dl.implication_filter_l, dl.implication_filter_r, "impl"),
+        (dl.disjoint_filter_l, dl.disjoint_filter_r, "disj"),
+    ]
+
+
 def run_consistency_metrics(
     preds,
+    consistency_filters,
     data_module_labeled=None,  # use labels from this dataset for violations
     violation_metrics=None,
     verbose_violation_output=False,
@@ -249,40 +267,55 @@ def run_consistency_metrics(
     if save_details_to is not None:
         os.makedirs(save_details_to, exist_ok=True)
 
+    preds.to("cpu")
+
     n_labels = preds.size(1)
     print(f"Found {preds.shape[0]} predictions ({n_labels} classes)")
 
     results = {}
 
-    # prepare filters
-    print(f"Loading & rescaling implication / disjointness filters...")
-    dl = DisjointLoss(
-        path_to_disjointness=os.path.join("data", "disjoint.csv"),
-        data_extractor=data_module_labeled,
-    )
-    for dl_filter_l, dl_filter_r, filter_type in [
-        (dl.implication_filter_l, dl.implication_filter_r, "impl"),
-        (dl.disjoint_filter_l, dl.disjoint_filter_r, "disj"),
-    ]:
-        # prepare predictions
-        n_loss_terms = dl_filter_l.shape[0]
-        preds_exp = preds.unsqueeze(2).expand((-1, -1, n_loss_terms)).swapaxes(1, 2)
-        l_preds = preds_exp[:, _filter_to_one_hot(preds, dl_filter_l)]
-        r_preds = preds_exp[:, _filter_to_one_hot(preds, dl_filter_r)]
-        del preds_exp
-        gc.collect()
-
+    for dl_filter_l, dl_filter_r, filter_type in consistency_filters:
+        l_preds = preds[:, dl_filter_l]
+        r_preds = preds[:, dl_filter_r]
         for i, metric in enumerate(violation_metrics):
             if metric.__name__ not in results:
                 results[metric.__name__] = {}
             print(f"Calculating metrics {metric.__name__} on {filter_type}")
 
             metric_results = {}
-            metric_results["tps"] = apply_metric(
-                metric, l_preds, r_preds if filter_type == "impl" else 1 - r_preds
+            metric_results["tps"] = torch.sum(
+                torch.stack(
+                    [
+                        apply_metric(
+                            metric,
+                            l_preds[i : i + 1000],
+                            (
+                                r_preds[i : i + 1000]
+                                if filter_type == "impl"
+                                else 1 - r_preds[i : i + 1000]
+                            ),
+                        )
+                        for i in range(0, r_preds.shape[0], 1000)
+                    ]
+                ),
+                dim=0,
             )
-            metric_results["fns"] = apply_metric(
-                metric, l_preds, 1 - r_preds if filter_type == "impl" else r_preds
+            metric_results["fns"] = torch.sum(
+                torch.stack(
+                    [
+                        apply_metric(
+                            metric,
+                            l_preds[i : i + 1000],
+                            (
+                                1 - r_preds[i : i + 1000]
+                                if filter_type == "impl"
+                                else r_preds[i : i + 1000]
+                            ),
+                        )
+                        for i in range(0, r_preds.shape[0], 1000)
+                    ]
+                ),
+                dim=0,
             )
             if verbose_violation_output:
                 label_names = get_label_names(data_module_labeled)
@@ -363,23 +396,29 @@ def run_consistency_metrics(
                     f"Saved unaggregated consistency metrics ({metric.__name__}, {filter_type}) to {save_details_to}"
                 )
 
+            fns_sum = torch.sum(metric_results["fns"]).item()
             results[metric.__name__][f"micro-fnr-{filter_type}"] = (
-                1
-                - (
-                    torch.sum(metric_results["tps"])
+                0
+                if fns_sum == 0
+                else (
+                    torch.sum(metric_results["fns"])
                     / (
                         torch.sum(metric_results[f"tps"])
                         + torch.sum(metric_results[f"fns"])
                     )
                 ).item()
             )
-            macro_recall_l = m_l_agg[f"tps"] / (m_l_agg[f"tps"] + m_l_agg[f"fns"])
+            macro_fnr_l = m_l_agg[f"fns"] / (m_l_agg[f"tps"] + m_l_agg[f"fns"])
             results[metric.__name__][f"lmacro-fnr-{filter_type}"] = (
-                1 - torch.mean(macro_recall_l[~macro_recall_l.isnan()]).item()
+                0
+                if fns_sum == 0
+                else torch.mean(macro_fnr_l[~macro_fnr_l.isnan()]).item()
             )
-            macro_recall_r = m_r_agg[f"tps"] / (m_r_agg[f"tps"] + m_r_agg[f"fns"])
+            macro_fnr_r = m_r_agg[f"fns"] / (m_r_agg[f"tps"] + m_r_agg[f"fns"])
             results[metric.__name__][f"rmacro-fnr-{filter_type}"] = (
-                1 - torch.mean(macro_recall_r[~macro_recall_r.isnan()]).item()
+                0
+                if fns_sum == 0
+                else torch.mean(macro_fnr_r[~macro_fnr_r.isnan()]).item()
             )
             results[metric.__name__][f"fn-sum-{filter_type}"] = torch.sum(
                 metric_results["fns"]
@@ -424,23 +463,23 @@ def run_supervised_metrics(preds, labels, save_details_to=None):
             preds, labels, num_labels=preds.size(1), average="macro"
         ).item()
 
-    if save_details_to is not None:
-        f1_by_label = multilabel_f1_score(
-            preds, labels, num_labels=preds.size(1), average=None
-        )
-        roc_by_label = multilabel_auroc(
-            preds, labels, num_labels=preds.size(1), average=None
-        )
-        ap_by_label = multilabel_average_precision(
-            preds, labels, num_labels=preds.size(1), average=None
-        )
-        with open(os.path.join(save_details_to, f"supervised.csv"), "w+") as f:
-            f.write("label,f1,roc-auc,ap\n")
-            for right in range(preds.size(1)):
-                f.write(
-                    f"{right},{f1_by_label[right].item()},{roc_by_label[right].item()},{ap_by_label[right].item()}\n"
-                )
-        print(f"Saved class-wise supervised metrics to {save_details_to}")
+        if save_details_to is not None:
+            f1_by_label = multilabel_f1_score(
+                preds, labels, num_labels=preds.size(1), average=None
+            )
+            roc_by_label = multilabel_auroc(
+                preds, labels, num_labels=preds.size(1), average=None
+            )
+            ap_by_label = multilabel_average_precision(
+                preds, labels, num_labels=preds.size(1), average=None
+            )
+            with open(os.path.join(save_details_to, f"supervised.csv"), "w+") as f:
+                f.write("label,f1,roc-auc,ap\n")
+                for right in range(preds.size(1)):
+                    f.write(
+                        f"{right},{f1_by_label[right].item()},{roc_by_label[right].item()},{ap_by_label[right].item()}\n"
+                    )
+            print(f"Saved class-wise supervised metrics to {save_details_to}")
 
     del preds
     del labels
@@ -503,6 +542,8 @@ def run_all(
         smooth_preds = lambda x: x
 
     timestamp = datetime.now().strftime("%y%m%d-%H%M%S")
+    prediction_filters = build_prediction_filter(check_consistency_on)
+
     results_path_consistency = os.path.join(
         results_dir,
         f"consistency_metrics_{timestamp}{'_violations_removed' if remove_violations else ''}.csv",
@@ -538,7 +579,7 @@ def run_all(
         "macro-ap",
     ]
     with open(results_path_supervised, "x") as f:
-        f.write("run-id,epoch,datamodule,data_key" + ",".join(supervised_keys) + "\n")
+        f.write("run-id,epoch,datamodule,data_key," + ",".join(supervised_keys) + "\n")
 
     ckpts = [(run_name, ep, None) for run_name, ep in local_ckpts] + [
         (None, None, wandb_id) for wandb_id in wandb_ids
@@ -562,9 +603,32 @@ def run_all(
                     ckpt_path is not None
                 ), f"Failed to find checkpoint for epoch {epoch} in {os.path.join(ckpt_dir, run_name)}"
             print(f"Starting run {run_name} (epoch {epoch})")
-            for dataset, dataset_key in prediction_datasets:
-                preds, labels = load_preds_labels(ckpt_path, dataset, dataset_key)
 
+            for dataset, dataset_key in prediction_datasets:
+                # copy data from legacy buffer dir if possible
+                old_buffer_dir = os.path.join(
+                    "results_buffer",
+                    *ckpt_path.split(os.path.sep)[-2:],
+                    f"{dataset.__class__.__name__}_{dataset_key}",
+                )
+                buffer_dir = os.path.join(
+                    "results_buffer",
+                    run_name,
+                    f"epoch={epoch}",
+                    f"{dataset.__class__.__name__}_{dataset_key}",
+                )
+                print("Checking for buffer dir", old_buffer_dir)
+                if os.path.isdir(old_buffer_dir):
+                    from distutils.dir_util import copy_tree, remove_tree
+
+                    os.makedirs(buffer_dir, exist_ok=True)
+                    copy_tree(old_buffer_dir, buffer_dir)
+                    remove_tree(old_buffer_dir, dry_run=True)
+                    print(f"Moved buffer from {old_buffer_dir} to {buffer_dir}")
+                print(f"Using buffer_dir {buffer_dir}")
+                preds, labels = load_preds_labels(
+                    ckpt_path, dataset, dataset_key, buffer_dir
+                )
                 # identity function if remove_violations is False
                 smooth_preds(preds)
 
@@ -574,6 +638,7 @@ def run_all(
                 )
                 metrics_dict = run_consistency_metrics(
                     preds,
+                    prediction_filters,
                     check_consistency_on,
                     consistency_metrics,
                     verbose_violation_output,
@@ -589,26 +654,27 @@ def run_all(
                 print(
                     f"Consistency metrics have been written to {results_path_consistency}"
                 )
-
-                metrics_dict = run_supervised_metrics(
-                    preds, labels, save_details_to=details_path
-                )
-                with open(results_path_supervised, "a") as f:
-                    f.write(
-                        f"{run_name},{epoch},{dataset.__class__.__name__},{dataset_key},"
-                        f"{','.join([str(metrics_dict[k]) for k in supervised_keys])}\n"
+                if labels is not None:
+                    metrics_dict = run_supervised_metrics(
+                        preds, labels, save_details_to=details_path
                     )
-                print(
-                    f"Supervised metrics have been written to {results_path_supervised}"
-                )
+                    with open(results_path_supervised, "a") as f:
+                        f.write(
+                            f"{run_name},{epoch},{dataset.__class__.__name__},{dataset_key},"
+                            f"{','.join([str(metrics_dict[k]) for k in supervised_keys])}\n"
+                        )
+                    print(
+                        f"Supervised metrics have been written to {results_path_supervised}"
+                    )
         except Exception as e:
             print(
                 f"Error during run {wandb_id if wandb_id is not None else run_name}: {e}"
             )
+            print(traceback.format_exc())
 
 
 # follow-up to NeSy submission
-def run_fuzzy_loss(tag="fuzzy_loss"):
+def run_fuzzy_loss(tag="fuzzy_loss", skip_first_n=0):
     api = wandb.Api()
     runs = api.runs("chebai/chebai", filters={"tags": tag})
     print(f"Found {len(runs)} wandb runs tagged with '{tag}'")
@@ -619,29 +685,33 @@ def run_fuzzy_loss(tag="fuzzy_loss"):
             "data", "chebi_v231", "ChEBI100", "fuzzy_loss_splits.csv"
         ),
     )
+    local_ckpts = [("dd1r2kfb", 179)][skip_first_n:]
     pubchem_kmeans = PubChemKMeans()
     run_all(
-        [],  # ids,
-        [
-            (
-                "chebi100_semg_epoch-dependent1-1k_start-at=10_batch3_weighted_v231_pc_kmeans_241010-0814",
-                199,
-            )
+        [],  # ids[max(0, skip_first_n-len(local_ckpts)):],  # ids,
+        local_ckpts
+        + [
+            # (
+            #    "chebi100_semg_epoch-dependent1-1k_start-at=10_batch3_weighted_v231_pc_kmeans_241010-0814",
+            #    199,
+            # )
         ],
         consistency_metrics=[binary],
         check_consistency_on=chebi100,
         prediction_datasets=[
             (chebi100, "test"),
-            (pubchem_kmeans, "cluster1.pt"),
+            (pubchem_kmeans, "cluster1_cutoff2k.pt"),
             (pubchem_kmeans, "cluster2.pt"),
-            (pubchem_kmeans, "chebi_close.pt"),
             (pubchem_kmeans, "ten_from_each_cluster.pt"),
+            (pubchem_kmeans, "chebi_close.pt"),
         ],
     )
 
 
 if __name__ == "__main__":
-    if len(sys.argv) > 1:
+    if len(sys.argv) > 2:
+        run_fuzzy_loss(sys.argv[1], int(sys.argv[2]))
+    elif len(sys.argv) > 1:
         run_fuzzy_loss(sys.argv[1])
     else:
         run_fuzzy_loss()

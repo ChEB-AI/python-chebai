@@ -136,7 +136,7 @@ class ImplicationLoss(torch.nn.Module):
         return base_loss + implication_loss_weighted, loss_components
 
     def _calculate_implication_loss(
-        self, l: torch.Tensor, r: torch.Tensor
+        self, l: torch.Tensor, r: torch.Tensor, target: torch.Tensor
     ) -> torch.Tensor:
         """
         Calculate implication loss based on T-norm and other parameters.
@@ -205,6 +205,11 @@ class ImplicationLoss(torch.nn.Module):
 
         if self.multiply_by_softmax:
             individual_loss = individual_loss * individual_loss.softmax(dim=-1)
+
+        # aggregate for classes, mask with ground truth labels
+        target_l = target[:, self.implication_filter_l]
+        target_r = target[:, self.implication_filter_r]
+
         return torch.mean(
             torch.sum(individual_loss, dim=-1),
             dim=0,
