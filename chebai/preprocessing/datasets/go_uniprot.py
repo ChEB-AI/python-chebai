@@ -11,6 +11,7 @@
 __all__ = ["GOUniProtOver250", "GOUniProtOver50"]
 
 import gzip
+import itertools
 import os
 import shutil
 from abc import ABC, abstractmethod
@@ -340,7 +341,18 @@ class _GOUniProtDataExtractor(_DynamicDataset, ABC):
         print(f"Processing graph")
 
         data_df = self._get_swiss_to_go_mapping()
-
+        # add ancestors to go ids
+        data_df["go_ids"] = data_df["go_ids"].apply(
+            lambda go_ids: list(
+                itertools.chain.from_iterable(
+                    [
+                        [go_id] + list(g.predecessors(go_id))
+                        for go_id in go_ids
+                        if go_id in g.nodes
+                    ]
+                )
+            )
+        )
         # Initialize the GO term labels/columns to False
         selected_classes = self.select_classes(g, data_df=data_df)
         new_label_columns = pd.DataFrame(
@@ -642,20 +654,8 @@ class _GOUniProtOverX(_GOUniProtDataExtractor, ABC):
         # https://github.com/bio-ontology-research-group/deepgo/blob/master/get_functions.py#L59-L77
         go_term_annot: Dict[int, int] = {}
         for idx, row in data_df.iterrows():
-            # Set will contain go terms associated with the protein, along with all the ancestors of those
-            # associated go terms
-            associated_go_ids_with_ancestors = set()
-
-            # Collect all ancestors of the GO terms associated with this protein
-            for go_id in row["go_ids"]:
-                if go_id in g.nodes:
-                    associated_go_ids_with_ancestors.add(go_id)
-                    associated_go_ids_with_ancestors.update(
-                        g.predecessors(go_id)
-                    )  # Add all predecessors (ancestors) of go_id
-
             # Count the annotations for each go_id **`per protein`**
-            for go_id in associated_go_ids_with_ancestors:
+            for go_id in row["go_ids"]:
                 if go_id not in go_term_annot:
                     go_term_annot[go_id] = 0
                 go_term_annot[go_id] += 1
