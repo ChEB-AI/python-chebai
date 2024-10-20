@@ -32,7 +32,7 @@ jobs:
         id: changed_files
         run: |
           # Get the list of changed files and save them to a file
-          git diff --name-only origin/main > changed_files.txt
+          git diff --name-only origin/dev > changed_files.txt
 
           # Print the names of changed files on separate lines
           echo "Changed files:"
