@@ -736,11 +736,11 @@ class GOUniProtMockData(MockOntologyGraphData):
         expected_data = OrderedDict(
             swiss_id=["Swiss_Prot_1", "Swiss_Prot_2"],
             accession=["Q6GZX4", "DCGZX4"],
-            go_ids=[[2, 3, 5], [2, 5]],
+            go_ids=[[1, 2, 3, 5], [1, 2, 5]],
             sequence=list(GOUniProtMockData.protein_sequences().values()),
             **{
                 #   SP_1,  SP_2
-                1: [False, False],
+                1: [True, True],
                 2: [True, True],
                 3: [True, False],
                 4: [False, False],

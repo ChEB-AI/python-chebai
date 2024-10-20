@@ -1,4 +1,5 @@
 import unittest
+from collections import OrderedDict
 from unittest.mock import PropertyMock, mock_open, patch
 
 import fastobo
@@ -141,7 +142,14 @@ class TestGOUniProtDataExtractor(unittest.TestCase):
         Test the extraction of SwissProt to GO term mapping.
         """
         mapping_df = self.extractor._get_swiss_to_go_mapping()
-        expected_df = GOUniProtMockData.get_data_in_dataframe().iloc[:, :4]
+        expected_df = pd.DataFrame(
+            OrderedDict(
+                swiss_id=["Swiss_Prot_1", "Swiss_Prot_2"],
+                accession=["Q6GZX4", "DCGZX4"],
+                go_ids=[[2, 3, 5], [2, 5]],
+                sequence=list(GOUniProtMockData.protein_sequences().values()),
+            )
+        )
 
         pd.testing.assert_frame_equal(
             mapping_df,
