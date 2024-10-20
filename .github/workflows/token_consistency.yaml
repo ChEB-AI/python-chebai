@@ -1,6 +1,12 @@
 name: Check consistency of tokens.txt file
 
-on:  [push, pull_request]
+on:
+  push:
+    paths:
+      - "chebai/preprocessing/bin/smiles_token/tokens.txt"
+  pull_request:
+    paths:
+      - "chebai/preprocessing/bin/smiles_token/tokens.txt"
 
 jobs:
   check_tokens:
