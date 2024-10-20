@@ -1,0 +1,95 @@
+name: Check consistency of tokens.txt file
+
+on:
+  push:
+    paths:
+      - "chebai/preprocessing/bin/smiles_token/tokens.txt"
+      - "chebai/preprocessing/bin/smiles_token_unlabeled/tokens.txt"
+      - "chebai/preprocessing/bin/selfies/tokens.txt"
+      - "chebai/preprocessing/bin/protein_token/tokens.txt"
+      - "chebai/preprocessing/bin/graph_properties/tokens.txt"
+      - "chebai/preprocessing/bin/graph/tokens.txt"
+      - "chebai/preprocessing/bin/deepsmiles_token/tokens.txt"
+  pull_request:
+    paths:
+      - "chebai/preprocessing/bin/smiles_token/tokens.txt"
+      - "chebai/preprocessing/bin/smiles_token_unlabeled/tokens.txt"
+      - "chebai/preprocessing/bin/selfies/tokens.txt"
+      - "chebai/preprocessing/bin/protein_token/tokens.txt"
+      - "chebai/preprocessing/bin/graph_properties/tokens.txt"
+      - "chebai/preprocessing/bin/graph/tokens.txt"
+      - "chebai/preprocessing/bin/deepsmiles_token/tokens.txt"
+
+jobs:
+  check_tokens:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: Get list of changed files
+        id: changed_files
+        run: |
+          # Get the list of changed files and save them to a file
+          git diff --name-only origin/dev > changed_files.txt
+
+          # Print the names of changed files on separate lines
+          echo "Changed files:"
+          while read -r line; do
+            echo "Changed File name : $line"
+          done < changed_files.txt
+
+      - name: Set global variable for tokens.txt path
+        run: |
+          TOKENS_FILE_PATH="chebai/preprocessing/bin/smiles_token/tokens.txt"
+          echo "TOKENS_FILE_PATH=$TOKENS_FILE_PATH" >> $GITHUB_ENV
+
+      - name: Get previous tokens.txt version
+        run: |
+          git fetch origin dev
+          git diff origin/dev -- $TOKENS_FILE_PATH > tokens_diff.txt || echo "No previous tokens.txt found"
+
+      - name: Check for deleted or added lines in tokens.txt
+        run: |
+          if [ -f tokens_diff.txt ]; then
+
+            # Check for deleted lines (lines starting with '-')
+            deleted_lines=$(grep '^-' tokens_diff.txt | grep -v '^---' | sed 's/^-//' || true)
+            if [ -n "$deleted_lines" ]; then
+              echo "Error: Lines have been deleted from tokens.txt. file"
+              echo -e "Deleted Lines: \n$deleted_lines"
+              exit 1
+            fi
+
+            # Check for added lines (lines starting with '+')
+            added_lines=$(grep '^+' tokens_diff.txt | grep -v '^+++' | sed 's/^+//' || true)
+            if [ -n "$added_lines" ]; then
+
+              # Count how many lines have been added
+              num_added_lines=$(echo "$added_lines" | wc -l)
+
+              # Get last `n` lines (equal to num_added_lines) of tokens.tx
+              last_lines=$(tail -n "$num_added_lines" $TOKENS_FILE_PATH)
+
+              # Check if the added lines are at the end of the file
+              if [ "$added_lines" != "$last_lines" ]; then
+
+                # Find lines that were added but not appended at the end of the file
+                non_appended_lines=$(diff <(echo "$added_lines") <(echo "$last_lines") | grep '^<' | sed 's/^< //')
+
+                echo "Error: New lines have been added, but they are not at the end of tokens.txt."
+                echo -e "Added lines that are not at end of file: \n$non_appended_lines"
+                exit 1
+              fi
+            fi
+
+            if [ "$added_lines" == "" ]; then
+                echo "tokens.txt validation successful: No lines were deleted, and no new lines were added."
+            else
+                echo "tokens.txt validation successful: No lines were deleted, and new lines were correctly appended at the end."
+            fi
+
+          else
+            echo "No previous version of tokens.txt found."
+          fi
