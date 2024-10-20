@@ -769,6 +769,3 @@ p
 [14CH3]
 [HH]
 [CH3-]
-token1
-token2
-token3
