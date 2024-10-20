@@ -4,9 +4,21 @@ on:
   push:
     paths:
       - "chebai/preprocessing/bin/smiles_token/tokens.txt"
+      - "chebai/preprocessing/bin/smiles_token_unlabeled/tokens.txt"
+      - "chebai/preprocessing/bin/selfies/tokens.txt"
+      - "chebai/preprocessing/bin/protein_token/tokens.txt"
+      - "chebai/preprocessing/bin/graph_properties/tokens.txt"
+      - "chebai/preprocessing/bin/graph/tokens.txt"
+      - "chebai/preprocessing/bin/deepsmiles_token/tokens.txt"
   pull_request:
     paths:
       - "chebai/preprocessing/bin/smiles_token/tokens.txt"
+      - "chebai/preprocessing/bin/smiles_token_unlabeled/tokens.txt"
+      - "chebai/preprocessing/bin/selfies/tokens.txt"
+      - "chebai/preprocessing/bin/protein_token/tokens.txt"
+      - "chebai/preprocessing/bin/graph_properties/tokens.txt"
+      - "chebai/preprocessing/bin/graph/tokens.txt"
+      - "chebai/preprocessing/bin/deepsmiles_token/tokens.txt"
 
 jobs:
   check_tokens:
@@ -15,6 +27,18 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v2
+
+      - name: Get list of changed files
+        id: changed_files
+        run: |
+          # Get the list of changed files and save them to a file
+          git diff --name-only origin/main > changed_files.txt
+
+          # Print the names of changed files on separate lines
+          echo "Changed files:"
+          while read -r line; do
+            echo "Changed File name : $line"
+          done < changed_files.txt
 
       - name: Set global variable for tokens.txt path
         run: |
