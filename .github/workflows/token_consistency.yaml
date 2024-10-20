@@ -12,8 +12,8 @@ jobs:
 
       - name: Get previous tokens.txt version
         run: |
-          git fetch origin main
-          git diff origin/main -- chebai/preprocessing/bin/smiles_token/tokens.txt > tokens_diff.txt || echo "No previous tokens.txt found"
+          git fetch origin dev
+          git diff origin/dev -- chebai/preprocessing/bin/smiles_token/tokens.txt > tokens_diff.txt || echo "No previous tokens.txt found"
 
       - name: Check for deleted or added lines in tokens.txt
         run: |
