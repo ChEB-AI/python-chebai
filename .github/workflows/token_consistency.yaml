@@ -10,10 +10,15 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v2
 
+      - name: Set global variable for tokens.txt path
+        run: |
+          TOKENS_FILE_PATH="chebai/preprocessing/bin/smiles_token/tokens.txt"
+          echo "TOKENS_FILE_PATH=$TOKENS_FILE_PATH" >> $GITHUB_ENV
+
       - name: Get previous tokens.txt version
         run: |
           git fetch origin dev
-          git diff origin/dev -- chebai/preprocessing/bin/smiles_token/tokens.txt > tokens_diff.txt || echo "No previous tokens.txt found"
+          git diff origin/dev -- $TOKENS_FILE_PATH > tokens_diff.txt || echo "No previous tokens.txt found"
 
       - name: Check for deleted or added lines in tokens.txt
         run: |
@@ -35,7 +40,7 @@ jobs:
               num_added_lines=$(echo "$added_lines" | wc -l)
 
               # Get last `n` lines (equal to num_added_lines) of tokens.tx
-              last_lines=$(tail -n "$num_added_lines" chebai/preprocessing/bin/smiles_token/tokens.txt)
+              last_lines=$(tail -n "$num_added_lines" $TOKENS_FILE_PATH)
 
               # Check if the added lines are at the end of the file
               if [ "$added_lines" != "$last_lines" ]; then
