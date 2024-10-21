@@ -12,6 +12,25 @@ from chebai.preprocessing.datasets.chebi import ChEBIOver100, _ChEBIDataExtracto
 from chebai.preprocessing.datasets.pubchem import LabeledUnlabeledMixed
 
 
+def _filter_by_ground_truth(individual_loss, target, filter_l, filter_r):
+    # mask of ground truth labels for implications, shape (batch_size, num_implications/num_disjointnesses)
+    target_l = target[:, filter_l]
+    target_r = target[:, filter_r]
+
+    # filter individual loss: for an implication A->B, only apply loss to A if A is labeled false,
+    # only apply loss to B if B is labeled true
+    applicable_individual_loss_l = individual_loss * (1 - target_l)
+    applicable_individual_loss_r = individual_loss * target_r
+    class_loss = torch.zeros(target.shape, device=target.device)
+    # for each class, sum up the losses for all implication antecedents and consequents
+    for cls in range(class_loss.shape[1]):
+        class_loss[:, cls] = applicable_individual_loss_l[:, filter_l == cls].sum(dim=1)
+        class_loss[:, cls] += applicable_individual_loss_r[:, filter_r == cls].sum(
+            dim=1
+        )
+    return class_loss
+
+
 class ImplicationLoss(torch.nn.Module):
     """
     Implication Loss module.
@@ -63,6 +82,9 @@ class ImplicationLoss(torch.nn.Module):
         # propagate data_extractor to base loss
         if isinstance(base_loss, BCEWeighted):
             base_loss.data_extractor = self.data_extractor
+            base_loss.reduction = (
+                "none"  # needed to multiply fuzzy loss with base loss for each sample
+            )
         self.base_loss = base_loss
         self.implication_cache_file = f"implications_{self.data_extractor.name}.cache"
         self.label_names = _load_label_names(
@@ -83,37 +105,19 @@ class ImplicationLoss(torch.nn.Module):
         self.weight_epoch_dependent = weight_epoch_dependent
         self.start_at_epoch = start_at_epoch
 
-    def forward(self, input: torch.Tensor, target: torch.Tensor, **kwargs) -> tuple:
-        """
-        Forward pass of the implication loss module.
-
-        Args:
-            input (torch.Tensor): Input tensor.
-            target (torch.Tensor): Target tensor.
-            **kwargs: Additional arguments.
-
-        Returns:
-            tuple: Tuple containing total loss, base loss, and implication loss.
-        """
-        nnl = kwargs.pop("non_null_labels", None)
-        if nnl:
-            labeled_input = input[nnl]
-        else:
-            labeled_input = input
-        if target is not None:
-            base_loss = self.base_loss(labeled_input, target.float())
-        else:
-            base_loss = 0
-        if "current_epoch" in kwargs and self.start_at_epoch > kwargs["current_epoch"]:
-            return base_loss, {"base_loss": base_loss}
-        pred = torch.sigmoid(input)
-        l = pred[:, self.implication_filter_l]
-        r = pred[:, self.implication_filter_r]
-        implication_loss = self._calculate_implication_loss(l, r)
-        loss_components = {
-            "base_loss": base_loss,
-            "unweighted_implication_loss": implication_loss,
-        }
+    def _calculate_unaggregated_fuzzy_loss(
+        self, pred, target: torch.Tensor, weight, filter_l, filter_r, **kwargs
+    ):
+        l = pred[:, filter_l]
+        r = pred[:, filter_r]
+        individual_loss = self._calculate_implication_loss(l, r, target)
+        implication_loss = _filter_by_ground_truth(
+            individual_loss,
+            target,
+            filter_l,
+            filter_r,
+        )
+        unweighted_mean = implication_loss.sum(dim=-1).mean()
         implication_loss_weighted = implication_loss
         if "current_epoch" in kwargs and self.weight_epoch_dependent:
             sigmoid_center = (
@@ -131,9 +135,56 @@ class ImplicationLoss(torch.nn.Module):
                 1
                 + math.exp(-(kwargs["current_epoch"] - sigmoid_center) / sigmoid_spread)
             )
-        implication_loss_weighted *= self.impl_weight
-        loss_components["weighted_implication_loss"] = implication_loss_weighted
-        return base_loss + implication_loss_weighted, loss_components
+        implication_loss_weighted *= weight
+        weighted_mean = implication_loss_weighted.sum(dim=-1).mean()
+
+        return implication_loss_weighted, unweighted_mean, weighted_mean
+
+    def _calculate_unaggregated_base_loss(self, input, target, **kwargs):
+        nnl = kwargs.pop("non_null_labels", None)
+        labeled_input = input[nnl] if nnl else input
+
+        if target is not None and self.base_loss is not None:
+            return self.base_loss(labeled_input, target.float())
+        else:
+            return torch.zeros(input.shape, device=input.device)
+
+    def forward(self, input: torch.Tensor, target: torch.Tensor, **kwargs) -> tuple:
+        """
+        Forward pass of the implication loss module.
+
+        Args:
+            input (torch.Tensor): Input tensor.
+            target (torch.Tensor): Target tensor.
+            **kwargs: Additional arguments.
+
+        Returns:
+            tuple: Tuple containing total loss, base loss, and implication loss.
+        """
+        base_loss = self._calculate_unaggregated_base_loss(input, target, **kwargs)
+        loss_components = {"base_loss": base_loss.sum(dim=-1).mean()}
+
+        if "current_epoch" in kwargs and self.start_at_epoch > kwargs["current_epoch"]:
+            return base_loss, loss_components
+
+        pred = torch.sigmoid(input)
+        fuzzy_loss, unweighted_fuzzy_mean, weighted_fuzzy_mean = (
+            self._calculate_unaggregated_fuzzy_loss(
+                pred,
+                target,
+                self.impl_weight,
+                self.implication_filter_l,
+                self.implication_filter_r,
+                **kwargs,
+            )
+        )
+        loss_components["unweighted_fuzzy_loss"] = unweighted_fuzzy_mean
+        loss_components["weighted_fuzzy_loss"] = weighted_fuzzy_mean
+        if self.base_loss is None or target is None:
+            return self.impl_weight * fuzzy_loss, loss_components
+        else:
+            total_loss = base_loss * (1 + self.impl_weight * fuzzy_loss)
+            return total_loss.sum(dim=-1).mean(), loss_components
 
     def _calculate_implication_loss(
         self, l: torch.Tensor, r: torch.Tensor, target: torch.Tensor
@@ -206,14 +257,7 @@ class ImplicationLoss(torch.nn.Module):
         if self.multiply_by_softmax:
             individual_loss = individual_loss * individual_loss.softmax(dim=-1)
 
-        # aggregate for classes, mask with ground truth labels
-        target_l = target[:, self.implication_filter_l]
-        target_r = target[:, self.implication_filter_r]
-
-        return torch.mean(
-            torch.sum(individual_loss, dim=-1),
-            dim=0,
-        )
+        return individual_loss
 
     def _load_implications(self, path_to_chebi: str) -> dict:
         """
@@ -273,22 +317,49 @@ class DisjointLoss(ImplicationLoss):
         Returns:
             tuple: Tuple containing total loss, base loss, implication loss, and disjointness loss.
         """
-        loss, loss_components = super().forward(input, target, **kwargs)
+        base_loss = self._calculate_unaggregated_base_loss(input, target, **kwargs)
+        loss_components = {"base_loss": base_loss.sum(dim=-1).mean()}
+
         if "current_epoch" in kwargs and self.start_at_epoch > kwargs["current_epoch"]:
-            return loss, loss_components
+            return base_loss, loss_components
+
         pred = torch.sigmoid(input)
-        l = pred[:, self.disjoint_filter_l]
-        r = pred[:, self.disjoint_filter_r]
-        disjointness_loss = self._calculate_implication_loss(l, 1 - r)
-        loss_components["unweighted_disjointness_loss"] = disjointness_loss
-        disjointness_loss_weighted = disjointness_loss
-        if "current_epoch" in kwargs and self.weight_epoch_dependent:
-            disjointness_loss_weighted = disjointness_loss_weighted / (
-                1 + math.exp(-(kwargs["current_epoch"] - 50) / 10)
+        impl_loss, unweighted_impl_mean, weighted_impl_mean = (
+            self._calculate_unaggregated_fuzzy_loss(
+                pred,
+                target,
+                self.impl_weight,
+                self.implication_filter_l,
+                self.implication_filter_r,
+                **kwargs,
             )
-        disjointness_loss_weighted *= self.disjoint_weight
-        loss_components["weighted_disjointness_loss"] = disjointness_loss_weighted
-        return loss + disjointness_loss_weighted, loss_components
+        )
+        loss_components["unweighted_implication_loss"] = unweighted_impl_mean
+        loss_components["weighted_implication_loss"] = weighted_impl_mean
+
+        disj_loss, unweighted_disj_mean, weighted_disj_mean = (
+            self._calculate_unaggregated_fuzzy_loss(
+                pred,
+                target,
+                self.disjoint_weight,
+                self.disjoint_filter_l,
+                self.disjoint_filter_r,
+                **kwargs,
+            )
+        )
+        loss_components["unweighted_disjointness_loss"] = unweighted_disj_mean
+        loss_components["weighted_disjointness_loss"] = weighted_disj_mean
+
+        if self.base_loss is None or target is None:
+            return (
+                self.impl_weight * impl_loss + self.disjoint_weight * disj_loss,
+                loss_components,
+            )
+        else:
+            total_loss = base_loss + (
+                1 + self.impl_weight * impl_loss + self.disjoint_weight * disj_loss
+            )
+            return total_loss.sum(dim=-1).mean(), loss_components
 
 
 def _load_label_names(path_to_label_names: str) -> List:
@@ -368,5 +439,15 @@ def _build_disjointness_filter(
 
 if __name__ == "__main__":
     loss = DisjointLoss(
-        os.path.join("data", "disjoint.csv"), ChEBIOver100(chebi_version=227)
+        os.path.join("data", "disjoint.csv"), ChEBIOver100(chebi_version=231)
     )
+    l = loss(torch.randn(10, 997), torch.randn(10, 997))
+
+    loss_with_base = DisjointLoss(
+        os.path.join("data", "disjoint.csv"),
+        ChEBIOver100(chebi_version=231),
+        base_loss=BCEWeighted(beta=0.99),
+    )
+    lb = loss_with_base(torch.randn(10, 997), torch.randn(10, 997))
+    print(l)
+    print(lb)

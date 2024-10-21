@@ -26,6 +26,7 @@ class BCEWeighted(torch.nn.BCEWithLogitsLoss):
         self,
         beta: Optional[float] = None,
         data_extractor: Optional[XYBaseDataModule] = None,
+        **kwargs,
     ):
         self.beta = beta
         if isinstance(data_extractor, LabeledUnlabeledMixed):
@@ -35,7 +36,7 @@ class BCEWeighted(torch.nn.BCEWithLogitsLoss):
             isinstance(self.data_extractor, _ChEBIDataExtractor)
             or self.data_extractor is None
         )
-        super().__init__()
+        super().__init__(**kwargs)
 
     def set_pos_weight(self, input: torch.Tensor) -> None:
         """
