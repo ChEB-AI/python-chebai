@@ -343,13 +343,15 @@ class _GOUniProtDataExtractor(_DynamicDataset, ABC):
         data_df = self._get_swiss_to_go_mapping()
         # add ancestors to go ids
         data_df["go_ids"] = data_df["go_ids"].apply(
-            lambda go_ids: list(
-                itertools.chain.from_iterable(
-                    [
-                        [go_id] + list(g.predecessors(go_id))
-                        for go_id in go_ids
-                        if go_id in g.nodes
-                    ]
+            lambda go_ids: sorted(
+                set(
+                    itertools.chain.from_iterable(
+                        [
+                            [go_id] + list(g.predecessors(go_id))
+                            for go_id in go_ids
+                            if go_id in g.nodes
+                        ]
+                    )
                 )
             )
         )
