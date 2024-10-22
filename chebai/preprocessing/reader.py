@@ -372,14 +372,16 @@ class ProteinDataReader(DataReader):
         "V",
     ]
 
-    @classmethod
-    def name(cls) -> str:
+    def name(self) -> str:
         """
         Returns the name of the data reader. This method identifies the specific type of data reader.
 
         Returns:
             str: The name of the data reader, which is "protein_token".
         """
+        if self.n_gram is not None:
+            return f"protein_token_{self.n_gram}_gram"
+
         return "protein_token"
 
     def __init__(self, *args, n_gram: Optional[int] = None, **kwargs):
