@@ -117,7 +117,7 @@ class ImplicationLoss(torch.nn.Module):
             filter_l,
             filter_r,
         )
-        unweighted_mean = implication_loss.sum(dim=-1).mean()
+        unweighted_mean = implication_loss.mean()
         implication_loss_weighted = implication_loss
         if "current_epoch" in kwargs and self.weight_epoch_dependent:
             sigmoid_center = (
@@ -136,7 +136,7 @@ class ImplicationLoss(torch.nn.Module):
                 + math.exp(-(kwargs["current_epoch"] - sigmoid_center) / sigmoid_spread)
             )
         implication_loss_weighted *= weight
-        weighted_mean = implication_loss_weighted.sum(dim=-1).mean()
+        weighted_mean = implication_loss_weighted.mean()
 
         return implication_loss_weighted, unweighted_mean, weighted_mean
 
@@ -162,10 +162,10 @@ class ImplicationLoss(torch.nn.Module):
             tuple: Tuple containing total loss, base loss, and implication loss.
         """
         base_loss = self._calculate_unaggregated_base_loss(input, target, **kwargs)
-        loss_components = {"base_loss": base_loss.sum(dim=-1).mean()}
+        loss_components = {"base_loss": base_loss.mean()}
 
         if "current_epoch" in kwargs and self.start_at_epoch > kwargs["current_epoch"]:
-            return base_loss, loss_components
+            return base_loss.mean(), loss_components
 
         pred = torch.sigmoid(input)
         fuzzy_loss, unweighted_fuzzy_mean, weighted_fuzzy_mean = (
@@ -181,10 +181,10 @@ class ImplicationLoss(torch.nn.Module):
         loss_components["unweighted_fuzzy_loss"] = unweighted_fuzzy_mean
         loss_components["weighted_fuzzy_loss"] = weighted_fuzzy_mean
         if self.base_loss is None or target is None:
-            return self.impl_weight * fuzzy_loss, loss_components
+            total_loss = self.impl_weight * fuzzy_loss
         else:
             total_loss = base_loss * (1 + self.impl_weight * fuzzy_loss)
-            return total_loss.sum(dim=-1).mean(), loss_components
+        return total_loss.mean(), loss_components
 
     def _calculate_implication_loss(
         self, l: torch.Tensor, r: torch.Tensor, target: torch.Tensor
@@ -318,10 +318,10 @@ class DisjointLoss(ImplicationLoss):
             tuple: Tuple containing total loss, base loss, implication loss, and disjointness loss.
         """
         base_loss = self._calculate_unaggregated_base_loss(input, target, **kwargs)
-        loss_components = {"base_loss": base_loss.sum(dim=-1).mean()}
+        loss_components = {"base_loss": base_loss.mean()}
 
         if "current_epoch" in kwargs and self.start_at_epoch > kwargs["current_epoch"]:
-            return base_loss, loss_components
+            return base_loss.mean(), loss_components
 
         pred = torch.sigmoid(input)
         impl_loss, unweighted_impl_mean, weighted_impl_mean = (
@@ -351,15 +351,12 @@ class DisjointLoss(ImplicationLoss):
         loss_components["weighted_disjointness_loss"] = weighted_disj_mean
 
         if self.base_loss is None or target is None:
-            return (
-                self.impl_weight * impl_loss + self.disjoint_weight * disj_loss,
-                loss_components,
-            )
+            total_loss = self.impl_weight * impl_loss + self.disjoint_weight * disj_loss
         else:
-            total_loss = base_loss + (
+            total_loss = base_loss * (
                 1 + self.impl_weight * impl_loss + self.disjoint_weight * disj_loss
             )
-            return total_loss.sum(dim=-1).mean(), loss_components
+        return total_loss.mean(), loss_components
 
 
 def _load_label_names(path_to_label_names: str) -> List:
