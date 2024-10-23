@@ -117,8 +117,8 @@ class ImplicationLoss(torch.nn.Module):
         # filter by implication relations and labels
 
         label_filter = target.unsqueeze(2).expand(-1, -1, pred.shape[1])
-        filter_l = filter_l.unsqueeze(0).expand(pred.shape[0], -1, -1)
-        filter_r = filter_r.unsqueeze(0).expand(pred.shape[0], -1, -1)
+        filter_l = filter_l.to(pred.device).unsqueeze(0).expand(pred.shape[0], -1, -1)
+        filter_r = filter_r.to(pred.device).unsqueeze(0).expand(pred.shape[0], -1, -1)
 
         loss_impl_l = (
             self._calculate_implication_loss(preds_expanded2, preds_expanded1, target)
