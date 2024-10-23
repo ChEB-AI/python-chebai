@@ -685,17 +685,11 @@ def run_fuzzy_loss(tag="fuzzy_loss", skip_first_n=0):
             "data", "chebi_v231", "ChEBI100", "fuzzy_loss_splits.csv"
         ),
     )
-    local_ckpts = [("dd1r2kfb", 179)][skip_first_n:]
+    local_ckpts = [][skip_first_n:]
     pubchem_kmeans = PubChemKMeans()
     run_all(
-        [],  # ids[max(0, skip_first_n-len(local_ckpts)):],  # ids,
-        local_ckpts
-        + [
-            # (
-            #    "chebi100_semg_epoch-dependent1-1k_start-at=10_batch3_weighted_v231_pc_kmeans_241010-0814",
-            #    199,
-            # )
-        ],
+        ids[max(0, skip_first_n - len(local_ckpts)) :],  # ids,
+        local_ckpts,
         consistency_metrics=[binary],
         check_consistency_on=chebi100,
         prediction_datasets=[
