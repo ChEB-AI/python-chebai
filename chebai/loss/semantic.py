@@ -93,9 +93,12 @@ class ImplicationLoss(torch.nn.Module):
         self.hierarchy = self._load_implications(
             os.path.join(data_extractor.raw_dir, "chebi.obo")
         )
-        implication_filter = _build_implication_filter(self.label_names, self.hierarchy)
-        self.implication_filter_l = implication_filter[:, 0]
-        self.implication_filter_r = implication_filter[:, 1]
+        implication_filter_dense = _build_dense_filter(
+            _build_implication_filter(self.label_names, self.hierarchy),
+            len(self.label_names),
+        )
+        self.implication_filter_l = implication_filter_dense
+        self.implication_filter_r = self.implication_filter_l.transpose(0, 1)
         self.fuzzy_implication = fuzzy_implication
         self.impl_weight = impl_loss_weight
         self.pos_scalar = pos_scalar
@@ -108,17 +111,30 @@ class ImplicationLoss(torch.nn.Module):
     def _calculate_unaggregated_fuzzy_loss(
         self, pred, target: torch.Tensor, weight, filter_l, filter_r, **kwargs
     ):
-        l = pred[:, filter_l]
-        r = pred[:, filter_r]
-        individual_loss = self._calculate_implication_loss(l, r, target)
-        implication_loss = _filter_by_ground_truth(
-            individual_loss,
-            target,
-            filter_l,
-            filter_r,
+        # for each batch, get all pairwise losses: [a1, a2, a3] -> [[a1*a1, a1*a2, a1*a3],[a2*a1,...],[a3*a1,...]]
+        preds_expanded1 = pred.unsqueeze(1).expand(-1, pred.shape[1], -1)
+        preds_expanded2 = pred.unsqueeze(2).expand(-1, -1, pred.shape[1])
+        # filter by implication relations and labels
+
+        label_filter = target.unsqueeze(2).expand(-1, -1, pred.shape[1])
+        filter_l = filter_l.unsqueeze(0).expand(pred.shape[0], -1, -1)
+        filter_r = filter_r.unsqueeze(0).expand(pred.shape[0], -1, -1)
+
+        loss_impl_l = (
+            self._calculate_implication_loss(preds_expanded2, preds_expanded1, target)
+            * filter_l
+            * (1 - label_filter)
         )
-        unweighted_mean = implication_loss.mean()
-        implication_loss_weighted = implication_loss
+        loss_impl_r = (
+            self._calculate_implication_loss(preds_expanded1, preds_expanded2, target)
+            * filter_r
+            * label_filter
+        )
+
+        loss_by_cls = (loss_impl_l + loss_impl_r).sum(dim=-1)
+
+        unweighted_mean = loss_by_cls.mean()
+        implication_loss_weighted = loss_by_cls
         if "current_epoch" in kwargs and self.weight_epoch_dependent:
             sigmoid_center = (
                 self.weight_epoch_dependent[0]
@@ -376,7 +392,8 @@ def _load_label_names(path_to_label_names: str) -> List:
 
 def _build_implication_filter(label_names: List, hierarchy: dict) -> torch.Tensor:
     """
-    Build implication filter based on label names and hierarchy.
+    Build implication filter based on label names and hierarchy. Results in list of pairs (A,B) for each implication
+    A->B (including indirect implications).
 
     Args:
         label_names (list): List of label names.
@@ -393,6 +410,13 @@ def _build_implication_filter(label_names: List, hierarchy: dict) -> torch.Tenso
             if l2 in hierarchy.pred[l1]
         ]
     )
+
+
+def _build_dense_filter(sparse_filter: torch.Tensor, n_labels: int) -> torch.Tensor:
+    res = torch.zeros((n_labels, n_labels), dtype=torch.bool)
+    for l, r in sparse_filter:
+        res[l, r] = True
+    return res
 
 
 def _build_disjointness_filter(
@@ -431,14 +455,16 @@ def _build_disjointness_filter(
             )
 
     dis_filter = torch.tensor(list(disjoints))
-    return dis_filter[:, 0], dis_filter[:, 1]
+    dense = _build_dense_filter(dis_filter, len(label_names))
+    dense_r = dense.transpose(0, 1)
+    return dense, dense_r
 
 
 if __name__ == "__main__":
     loss = DisjointLoss(
         os.path.join("data", "disjoint.csv"), ChEBIOver100(chebi_version=231)
     )
-    l = loss(torch.randn(10, 997), torch.randn(10, 997))
+    l = loss(torch.randn(10, 997), torch.randint(0, 2, (10, 997)))
 
     loss_with_base = DisjointLoss(
         os.path.join("data", "disjoint.csv"),
@@ -448,3 +474,4 @@ if __name__ == "__main__":
     lb = loss_with_base(torch.randn(10, 997), torch.randn(10, 997))
     print(l)
     print(lb)
+    print()
