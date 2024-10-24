@@ -46,6 +46,13 @@ class ImplicationLoss(torch.nn.Module):
         use_sigmoidal_implication (bool, optional): Whether to use the sigmoidal fuzzy implication based on the
         specified fuzzy_implication (as defined by van Krieken et al., 2022: Analyzing Differentiable Fuzzy Logic
         Operators). Defaults to False.
+        weight_epoch_dependent (Union[bool, tuple[int, int]], optional): Whether to weight the implication loss
+        depending on the current epoch with the sigmoid function sigmoid((epoch-c)/s). If True, c=50 and s=10,
+        otherwise, a tuple of integers (c,s) can be supplied. Defaults to False.
+        start_at_epoch (int, optional): Epoch at which to start applying the loss. Defaults to 0.
+        violations_per_cls_aggregator (Literal["sum", "max"], optional): How to aggregate violations for each class.
+        If a class is involved in several implications / disjointnesses, the loss value for this class will be
+        aggregated with this method. Defaults to "sum".
     """
 
     def __init__(
@@ -72,6 +79,7 @@ class ImplicationLoss(torch.nn.Module):
         use_sigmoidal_implication: bool = False,
         weight_epoch_dependent: Union[bool | tuple[int, int]] = False,
         start_at_epoch: int = 0,
+        violations_per_cls_aggregator: Literal["sum", "max"] = "sum",
     ):
         super().__init__()
         # automatically choose labeled subset for implication filter in case of mixed dataset
@@ -107,6 +115,7 @@ class ImplicationLoss(torch.nn.Module):
         self.use_sigmoidal_implication = use_sigmoidal_implication
         self.weight_epoch_dependent = weight_epoch_dependent
         self.start_at_epoch = start_at_epoch
+        self.violations_per_cls_aggregator = violations_per_cls_aggregator
 
     def _calculate_unaggregated_fuzzy_loss(
         self, pred, target: torch.Tensor, weight, filter_l, filter_r, **kwargs
@@ -131,7 +140,10 @@ class ImplicationLoss(torch.nn.Module):
             * label_filter
         )
 
-        loss_by_cls = (loss_impl_l + loss_impl_r).sum(dim=-1)
+        if self.violations_per_cls_aggregator == "sum":
+            loss_by_cls = (loss_impl_l + loss_impl_r).sum(dim=-1)
+        else:
+            loss_by_cls = torch.max(loss_impl_l + loss_impl_r, dim=-1).values
 
         unweighted_mean = loss_by_cls.mean()
         implication_loss_weighted = loss_by_cls
@@ -461,17 +473,18 @@ def _build_disjointness_filter(
 
 
 if __name__ == "__main__":
-    loss = DisjointLoss(
-        os.path.join("data", "disjoint.csv"), ChEBIOver100(chebi_version=231)
-    )
-    l = loss(torch.randn(10, 997), torch.randint(0, 2, (10, 997)))
-
     loss_with_base = DisjointLoss(
         os.path.join("data", "disjoint.csv"),
         ChEBIOver100(chebi_version=231),
         base_loss=BCEWeighted(beta=0.99),
     )
-    lb = loss_with_base(torch.randn(10, 997), torch.randn(10, 997))
-    print(l)
+    lb = loss_with_base(torch.randn(10, 997), torch.randint(0, 2, (10, 997)))
     print(lb)
-    print()
+    loss_max = DisjointLoss(
+        os.path.join("data", "disjoint.csv"),
+        ChEBIOver100(chebi_version=231),
+        base_loss=BCEWeighted(beta=0.99),
+        violations_per_cls_aggregator="max",
+    )
+    lm = loss_max(torch.randn(10, 997), torch.randint(0, 2, (10, 997)))
+    print(lm)
