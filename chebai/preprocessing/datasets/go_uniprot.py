@@ -25,10 +25,23 @@ import pandas as pd
 import requests
 import torch
 from Bio import SwissProt
-from torch.utils.data import DataLoader
 
 from chebai.preprocessing import reader as dr
 from chebai.preprocessing.datasets.base import _DynamicDataset
+
+EXPERIMENTAL_EVIDENCE_CODES = {
+    "EXP",
+    "IDA",
+    "IPI",
+    "IMP",
+    "IGI",
+    "IEP",
+    "TAS",
+    "IC",
+}
+
+# https://github.com/bio-ontology-research-group/deepgo/blob/d97447a05c108127fee97982fd2c57929b2cf7eb/aaindex.py#L8
+AMBIGUOUS_AMINO_ACIDS = {"B", "O", "J", "U", "X", "Z", "*"}
 
 
 class _GOUniProtDataExtractor(_DynamicDataset, ABC):
@@ -411,19 +424,6 @@ class _GOUniProtDataExtractor(_DynamicDataset, ABC):
                 "r",
             )
         )
-
-        EXPERIMENTAL_EVIDENCE_CODES = {
-            "EXP",
-            "IDA",
-            "IPI",
-            "IMP",
-            "IGI",
-            "IEP",
-            "TAS",
-            "IC",
-        }
-        # https://github.com/bio-ontology-research-group/deepgo/blob/d97447a05c108127fee97982fd2c57929b2cf7eb/aaindex.py#L8
-        AMBIGUOUS_AMINO_ACIDS = {"B", "O", "J", "U", "X", "Z", "*"}
 
         for record in swiss_data:
             if record.data_class != "Reviewed":
