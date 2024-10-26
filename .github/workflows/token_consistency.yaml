@@ -1,5 +1,8 @@
 name: Check consistency of tokens.txt file
 
+# Define the file paths under `paths` to trigger this check only when specific files are modified.
+# This script will then execute checks only on files that have changed, rather than all files listed in `paths`.
+
 # **Note** : To add a new token file for checks, include its path in:
 # - `on` -> `push` and `pull_request` sections
 # - `jobs` -> `check_tokens` -> `steps` -> Set global variable for multiple tokens.txt paths -> `TOKENS_FILES`
@@ -31,13 +34,12 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v2
-        with:
-          fetch-depth: 0  # Fetch all history to ensure 'origin/dev' is available
+#        with:
+#          fetch-depth: 0  # Fetch all history to ensure 'origin/dev' is available
 
       - name: Get list of changed files
         id: changed_files
         run: |
-          # Ensure origin/dev is set as the default branch reference
           git fetch origin dev
 
           # Get the list of changed files compared to origin/dev and save them to a file
@@ -51,7 +53,7 @@ jobs:
 
       - name: Set global variable for multiple tokens.txt paths
         run: |
-          # Define an array with all the paths of tokens.txt files
+          # All token files that needs to checked must be included here too, same as in `paths`.
           TOKENS_FILES=(
             "chebai/preprocessing/bin/smiles_token/tokens.txt"
             "chebai/preprocessing/bin/smiles_token_unlabeled/tokens.txt"
