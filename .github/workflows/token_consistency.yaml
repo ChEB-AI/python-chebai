@@ -1,5 +1,9 @@
 name: Check consistency of tokens.txt file
 
+# **Note** : To add a new token file for checks, include its path in:
+# - `on` -> `push` and `pull_request` sections
+# - `jobs` -> `check_tokens` -> `steps` -> Set global variable for multiple tokens.txt paths -> `TOKENS_FILES`
+
 on:
   push:
     paths:
