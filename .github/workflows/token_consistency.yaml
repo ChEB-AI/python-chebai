@@ -1,19 +1,24 @@
 name: Check consistency of tokens.txt file
 
-paths: &TOKENS_FILES
-  - "chebai/preprocessing/bin/smiles_token/tokens.txt"
-  - "chebai/preprocessing/bin/smiles_token_unlabeled/tokens.txt"
-  - "chebai/preprocessing/bin/selfies/tokens.txt"
-  - "chebai/preprocessing/bin/protein_token/tokens.txt"
-  - "chebai/preprocessing/bin/graph_properties/tokens.txt"
-  - "chebai/preprocessing/bin/graph/tokens.txt"
-  - "chebai/preprocessing/bin/deepsmiles_token/tokens.txt"
-
 on:
   push:
-    paths: *TOKENS_FILES
+    paths:
+      - "chebai/preprocessing/bin/smiles_token/tokens.txt"
+      - "chebai/preprocessing/bin/smiles_token_unlabeled/tokens.txt"
+      - "chebai/preprocessing/bin/selfies/tokens.txt"
+      - "chebai/preprocessing/bin/protein_token/tokens.txt"
+      - "chebai/preprocessing/bin/graph_properties/tokens.txt"
+      - "chebai/preprocessing/bin/graph/tokens.txt"
+      - "chebai/preprocessing/bin/deepsmiles_token/tokens.txt"
   pull_request:
-    paths: *TOKENS_FILES
+    paths:
+      - "chebai/preprocessing/bin/smiles_token/tokens.txt"
+      - "chebai/preprocessing/bin/smiles_token_unlabeled/tokens.txt"
+      - "chebai/preprocessing/bin/selfies/tokens.txt"
+      - "chebai/preprocessing/bin/protein_token/tokens.txt"
+      - "chebai/preprocessing/bin/graph_properties/tokens.txt"
+      - "chebai/preprocessing/bin/graph/tokens.txt"
+      - "chebai/preprocessing/bin/deepsmiles_token/tokens.txt"
 
 jobs:
   check_tokens:
