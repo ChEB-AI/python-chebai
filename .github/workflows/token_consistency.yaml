@@ -34,8 +34,6 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v2
-#        with:
-#          fetch-depth: 0  # Fetch all history to ensure 'origin/dev' is available
 
       - name: Get list of changed files
         id: changed_files
