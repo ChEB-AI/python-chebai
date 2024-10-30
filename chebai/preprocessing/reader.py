@@ -8,7 +8,7 @@ from transformers import RobertaTokenizerFast
 
 from chebai.preprocessing.collate import DefaultCollator, RaggedCollator
 
-EMBEDDING_OFFSET = 10
+EMBEDDING_OFFSET = 100
 PADDING_TOKEN_INDEX = 0
 MASK_TOKEN_INDEX = 1
 CLS_TOKEN = 2
