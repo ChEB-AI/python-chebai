@@ -16,6 +16,9 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v3
 
+      - name: Set PYTHONPATH
+        run: echo "PYTHONPATH=$PWD" >> $GITHUB_ENV
+
       - name: Get list of changed files
         id: changed_files
         run: |
