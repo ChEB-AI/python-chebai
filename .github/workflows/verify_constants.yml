@@ -36,7 +36,7 @@ jobs:
           python-version: '3.x'
 
       - name: Export constants
-        run: python export_constants.py
+        run: python .github/workflows/export_constants.py
 
       - name: Load constants into environment variables
         id: load_constants
