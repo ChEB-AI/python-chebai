@@ -1,0 +1,66 @@
+name: Verify Constants
+
+on:
+  push:
+    paths:
+      - "chebai/preprocessing/reader.py"
+  pull_request:
+    paths:
+      - "chebai/preprocessing/reader.py"
+
+jobs:
+  verify-constants:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Get list of changed files
+        id: changed_files
+        run: |
+          git fetch origin dev
+
+          # Get the list of changed files compared to origin/dev and save them to a file
+          git diff --name-only origin/dev > changed_files.txt
+
+          # Print the names of changed files on separate lines
+          echo "Changed files:"
+          while read -r line; do
+            echo "Changed File name : $line"
+          done < changed_files.txt
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.x'
+
+      - name: Export constants
+        run: python export_constants.py
+
+      - name: Load constants into environment variables
+        id: load_constants
+        run: |
+          constants=$(cat constants.json)
+          echo "$constants" | jq -r 'to_entries|map("export \(.key)=\(.value|tostring)")|.[]' >> $GITHUB_ENV
+
+      - name: Verify constants
+        run: |
+          if grep -q "chebai/preprocessing/reader.py" changed_files.txt; then
+            if [ "$EMBEDDING_OFFSET" != "10" ]; then
+              echo "EMBEDDING_OFFSET does not match expected value!"
+              exit 1
+            fi
+            if [ "$CLS_TOKEN" != "2" ]; then
+              echo "CLS_TOKEN does not match expected value!"
+              exit 1
+            fi
+            if [ "$PADDING_TOKEN_INDEX" != "0" ]; then
+              echo "PADDING_TOKEN_INDEX does not match expected value!"
+              exit 1
+            fi
+            if [ "$MASK_TOKEN_INDEX" != "1" ]; then
+              echo "MASK_TOKEN_INDEX does not match expected value!"
+              exit 1
+            fi
+          fi
