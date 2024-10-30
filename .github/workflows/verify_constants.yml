@@ -38,6 +38,9 @@ jobs:
         with:
           python-version: '3.x'
 
+      - name: Install dependencies
+        run: pip install torch
+
       - name: Export constants
         run: python .github/workflows/export_constants.py
 
