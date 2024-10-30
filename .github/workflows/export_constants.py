@@ -1,13 +1,18 @@
 import json
 
-import chebai.preprocessing.reader as dr
+from chebai.preprocessing.reader import (
+    CLS_TOKEN,
+    EMBEDDING_OFFSET,
+    MASK_TOKEN_INDEX,
+    PADDING_TOKEN_INDEX,
+)
 
 # Define the constants you want to export
 constants = {
-    "EMBEDDING_OFFSET": dr.EMBEDDING_OFFSET,
-    "CLS_TOKEN": dr.CLS_TOKEN,
-    "PADDING_TOKEN_INDEX": dr.PADDING_TOKEN_INDEX,
-    "MASK_TOKEN_INDEX": dr.MASK_TOKEN_INDEX,
+    "EMBEDDING_OFFSET": EMBEDDING_OFFSET,
+    "CLS_TOKEN": CLS_TOKEN,
+    "PADDING_TOKEN_INDEX": PADDING_TOKEN_INDEX,
+    "MASK_TOKEN_INDEX": MASK_TOKEN_INDEX,
 }
 
 # Write constants to a JSON file
