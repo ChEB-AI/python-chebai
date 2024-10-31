@@ -8,6 +8,7 @@ from chebai.preprocessing.reader import (
 )
 
 # Define the constants you want to export
+# Any changes in the key names here should also follow the same change in verify_constants.yml code
 constants = {
     "EMBEDDING_OFFSET": EMBEDDING_OFFSET,
     "CLS_TOKEN": CLS_TOKEN,
