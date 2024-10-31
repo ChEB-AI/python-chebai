@@ -16,6 +16,7 @@ constants = {
     "MASK_TOKEN_INDEX": MASK_TOKEN_INDEX,
 }
 
-# Write constants to a JSON file
-with open("constants.json", "w") as f:
-    json.dump(constants, f)
+if __name__ == "__main__":
+    # Write constants to a JSON file
+    with open("constants.json", "w") as f:
+        json.dump(constants, f)
