@@ -83,19 +83,19 @@ jobs:
 
             # Verify constants match expected values
             if [ "$E_EMBEDDING_OFFSET" != "$exp_embedding_offset" ]; then
-              echo "EMBEDDING_OFFSET ($EMBEDDING_OFFSET) does not match expected value ($exp_embedding_offset)!"
+              echo "EMBEDDING_OFFSET ($E_EMBEDDING_OFFSET) does not match expected value ($exp_embedding_offset)!"
               exit 1
             fi
             if [ "$E_CLS_TOKEN" != "$exp_cls_token" ]; then
-              echo "CLS_TOKEN ($CLS_TOKEN) does not match expected value ($exp_cls_token)!"
+              echo "CLS_TOKEN ($E_CLS_TOKEN) does not match expected value ($exp_cls_token)!"
               exit 1
             fi
             if [ "$E_PADDING_TOKEN_INDEX" != "$exp_padding_token_index" ]; then
-              echo "PADDING_TOKEN_INDEX ($PADDING_TOKEN_INDEX) does not match expected value ($exp_padding_token_index)!"
+              echo "PADDING_TOKEN_INDEX ($E_PADDING_TOKEN_INDEX) does not match expected value ($exp_padding_token_index)!"
               exit 1
             fi
             if [ "$E_MASK_TOKEN_INDEX" != "$exp_mask_token_index" ]; then
-              echo "MASK_TOKEN_INDEX ($MASK_TOKEN_INDEX) does not match expected value ($exp_mask_token_index)!"
+              echo "MASK_TOKEN_INDEX ($E_MASK_TOKEN_INDEX) does not match expected value ($exp_mask_token_index)!"
               exit 1
             fi
           else
