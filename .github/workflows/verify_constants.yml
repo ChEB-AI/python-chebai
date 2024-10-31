@@ -1,5 +1,13 @@
 name: Verify Constants
 
+# Define the file paths under `paths` to trigger this check only when specific files are modified.
+# This script will then execute checks only on files that have changed, rather than all files listed in `paths`.
+
+# **Note** : To add a new file for checks, include its path in:
+# - `on` -> `push` and `pull_request` sections
+# - `jobs` -> `verify-constants` -> `steps` -> Verify constants -> Add a new if else for your file, with check logic inside it.
+
+
 on:
   push:
     paths:
