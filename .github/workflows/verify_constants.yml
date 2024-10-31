@@ -61,9 +61,10 @@ jobs:
 
       - name: Load constants into environment variables
         id: load_constants
+        # "E_" is appended as suffix to every constant, to protect overwriting other sys env variables with same name
         run: |
           constants=$(cat constants.json)
-          echo "$constants" | jq -r 'to_entries|map("export \(.key)=\(.value|tostring)")|.[]' >> $GITHUB_ENV
+          echo "$constants" | jq -r 'to_entries|map("E_\(.key)=\(.value|tostring)")|.[]' >> $GITHUB_ENV
 
       - name: Print all environment variables
         run: printenv
@@ -81,19 +82,19 @@ jobs:
             exp_mask_token_index="1"
 
             # Verify constants match expected values
-            if [ "$EMBEDDING_OFFSET" != "$exp_embedding_offset" ]; then
+            if [ "$E_EMBEDDING_OFFSET" != "$exp_embedding_offset" ]; then
               echo "EMBEDDING_OFFSET ($EMBEDDING_OFFSET) does not match expected value ($exp_embedding_offset)!"
               exit 1
             fi
-            if [ "$CLS_TOKEN" != "$exp_cls_token" ]; then
+            if [ "$E_CLS_TOKEN" != "$exp_cls_token" ]; then
               echo "CLS_TOKEN ($CLS_TOKEN) does not match expected value ($exp_cls_token)!"
               exit 1
             fi
-            if [ "$PADDING_TOKEN_INDEX" != "$exp_padding_token_index" ]; then
+            if [ "$E_PADDING_TOKEN_INDEX" != "$exp_padding_token_index" ]; then
               echo "PADDING_TOKEN_INDEX ($PADDING_TOKEN_INDEX) does not match expected value ($exp_padding_token_index)!"
               exit 1
             fi
-            if [ "$MASK_TOKEN_INDEX" != "$exp_mask_token_index" ]; then
+            if [ "$E_MASK_TOKEN_INDEX" != "$exp_mask_token_index" ]; then
               echo "MASK_TOKEN_INDEX ($MASK_TOKEN_INDEX) does not match expected value ($exp_mask_token_index)!"
               exit 1
             fi
