@@ -14,7 +14,12 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: [ "pypy3.9", "pypy3.10", "3.9", "3.10", "3.11" ]
+        python-version: [
+#       Only use 3.10 as of now
+#          "3.9",
+          "3.10",
+#          "3.11"
+        ]
 
     steps:
       - name: Checkout code
@@ -43,6 +48,8 @@ jobs:
           python-version: ${{ matrix.python-version }}
 
       - name: Install dependencies
+        # Setting a fix version for torch due to an error with latest version (2.5.1)
+        # ImportError: cannot import name 'T_co' from 'torch.utils.data.dataset'
         run: |
           python -m pip install --upgrade pip
           python -m pip install --upgrade pip setuptools wheel
@@ -60,21 +67,33 @@ jobs:
 
       - name: Verify constants
         run: |
-          if grep -q "chebai/preprocessing/reader.py" changed_files.txt; then
-            if [ "$EMBEDDING_OFFSET" != "10" ]; then
-              echo "EMBEDDING_OFFSET does not match expected value!"
+          file_name="chebai/preprocessing/reader.py"
+          if grep -q "$file_name" changed_files.txt; then
+            echo "----------------------- Checking file : $file_name ----------------------- "
+
+            # Define expected values for constants
+            exp_embedding_offset="10"
+            exp_cls_token="2"
+            exp_padding_token_index="0"
+            exp_mask_token_index="1"
+
+            # Verify constants match expected values
+            if [ "$EMBEDDING_OFFSET" != "$exp_embedding_offset" ]; then
+              echo "EMBEDDING_OFFSET ($EMBEDDING_OFFSET) does not match expected value ($exp_embedding_offset)!"
               exit 1
             fi
-            if [ "$CLS_TOKEN" != "2" ]; then
-              echo "CLS_TOKEN does not match expected value!"
+            if [ "$CLS_TOKEN" != "$exp_cls_token" ]; then
+              echo "CLS_TOKEN ($CLS_TOKEN) does not match expected value ($exp_cls_token)!"
               exit 1
             fi
-            if [ "$PADDING_TOKEN_INDEX" != "0" ]; then
-              echo "PADDING_TOKEN_INDEX does not match expected value!"
+            if [ "$PADDING_TOKEN_INDEX" != "$exp_padding_token_index" ]; then
+              echo "PADDING_TOKEN_INDEX ($PADDING_TOKEN_INDEX) does not match expected value ($exp_padding_token_index)!"
               exit 1
             fi
-            if [ "$MASK_TOKEN_INDEX" != "1" ]; then
-              echo "MASK_TOKEN_INDEX does not match expected value!"
+            if [ "$MASK_TOKEN_INDEX" != "$exp_mask_token_index" ]; then
+              echo "MASK_TOKEN_INDEX ($MASK_TOKEN_INDEX) does not match expected value ($exp_mask_token_index)!"
               exit 1
             fi
+          else
+            echo "$file_name not found in changed_files.txt; skipping check."
           fi
