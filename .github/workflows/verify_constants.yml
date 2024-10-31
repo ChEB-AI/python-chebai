@@ -75,6 +75,11 @@ jobs:
           if grep -q "$file_name" changed_files.txt; then
             echo "----------------------- Checking file : $file_name ----------------------- "
 
+            # Debugging output to check environment variables
+            echo "Current Environment Variables:"
+            echo "E_EMBEDDING_OFFSET = $E_EMBEDDING_OFFSET"
+            echo "Expected: $exp_embedding_offset"
+
             # Define expected values for constants
             exp_embedding_offset="10"
             exp_cls_token="2"
