@@ -65,6 +65,9 @@ jobs:
           constants=$(cat constants.json)
           echo "$constants" | jq -r 'to_entries|map("export \(.key)=\(.value|tostring)")|.[]' >> $GITHUB_ENV
 
+      - name: Print all environment variables
+        run: printenv
+
       - name: Verify constants
         run: |
           file_name="chebai/preprocessing/reader.py"
