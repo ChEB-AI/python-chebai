@@ -1372,10 +1372,10 @@ class AugmentedDataExtractor(_ChEBIDataExtractor):
                         path, self.raw_file_names_dict["data"]))
 
                     total_rows = data.shape[0]
-                    #For testing
-                    subset1 = data.iloc[:10000]  # First 10,000 of the datapoints for testing only
-                    data=subset1
-                    total_rows=subset1.shape[0]
+                    # #For testing
+                    # subset1 = data.iloc[:10000]  # First 10,000 of the datapoints for testing only
+                    # data=subset1
+                    # total_rows=subset1.shape[0]
                     # Calculate the total number of batches
                     total_batches = (total_rows + batch_size - 1) // batch_size
 
