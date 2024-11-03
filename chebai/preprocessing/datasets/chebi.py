@@ -449,33 +449,34 @@ class _ChEBIDataExtractor(XYBaseDataModule, ABC):
         #     )
 
         # Transform the processed data into encoded data
-        processed_name = self.processed_file_names_dict["data"]
-        if not os.path.isfile(os.path.join(self.processed_dir, processed_name)):
-            print(
-                f"Missing encoded data related to version {self.chebi_version}, transform processed data into encoded data:",
-                processed_name,
-            )
-            torch.save(
-                self._load_data_from_file(
-                    os.path.join(
-                        self.processed_dir_main,
-                        self.raw_file_names_dict["data"],
-                    )
-                ),
-                os.path.join(self.processed_dir, processed_name),
-            )
-        # Transform the data related to "chebi_version_train" to encoded data, if it doesn't exist
-        if self.chebi_version_train is not None and not os.path.isfile(
-            os.path.join(
-                self._chebi_version_train_obj.processed_dir,
-                self._chebi_version_train_obj.raw_file_names_dict["data"],
-            )
-        ):
-            print(
-                f"Missing encoded data related to train version: {self.chebi_version_train}"
-            )
-            print("Call the setup method related to it")
-            self._chebi_version_train_obj.setup()
+        if not self.aug_data:
+            processed_name = self.processed_file_names_dict["data"]
+            if not os.path.isfile(os.path.join(self.processed_dir, processed_name)):
+                print(
+                    f"Missing encoded data related to version {self.chebi_version}, transform processed data into encoded data:",
+                    processed_name,
+                )
+                torch.save(
+                    self._load_data_from_file(
+                        os.path.join(
+                            self.processed_dir_main,
+                            self.raw_file_names_dict["data"],
+                        )
+                    ),
+                    os.path.join(self.processed_dir, processed_name),
+                )
+            # Transform the data related to "chebi_version_train" to encoded data, if it doesn't exist
+            if self.chebi_version_train is not None and not os.path.isfile(
+                os.path.join(
+                    self._chebi_version_train_obj.processed_dir,
+                    self._chebi_version_train_obj.raw_file_names_dict["data"],
+                )
+            ):
+                print(
+                    f"Missing encoded data related to train version: {self.chebi_version_train}"
+                )
+                print("Call the setup method related to it")
+                self._chebi_version_train_obj.setup()
 
 
 
@@ -810,9 +811,13 @@ class _ChEBIDataExtractor(XYBaseDataModule, ABC):
         """
         print("Generate dynamic splits...")
         # Load encoded data derived from "chebi_version"
+        # Determine the directory for loading encoded data based on the aug_data flag
+        data_dir = self.augmented_dir_main if self.aug_data else self.processed_dir
+
         try:
             filename = self.processed_file_names_dict["data"]
-            data_chebi_version = torch.load(os.path.join(self.processed_dir, filename))
+            print("Directory:",os.path.join(data_dir, filename))
+            data_chebi_version = torch.load(os.path.join(data_dir, filename))
         except FileNotFoundError:
             raise FileNotFoundError(
                 f"File data.pt doesn't exists. "
