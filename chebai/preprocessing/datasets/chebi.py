@@ -28,7 +28,6 @@ from rdkit import Chem, RDLogger
 from tqdm import tqdm
 
 from chebai.preprocessing import reader as dr
-from chebai.preprocessing.datasets.aug import augment_data
 from chebai.preprocessing.datasets.base import XYBaseDataModule
 import random
 import time
