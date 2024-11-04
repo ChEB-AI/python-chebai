@@ -1,7 +1,11 @@
+from typing import Tuple
+
+import numpy as np
 import torch
 from jsonargparse import CLI
 from torchmetrics.functional.classification import multilabel_auroc
 
+from chebai.callbacks.epoch_metrics import MacroF1
 from chebai.result.utils import load_results_from_buffer
 
 
@@ -48,7 +52,7 @@ class EvaluatePredictions:
 
     def evaluate(self) -> None:
         """
-        Loads predictions and labels, validates file correspondence, and calculates Multilabel AUROC.
+        Loads predictions and labels, validates file correspondence, and calculates Multilabel AUROC and Fmax.
         """
         test_preds, test_labels = load_results_from_buffer(self.eval_dir, self.device)
         self.validate_eval_dir(test_labels, test_preds)
@@ -60,6 +64,38 @@ class EvaluatePredictions:
 
         print("Multilabel AUC-ROC:", ml_auroc)
 
+        fmax, threshold = self.calculate_fmax(test_preds, test_labels)
+        print(f"F-max : {fmax}, threshold: {threshold}")
+
+    def calculate_fmax(
+        self, test_preds: torch.Tensor, test_labels: torch.Tensor
+    ) -> Tuple[float, float]:
+        """
+        Calculates the Fmax metric using the F1 score at various thresholds.
+
+        Args:
+            test_preds (torch.Tensor): Predicted scores for the labels.
+            test_labels (torch.Tensor): True labels for the evaluation.
+
+        Returns:
+            Tuple[float, float]: The maximum F1 score and the corresponding threshold.
+        """
+        thresholds = np.linspace(0, 1, 100)
+        fmax = 0.0
+        best_threshold = 0.0
+
+        for t in thresholds:
+            custom_f1_metric = MacroF1(num_labels=self.num_labels, threshold=t)
+            custom_f1_metric.update(test_preds, test_labels)
+            custom_f1_metric_score = custom_f1_metric.compute().item()
+
+            # Check if the current score is the best we've seen
+            if custom_f1_metric_score > fmax:
+                fmax = custom_f1_metric_score
+                best_threshold = t
+
+        return fmax, best_threshold
+
 
 class Main:
     def evaluate(self, eval_dir: str):
@@ -67,4 +103,5 @@ class Main:
 
 
 if __name__ == "__main__":
+    # evaluate_predictions.py evaluate <path/to/file>
     CLI(Main)
