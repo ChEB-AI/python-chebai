@@ -80,7 +80,8 @@ class EvaluatePredictions:
         Returns:
             Tuple[float, float]: The maximum F1 score and the corresponding threshold.
         """
-        thresholds = np.linspace(0, 1, 100)
+        # https://github.com/bio-ontology-research-group/deepgo2/blob/main/deepgo/metrics.py#L51-L52
+        thresholds = np.linspace(0, 1, 101)
         fmax = 0.0
         best_threshold = 0.0
 
