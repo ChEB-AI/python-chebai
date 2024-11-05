@@ -56,10 +56,16 @@ class _GOUniProtDataExtractor(_DynamicDataset, ABC):
     Args:
         dynamic_data_split_seed (int, optional): The seed for random data splitting. Defaults to 42.
         splits_file_path (str, optional): Path to the splits CSV file. Defaults to None.
-        **kwargs: Additional keyword arguments passed to XYBaseDataModule.
+        max_sequence_length (int, optional): Specifies the maximum allowed sequence length for a protein, with a
+        default of 1002. During data preprocessing, any proteins exceeding this length will be excluded from further
+        processing.
+        **kwargs: Additional keyword arguments passed to DynamicDataset and  XYBaseDataModule.
 
     Attributes:
         dynamic_data_split_seed (int): The seed for random data splitting, default is 42.
+        max_sequence_length (int, optional): Specifies the maximum allowed sequence length for a protein, with a
+        default of 1002. During data preprocessing, any proteins exceeding this length will be excluded from further
+        processing.
         splits_file_path (Optional[str]): Path to the CSV file containing split assignments.
     """
 
