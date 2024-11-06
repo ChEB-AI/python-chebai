@@ -668,8 +668,8 @@ class GOUniProtMockData(MockOntologyGraphData):
         - **Swiss_Prot_11**: Has only Invalid GO class but lacks a sequence.
 
         Note:
-        A valid GO label is the one which has one of the following evidence code
-        (EXP, IDA, IPI, IMP, IGI, IEP, TAS, IC).
+        A valid GO label is the one which has one of the following evidence code defined in
+        `EXPERIMENTAL_EVIDENCE_CODES`.
 
         Returns:
             str: The raw UniProt data in string format.

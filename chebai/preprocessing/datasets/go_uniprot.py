@@ -43,6 +43,11 @@ EXPERIMENTAL_EVIDENCE_CODES = {
     "IEP",
     "TAS",
     "IC",
+    "HTP",
+    "HDA",
+    "HMP",
+    "HGI",
+    "HEP",
 }
 
 # https://github.com/bio-ontology-research-group/deepgo/blob/d97447a05c108127fee97982fd2c57929b2cf7eb/aaindex.py#L8
@@ -414,7 +419,7 @@ class _GOUniProtDataExtractor(_DynamicDataset, ABC):
 
             Quote from the DeepGo Paper:
             `We select proteins with annotations having experimental evidence codes
-            (EXP, IDA, IPI, IMP, IGI, IEP, TAS, IC) and filter the proteins by a
+            `EXPERIMENTAL_EVIDENCE_CODES` and filter the proteins by a
             maximum length of 1002, ignoring proteins with ambiguous amino acid codes
             (B, O, J, U, X, Z) in their sequence.`
 

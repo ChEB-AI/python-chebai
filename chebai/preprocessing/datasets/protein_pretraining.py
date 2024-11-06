@@ -96,8 +96,8 @@ class _ProteinPretrainingData(_DynamicDataset, ABC):
     def _parse_protein_data_for_pretraining(self) -> pd.DataFrame:
         """
         Parses the Swiss-Prot data and returns a DataFrame containing Swiss-Prot proteins which does not have any valid
-        Gene Ontology(GO) label. A valid GO label is the one which has one of the following evidence code
-        (EXP, IDA, IPI, IMP, IGI, IEP, TAS, IC).
+        Gene Ontology(GO) label. A valid GO label is the one which has one of the following evidence code defined in
+        `EXPERIMENTAL_EVIDENCE_CODES`.
 
         The DataFrame includes the following columns:
             - "swiss_id": The unique identifier for each Swiss-Prot record.
