@@ -1,0 +1,128 @@
+name: Check consistency of tokens.txt file
+
+# Define the file paths under `paths` to trigger this check only when specific files are modified.
+# This script will then execute checks only on files that have changed, rather than all files listed in `paths`.
+
+# **Note** : To add a new token file for checks, include its path in:
+# - `on` -> `push` and `pull_request` sections
+# - `jobs` -> `check_tokens` -> `steps` -> Set global variable for multiple tokens.txt paths -> `TOKENS_FILES`
+
+on:
+  push:
+    paths:
+      - "chebai/preprocessing/bin/smiles_token/tokens.txt"
+      - "chebai/preprocessing/bin/smiles_token_unlabeled/tokens.txt"
+      - "chebai/preprocessing/bin/selfies/tokens.txt"
+      - "chebai/preprocessing/bin/protein_token/tokens.txt"
+      - "chebai/preprocessing/bin/graph_properties/tokens.txt"
+      - "chebai/preprocessing/bin/graph/tokens.txt"
+      - "chebai/preprocessing/bin/deepsmiles_token/tokens.txt"
+      - "chebai/preprocessing/bin/protein_token_3_gram/tokens.txt"
+  pull_request:
+    paths:
+      - "chebai/preprocessing/bin/smiles_token/tokens.txt"
+      - "chebai/preprocessing/bin/smiles_token_unlabeled/tokens.txt"
+      - "chebai/preprocessing/bin/selfies/tokens.txt"
+      - "chebai/preprocessing/bin/protein_token/tokens.txt"
+      - "chebai/preprocessing/bin/graph_properties/tokens.txt"
+      - "chebai/preprocessing/bin/graph/tokens.txt"
+      - "chebai/preprocessing/bin/deepsmiles_token/tokens.txt"
+      - "chebai/preprocessing/bin/protein_token_3_gram/tokens.txt"
+
+jobs:
+  check_tokens:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: Get list of changed files
+        id: changed_files
+        run: |
+          git fetch origin dev
+
+          # Get the list of changed files compared to origin/dev and save them to a file
+          git diff --name-only origin/dev > changed_files.txt
+
+          # Print the names of changed files on separate lines
+          echo "Changed files:"
+          while read -r line; do
+            echo "Changed File name : $line"
+          done < changed_files.txt
+
+      - name: Set global variable for multiple tokens.txt paths
+        run: |
+          # All token files that needs to checked must be included here too, same as in `paths`.
+          TOKENS_FILES=(
+            "chebai/preprocessing/bin/smiles_token/tokens.txt"
+            "chebai/preprocessing/bin/smiles_token_unlabeled/tokens.txt"
+            "chebai/preprocessing/bin/selfies/tokens.txt"
+            "chebai/preprocessing/bin/protein_token/tokens.txt"
+            "chebai/preprocessing/bin/graph_properties/tokens.txt"
+            "chebai/preprocessing/bin/graph/tokens.txt"
+            "chebai/preprocessing/bin/deepsmiles_token/tokens.txt"
+            "chebai/preprocessing/bin/protein_token_3_gram/tokens.txt"
+          )
+          echo "TOKENS_FILES=${TOKENS_FILES[*]}" >> $GITHUB_ENV
+
+      - name: Process only changed tokens.txt files
+        run: |
+          # Convert the TOKENS_FILES environment variable into an array
+          TOKENS_FILES=(${TOKENS_FILES})
+
+          # Iterate over each token file path
+          for TOKENS_FILE_PATH in "${TOKENS_FILES[@]}"; do
+            # Check if the current token file path is in the list of changed files
+            if grep -q "$TOKENS_FILE_PATH" changed_files.txt; then
+              echo "----------------------- Processing $TOKENS_FILE_PATH -----------------------"
+
+              # Get previous tokens.txt version
+              git fetch origin dev
+              git diff origin/dev -- $TOKENS_FILE_PATH > tokens_diff.txt || echo "No previous tokens.txt found for $TOKENS_FILE_PATH"
+
+              # Check for deleted or added lines in tokens.txt
+              if [ -f tokens_diff.txt ]; then
+
+                # Check for deleted lines (lines starting with '-')
+                deleted_lines=$(grep '^-' tokens_diff.txt | grep -v '^---' | sed 's/^-//' || true)
+                if [ -n "$deleted_lines" ]; then
+                  echo "Error: Lines have been deleted from $TOKENS_FILE_PATH."
+                  echo -e "Deleted Lines: \n$deleted_lines"
+                  exit 1
+                fi
+
+                # Check for added lines (lines starting with '+')
+                added_lines=$(grep '^+' tokens_diff.txt | grep -v '^+++' | sed 's/^+//' || true)
+                if [ -n "$added_lines" ]; then
+
+                  # Count how many lines have been added
+                  num_added_lines=$(echo "$added_lines" | wc -l)
+
+                  # Get last `n` lines (equal to num_added_lines) of tokens.txt
+                  last_lines=$(tail -n "$num_added_lines" $TOKENS_FILE_PATH)
+
+                  # Check if the added lines are at the end of the file
+                  if [ "$added_lines" != "$last_lines" ]; then
+
+                    # Find lines that were added but not appended at the end of the file
+                    non_appended_lines=$(diff <(echo "$added_lines") <(echo "$last_lines") | grep '^<' | sed 's/^< //')
+
+                    echo "Error: New lines have been added to $TOKENS_FILE_PATH, but they are not at the end of the file."
+                    echo -e "Added lines that are not at the end of the file: \n$non_appended_lines"
+                    exit 1
+                  fi
+                fi
+
+                if [ "$added_lines" == "" ]; then
+                    echo "$TOKENS_FILE_PATH validation successful: No lines were deleted, and no new lines were added."
+                else
+                    echo "$TOKENS_FILE_PATH validation successful: No lines were deleted, and new lines were correctly appended at the end."
+                fi
+              else
+                echo "No previous version of $TOKENS_FILE_PATH found."
+              fi
+            else
+              echo "$TOKENS_FILE_PATH was not changed, skipping."
+            fi
+          done
