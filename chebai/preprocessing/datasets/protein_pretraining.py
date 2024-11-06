@@ -96,7 +96,7 @@ class _ProteinPretrainingData(_DynamicDataset, ABC):
     def _parse_protein_data_for_pretraining(self) -> pd.DataFrame:
         """
         Parses the Swiss-Prot data and returns a DataFrame containing Swiss-Prot proteins which does not have any valid
-        Gene Ontology(GO) label. A valid GO label is the one which has one of the following evidence code defined in
+        Gene Ontology(GO) label. A valid GO label is the one which has one of the following evidence codes, as specified in
         `EXPERIMENTAL_EVIDENCE_CODES`.
 
         The DataFrame includes the following columns:
@@ -104,7 +104,7 @@ class _ProteinPretrainingData(_DynamicDataset, ABC):
             - "sequence": The protein sequence.
 
         Note:
-            We ignore proteins with ambiguous amino acid codes (B, O, J, U, X, Z) in their sequence.`
+            We ignore proteins with ambiguous amino acid specified in `AMBIGUOUS_AMINO_ACIDS` in their sequence.`
 
         Returns:
             pd.DataFrame: A DataFrame where each row corresponds to a Swiss-Prot record with not associated valid GO.

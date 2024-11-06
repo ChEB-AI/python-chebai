@@ -1,12 +1,21 @@
-# Reference for this file :
+# References for this file :
+# Reference 1:
 # Maxat Kulmanov, Mohammed Asif Khan, Robert Hoehndorf;
 # DeepGO: Predicting protein functions from sequence and interactions
 # using a deep ontology-aware classifier, Bioinformatics, 2017.
 # https://doi.org/10.1093/bioinformatics/btx624
 # Github: https://github.com/bio-ontology-research-group/deepgo
+
+# Reference 2:
 # https://www.ebi.ac.uk/GOA/downloads
 # https://ftp.uniprot.org/pub/databases/uniprot/current_release/knowledgebase/complete/docs/keywlist.txt
 # https://www.uniprot.org/uniprotkb
+
+# Reference 3:
+# Kulmanov, M., Guzmán-Vega, F.J., Duek Roggli,
+# P. et al. Protein function prediction as approximate semantic entailment. Nat Mach Intell 6, 220–228 (2024).
+# https://doi.org/10.1038/s42256-024-00795-w
+# https://github.com/bio-ontology-research-group/deepgo2
 
 __all__ = [
     "GOUniProtOver250",
@@ -34,6 +43,7 @@ from Bio import SwissProt
 from chebai.preprocessing import reader as dr
 from chebai.preprocessing.datasets.base import _DynamicDataset
 
+# https://github.com/bio-ontology-research-group/deepgo/blob/master/utils.py#L15
 EXPERIMENTAL_EVIDENCE_CODES = {
     "EXP",
     "IDA",
@@ -43,6 +53,8 @@ EXPERIMENTAL_EVIDENCE_CODES = {
     "IEP",
     "TAS",
     "IC",
+    # New evidence codes added in latest paper year 2024 Reference number 3
+    # https://github.com/bio-ontology-research-group/deepgo2/blob/main/deepgo/utils.py#L24-L26
     "HTP",
     "HDA",
     "HMP",
@@ -51,7 +63,9 @@ EXPERIMENTAL_EVIDENCE_CODES = {
 }
 
 # https://github.com/bio-ontology-research-group/deepgo/blob/d97447a05c108127fee97982fd2c57929b2cf7eb/aaindex.py#L8
-AMBIGUOUS_AMINO_ACIDS = {"B", "O", "J", "U", "X", "Z", "*"}
+# https://github.com/bio-ontology-research-group/deepgo2/blob/main/deepgo/aminoacids.py#L10
+# `X` is now considered as valid amino acid, as per latest paper year 2024 Refernce number 3
+AMBIGUOUS_AMINO_ACIDS = {"B", "O", "J", "U", "Z", "*"}
 
 
 class _GOUniProtDataExtractor(_DynamicDataset, ABC):
@@ -416,12 +430,9 @@ class _GOUniProtDataExtractor(_DynamicDataset, ABC):
 
         Note:
             This mapping is necessary because the GO data does not include the protein sequence representation.
-
-            Quote from the DeepGo Paper:
-            `We select proteins with annotations having experimental evidence codes
-            `EXPERIMENTAL_EVIDENCE_CODES` and filter the proteins by a
-            maximum length of 1002, ignoring proteins with ambiguous amino acid codes
-            (B, O, J, U, X, Z) in their sequence.`
+            We select proteins with annotations having experimental evidence codes, as specified in
+            `EXPERIMENTAL_EVIDENCE_CODES` and filter the proteins by a maximum length of 1002, ignoring proteins with
+            ambiguous amino acid codes specified in `AMBIGUOUS_AMINO_ACIDS` in their sequence.
 
             Check the link below for keyword details:
             https://ftp.uniprot.org/pub/databases/uniprot/current_release/knowledgebase/complete/docs/keywlist.txt

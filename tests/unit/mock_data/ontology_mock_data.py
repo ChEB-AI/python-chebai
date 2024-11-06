@@ -658,18 +658,19 @@ class GOUniProtMockData(MockOntologyGraphData):
         - **Swiss_Prot_1**: A valid protein with three valid GO classes and one invalid GO class.
         - **Swiss_Prot_2**: Another valid protein with two valid GO classes and one invalid.
         - **Swiss_Prot_3**: Contains valid GO classes but has a sequence length > 1002.
-        - **Swiss_Prot_4**: Has valid GO classes but contains an invalid amino acid, 'X'.
+        - **Swiss_Prot_4**: Has valid GO classes but contains an invalid amino acid, 'B'.
         - **Swiss_Prot_5**: Has a sequence but no GO classes associated.
         - **Swiss_Prot_6**: Has GO classes without any associated evidence codes.
         - **Swiss_Prot_7**: Has a GO class with an invalid evidence code.
         - **Swiss_Prot_8**: Has a sequence length > 1002 and has only invalid GO class.
-        - **Swiss_Prot_9**: Has no GO classes but contains an invalid amino acid, 'X', in its sequence.
+        - **Swiss_Prot_9**: Has no GO classes but contains an invalid amino acid, 'B', in its sequence.
         - **Swiss_Prot_10**: Has a valid GO class but lacks a sequence.
         - **Swiss_Prot_11**: Has only Invalid GO class but lacks a sequence.
 
         Note:
-        A valid GO label is the one which has one of the following evidence code defined in
-        `EXPERIMENTAL_EVIDENCE_CODES`.
+        A valid GO label is the one which has one of the following evidence code specified in
+        go_uniprot.py->`EXPERIMENTAL_EVIDENCE_CODES`.
+        Invalid amino acids are specified in go_uniprot.py->`AMBIGUOUS_AMINO_ACIDS`.
 
         Returns:
             str: The raw UniProt data in string format.
@@ -715,7 +716,7 @@ class GOUniProtMockData(MockOntologyGraphData):
             "DR   GO; GO:0000005; P:regulation of viral transcription; IEA:InterPro.\n"
             "DR   GO; GO:0000006; P:regulation of viral transcription; EXP:PomBase.\n"
             "SQ   SEQUENCE   60 AA;  29735 MW;  B4840739BF7D4121 CRC64;\n"
-            "     XAFSAEDVLK EYDRRRRMEA LLLSLYYPND RKLLDYKEWS PPRVQVECPK APVEWNNPPS\n"
+            "     BAFSAEDVLK EYDRRRRMEA LLLSLYYPND RKLLDYKEWS PPRVQVECPK APVEWNNPPS\n"
             "//\n"
             # Below protein with sequence string but has no GO class
             "ID   Swiss_Prot_5              Reviewed;         60 AA.\n"
@@ -749,7 +750,7 @@ class GOUniProtMockData(MockOntologyGraphData):
             "ID   Swiss_Prot_9              Reviewed;         60 AA.\n"
             "AC   Q6GZX4;\n"
             "SQ   SEQUENCE   60 AA;  29735 MW;  B4840739BF7D4121 CRC64;\n"
-            "     XAFSAEDVLK EYDRRRRMEA LLLSLYYPND RKLLDYKEWS PPRVQVECPK APVEWNNPPS\n"
+            "     BAFSAEDVLK EYDRRRRMEA LLLSLYYPND RKLLDYKEWS PPRVQVECPK APVEWNNPPS\n"
             "//\n"
             # Below protein with a `valid` associated GO class but without sequence string
             "ID   Swiss_Prot_10              Reviewed;         60 AA.\n"

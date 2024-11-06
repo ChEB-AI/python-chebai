@@ -348,7 +348,7 @@ class ProteinDataReader(DataReader):
 
     COLLATOR = RaggedCollator
 
-    # 20 natural amino acid notation
+    # 21 natural amino acid notation
     AA_LETTER = [
         "A",
         "R",
@@ -370,6 +370,8 @@ class ProteinDataReader(DataReader):
         "W",
         "Y",
         "V",
+        # https://github.com/bio-ontology-research-group/deepgo2/blob/main/deepgo/aminoacids.py#L3-L5
+        "X",  # Consider valid in latest paper year 2024 Reference number 3 in go_uniprot.py
     ]
 
     def name(self) -> str:
