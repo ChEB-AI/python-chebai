@@ -43,8 +43,10 @@ class BCEWeighted(torch.nn.BCEWithLogitsLoss):
             self.beta is not None
             and self.data_extractor is not None
             and all(
-                os.path.exists(os.path.join(self.data_extractor.raw_dir, raw_file))
-                for raw_file in self.data_extractor.raw_file_names
+                os.path.exists(
+                    os.path.join(self.data_extractor.processed_dir_main, file_name)
+                )
+                for file_name in self.data_extractor.processed_main_file_names
             )
             and self.pos_weight is None
         ):
@@ -53,13 +55,13 @@ class BCEWeighted(torch.nn.BCEWithLogitsLoss):
                     pd.read_pickle(
                         open(
                             os.path.join(
-                                self.data_extractor.raw_dir,
-                                raw_file_name,
+                                self.data_extractor.processed_dir_main,
+                                file_name,
                             ),
                             "rb",
                         )
                     )
-                    for raw_file_name in self.data_extractor.raw_file_names
+                    for file_name in self.data_extractor.processed_main_file_names
                 ]
             )
             value_counts = []

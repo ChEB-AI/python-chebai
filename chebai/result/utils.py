@@ -66,6 +66,13 @@ def _run_batch(batch, model, collate):
     return preds, labels
 
 
+def _concat_tuple(l):
+    if isinstance(l[0], tuple):
+        print(l[0])
+        return tuple([torch.cat([t[i] for t in l]) for i in range(len(l[0]))])
+    return torch.cat(l)
+
+
 def evaluate_model(
     model: ChebaiBaseNet,
     data_module: XYBaseDataModule,
@@ -125,12 +132,12 @@ def evaluate_model(
             if buffer_dir is not None:
                 if n_saved * batch_size >= save_batch_size:
                     torch.save(
-                        torch.cat(preds_list),
+                        _concat_tuple(preds_list),
                         os.path.join(buffer_dir, f"preds{save_ind:03d}.pt"),
                     )
                     if labels_list[0] is not None:
                         torch.save(
-                            torch.cat(labels_list),
+                            _concat_tuple(labels_list),
                             os.path.join(buffer_dir, f"labels{save_ind:03d}.pt"),
                         )
                     preds_list = []
@@ -141,20 +148,20 @@ def evaluate_model(
         n_saved += 1
 
     if buffer_dir is None:
-        test_preds = torch.cat(preds_list)
+        test_preds = _concat_tuple(preds_list)
         if labels_list is not None:
-            test_labels = torch.cat(labels_list)
+            test_labels = _concat_tuple(labels_list)
 
             return test_preds, test_labels
         return test_preds, None
     else:
         torch.save(
-            torch.cat(preds_list),
+            _concat_tuple(preds_list),
             os.path.join(buffer_dir, f"preds{save_ind:03d}.pt"),
         )
         if labels_list[0] is not None:
             torch.save(
-                torch.cat(labels_list),
+                _concat_tuple(labels_list),
                 os.path.join(buffer_dir, f"labels{save_ind:03d}.pt"),
             )
 

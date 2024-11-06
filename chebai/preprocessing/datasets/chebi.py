@@ -185,7 +185,7 @@ class _ChEBIDataExtractor(_DynamicDataset, ABC):
             if not os.path.isfile(
                 os.path.join(
                     self._chebi_version_train_obj.processed_dir_main,
-                    self._chebi_version_train_obj.processed_dir_main_file_names_dict[
+                    self._chebi_version_train_obj.processed_main_file_names_dict[
                         "data"
                     ],
                 )
@@ -216,9 +216,7 @@ class _ChEBIDataExtractor(_DynamicDataset, ABC):
         Returns:
             str: The file path of the loaded ChEBI ontology.
         """
-        chebi_name = (
-            f"chebi.obo" if version == self.chebi_version else f"chebi_v{version}.obo"
-        )
+        chebi_name = self.raw_file_names_dict["chebi"]
         chebi_path = os.path.join(self.raw_dir, chebi_name)
         if not os.path.isfile(chebi_path):
             print(
@@ -539,6 +537,10 @@ class _ChEBIDataExtractor(_DynamicDataset, ABC):
             return res
         else:
             return os.path.join(res, f"single_{self.single_class}")
+
+    @property
+    def raw_file_names_dict(self) -> dict:
+        return {"chebi": "chebi.obo"}
 
 
 class JCIExtendedBase(_ChEBIDataExtractor):
