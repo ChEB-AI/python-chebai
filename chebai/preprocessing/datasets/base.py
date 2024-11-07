@@ -14,6 +14,7 @@ from iterstrat.ml_stratifiers import (
 )
 from lightning.pytorch.core.datamodule import LightningDataModule
 from lightning_utilities.core.rank_zero import rank_zero_info
+from sklearn.model_selection import StratifiedShuffleSplit
 from torch.utils.data import DataLoader
 
 from chebai.preprocessing import reader as dr
@@ -134,9 +135,14 @@ class XYBaseDataModule(LightningDataModule):
         return os.path.join("data", self._name)
 
     @property
+    def processed_dir_main(self) -> str:
+        """Name of the directory where processed (but not tokenized) data is stored."""
+        return os.path.join(self.base_dir, "processed")
+
+    @property
     def processed_dir(self) -> str:
-        """Name of the directory where the processed data is stored."""
-        return os.path.join(self.base_dir, "processed", *self.identifier)
+        """Name of the directory where the processed and tokenized data is stored."""
+        return os.path.join(self.processed_dir_main, *self.identifier)
 
     @property
     def raw_dir(self) -> str:
@@ -199,7 +205,9 @@ class XYBaseDataModule(LightningDataModule):
                     filename = self.processed_file_names_dict[kind]
             except NotImplementedError:
                 filename = f"{kind}.pt"
-        return torch.load(os.path.join(self.processed_dir, filename))
+        return torch.load(
+            os.path.join(self.processed_dir, filename), weights_only=False
+        )
 
     def dataloader(self, kind: str, **kwargs) -> DataLoader:
         """
@@ -391,45 +399,61 @@ class XYBaseDataModule(LightningDataModule):
         raise NotImplementedError
 
     @property
-    def processed_file_names(self) -> List[str]:
+    def processed_main_file_names_dict(self) -> dict:
         """
-        Returns the list of processed file names.
-
-        This property should be implemented by subclasses to provide the list of processed file names.
+        Returns a dictionary mapping processed data file names.
 
         Returns:
-            List[str]: The list of processed file names.
+            dict: A dictionary mapping dataset key to their respective file names.
+                  For example, {"data": "data.pkl"}.
         """
         raise NotImplementedError
+
+    @property
+    def processed_main_file_names(self) -> List[str]:
+        """
+        Returns a list of file names for processed data (before tokenization).
+
+        Returns:
+            List[str]: A list of file names corresponding to the processed data.
+        """
+        return list(self.processed_main_file_names_dict.values())
+
+    @property
+    def processed_file_names_dict(self) -> dict:
+        """
+        Returns a dictionary for the processed and tokenized data files.
+
+        Returns:
+            dict: A dictionary mapping dataset keys to their respective file names.
+                  For example, {"data": "data.pt"}.
+        """
+        raise NotImplementedError
+
+    @property
+    def processed_file_names(self) -> List[str]:
+        """
+        Returns a list of file names for processed data.
+
+        Returns:
+            List[str]: A list of file names corresponding to the processed data.
+        """
+        return list(self.processed_file_names_dict.values())
 
     @property
     def raw_file_names(self) -> List[str]:
         """
         Returns the list of raw file names.
 
-        This property should be implemented by subclasses to provide the list of raw file names.
-
         Returns:
             List[str]: The list of raw file names.
         """
-        raise NotImplementedError
-
-    @property
-    def processed_file_names_dict(self) -> dict:
-        """
-        Returns the dictionary of processed file names.
-
-        This property should be implemented by subclasses to provide the dictionary of processed file names.
-
-        Returns:
-            dict: The dictionary of processed file names.
-        """
-        raise NotImplementedError
+        return list(self.raw_file_names_dict.values())
 
     @property
     def raw_file_names_dict(self) -> dict:
         """
-        Returns the dictionary of raw file names.
+        Returns the dictionary of raw file names (i.e., files that are directly obtained from an external source).
 
         This property should be implemented by subclasses to provide the dictionary of raw file names.
 
@@ -518,7 +542,7 @@ class MergedDataset(XYBaseDataModule):
             DataLoader: DataLoader object for the specified subset.
         """
         subdatasets = [
-            torch.load(os.path.join(s.processed_dir, f"{kind}.pt"))
+            torch.load(os.path.join(s.processed_dir, f"{kind}.pt"), weights_only=False)
             for s in self.subsets
         ]
         dataset = [
@@ -702,7 +726,7 @@ class _DynamicDataset(XYBaseDataModule, ABC):
         """
         print("Checking for processed data in", self.processed_dir_main)
 
-        processed_name = self.processed_dir_main_file_names_dict["data"]
+        processed_name = self.processed_main_file_names_dict["data"]
         if not os.path.isfile(os.path.join(self.processed_dir_main, processed_name)):
             print("Missing processed data file (`data.pkl` file)")
             os.makedirs(self.processed_dir_main, exist_ok=True)
@@ -793,7 +817,7 @@ class _DynamicDataset(XYBaseDataModule, ABC):
             self._load_data_from_file(
                 os.path.join(
                     self.processed_dir_main,
-                    self.processed_dir_main_file_names_dict["data"],
+                    self.processed_main_file_names_dict["data"],
                 )
             ),
             os.path.join(self.processed_dir, self.processed_file_names_dict["data"]),
@@ -929,11 +953,17 @@ class _DynamicDataset(XYBaseDataModule, ABC):
         labels_list = df["labels"].tolist()
 
         test_size = 1 - self.train_split - (1 - self.train_split) ** 2
-        msss = MultilabelStratifiedShuffleSplit(
-            n_splits=1, test_size=test_size, random_state=seed
-        )
 
-        train_indices, test_indices = next(msss.split(labels_list, labels_list))
+        if len(labels_list[0]) > 1:
+            splitter = MultilabelStratifiedShuffleSplit(
+                n_splits=1, test_size=test_size, random_state=seed
+            )
+        else:
+            splitter = StratifiedShuffleSplit(
+                n_splits=1, test_size=test_size, random_state=seed
+            )
+
+        train_indices, test_indices = next(splitter.split(labels_list, labels_list))
 
         df_train = df.iloc[train_indices]
         df_test = df.iloc[test_indices]
@@ -985,12 +1015,18 @@ class _DynamicDataset(XYBaseDataModule, ABC):
 
         # scale val set size by 1/self.train_split to compensate for (hypothetical) test set size (1-self.train_split)
         test_size = ((1 - self.train_split) ** 2) / self.train_split
-        msss = MultilabelStratifiedShuffleSplit(
-            n_splits=1, test_size=test_size, random_state=seed
-        )
+
+        if len(labels_list_trainval[0]) > 1:
+            splitter = MultilabelStratifiedShuffleSplit(
+                n_splits=1, test_size=test_size, random_state=seed
+            )
+        else:
+            splitter = StratifiedShuffleSplit(
+                n_splits=1, test_size=test_size, random_state=seed
+            )
 
         train_indices, validation_indices = next(
-            msss.split(labels_list_trainval, labels_list_trainval)
+            splitter.split(labels_list_trainval, labels_list_trainval)
         )
 
         df_validation = df_trainval.iloc[validation_indices]
@@ -1009,7 +1045,9 @@ class _DynamicDataset(XYBaseDataModule, ABC):
         splits_df = pd.read_csv(self.splits_file_path)
 
         filename = self.processed_file_names_dict["data"]
-        data = torch.load(os.path.join(self.processed_dir, filename))
+        data = torch.load(
+            os.path.join(self.processed_dir, filename), weights_only=False
+        )
         df_data = pd.DataFrame(data)
 
         train_ids = splits_df[splits_df["split"] == "train"]["id"]
@@ -1068,7 +1106,9 @@ class _DynamicDataset(XYBaseDataModule, ABC):
 
         # If filename is provided
         try:
-            return torch.load(os.path.join(self.processed_dir, filename))
+            return torch.load(
+                os.path.join(self.processed_dir, filename), weights_only=False
+            )
         except FileNotFoundError:
             raise FileNotFoundError(f"File {filename} doesn't exist")
 
@@ -1099,25 +1139,12 @@ class _DynamicDataset(XYBaseDataModule, ABC):
         )
 
     @property
-    def processed_dir(self) -> str:
+    def processed_main_file_names_dict(self) -> dict:
         """
-        Returns the specific directory path for processed data, including identifiers.
+        Returns a dictionary mapping processed data file names.
 
         Returns:
-            str: The path to the processed data directory, including additional identifiers.
-        """
-        return os.path.join(
-            self.processed_dir_main,
-            *self.identifier,
-        )
-
-    @property
-    def processed_dir_main_file_names_dict(self) -> dict:
-        """
-        Returns a dictionary mapping processed data file names, processed by `prepare_data` method.
-
-        Returns:
-            dict: A dictionary mapping dataset types to their respective processed file names.
+            dict: A dictionary mapping dataset key to their respective file names.
                   For example, {"data": "data.pkl"}.
         """
         return {"data": "data.pkl"}
@@ -1125,21 +1152,10 @@ class _DynamicDataset(XYBaseDataModule, ABC):
     @property
     def processed_file_names_dict(self) -> dict:
         """
-        Returns a dictionary mapping processed and transformed data file names to their final formats, which are
-        processed by `setup` method.
+        Returns a dictionary for the processed and tokenized data files.
 
         Returns:
-            dict: A dictionary mapping dataset types to their respective final file names.
+            dict: A dictionary mapping dataset keys to their respective file names.
                   For example, {"data": "data.pt"}.
         """
         return {"data": "data.pt"}
-
-    @property
-    def processed_file_names(self) -> List[str]:
-        """
-        Returns a list of file names for processed data.
-
-        Returns:
-            List[str]: A list of file names corresponding to the processed data.
-        """
-        return list(self.processed_file_names_dict.values())

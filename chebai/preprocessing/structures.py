@@ -2,7 +2,6 @@ from typing import Any, Tuple, Union
 
 import networkx as nx
 import torch
-from torch.utils.data.dataset import T_co
 
 
 class XYData(torch.utils.data.Dataset):
@@ -23,7 +22,7 @@ class XYData(torch.utils.data.Dataset):
         self.x = x
         self.y = y
 
-    def __getitem__(self, index: int) -> T_co:
+    def __getitem__(self, index: int):
         """Returns the data and target at the given index."""
         return self.x[index], self.y[index]
 

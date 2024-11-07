@@ -427,7 +427,9 @@ def run_all(
                     os.path.join(buffer_dir_smoothed, "preds000.pt")
                 ):
                     preds = torch.load(
-                        os.path.join(buffer_dir_smoothed, "preds000.pt"), DEVICE
+                        os.path.join(buffer_dir_smoothed, "preds000.pt"),
+                        DEVICE,
+                        weights_only=False,
                     )
                     labels = None
                 else:

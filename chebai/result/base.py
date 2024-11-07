@@ -54,7 +54,7 @@ class ResultFactory(abc.ABC):
         else:
             data_tuples = [
                 (x.get("raw_features", x["ident"]), x["ident"], x)
-                for x in torch.load(data_path)
+                for x in torch.load(data_path, weights_only=False)
             ]
 
         for raw_features, ident, row in tqdm.tqdm(data_tuples):

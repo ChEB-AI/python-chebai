@@ -1,0 +1,116 @@
+name: Verify Constants
+
+# Define the file paths under `paths` to trigger this check only when specific files are modified.
+# This script will then execute checks only on files that have changed, rather than all files listed in `paths`.
+
+# **Note** : To add a new file for checks, include its path in:
+# - `on` -> `push` and `pull_request` sections
+# - `jobs` -> `verify-constants` -> `steps` -> Verify constants -> Add a new if else for your file, with check logic inside it.
+
+
+on:
+  push:
+    paths:
+      - "chebai/preprocessing/reader.py"
+  pull_request:
+    paths:
+      - "chebai/preprocessing/reader.py"
+
+jobs:
+  verify-constants:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: [
+#       Only use 3.10 as of now
+#          "3.9",
+          "3.10",
+#          "3.11"
+        ]
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set PYTHONPATH
+        run: echo "PYTHONPATH=$PWD" >> $GITHUB_ENV
+
+      - name: Get list of changed files
+        id: changed_files
+        run: |
+          git fetch origin dev
+
+          # Get the list of changed files compared to origin/dev and save them to a file
+          git diff --name-only origin/dev > changed_files.txt
+
+          # Print the names of changed files on separate lines
+          echo "Changed files:"
+          while read -r line; do
+            echo "Changed File name : $line"
+          done < changed_files.txt
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install dependencies
+        # Setting a fix version for torch due to an error with latest version (2.5.1)
+        # ImportError: cannot import name 'T_co' from 'torch.utils.data.dataset'
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install --upgrade pip setuptools wheel
+          python -m pip install torch==2.4.1 --index-url https://download.pytorch.org/whl/cpu
+          python -m pip install -e .
+
+      - name: Export constants
+        run: python .github/workflows/export_constants.py
+
+      - name: Load constants into environment variables
+        id: load_constants
+        # "E_" is appended as suffix to every constant, to protect overwriting other sys env variables with same name
+        run: |
+          constants=$(cat constants.json)
+          echo "$constants" | jq -r 'to_entries|map("E_\(.key)=\(.value|tostring)")|.[]' >> $GITHUB_ENV
+
+      - name: Print all environment variables
+        run: printenv
+
+      - name: Verify constants
+        run: |
+          file_name="chebai/preprocessing/reader.py"
+          if grep -q "$file_name" changed_files.txt; then
+            echo "----------------------- Checking file : $file_name ----------------------- "
+
+            # Define expected values for constants
+            exp_embedding_offset="10"
+            exp_cls_token="2"
+            exp_padding_token_index="0"
+            exp_mask_token_index="1"
+
+            # Debugging output to check environment variables
+            echo "Current Environment Variables:"
+            echo "E_EMBEDDING_OFFSET = $E_EMBEDDING_OFFSET"
+            echo "Expected: $exp_embedding_offset"
+
+            # Verify constants match expected values
+            if [ "$E_EMBEDDING_OFFSET" != "$exp_embedding_offset" ]; then
+              echo "EMBEDDING_OFFSET ($E_EMBEDDING_OFFSET) does not match expected value ($exp_embedding_offset)!"
+              exit 1
+            fi
+            if [ "$E_CLS_TOKEN" != "$exp_cls_token" ]; then
+              echo "CLS_TOKEN ($E_CLS_TOKEN) does not match expected value ($exp_cls_token)!"
+              exit 1
+            fi
+            if [ "$E_PADDING_TOKEN_INDEX" != "$exp_padding_token_index" ]; then
+              echo "PADDING_TOKEN_INDEX ($E_PADDING_TOKEN_INDEX) does not match expected value ($exp_padding_token_index)!"
+              exit 1
+            fi
+            if [ "$E_MASK_TOKEN_INDEX" != "$exp_mask_token_index" ]; then
+              echo "MASK_TOKEN_INDEX ($E_MASK_TOKEN_INDEX) does not match expected value ($exp_mask_token_index)!"
+              exit 1
+            fi
+          else
+            echo "$file_name not found in changed_files.txt; skipping check."
+          fi

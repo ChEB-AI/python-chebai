@@ -256,7 +256,9 @@ class Electra(ChebaiBaseNet):
         # Load pretrained checkpoint if provided
         if pretrained_checkpoint:
             with open(pretrained_checkpoint, "rb") as fin:
-                model_dict = torch.load(fin, map_location=self.device)
+                model_dict = torch.load(
+                    fin, map_location=self.device, weights_only=False
+                )
                 if load_prefix:
                     state_dict = filter_dict(model_dict["state_dict"], load_prefix)
                 else:
@@ -414,7 +416,9 @@ class ConeElectra(ChebaiBaseNet):
         model_prefix = kwargs.get("load_prefix", None)
         if pretrained_checkpoint:
             with open(pretrained_checkpoint, "rb") as fin:
-                model_dict = torch.load(fin, map_location=self.device)
+                model_dict = torch.load(
+                    fin, map_location=self.device, weights_only=False
+                )
                 if model_prefix:
                     state_dict = {
                         str(k)[len(model_prefix) :]: v
