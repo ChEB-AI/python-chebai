@@ -1,7 +1,6 @@
 import os
 from collections import OrderedDict
-from random import randint
-from typing import List, Literal
+from typing import List, Literal, Optional
 
 import pandas as pd
 from jsonargparse import CLI
@@ -59,12 +58,12 @@ class DeepGoDataMigration:
             raise ValueError(f"go_branch must be one of {valid_go_branches}")
         self._go_branch = go_branch
 
-        self._data_dir = os.path.join(data_dir, go_branch)
-        self._train_df: pd.DataFrame = None
-        self._test_df: pd.DataFrame = None
-        self._validation_df: pd.DataFrame = None
-        self._terms_df: pd.DataFrame = None
-        self._classes: List[str] = None
+        self._data_dir: str = os.path.join(rf"{data_dir}", go_branch)
+        self._train_df: Optional[pd.DataFrame] = None
+        self._test_df: Optional[pd.DataFrame] = None
+        self._validation_df: Optional[pd.DataFrame] = None
+        self._terms_df: Optional[pd.DataFrame] = None
+        self._classes: Optional[List[str]] = None
 
     def _load_data(self) -> None:
         """
@@ -114,7 +113,13 @@ class DeepGoDataMigration:
         print("Migration started......")
         self._load_data()
         if not all(
-            [self._train_df, self._validation_df, self._test_df, self._terms_df]
+            df is not None
+            for df in [
+                self._train_df,
+                self._validation_df,
+                self._test_df,
+                self._terms_df,
+            ]
         ):
             raise Exception(
                 "Data splits or terms data is not available in instance variables."
@@ -124,7 +129,9 @@ class DeepGoDataMigration:
         data_df = self._extract_required_data_from_splits()
         data_with_labels_df = self._generate_labels(data_df)
 
-        if not all([data_with_labels_df, splits_df, self._classes]):
+        if not all(
+            var is not None for var in [data_with_labels_df, splits_df, self._classes]
+        ):
             raise Exception(
                 "Data splits or terms data is not available in instance variables."
             )
@@ -184,8 +191,8 @@ class DeepGoDataMigration:
             pd.DataFrame: DataFrame with new label columns.
         """
         print("Generating labels based on terms.pkl file.......")
-        parsed_go_ids: pd.Series = self._terms_df.apply(
-            lambda row: self.extract_go_id(row["gos"])
+        parsed_go_ids: pd.Series = self._terms_df["gos"].apply(
+            lambda gos: _GOUniProtDataExtractor._parse_go_id(gos)
         )
         all_go_ids_list = parsed_go_ids.values.tolist()
         self._classes = all_go_ids_list
@@ -203,7 +210,7 @@ class DeepGoDataMigration:
         return data_df
 
     @staticmethod
-    def extract_go_id(go_list: List[str]) -> List[str]:
+    def extract_go_id(go_list: List[str]) -> List[int]:
         """
         Extracts and parses GO IDs from a list of GO annotations.
 
@@ -230,13 +237,13 @@ class DeepGoDataMigration:
         print("Saving transformed data......")
         go_class_instance: _GOUniProtDataExtractor = self._CORRESPONDING_GO_CLASSES[
             self._go_branch
-        ](go_branch=self._go_branch, max_sequence_length=self._MAXLEN)
+        ](go_branch=self._go_branch.upper(), max_sequence_length=self._MAXLEN)
 
         go_class_instance.save_processed(
-            data_df, go_class_instance.processed_file_names_dict["data"]
+            data_df, go_class_instance.processed_main_file_names_dict["data"]
         )
         print(
-            f"{go_class_instance.processed_file_names_dict['data']} saved to {go_class_instance.processed_dir_main}"
+            f"{go_class_instance.processed_main_file_names_dict['data']} saved to {go_class_instance.processed_dir_main}"
         )
 
         splits_df.to_csv(
@@ -263,7 +270,8 @@ class Main:
             Initiates the migration process for the specified data directory and GO branch.
     """
 
-    def migrate(self, data_dir: str, go_branch: str) -> None:
+    @staticmethod
+    def migrate(data_dir: str, go_branch: Literal["cc", "mf", "bp"]) -> None:
         """
         Initiates the migration process by creating a DeepGoDataMigration instance
         and invoking its migrate method.
@@ -278,29 +286,12 @@ class Main:
         DeepGoDataMigration(data_dir, go_branch).migrate()
 
 
-class Main1:
-    def __init__(self, max_prize: int = 100):
-        """
-        Args:
-            max_prize: Maximum prize that can be awarded.
-        """
-        self.max_prize = max_prize
-
-    def person(self, name: str, additional_prize: int = 0):
-        """
-        Args:
-            name: Name of the winner.
-            additional_prize: Additional prize that can be added to the prize amount.
-        """
-        prize = randint(0, self.max_prize) + additional_prize
-        return f"{name} won {prize}€!"
-
-
 if __name__ == "__main__":
-    # Example:  python script_name.py migrate data_dir="data/deep_go_se_training_data" go_branch="bp"
+    # Example:  python script_name.py migrate --data_dir="data/deep_go_se_training_data" --go_branch="bp"
     # --data_dir specifies the directory containing the data files.
     # --go_branch specifies the GO branch (cc, mf, or bp) you want to use for the migration.
     CLI(
-        Main1,
+        Main,
         description="DeepGoDataMigration CLI tool to handle migration of GO data for specified branches (cc, mf, bp).",
+        as_positional=False,
     )
