@@ -12,10 +12,16 @@ from chebai.preprocessing.datasets.go_uniprot import (
 )
 
 
-class DeepGoDataMigration:
+class DeepGo2DataMigration:
     """
     A class to handle data migration and processing for the DeepGO project. It migrates the data from the DeepGO-SE
     data structure to our data structure followed for GO-UniProt data.
+
+    It migrates the data of DeepGO model of the below research paper:
+        Maxat Kulmanov, Mohammed Asif Khan, Robert Hoehndorf,
+        DeepGO: predicting protein functions from sequence and interactions using a deep ontology-aware classifier,
+        Bioinformatics, Volume 34, Issue 4, February 2018, Pages 660–668
+        (https://doi.org/10.1093/bioinformatics/btx624),
 
     Attributes:
         _CORRESPONDING_GO_CLASSES (dict): Mapping of GO branches to specific data extractor classes.
@@ -283,7 +289,7 @@ class Main:
                                                    "mf" for molecular_function,
                                                    or "bp" for biological_process).
         """
-        DeepGoDataMigration(data_dir, go_branch).migrate()
+        DeepGo2DataMigration(data_dir, go_branch).migrate()
 
 
 if __name__ == "__main__":
