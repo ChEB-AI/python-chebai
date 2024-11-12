@@ -46,7 +46,7 @@ class ChebaiBaseNet(LightningModule):
         super().__init__()
         self.criterion = criterion
         self.save_hyperparameters(
-            ignore=["criterion", "train_metrics", "val_metrics", "test_metrics"]
+            ignore=["criterion", "train_metrics", "val_metrics", "test_metrics","_class_path"]
         )
         self.out_dim = out_dim
         if optimizer_kwargs:
