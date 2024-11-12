@@ -89,6 +89,14 @@ class DeepGo1DataMigration:
             # self._validation_df = pd.DataFrame(
             #     pd.read_pickle(os.path.join(self._data_dir, f"valid-{self._go_branch}.pkl"))
             # )
+
+            # DeepGO1 data does not include a separate validation split, but our data structure requires one.
+            # To accommodate this, we will create a placeholder validation split by duplicating a small subset of the
+            # training data. However, to ensure a fair comparison with DeepGO1, we will retain the full training set
+            # without creating an exclusive validation split from it.
+            # Therefore, any metrics calculated on this placeholder validation set should be disregarded, as they do not
+            # reflect true validation performance.
+            self._validation_df = self._train_df[len(self._train_df) - 5 :]
             self._terms_df = pd.DataFrame(
                 pd.read_pickle(os.path.join(self._data_dir, f"{self._go_branch}.pkl"))
             )
@@ -106,9 +114,9 @@ class DeepGo1DataMigration:
         print("Recording splits...")
         split_assignment_list: List[pd.DataFrame] = [
             pd.DataFrame({"id": self._train_df["proteins"], "split": "train"}),
-            # pd.DataFrame(
-            #     {"id": self._validation_df["proteins"], "split": "validation"}
-            # ),
+            pd.DataFrame(
+                {"id": self._validation_df["proteins"], "split": "validation"}
+            ),
             pd.DataFrame({"id": self._test_df["proteins"], "split": "test"}),
         ]
 
@@ -125,7 +133,7 @@ class DeepGo1DataMigration:
             df is not None
             for df in [
                 self._train_df,
-                # self._validation_df,
+                self._validation_df,
                 self._test_df,
                 self._terms_df,
             ]
@@ -166,7 +174,7 @@ class DeepGo1DataMigration:
         new_df = pd.concat(
             [
                 self._train_df[required_columns],
-                # self._validation_df[required_columns],
+                self._validation_df[required_columns],
                 self._test_df[required_columns],
             ],
             ignore_index=True,
