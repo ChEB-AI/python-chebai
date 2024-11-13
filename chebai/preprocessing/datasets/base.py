@@ -728,7 +728,7 @@ class _DynamicDataset(XYBaseDataModule, ABC):
 
         processed_name = self.processed_main_file_names_dict["data"]
         if not os.path.isfile(os.path.join(self.processed_dir_main, processed_name)):
-            print("Missing processed data file (`data.pkl` file)")
+            print(f"Missing processed data file (`{processed_name}` file)")
             os.makedirs(self.processed_dir_main, exist_ok=True)
             data_path = self._download_required_data()
             g = self._extract_class_hierarchy(data_path)
@@ -812,12 +812,15 @@ class _DynamicDataset(XYBaseDataModule, ABC):
             None
         """
         os.makedirs(self.processed_dir, exist_ok=True)
-        print("Missing transformed data (`data.pt` file). Transforming data.... ")
+        processed_main_file_name = self.processed_main_file_names_dict["data"]
+        print(
+            f"Missing transformed data (`{processed_main_file_name}` file). Transforming data.... "
+        )
         torch.save(
             self._load_data_from_file(
                 os.path.join(
                     self.processed_dir_main,
-                    self.processed_main_file_names_dict["data"],
+                    processed_main_file_name,
                 )
             ),
             os.path.join(self.processed_dir, self.processed_file_names_dict["data"]),
