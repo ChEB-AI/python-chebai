@@ -96,7 +96,10 @@ class DeepGo2DataMigration:
                 pd.read_pickle(os.path.join(self._data_dir, "terms.pkl"))
             )
         except FileNotFoundError as e:
-            print(f"Error loading data: {e}")
+            raise FileNotFoundError(
+                f"Data file not found in directory: {e}. "
+                "Please ensure all required files are available in the specified directory."
+            )
 
     def _record_splits(self) -> pd.DataFrame:
         """

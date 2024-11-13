@@ -104,7 +104,10 @@ class DeepGo1DataMigration:
             )
 
         except FileNotFoundError as e:
-            print(f"Error loading data: {e}")
+            raise FileNotFoundError(
+                f"Data file not found in directory: {e}. "
+                "Please ensure all required files are available in the specified directory."
+            )
 
     @staticmethod
     def _get_train_val_split(

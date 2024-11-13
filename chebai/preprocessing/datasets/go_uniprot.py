@@ -764,7 +764,7 @@ class _DeepGOMigratedData(_GOUniProtDataExtractor, ABC):
         Returns:
             str: A formatted name string for the data.
         """
-        threshold_part = f"GO{self.THRESHOLD}_" if self.THRESHOLD is not None else ""
+        threshold_part = f"GO{self.THRESHOLD}_" if self.THRESHOLD is not None else "GO_"
 
         if self.go_branch != self._ALL_GO_BRANCHES:
             return f"{threshold_part}{self.go_branch}_{self.max_sequence_length}"
