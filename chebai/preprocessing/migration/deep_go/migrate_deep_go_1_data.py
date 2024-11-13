@@ -14,7 +14,7 @@ class DeepGo1DataMigration:
     A class to handle data migration and processing for the DeepGO project.
     It migrates the DeepGO data to our data structure followed for GO-UniProt data.
 
-    This class handles data from the DeepGO model as described in:
+    This class handles migration of data from the DeepGO paper below:
         Maxat Kulmanov, Mohammed Asif Khan, Robert Hoehndorf,
         DeepGO: predicting protein functions from sequence and interactions using a deep ontology-aware classifier,
         Bioinformatics, Volume 34, Issue 4, February 2018, Pages 660–668
