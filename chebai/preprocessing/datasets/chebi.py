@@ -1345,7 +1345,7 @@ class AugmentedDataExtractor(_ChEBIDataExtractor):
 
     @property
     def _name(self):
-        return "ChEBI50"
+        return "ChEBI100"
 
 
 
