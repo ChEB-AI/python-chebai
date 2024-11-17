@@ -12,7 +12,7 @@ from Bio import SwissProt
 from sklearn.model_selection import train_test_split
 
 from chebai.preprocessing.datasets.base import _DynamicDataset
-from chebai.preprocessing.datasets.go_uniprot import (
+from chebai.preprocessing.datasets.deepGO.go_uniprot import (
     AMBIGUOUS_AMINO_ACIDS,
     EXPERIMENTAL_EVIDENCE_CODES,
     GOUniProtOver250,

@@ -6,7 +6,7 @@ import pandas as pd
 from iterstrat.ml_stratifiers import MultilabelStratifiedShuffleSplit
 from jsonargparse import CLI
 
-from chebai.preprocessing.datasets.go_uniprot import DeepGO1MigratedData
+from chebai.preprocessing.datasets.deepGO.go_uniprot import DeepGO1MigratedData
 
 
 class DeepGo1DataMigration:
