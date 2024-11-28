@@ -513,6 +513,9 @@ class _ChEBIDataExtractor(XYBaseDataModule, ABC):
 
         df_train = df.iloc[train_indices]
         df_test = df.iloc[test_indices]
+        print("Inside get_test_split")
+        print("Train Split : ", df_train.shape)
+        print("Test Split  : ", df_test.shape)
         return df_train, df_test
 
     def get_train_val_splits_given_test(
@@ -534,14 +537,15 @@ class _ChEBIDataExtractor(XYBaseDataModule, ABC):
                 are the corresponding DataFrames.
         """
         print(f"Split dataset into train / val with given test set")
-
-        test_ids = test_df["ident"].tolist()
-        # ---- list comprehension degrades performance, dataframe operations are faster
-        # mask = [trainval_id not in test_ids for trainval_id in df_trainval["ident"]]
-        # df_trainval = df_trainval[mask]
-        df_trainval = df[~df["ident"].isin(test_ids)]
+        df_trainval = df
+        if self.aug_data==False:
+            test_ids = test_df["ident"].tolist()
+            # ---- list comprehension degrades performance, dataframe operations are faster
+            # mask = [trainval_id not in test_ids for trainval_id in df_trainval["ident"]]
+            # df_trainval = df_trainval[mask]
+            df_trainval = df[~df["ident"].isin(test_ids)]
         labels_list_trainval = df_trainval["labels"].tolist()
-
+        print("df_trainval.shape after removing overlapping points:",df_trainval.shape)
         if self.use_inner_cross_validation:
             folds = {}
             kfold = MultilabelStratifiedKFold(
@@ -571,9 +575,13 @@ class _ChEBIDataExtractor(XYBaseDataModule, ABC):
         train_indices, validation_indices = next(
             msss.split(labels_list_trainval, labels_list_trainval)
         )
+        print("train_indices.shape : ", train_indices.shape)
+        print("validation_indices.shape : ", validation_indices.shape)
 
         df_validation = df_trainval.iloc[validation_indices]
         df_train = df_trainval.iloc[train_indices]
+        print("df_train :",df_train.shape)
+        print("df_validation :",df_validation.shape)
         return df_train, df_validation
 
     @property
@@ -815,7 +823,9 @@ class _ChEBIDataExtractor(XYBaseDataModule, ABC):
 
         try:
             filename = self.processed_file_names_dict["data"]
-            print("Directory:",os.path.join(data_dir, filename))
+            print("Directory of data.pt:",os.path.join(data_dir, filename))
+            #loading of data.pt
+            print("Loading : ", filename )
             data_chebi_version = torch.load(os.path.join(data_dir, filename))
         except FileNotFoundError:
             raise FileNotFoundError(
@@ -824,10 +834,14 @@ class _ChEBIDataExtractor(XYBaseDataModule, ABC):
             )
 
         df_chebi_version = pd.DataFrame(data_chebi_version)
+        print("Created dataframe for data.pt :",df_chebi_version)
+        print("Created dataframe size:",df_chebi_version.shape)
         train_df_chebi_ver, df_test_chebi_ver = self.get_test_split(
             df_chebi_version, seed=self.dynamic_data_split_seed
         )
-
+        print("get_test_split done, splits size train: ", train_df_chebi_ver.shape)
+        print("get_test_split done, splits size test: ", df_test_chebi_ver.shape)
+        print("chebi_version_train : ",self.chebi_version_train)
         if self.chebi_version_train is not None:
             # Load encoded data derived from "chebi_version_train"
             try:
@@ -872,9 +886,11 @@ class _ChEBIDataExtractor(XYBaseDataModule, ABC):
             pd.DataFrame({"id": df_test["ident"], "split": "test"}),
         ]
         combined_split_assignment = pd.concat(split_assignment_list, ignore_index=True)
+        #Saving csv
         combined_split_assignment.to_csv(
             os.path.join(self.processed_dir_main, "splits.csv")
         )
+        print("Saving splits.csv")
 
         # Store the splits in class variables
         self.dynamic_df_train = df_train
@@ -934,6 +950,7 @@ class _ChEBIDataExtractor(XYBaseDataModule, ABC):
         ):
             if self.splits_file_path is None:
                 # Generate splits based on given seed, create csv file to records the splits
+                print("no splits_file_path provided by the user")
                 self._generate_dynamic_splits()
             else:
                 # If user has provided splits file path, use it to get the splits from the data
