@@ -1,4 +1,5 @@
 import os
+import re
 from collections import OrderedDict
 from typing import List, Literal, Optional
 
@@ -6,6 +7,7 @@ import pandas as pd
 from jsonargparse import CLI
 
 from chebai.preprocessing.datasets.deepGO.go_uniprot import DeepGO2MigratedData
+from chebai.preprocessing.reader import ProteinDataReader
 
 
 class DeepGo2DataMigration:
@@ -88,17 +90,25 @@ class DeepGo2DataMigration:
 
         try:
             print(f"Loading data from directory: {self._data_dir}......")
-            self._test_df = self._truncate_sequences(
+
+            print(
+                "Pre-processing the data before loading them into instance variables\n"
+                f"2-Steps preprocessing: \n"
+                f"\t 1: Truncating every sequence to {self._max_len}\n"
+                f"\t 2: Replacing every amino acid which is not in {ProteinDataReader.AA_LETTER}"
+            )
+
+            self._test_df = self._pre_process_data(
                 pd.DataFrame(
                     pd.read_pickle(os.path.join(self._data_dir, "test_data.pkl"))
                 )
             )
-            self._train_df = self._truncate_sequences(
+            self._train_df = self._pre_process_data(
                 pd.DataFrame(
                     pd.read_pickle(os.path.join(self._data_dir, "train_data.pkl"))
                 )
             )
-            self._validation_df = self._truncate_sequences(
+            self._validation_df = self._pre_process_data(
                 pd.DataFrame(
                     pd.read_pickle(os.path.join(self._data_dir, "valid_data.pkl"))
                 )
@@ -113,6 +123,21 @@ class DeepGo2DataMigration:
                 f"Data file not found in directory: {e}. "
                 "Please ensure all required files are available in the specified directory."
             )
+
+    def _pre_process_data(self, df: pd.DataFrame) -> pd.DataFrame:
+        """
+        Pre-processes the input dataframe by truncating sequences to the maximum
+        length and replacing invalid amino acids with 'X'.
+
+        Args:
+            df (pd.DataFrame): The dataframe to preprocess.
+
+        Returns:
+            pd.DataFrame: The processed dataframe.
+        """
+        df = self._truncate_sequences(df)
+        df = self._replace_invalid_amino_acids(df)
+        return df
 
     def _truncate_sequences(
         self, df: pd.DataFrame, column: str = "sequences"
@@ -131,6 +156,30 @@ class DeepGo2DataMigration:
             pd.DataFrame: The dataframe with sequences truncated to `self._max_len`.
         """
         df[column] = df[column].apply(lambda x: x[: self._max_len])
+        return df
+
+    @staticmethod
+    def _replace_invalid_amino_acids(
+        df: pd.DataFrame, column: str = "sequences"
+    ) -> pd.DataFrame:
+        """
+        Replaces invalid amino acids in a sequence with 'X' using regex.
+
+        https://github.com/bio-ontology-research-group/deepgo2/blob/main/deepgo/aminoacids.py#L26-L33
+        https://github.com/ChEB-AI/python-chebai/pull/64#issuecomment-2517067073
+
+        Args:
+            df (pd.DataFrame): The dataframe containing the sequences to be processed.
+            column (str, optional): The column containing the sequences. Defaults to "sequences".
+
+        Returns:
+            pd.DataFrame: The dataframe with invalid amino acids replaced by 'X'.
+        """
+        valid_amino_acids = "".join(ProteinDataReader.AA_LETTER)
+        # Replace any character not in the valid set with 'X'
+        df[column] = df[column].apply(
+            lambda x: re.sub(f"[^{valid_amino_acids}]", "X", x)
+        )
         return df
 
     def _record_splits(self) -> pd.DataFrame:
