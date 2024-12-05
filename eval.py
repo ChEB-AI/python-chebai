@@ -17,13 +17,13 @@ print(DEVICE)
 
 
 # Specify paths and parameters
-checkpoint_name = "best_epoch=14_val_loss=0.0017_val_macro-f1=0.9226_val_micro-f1=0.9847.ckpt"
-print("checkpoint_name",checkpoint_name)
+checkpoint_name = "best_epoch=14_val_loss=0.0017_val_macro-f1=0.9226_val_micro-f1=0.9847"
+print("checkpoint_name : ",checkpoint_name)
 checkpoint_path = os.path.join("logs/wandb/run-20241128_214007-ukcabied/files/checkpoints", f"{checkpoint_name}.ckpt")
-print("checkpoint_path",checkpoint_path)
+print("checkpoint_path : ",checkpoint_path)
 kind = "test"  # Change to "train" or "validation" as needed
 buffer_dir = os.path.join("results_buffer", checkpoint_name, kind)
-print("buffer_dir",buffer_dir)
+print("buffer_dir : ",buffer_dir)
 batch_size = 10  # Set batch size
 
 # Load data module
