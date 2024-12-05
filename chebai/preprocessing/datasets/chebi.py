@@ -940,6 +940,8 @@ class _ChEBIDataExtractor(XYBaseDataModule, ABC):
             dict: A dictionary containing the dynamic train, validation, and test DataFrames.
                 Keys are 'train', 'validation', and 'test'.
         """
+        print("Inside dynamic_split_dfs")
+        print("splits_file_path : ",self.splits_file_path)
         if any(
             split is None
             for split in [
