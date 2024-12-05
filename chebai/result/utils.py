@@ -94,6 +94,7 @@ def evaluate_model(
     Returns:
         Tensors with predictions and labels.
     """
+    print("Start of evaluate_model")
     model.eval()
     collate = data_module.reader.COLLATOR()
 
@@ -157,6 +158,7 @@ def evaluate_model(
                 torch.cat(labels_list),
                 os.path.join(buffer_dir, f"labels{save_ind:03d}.pt"),
             )
+    print("End of evaluate_model")
 
 
 def load_results_from_buffer(
@@ -172,6 +174,7 @@ def load_results_from_buffer(
     Returns:
         Tensors with predictions and labels.
     """
+    print("Start of load_results_from_buffer")
     preds_list = []
     labels_list = []
 
@@ -208,6 +211,7 @@ def load_results_from_buffer(
     else:
         test_labels = None
 
+    print("End of load_results_from_buffer")
     return test_preds, test_labels
 
 
