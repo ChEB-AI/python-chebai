@@ -29,7 +29,7 @@ batch_size = 10  # Set batch size
 # Load data module
 data_module = ChEBIOver100(chebi_version=231)
 
-data_module.splits_file_path="python-chebai/data/chebi_v231/ChEBI100/processed/splits.csv"
+data_module.splits_file_path="data/chebi_v231/ChEBI100/processed/splits.csv"
 model_class = Electra
 
 # evaluates model, stores results in buffer_dir
