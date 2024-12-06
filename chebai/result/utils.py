@@ -95,6 +95,7 @@ def evaluate_model(
         Tensors with predictions and labels.
     """
     print("Start of evaluate_model")
+    print("batch_size: ", batch_size)
     model.eval()
     collate = data_module.reader.COLLATOR()
 
