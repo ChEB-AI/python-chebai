@@ -448,34 +448,34 @@ class _ChEBIDataExtractor(XYBaseDataModule, ABC):
         #     )
 
         # Transform the processed data into encoded data
-        if not self.aug_data:
-            processed_name = self.processed_file_names_dict["data"]
-            if not os.path.isfile(os.path.join(self.processed_dir, processed_name)):
-                print(
-                    f"Missing encoded data related to version {self.chebi_version}, transform processed data into encoded data:",
-                    processed_name,
-                )
-                torch.save(
-                    self._load_data_from_file(
-                        os.path.join(
-                            self.processed_dir_main,
-                            self.raw_file_names_dict["data"],
-                        )
-                    ),
-                    os.path.join(self.processed_dir, processed_name),
-                )
-            # Transform the data related to "chebi_version_train" to encoded data, if it doesn't exist
-            if self.chebi_version_train is not None and not os.path.isfile(
-                os.path.join(
-                    self._chebi_version_train_obj.processed_dir,
-                    self._chebi_version_train_obj.raw_file_names_dict["data"],
-                )
-            ):
-                print(
-                    f"Missing encoded data related to train version: {self.chebi_version_train}"
-                )
-                print("Call the setup method related to it")
-                self._chebi_version_train_obj.setup()
+        # if not self.aug_data:
+        processed_name = self.processed_file_names_dict["data"]
+        if not os.path.isfile(os.path.join(self.processed_dir, processed_name)):
+            print(
+                f"Missing encoded data related to version {self.chebi_version}, transform processed data into encoded data:",
+                processed_name,
+            )
+            torch.save(
+                self._load_data_from_file(
+                    os.path.join(
+                        self.processed_dir_main,
+                        self.raw_file_names_dict["data"],
+                    )
+                ),
+                os.path.join(self.processed_dir, processed_name),
+            )
+        # Transform the data related to "chebi_version_train" to encoded data, if it doesn't exist
+        if self.chebi_version_train is not None and not os.path.isfile(
+            os.path.join(
+                self._chebi_version_train_obj.processed_dir,
+                self._chebi_version_train_obj.raw_file_names_dict["data"],
+            )
+        ):
+            print(
+                f"Missing encoded data related to train version: {self.chebi_version_train}"
+            )
+            print("Call the setup method related to it")
+            self._chebi_version_train_obj.setup()
 
 
 
@@ -537,13 +537,14 @@ class _ChEBIDataExtractor(XYBaseDataModule, ABC):
                 are the corresponding DataFrames.
         """
         print(f"Split dataset into train / val with given test set")
-        df_trainval = df
-        if self.aug_data==False:
-            test_ids = test_df["ident"].tolist()
+        # df_trainval = df
+        # if self.aug_data==False:
+        test_ids = test_df["ident"].tolist()
+        print("test_ids size : ",len(test_ids))
             # ---- list comprehension degrades performance, dataframe operations are faster
             # mask = [trainval_id not in test_ids for trainval_id in df_trainval["ident"]]
             # df_trainval = df_trainval[mask]
-            df_trainval = df[~df["ident"].isin(test_ids)]
+        df_trainval = df[~df["ident"].isin(test_ids)]
         labels_list_trainval = df_trainval["labels"].tolist()
         print("df_trainval.shape after removing overlapping points:",df_trainval.shape)
         if self.use_inner_cross_validation:
@@ -786,23 +787,9 @@ class _ChEBIDataExtractor(XYBaseDataModule, ABC):
                     # Generate the "chebi_version_train" data if it doesn't exist
                     self._chebi_version_train_obj.prepare_data(*args, **kwargs)
 
-        # Data augmentation
-        if self.aug_data:
-            if os.path.isfile(os.path.join(self.processed_dir_main, self.raw_file_names_dict["data"])):
-                augmenter = AugmentedDataExtractor(self.chebi_version, self.chebi_version_train,
-                                                   self.use_inner_cross_validation, self.single_class, self.aug_data,
-                                                   self.augment_data_batch_size, self.num_smiles_variations,
-                                                   self.reader, **kwargs)
-                augmenter.augment_data(self.processed_dir_main, self.augment_data_batch_size)
-                augmenter.setup_processed()
-            else:
-                print("data.pkl(original) file is not found")
 
 
-
-
-
-    def _generate_dynamic_splits(self) -> None:
+    def _generate_dynamic_splits(self,**kwargs: Any) -> None:
         """
         Generate data splits during runtime and save them in class variables.
 
@@ -819,7 +806,8 @@ class _ChEBIDataExtractor(XYBaseDataModule, ABC):
         print("Generate dynamic splits...")
         # Load encoded data derived from "chebi_version"
         # Determine the directory for loading encoded data based on the aug_data flag
-        data_dir = self.augmented_dir_main if self.aug_data else self.processed_dir
+        # data_dir = self.augmented_dir_main if self.aug_data else self.processed_dir
+        data_dir=self.processed_dir
 
         try:
             filename = self.processed_file_names_dict["data"]
@@ -891,6 +879,40 @@ class _ChEBIDataExtractor(XYBaseDataModule, ABC):
             os.path.join(self.processed_dir_main, "splits.csv")
         )
         print("Saving splits.csv")
+
+        # Data augmentation
+        if self.aug_data:
+            if os.path.isfile(os.path.join(self.processed_dir_main, self.raw_file_names_dict["data"])):
+                augmenter = AugmentedDataExtractor(self.chebi_version, self.chebi_version_train,
+                                                   self.use_inner_cross_validation, self.single_class, self.aug_data,
+                                                   self.augment_data_batch_size, self.num_smiles_variations,
+                                                   self.reader, **kwargs)
+                augmenter.augment_data(self.processed_dir_main, self.augment_data_batch_size,df_train)
+                augmenter.setup_processed()
+
+                print("augmented file directory:",os.path.join(self.augmented_dir_main,self.processed_file_names_dict["data"]))
+                augmented_data = torch.load(os.path.join(self.augmented_dir_main, self.processed_file_names_dict["data"]))
+                df_train = pd.DataFrame(augmented_data)
+            else:
+                print("data.pkl(original) file is not found")
+
+            print("df_train(augmented)",df_train.shape)
+            print("df_val",df_val.shape)
+            print("df_test",df_test.shape)
+
+            split_assignment_list: List[pd.DataFrame] = [
+                pd.DataFrame({"id": df_train["ident"], "split": "train"}),
+                pd.DataFrame({"id": df_val["ident"], "split": "validation"}),
+                pd.DataFrame({"id": df_test["ident"], "split": "test"}),
+            ]
+            combined_split_assignment = pd.concat(split_assignment_list, ignore_index=True)
+            # Saving csv
+            combined_split_assignment.to_csv(
+                os.path.join(self.processed_dir_main, "augmented_splits.csv")
+            )
+            print("Saving augmented_splits.csv")
+
+
 
         # Store the splits in class variables
         self.dynamic_df_train = df_train
@@ -994,6 +1016,8 @@ class _ChEBIDataExtractor(XYBaseDataModule, ABC):
                     ]
                 else:
                     data_df = self.dynamic_split_dfs[kind]
+                    # Print the dataset size for the given kind
+                    print(f"Dataset size for kind '{kind}': {data_df.shape}")
                     return data_df.to_dict(orient="records")
             except KeyError:
                 kind = f"{kind}"
@@ -1368,7 +1392,7 @@ class AugmentedDataExtractor(_ChEBIDataExtractor):
 
 
 
-    def augment_data(self, path: str, batch_size) -> None:
+    def augment_data(self, path: str, batch_size,df_train) -> None:
         print(("Inside - AugmentedDataExtractor - augment_data()"))
         if self.aug_data:
             if os.path.isfile(os.path.join(
@@ -1386,10 +1410,15 @@ class AugmentedDataExtractor(_ChEBIDataExtractor):
                     # Start timing the augmentation process
                     start_time = time.time()
 
-                    data = self.read_file(os.path.join(
+                    #Loading the original dataset
+                    full_data = self.read_file(os.path.join(
                         path, self.raw_file_names_dict["data"]))
 
+                    # Filter the `data` DataFrame using the 'ident' feature values from `df_train`
+                    data = full_data[full_data['id'].isin(df_train['ident'])]
+
                     total_rows = data.shape[0]
+                    print("Shape of the Data to be augmented : ",data.shape)
                     # #For testing
                     # subset1 = data.iloc[:10000]  # First 10,000 of the datapoints for testing only
                     # data=subset1
