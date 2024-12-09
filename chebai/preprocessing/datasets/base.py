@@ -812,18 +812,18 @@ class _DynamicDataset(XYBaseDataModule, ABC):
             None
         """
         os.makedirs(self.processed_dir, exist_ok=True)
-        processed_main_file_name = self.processed_main_file_names_dict["data"]
+        transformed_file_name = self.processed_file_names_dict["data"]
         print(
-            f"Missing transformed data (`{processed_main_file_name}` file). Transforming data.... "
+            f"Missing transformed data (`{transformed_file_name}` file). Transforming data.... "
         )
         torch.save(
             self._load_data_from_file(
                 os.path.join(
                     self.processed_dir_main,
-                    processed_main_file_name,
+                    self.processed_main_file_names_dict["data"],
                 )
             ),
-            os.path.join(self.processed_dir, self.processed_file_names_dict["data"]),
+            os.path.join(self.processed_dir, transformed_file_name),
         )
 
     @staticmethod
