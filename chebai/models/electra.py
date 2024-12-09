@@ -329,7 +329,7 @@ class Electra(ChebaiBaseNet):
         except RuntimeError as e:
             print(f"RuntimeError at forward: {e}")
             print(f'data[features]: {data["features"]}')
-            raise Exception
+            raise e
         inp = self.word_dropout(inp)
         electra = self.electra(inputs_embeds=inp, **kwargs)
         d = electra.last_hidden_state[:, 0, :]
