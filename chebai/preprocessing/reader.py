@@ -616,7 +616,8 @@ class ESM2EmbeddingReader(DataReader):
             )
         return data
 
-    def name(self) -> None:
+    @staticmethod
+    def name() -> None:
         """
         Returns the name of the data reader. This method identifies the specific type of data reader.
 

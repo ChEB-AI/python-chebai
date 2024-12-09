@@ -217,6 +217,7 @@ class DeepGo2DataMigration:
             "exp_annotations",  # Directly associated GO ids
             # https://github.com/bio-ontology-research-group/deepgo2/blob/main/gendata/uni2pandas.py#L60-L69
             "prop_annotations",  # Transitively associated GO ids
+            "esm2",
         ]
 
         new_df = pd.concat(
@@ -239,6 +240,7 @@ class DeepGo2DataMigration:
                 accession=new_df["accessions"],
                 go_ids=new_df["go_ids"],
                 sequence=new_df["sequences"],
+                esm2_embeddings=new_df["esm2"],
             )
         )
         return data_df

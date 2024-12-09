@@ -40,6 +40,7 @@ import networkx as nx
 import pandas as pd
 import requests
 import torch
+import tqdm
 from Bio import SwissProt
 
 from chebai.preprocessing import reader as dr
@@ -892,12 +893,95 @@ class DeepGO2MigratedData(_DeepGOMigratedData):
         dict: Dictionary with file names specific to DeepGO2.
     """
 
-    def __init__(self, **kwargs):
+    _LABELS_START_IDX: int = 5  # additional esm2_embeddings column in the dataframe
+    _ESM_EMBEDDINGS_COL_IDX: int = 4
+
+    def __init__(self, use_esm2_embeddings=False, **kwargs):
         # https://github.com/bio-ontology-research-group/deepgo2/blob/main/deepgo/aminoacids.py#L11
         assert int(kwargs.get("max_sequence_length")) == 1000
-
+        self.use_esm2_embeddings: bool = use_esm2_embeddings
         super(_DeepGOMigratedData, self).__init__(**kwargs)
 
+    # ------------------------------ Phase: Setup data -----------------------------------
+    def _load_data_from_file(self, path: str) -> List[Dict[str, Any]]:
+        """
+        Load and process data from a file into a list of dictionaries containing features and labels.
+
+        This method processes data differently based on the `use_esm2_embeddings` flag:
+        - If `use_esm2_embeddings` is True, raw dictionaries from `_load_dict` are returned, _load_dict already returns
+        the numerical features (esm2 embeddings) from the data file, hence no reader is required.
+        - Otherwise, a reader is used to process the data (generate numerical features).
+
+        Args:
+            path (str): The path to the input file.
+
+        Returns:
+            List[Dict[str, Any]]: A list of dictionaries with the following keys:
+                - `features`: Sequence or embedding data, depending on the context.
+                - `labels`: A boolean array of labels.
+                - `ident`: The identifier for the sequence.
+        """
+        lines = self._get_data_size(path)
+        print(f"Processing {lines} lines...")
+
+        if self.use_esm2_embeddings:
+            data = [
+                d
+                for d in tqdm.tqdm(self._load_dict(path), total=lines)
+                if d["features"] is not None
+            ]
+        else:
+            data = [
+                self.reader.to_data(d)
+                for d in tqdm.tqdm(self._load_dict(path), total=lines)
+                if d["features"] is not None
+            ]
+
+        # filter for missing features in resulting data
+        data = [val for val in data if val["features"] is not None]
+
+        return data
+
+    def _load_dict(self, input_file_path: str) -> Generator[Dict[str, Any], None, None]:
+        """
+        Loads data from a pickled file and yields individual dictionaries for each row.
+
+        The pickled file is expected to contain rows with the following structure:
+            - Data at row index `self._ID_IDX`: ID of go data instance
+            - Data at row index `self._DATA_REPRESENTATION_IDX`: Sequence representation of protein
+            - Data at row index `self._ESM2_EMBEDDINGS_COL_IDX`: ESM2 embeddings of the protein
+            - Data from row index `self._LABELS_START_IDX` onwards: Labels
+
+        The method adapts based on the `use_esm2_embeddings` flag:
+            - If `use_esm2_embeddings` is True, features are loaded from the column specified by `self._ESM_EMBEDDINGS_COL_IDX`.
+            - Otherwise, features are loaded from the column specified by `self._DATA_REPRESENTATION_IDX`.
+
+        Args:
+            input_file_path (str): The path to the pickled input file.
+
+        Yields:
+            Dict[str, Any]: A dictionary containing:
+                - `features` (Any): Sequence or embedding data for the instance.
+                - `labels` (np.ndarray): A boolean array of labels starting from row index 4.
+                - `ident` (Any): The identifier from row index 0.
+        """
+        with open(input_file_path, "rb") as input_file:
+            df = pd.read_pickle(input_file)
+
+            if self.use_esm2_embeddings:
+                features_idx = self._ESM_EMBEDDINGS_COL_IDX
+            else:
+                features_idx = self._DATA_REPRESENTATION_IDX
+
+            for row in df.values:
+                labels = row[self._LABELS_START_IDX :].astype(bool)
+                yield dict(
+                    features=row[features_idx],
+                    labels=labels,
+                    ident=row[self._ID_IDX],
+                )
+
+    # ------------------------------ Phase: Raw Properties -----------------------------------
     @property
     def processed_main_file_names_dict(self) -> Dict[str, str]:
         """
@@ -917,3 +1001,10 @@ class DeepGO2MigratedData(_DeepGOMigratedData):
             dict: Dictionary with data file name for DeepGO2.
         """
         return {"data": "data_deep_go2.pt"}
+
+    @property
+    def identifier(self) -> tuple:
+        """Identifier for the dataset."""
+        if self.use_esm2_embeddings:
+            return (dr.ESM2EmbeddingReader.name(),)
+        return (self.reader.name(),)
