@@ -17,9 +17,9 @@ print(DEVICE)
 
 
 # Specify paths and parameters
-checkpoint_name = "best_epoch=14_val_loss=0.0017_val_macro-f1=0.9226_val_micro-f1=0.9847"
+checkpoint_name = "best_epoch=09_val_loss=0.0217_val_macro-f1=0.7101_val_micro-f1=0.9091"
 print("checkpoint_name : ",checkpoint_name)
-checkpoint_path = os.path.join("logs/wandb/run-20241128_214007-ukcabied/files/checkpoints", f"{checkpoint_name}.ckpt")
+checkpoint_path = os.path.join("logs/wandb/run-20241207_192102-nug9ndqi/files/checkpoints", f"{checkpoint_name}.ckpt")
 print("checkpoint_path : ",checkpoint_path)
 kind = "test"  # Change to "train" or "validation" as needed
 buffer_dir = os.path.join("results_buffer", checkpoint_name, kind)
@@ -29,7 +29,7 @@ batch_size = 10  # Set batch size
 # Load data module
 data_module = ChEBIOver100(chebi_version=231)
 
-data_module.splits_file_path="data/chebi_v231/ChEBI100/processed/splits.csv"
+data_module.splits_file_path="data/chebi_v231/ChEBI100/processed/augmented_splits.csv"
 model_class = Electra
 
 # evaluates model, stores results in buffer_dir
