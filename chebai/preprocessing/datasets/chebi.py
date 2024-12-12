@@ -1487,7 +1487,6 @@ class AugmentedDataExtractor(_ChEBIDataExtractor):
     # Function to generate SMILES variations using different configurations
     def generate_smiles_variations(self, original_smiles):
         num_variations = self.num_smiles_variations
-        print("no. of variations: ",num_variations)
         print(type(original_smiles), original_smiles)
         if not isinstance(original_smiles, str):
             print(f"Non-string SMILES found: {original_smiles}")
