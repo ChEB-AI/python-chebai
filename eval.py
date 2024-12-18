@@ -17,7 +17,7 @@ print(DEVICE)
 
 
 # Specify paths and parameters
-checkpoint_name = "best_epoch=31_val_loss=0.0204_val_macro-f1=0.7655_val_micro-f1=0.9246.ckpt"
+checkpoint_name = "best_epoch=31_val_loss=0.0204_val_macro-f1=0.7655_val_micro-f1=0.9246"
 print("checkpoint_name : ",checkpoint_name)
 checkpoint_path = os.path.join("logs/wandb/run-20241212_003611-8yohluv6/files/checkpoints", f"{checkpoint_name}.ckpt")
 print("checkpoint_path : ",checkpoint_path)
