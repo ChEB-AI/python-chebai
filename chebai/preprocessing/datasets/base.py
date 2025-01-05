@@ -155,8 +155,19 @@ class XYBaseDataModule(LightningDataModule):
         return f"cv_{self.inner_k_folds}_fold"
 
     @property
+    @abstractmethod
     def _name(self) -> str:
-        raise NotImplementedError
+        """
+        Abstract property representing the name of the data module.
+
+        This property should be implemented in subclasses to provide a unique name for the data module.
+        The name is used to create subdirectories within the base directory or `processed_dir_main`
+        for storing relevant data associated with this module.
+
+        Returns:
+            str: The name of the data module.
+        """
+        pass
 
     def _filter_labels(self, row: dict) -> dict:
         """
