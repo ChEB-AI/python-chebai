@@ -40,7 +40,7 @@ setup(
         "matplotlib",
         "rdkit",
         "selfies",
-        "lightning<=2.1",
+        "lightning<=2.1,>=2.5",
         "jsonargparse[signatures]>=4.17",
         "omegaconf",
         "seaborn",
