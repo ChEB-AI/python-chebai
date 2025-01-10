@@ -4,11 +4,18 @@ from chebai.models import ChebaiBaseNet
 import torch
 from torch import Tensor
 
+
 class FFN(ChebaiBaseNet):
 
     NAME = "FFN"
 
-    def __init__(self, input_size: int = 1000, num_hidden_layers: int = 3, hidden_size: int = 128, **kwargs):
+    def __init__(
+        self,
+        input_size: int = 1000,
+        num_hidden_layers: int = 3,
+        hidden_size: int = 128,
+        **kwargs
+    ):
         super().__init__(**kwargs)
 
         self.layers = torch.nn.ModuleList()
@@ -52,4 +59,3 @@ class FFN(ChebaiBaseNet):
         for layer in self.layers:
             x = torch.relu(layer(x))
         return {"logits": x}
-
