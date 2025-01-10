@@ -1,0 +1,5 @@
+class_path: chebai.preprocessing.datasets.deepGO.go_uniprot.DeepGO2MigratedData
+init_args:
+  go_branch: "MF"
+  max_sequence_length: 1000
+  use_esm2_embeddings: True

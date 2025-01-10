@@ -1,0 +1,7 @@
+class_path: chebai.models.ffn.FFN
+init_args:
+  optimizer_kwargs:
+    lr: 1e-3
+  hidden_size: 128
+  num_hidden_layers: 3
+  input_size: 2560
