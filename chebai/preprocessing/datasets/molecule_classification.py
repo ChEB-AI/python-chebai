@@ -382,6 +382,100 @@ class Sider(XYBaseDataModule):
                 yield dict(features=smiles, labels=labels, ident=i)
                 # yield self.reader.to_data(dict(features=smiles, labels=labels, ident=i))
 
+class Bace(XYBaseDataModule):
+    """Data module for ClinTox MoleculeNet dataset."""
+
+    HEADERS = [
+        "class",
+    ]
+
+    @property
+    def _name(self) -> str:
+        """Returns the name of the dataset."""
+        return "Bace"
+
+    @property
+    def label_number(self) -> int:
+        """Returns the number of labels."""
+        return 1
+
+    @property
+    def raw_file_names(self) -> List[str]:
+        """Returns a list of raw file names."""
+        return ["bace.csv"]
+
+    @property
+    def processed_file_names(self) -> List[str]:
+        """Returns a list of processed file names."""
+        return ["test.pt", "train.pt", "validation.pt"]
+
+    def download(self) -> None:
+        
+        """Downloads and extracts the dataset."""
+        with open(os.path.join(self.raw_dir, "bace.csv"), "ab") as dst:
+            with request.urlopen(f"https://deepchemdata.s3-us-west-1.amazonaws.com/datasets/bace.csv",) as src:
+                shutil.copyfileobj(src, dst)
+
+
+    def setup_processed(self) -> None:
+        """Processes and splits the dataset."""
+        print("Create splits")
+        data = list(self._load_data_from_file(os.path.join(self.raw_dir, f"bace.csv")))
+
+        train_split, test_split = train_test_split(
+                data, train_size=self.train_split, shuffle=True
+            )
+        test_split, validation_split = train_test_split(
+                test_split, train_size=0.5, shuffle=True
+            )
+        for k, split in [
+            ("test", test_split),
+            ("train", train_split),
+            ("validation", validation_split),
+        ]:
+            print("transform", k)
+            torch.save(
+                split,
+                os.path.join(self.processed_dir, f"{k}.pt"),
+            )
+
+    def setup(self, **kwargs) -> None:
+        """Sets up the dataset by downloading and processing if necessary."""
+        if any(
+            not os.path.isfile(os.path.join(self.raw_dir, f))
+            for f in self.raw_file_names
+        ):
+            self.download()
+        if any(
+            not os.path.isfile(os.path.join(self.processed_dir, f))
+            for f in self.processed_file_names
+        ):
+            self.setup_processed()
+
+    def _load_dict(self, input_file_path: str) -> List[Dict]:
+        """Loads data from a CSV file.
+
+        Args:
+            input_file_path (str): Path to the CSV file.
+
+        Returns:
+            List[Dict]: List of data dictionaries.
+        """
+        i = 0
+        with open(input_file_path, "r") as input_file:
+            reader = csv.DictReader(input_file)
+            for row in reader:
+                i += 1
+                smiles = row["mol"]
+                labels = [int(row["Class"])]
+                yield dict(features=smiles, labels=labels, ident=i)
+                # yield self.reader.to_data(dict(features=smiles, labels=labels, ident=i))
+
+
+class BaceChem(Bace):
+    """Chemical data reader for Tox21MolNet dataset."""
+
+    READER = dr.ChemDataReader        
 
 class SiderChem(Sider):
     """Chemical data reader for Tox21MolNet dataset."""

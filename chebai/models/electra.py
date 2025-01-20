@@ -317,11 +317,12 @@ class Electra(ChebaiBaseNet):
             n = loss_kwargs["non_null_labels"]
             d = d[n]
         if self.model_type == 'classification':
+            d = torch.sigmoid(d)
             if "missing_labels" in loss_kwargs:
                 missing_labels = loss_kwargs["missing_labels"]
-                labels = labels * (~missing_labels).int()
+                d = d * (~missing_labels).int()
 
-            return torch.sigmoid(d), labels.int() if labels is not None else None
+            return d, labels.int() if labels is not None else None
         elif self.model_type == 'regression':
             return d, labels
         else:

@@ -103,7 +103,7 @@ class Tox21MolNet(XYBaseDataModule):
             # print(self.train_split)
             # sss = StratifiedShuffleSplit(n_splits=5, test_size=1-self.train_split, random_state=0)
             # train_split, test_split =  sss.get_n_splits(data)
-            train_split, test_split = StratifiedShuffleSplit(
+            train_split, test_split = train_test_split(
                 data, train_size=self.train_split, shuffle=True
             )
             test_split, validation_split = train_test_split(
