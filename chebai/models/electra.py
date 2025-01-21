@@ -245,6 +245,7 @@ class Electra(ChebaiBaseNet):
         self.config = ElectraConfig(**config, output_attentions=True)
         self.word_dropout = nn.Dropout(config.get("word_dropout", 0))
         self.model_type = model_type
+        self.pass_loss_kwargs = True
 
         in_d = self.config.hidden_size
         self.output = nn.Sequential(
@@ -271,6 +272,10 @@ class Electra(ChebaiBaseNet):
         else:
             self.electra = ElectraModel(config=self.config)
 
+        # freeze parameters
+        # for param in self.electra.parameters():
+        #     param.requires_grad = False
+
     def _process_for_loss(
         self,
         model_output: Dict[str, Tensor],
@@ -295,6 +300,7 @@ class Electra(ChebaiBaseNet):
         if "missing_labels" in kwargs_copy:
             missing_labels = kwargs_copy.pop("missing_labels")
             output = output * (~missing_labels).int()
+            labels = labels * (~missing_labels).int()
         return output, labels, kwargs_copy
 
     def _get_prediction_and_labels(
@@ -317,10 +323,14 @@ class Electra(ChebaiBaseNet):
             n = loss_kwargs["non_null_labels"]
             d = d[n]
         if self.model_type == 'classification':
+            # print(self.model_type, ' in electra 324')
             d = torch.sigmoid(d)
+            # for mulitclass here softmax instead of sigmoid
+            #print('blababababab')
             if "missing_labels" in loss_kwargs:
+                #print('bla')
                 missing_labels = loss_kwargs["missing_labels"]
-                d = d * (~missing_labels).int()
+                d = d * (~missing_labels).int().to(device=d.device)
 
             return d, labels.int() if labels is not None else None
         elif self.model_type == 'regression':

@@ -58,7 +58,7 @@ def _run_batch(batch, model, collate):
     if collated.y is not None:
         collated.y = collated.to_y(model.device)
     processable_data = model._process_batch(collated, 0)
-    del processable_data["loss_kwargs"]
+    # del processable_data["loss_kwargs"]
     model_output = model(processable_data, **processable_data["model_kwargs"])
     preds, labels = model._get_prediction_and_labels(
         processable_data, processable_data["labels"], model_output

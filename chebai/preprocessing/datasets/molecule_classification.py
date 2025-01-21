@@ -93,21 +93,21 @@ class ClinTox(XYBaseDataModule):
                 if d["original"]
             ]
         else:
-            print(self.train_split)
-            print(type(data))
-            print((data[0]))
-            print(type(data[0]))
-            X = []
-            y = []
-            for item in data:
-                X.append(item['ident'])
-                y.append(item['labels'])
-            sss = StratifiedShuffleSplit(n_splits=10, test_size=1-self.train_split, random_state=0)
-            sss.get_n_splits(np.array(X), np.array(y))
-            print(sss)
-            train, test = sss.split(X, y)
-            print(train)
-            exit()
+            # print(self.train_split)
+            # print(type(data))
+            # print((data[0]))
+            # print(type(data[0]))
+            # X = []
+            # y = []
+            # for item in data:
+            #     X.append(item['ident'])
+            #     y.append(item['labels'])
+            # sss = StratifiedShuffleSplit(n_splits=10, test_size=1-self.train_split, random_state=0)
+            # sss.get_n_splits(np.array(X), np.array(y))
+            # print(sss)
+            # train, test = sss.split(X, y)
+            # print(train)
+            # exit()
             train_split, test_split = train_test_split(
                 data, train_size=self.train_split, shuffle=True
             )
