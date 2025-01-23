@@ -33,9 +33,6 @@ class _SCOPeDataExtractor(_DynamicDataset, ABC):
         **kwargs: Additional keyword arguments passed to DynamicDataset and  XYBaseDataModule.
     """
 
-    _GO_DATA_INIT = "GO"
-    _SWISS_DATA_INIT = "SWISS"
-
     # -- Index for columns of processed `data.pkl` (derived from `_get_swiss_to_go_mapping` & `_graph_to_raw_dataset`
     # "swiss_id" at           row index 0
     # "accession" at          row index 1
@@ -43,8 +40,8 @@ class _SCOPeDataExtractor(_DynamicDataset, ABC):
     # "sequence" at           row index 3
     # labels starting from    row index 4
     _ID_IDX: int = 0
-    _DATA_REPRESENTATION_IDX: int = 3  # here `sequence` column
-    _LABELS_START_IDX: int = 4
+    _DATA_REPRESENTATION_IDX: int = 2  # here `sequence` column
+    _LABELS_START_IDX: int = 3
 
     _SCOPE_GENERAL_URL = "https://scop.berkeley.edu/downloads/parse/dir.{data_type}.scope.{version_number}-stable.txt"
     _PDB_SEQUENCE_DATA_URL = (
@@ -65,14 +62,8 @@ class _SCOPeDataExtractor(_DynamicDataset, ABC):
         self,
         scope_version: float,
         scope_version_train: Optional[float] = None,
-        scope_hierarchy_level: str = "cl",
         **kwargs,
     ):
-
-        assert (
-            scope_hierarchy_level in self.SCOPE_HIERARCHY.keys()
-        ), f"level can contain only one of the following values {self.SCOPE_HIERARCHY.keys()}"
-        self.scope_hierarchy_level = scope_hierarchy_level
         self.scope_version: float = scope_version
         self.scope_version_train: float = scope_version_train
 
@@ -83,7 +74,6 @@ class _SCOPeDataExtractor(_DynamicDataset, ABC):
             # This is to get the data from respective directory related to "scope_version_train"
             _init_kwargs = kwargs
             _init_kwargs["scope_version"] = self.scope_version_train
-            _init_kwargs["scope_hierarchy_level"] = self.scope_hierarchy_level
             self._scope_version_train_obj = self.__class__(
                 **_init_kwargs,
             )
@@ -275,37 +265,50 @@ class _SCOPeDataExtractor(_DynamicDataset, ABC):
         sids = nx.get_node_attributes(graph, "sid")
         levels = nx.get_node_attributes(graph, "level")
 
-        sun_ids = []
+        sun_ids = {}
         sids_list = []
 
         selected_sids_dict = self.select_classes(graph)
 
         for sun_id, level in levels.items():
-            if level == self.scope_hierarchy_level and sun_id in selected_sids_dict:
-                sun_ids.append(sun_id)
+            if sun_id in selected_sids_dict:
+                sun_ids.setdefault(level, []).append(sun_id)
                 sids_list.append(sids.get(sun_id))
+
+        # Remove root node, as it will True for all instances
+        sun_ids.pop("root", None)
 
         # data_df = pd.DataFrame(OrderedDict(sun_id=sun_ids, sids=sids_list))
         df_cla = self._get_classification_data()
-        target_col_name = self.SCOPE_HIERARCHY[self.scope_hierarchy_level]
-        df_cla = df_cla[df_cla[target_col_name].isin(sun_ids)]
-        df_cla = df_cla[["sid", target_col_name]]
+
+        for level, selected_sun_ids in sun_ids.items():
+            df_cla = df_cla[df_cla[self.SCOPE_HIERARCHY[level]].isin(selected_sun_ids)]
 
         assert (
             len(df_cla) > 1
         ), "dataframe should have more than one instance for `pd.get_dummies` to work as expected"
         df_encoded = pd.get_dummies(
-            df_cla, columns=[target_col_name], drop_first=False, sparse=True
+            df_cla,
+            columns=list(self.SCOPE_HIERARCHY.values()),
+            drop_first=False,
+            sparse=True,
         )
 
         pdb_chain_seq_mapping = self._parse_pdb_sequence_file()
 
-        sequence_hierarchy_df = pd.DataFrame(
-            columns=list(df_encoded.columns) + ["sids"]
-        )
+        encoded_target_cols = {}
+        for col in self.SCOPE_HIERARCHY.values():
+            encoded_target_cols[col] = [
+                t_col for t_col in df_encoded.columns if t_col.startswith(col)
+            ]
+
+        encoded_target_columns = []
+        for level in self.SCOPE_HIERARCHY.values():
+            encoded_target_columns.extend(encoded_target_cols[level])
+
+        sequence_hierarchy_df = pd.DataFrame(columns=["sids"] + encoded_target_columns)
 
         for _, row in df_encoded.iterrows():
-            assert sum(row.iloc[1:].tolist()) == 1
             sid = row["sid"]
             # SID: 7-char identifier ("d" + 4-char PDB ID + chain ID ('_' for none, '.' for multiple)
             # + domain specifier ('_' if not needed))
@@ -320,19 +323,22 @@ class _SCOPeDataExtractor(_DynamicDataset, ABC):
                 chain_sequence = pdb_to_chain_mapping.get(chain_id, None)
                 if chain_sequence:
                     self._update_or_add_sequence(
-                        chain_sequence, row, sequence_hierarchy_df
+                        chain_sequence, row, sequence_hierarchy_df, encoded_target_cols
                     )
 
             else:
                 # Add nodes and edges for chains in the mapping
                 for chain, chain_sequence in pdb_to_chain_mapping.items():
                     self._update_or_add_sequence(
-                        chain_sequence, row, sequence_hierarchy_df
+                        chain_sequence, row, sequence_hierarchy_df, encoded_target_cols
                     )
 
         sequence_hierarchy_df.drop(columns=["sid"], axis=1, inplace=True)
+        sequence_hierarchy_df.reset_index(inplace=True)
+        sequence_hierarchy_df["id"] = range(1, len(sequence_hierarchy_df) + 1)
+
         sequence_hierarchy_df = sequence_hierarchy_df[
-            ["sids"] + [col for col in sequence_hierarchy_df.columns if col != "sids"]
+            ["id", "sids", "sequence"] + encoded_target_columns
         ]
 
         # This filters the DataFrame to include only the rows where at least one value in the row from 5th column
@@ -355,19 +361,24 @@ class _SCOPeDataExtractor(_DynamicDataset, ABC):
         return pdb_chain_seq_mapping
 
     @staticmethod
-    def _update_or_add_sequence(sequence, row, sequence_hierarchy_df):
-        # Check if sequence already exists as an index
-        # Slice the series starting from column 2
-        sliced_data = row.iloc[1:]  # Slice starting from the second column (index 1)
-
-        # Get the column name with the True value
-        true_column = sliced_data.idxmax() if sliced_data.any() else None
-
+    def _update_or_add_sequence(
+        sequence, row, sequence_hierarchy_df, encoded_col_names
+    ):
         if sequence in sequence_hierarchy_df.index:
             # Update encoded columns only if they are True
-            if row[true_column] is True:
+            for col in encoded_col_names:
+                assert (
+                    sum(row[encoded_col_names[col]].tolist()) == 1
+                ), "A instance can belong to only one hierarchy level"
+                sliced_data = row[
+                    encoded_col_names[col]
+                ]  # Slice starting from the second column (index 1)
+                # Get the column name with the True value
+                true_column = sliced_data.idxmax() if sliced_data.any() else None
                 sequence_hierarchy_df.loc[sequence, true_column] = True
-                sequence_hierarchy_df.loc[sequence, "sids"].append(row["sid"])
+
+            sequence_hierarchy_df.loc[sequence, "sids"].append(row["sid"])
+
         else:
             # Add new row with sequence as the index and hierarchy data
             new_row = row
@@ -446,7 +457,7 @@ class _SCOPeDataExtractor(_DynamicDataset, ABC):
 
 class SCOPE(_SCOPeDataExtractor):
     READER = ProteinDataReader
-    THRESHOLD = 1
+    THRESHOLD = 10000
 
     @property
     def _name(self) -> str:
