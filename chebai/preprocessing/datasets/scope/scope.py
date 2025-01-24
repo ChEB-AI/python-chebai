@@ -13,9 +13,9 @@
 import gzip
 import os
 import shutil
-from abc import ABC
+from abc import ABC, abstractmethod
 from tempfile import NamedTemporaryFile
-from typing import Any, Dict, Generator, Optional, Tuple
+from typing import Any, Dict, Generator, List, Optional, Tuple
 
 import networkx as nx
 import pandas as pd
@@ -350,21 +350,7 @@ class _SCOPeDataExtractor(_DynamicDataset, ABC):
         """
         print(f"Process graph")
 
-        sids = nx.get_node_attributes(graph, "sid")
-        levels = nx.get_node_attributes(graph, "level")
-
-        sun_ids = {}
-        sids_list = []
-
-        selected_sids_dict = self.select_classes(graph)
-
-        for sun_id, level in levels.items():
-            if sun_id in selected_sids_dict:
-                sun_ids.setdefault(level, []).append(sun_id)
-                sids_list.append(sids.get(sun_id))
-
-        # Remove root node, as it will True for all instances
-        sun_ids.pop("root", None)
+        sun_ids = self.select_classes(graph)
 
         if not sun_ids:
             raise RuntimeError("No sunid selected.")
@@ -440,6 +426,10 @@ class _SCOPeDataExtractor(_DynamicDataset, ABC):
         sequence_hierarchy_df = sequence_hierarchy_df[
             ["id", "sids", "sequence"] + encoded_target_columns
         ]
+
+        with open(os.path.join(self.processed_dir_main, "classes.txt"), "wt") as fout:
+            fout.writelines(str(sun_id) + "\n" for sun_id in encoded_target_columns)
+
         return sequence_hierarchy_df
 
     def _parse_pdb_sequence_file(self) -> Dict[str, Dict[str, str]]:
@@ -497,6 +487,11 @@ class _SCOPeDataExtractor(_DynamicDataset, ABC):
             new_row = row
             new_row["sids"] = [row["sid"]]
             sequence_hierarchy_df.loc[sequence] = new_row
+
+    @abstractmethod
+    def select_classes(self, g: nx.DiGraph, *args, **kwargs) -> Dict[str, List[int]]:
+        # Override the return type of the method from superclass
+        pass
 
     # ------------------------------ Phase: Setup data -----------------------------------
     def setup_processed(self) -> None:
@@ -755,24 +750,36 @@ class _SCOPeOverX(_SCOPeDataExtractor, ABC):
         """
         return f"SCOPe{self.THRESHOLD}"
 
-    def select_classes(self, g: nx.DiGraph, *args, **kwargs) -> Dict:
-        # Filter nodes and create a dictionary of node and out-degree
-        sun_ids_dict = {
-            node: g.out_degree(node)  # Store node and its out-degree
-            for node in g.nodes
-            if g.out_degree(node) >= self.THRESHOLD
-        }
+    def select_classes(self, g: nx.DiGraph, *args, **kwargs) -> Dict[str, List[int]]:
+        """
+        Selects classes from the SCOPe dataset based on the number of successors meeting a specified threshold.
 
-        # Return a sorted dictionary (by out-degree or node id)
-        sorted_dict = dict(
-            sorted(sun_ids_dict.items(), key=lambda item: item[0], reverse=False)
-        )
+        This method iterates over the nodes in the graph, counting the number of successors for each node.
+        Nodes with a number of successors greater than or equal to the defined threshold are selected.
 
-        filename = "classes.txt"
-        with open(os.path.join(self.processed_dir_main, filename), "wt") as fout:
-            fout.writelines(str(sun_id) + "\n" for sun_id in sorted_dict.keys())
+        Note:
+            The input graph must be transitive closure of a directed acyclic graph.
 
-        return sorted_dict
+        Args:
+            g (nx.Graph): The graph representing the dataset.
+            *args: Additional positional arguments (not used).
+            **kwargs: Additional keyword arguments (not used).
+
+        Returns:
+            Dict: A dict containing selected nodes at each hierarchy level.
+
+        Notes:
+            - The `THRESHOLD` attribute should be defined in the subclass of this class.
+        """
+        selected_sunids_for_level = {}
+        for node, attr_dict in g.nodes(data=True):
+            if g.out_degree(node) >= self.THRESHOLD:
+                selected_sunids_for_level.setdefault(attr_dict["level"], []).append(
+                    node
+                )
+        # Remove root node, as it will True for all instances
+        selected_sunids_for_level.pop("root", None)
+        return selected_sunids_for_level
 
 
 class _SCOPeOverXPartial(_SCOPeOverX, ABC):
@@ -860,6 +867,6 @@ class SCOPeOverPartial2000(_SCOPeOverXPartial):
 
 
 if __name__ == "__main__":
-    scope = SCOPE(scope_version=2.08)
-    g = scope._extract_class_hierarchy("d")
+    scope = SCOPeOver2000(scope_version=2.08)
+    g = scope._extract_class_hierarchy("dummy/path")
     scope._graph_to_raw_dataset(g)
