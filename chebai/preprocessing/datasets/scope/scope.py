@@ -1,20 +1,27 @@
+# References for this file :
+
+# Reference 1:
+# John-Marc Chandonia, Naomi K Fox, Steven E Brenner, SCOPe: classification of large macromolecular structures
+# in the structural classification of proteins—extended database, Nucleic Acids Research, Volume 47,
+# Issue D1, 08 January 2019, Pages D475–D481, https://doi.org/10.1093/nar/gky1134
+# https://scop.berkeley.edu/about/ver=2.08
+
+# Reference 2:
+# Murzin AG, Brenner SE, Hubbard TJP, Chothia C. 1995. SCOP: a structural classification of proteins database for
+# the investigation of sequences and structures. Journal of Molecular Biology 247:536-540
+
 import gzip
-import itertools
 import os
-import pickle
 import shutil
 from abc import ABC
-from collections import OrderedDict
 from tempfile import NamedTemporaryFile
-from typing import Any, Dict, Generator, List, Optional, Tuple, Union
+from typing import Any, Dict, Generator, Optional, Tuple
 
-import fastobo
 import networkx as nx
 import pandas as pd
 import requests
 import torch
 from Bio import SeqIO
-from Bio.Seq import Seq
 
 from chebai.preprocessing.datasets.base import _DynamicDataset
 from chebai.preprocessing.reader import ProteinDataReader
@@ -22,23 +29,25 @@ from chebai.preprocessing.reader import ProteinDataReader
 
 class _SCOPeDataExtractor(_DynamicDataset, ABC):
     """
-    A class for extracting and processing data from the Gene Ontology (GO) dataset and the Swiss UniProt dataset.
+    A class for extracting and processing data from the SCOPe (Structural Classification of Proteins - extended) dataset.
+
+    This class is designed to handle the parsing, preprocessing, and hierarchical structure extraction from various
+    SCOPe dataset files, such as classification (CLA), hierarchy (HIE), and description (DES) files.
+    Additionally, it supports downloading related data like PDB sequence files.
 
     Args:
+        scope_version (float): The SCOPe version to use.
+        scope_version_train (Optional[float]): The training SCOPe version, if different.
         dynamic_data_split_seed (int, optional): The seed for random data splitting. Defaults to 42.
         splits_file_path (str, optional): Path to the splits CSV file. Defaults to None.
-        max_sequence_length (int, optional): Specifies the maximum allowed sequence length for a protein, with a
-        default of 1002. During data preprocessing, any proteins exceeding this length will be excluded from further
-        processing.
         **kwargs: Additional keyword arguments passed to DynamicDataset and  XYBaseDataModule.
     """
 
-    # -- Index for columns of processed `data.pkl` (derived from `_get_swiss_to_go_mapping` & `_graph_to_raw_dataset`
-    # "swiss_id" at           row index 0
-    # "accession" at          row index 1
-    # "go_ids" at             row index 2
-    # "sequence" at           row index 3
-    # labels starting from    row index 4
+    # -- Index for columns of processed `data.pkl` (derived from `_graph_to_raw_dataset`)
+    # "id" at                 row index 0
+    # "sids" at               row index 1
+    # "sequence" at           row index 2
+    # labels starting from    row index 3
     _ID_IDX: int = 0
     _DATA_REPRESENTATION_IDX: int = 2  # here `sequence` column
     _LABELS_START_IDX: int = 3
@@ -97,7 +106,7 @@ class _SCOPeDataExtractor(_DynamicDataset, ABC):
     # ------------------------------ Phase: Prepare data -----------------------------------
     def _download_required_data(self) -> str:
         """
-        Downloads the required raw data related to Gene Ontology (GO) and Swiss-UniProt dataset.
+        Downloads the required raw data for SCOPe and PDB sequence datasets.
 
         Returns:
             str: Path to the downloaded data.
@@ -106,6 +115,12 @@ class _SCOPeDataExtractor(_DynamicDataset, ABC):
         return self._download_scope_raw_data()
 
     def _download_pdb_sequence_data(self) -> None:
+        """
+        Downloads and unzips the PDB sequence dataset from the RCSB PDB repository.
+
+        The file is downloaded as a temporary gzip file, which is then extracted to the
+        specified directory.
+        """
         pdb_seq_file_path = os.path.join(self.raw_dir, self.raw_file_names_dict["PDB"])
         os.makedirs(os.path.dirname(pdb_seq_file_path), exist_ok=True)
 
@@ -141,8 +156,17 @@ class _SCOPeDataExtractor(_DynamicDataset, ABC):
                 print(f"Removed temporary file {temp_filename}")
 
     def _download_scope_raw_data(self) -> str:
+        """
+        Downloads the raw SCOPe dataset files (CLA, HIE, DES, and COM).
+
+        Each file is downloaded from the SCOPe repository and saved to the specified directory.
+        Files are only downloaded if they do not already exist.
+
+        Returns:
+            str: A dummy path to indicate completion (can be extended for custom behavior).
+        """
         os.makedirs(self.raw_dir, exist_ok=True)
-        for data_type in ["CLA", "COM", "HIE", "DES"]:
+        for data_type in ["CLA", "HIE", "DES"]:
             data_file_name = self.raw_file_names_dict[data_type]
             scope_path = os.path.join(self.raw_dir, data_file_name)
             if not os.path.isfile(scope_path):
@@ -157,6 +181,15 @@ class _SCOPeDataExtractor(_DynamicDataset, ABC):
         return "dummy/path"
 
     def _extract_class_hierarchy(self, data_path: str) -> nx.DiGraph:
+        """
+        Extracts the class hierarchy from SCOPe data and computes its transitive closure.
+
+        Args:
+            data_path (str): Path to the processed SCOPe dataset.
+
+        Returns:
+            nx.DiGraph: A directed acyclic graph representing the SCOPe class hierarchy.
+        """
         print("Extracting class hierarchy...")
         df_scope = self._get_scope_data()
 
@@ -177,6 +210,12 @@ class _SCOPeDataExtractor(_DynamicDataset, ABC):
         return nx.transitive_closure_dag(g)
 
     def _get_scope_data(self) -> pd.DataFrame:
+        """
+        Merges and preprocesses the SCOPe classification, hierarchy, and description files into a unified DataFrame.
+
+        Returns:
+            pd.DataFrame: A DataFrame containing combined SCOPe data with classification and hierarchy details.
+        """
         df_cla = self._get_classification_data()
         df_hie = self._get_hierarchy_data()
         df_des = self._get_node_description_data()
@@ -190,7 +229,12 @@ class _SCOPeDataExtractor(_DynamicDataset, ABC):
         return df_all
 
     def _get_classification_data(self) -> pd.DataFrame:
-        # Load and preprocess CLA file
+        """
+        Parses and processes the SCOPe CLA (classification) file.
+
+        Returns:
+            pd.DataFrame: A DataFrame containing classification details, including hierarchy levels.
+        """
         df_cla = pd.read_csv(
             os.path.join(self.raw_dir, self.raw_file_names_dict["CLA"]),
             sep="\t",
@@ -222,7 +266,12 @@ class _SCOPeDataExtractor(_DynamicDataset, ABC):
         return df_cla
 
     def _get_hierarchy_data(self) -> pd.DataFrame:
-        # Load and preprocess HIE file
+        """
+        Parses and processes the SCOPe HIE (hierarchy) file.
+
+        Returns:
+            pd.DataFrame: A DataFrame containing hierarchy details, including parent-child relationships.
+        """
         df_hie = pd.read_csv(
             os.path.join(self.raw_dir, self.raw_file_names_dict["HIE"]),
             sep="\t",
@@ -243,8 +292,13 @@ class _SCOPeDataExtractor(_DynamicDataset, ABC):
         df_hie["sunid"] = df_hie["sunid"].astype("int64")
         return df_hie
 
-    def _get_node_description_data(self):
-        # Load and preprocess HIE file
+    def _get_node_description_data(self) -> pd.DataFrame:
+        """
+        Parses and processes the SCOPe DES (description) file.
+
+        Returns:
+            pd.DataFrame: A DataFrame containing node-level descriptions from the SCOPe dataset.
+        """
         df_des = pd.read_csv(
             os.path.join(self.raw_dir, self.raw_file_names_dict["DES"]),
             sep="\t",
@@ -260,6 +314,38 @@ class _SCOPeDataExtractor(_DynamicDataset, ABC):
         return df_des
 
     def _graph_to_raw_dataset(self, graph: nx.DiGraph) -> pd.DataFrame:
+        """
+        Processes a directed acyclic graph (DAG) to generate a raw dataset in DataFrame format. This dataset includes
+        chain-level sequences and their corresponding labels based on the hierarchical structure of the associated domains.
+
+        The process:
+            - Extracts SCOPe domain identifiers (sids) from the graph.
+            - Retrieves class labels for each domain based on all applicable taxonomy levels.
+            - Fetches the chain-level sequences from the Protein Data Bank (PDB) for each domain.
+            - For each sequence, identifies all domains associated with the same chain and assigns their corresponding labels.
+
+        Notes:
+            - SCOPe hierarchy levels are used as labels, with each level represented by a column. The value in each column
+              indicates whether a PDB chain is associated with that particular hierarchy level.
+            - PDB chains are treated as samples. The method considers only domains that are mapped to the selected hierarchy levels.
+
+        Data Format: pd.DataFrame
+            - Column 0 : id (Unique identifier for each sequence entry)
+            - Column 1 : sids (List of domain identifiers associated with the sequence)
+            - Column 2 : sequence (Amino acid sequence of the chain)
+            - Column 3 to Column "n": Each column corresponds to a SCOPe class hierarchy level with a value
+              of True/False indicating whether the chain is associated with the corresponding level.
+
+        Args:
+            graph (nx.DiGraph): The class hierarchy graph.
+
+        Returns:
+            pd.DataFrame: The raw dataset created from the graph.
+
+        Raises:
+            RuntimeError: If no sunids are selected.
+            AssertionError: If the input data is insufficient for encoding or validation fails.
+        """
         print(f"Process graph")
 
         sids = nx.get_node_attributes(graph, "sid")
@@ -278,7 +364,6 @@ class _SCOPeDataExtractor(_DynamicDataset, ABC):
         # Remove root node, as it will True for all instances
         sun_ids.pop("root", None)
 
-        # data_df = pd.DataFrame(OrderedDict(sun_id=sun_ids, sids=sids_list))
         if not sun_ids:
             raise RuntimeError("No sunid selected.")
 
@@ -288,6 +373,8 @@ class _SCOPeDataExtractor(_DynamicDataset, ABC):
 
         df_cla = df_cla[["sid", "sunid"] + hierarchy_levels]
 
+        # This filtering make sures to consider only domains that belongs to each `selected` hierarchy level
+        # So, that our data has domains that maps to all levels of the taxonomy
         for level, selected_sun_ids in sun_ids.items():
             if selected_sun_ids:
                 df_cla = df_cla[
@@ -351,15 +438,16 @@ class _SCOPeDataExtractor(_DynamicDataset, ABC):
         sequence_hierarchy_df = sequence_hierarchy_df[
             ["id", "sids", "sequence"] + encoded_target_columns
         ]
-
-        # This filters the DataFrame to include only the rows where at least one value in the row from 5th column
-        # onwards is True/non-zero.
-        sequence_hierarchy_df = sequence_hierarchy_df[
-            sequence_hierarchy_df.iloc[:, self._LABELS_START_IDX :].any(axis=1)
-        ]
         return sequence_hierarchy_df
 
     def _parse_pdb_sequence_file(self) -> Dict[str, Dict[str, str]]:
+        """
+        Parses the PDB sequence file to create a mapping of PDB IDs and chain sequences.
+
+        Returns:
+            Dict[str, Dict[str, str]]: A nested dictionary where keys are PDB IDs (lowercase),
+            and values are dictionaries mapping chain IDs (lowercase) to their corresponding sequences.
+        """
         pdb_chain_seq_mapping: Dict[str, Dict[str, str]] = {}
         for record in SeqIO.parse(
             os.path.join(self.raw_dir, self.raw_file_names_dict["PDB"]), "fasta"
@@ -375,6 +463,18 @@ class _SCOPeDataExtractor(_DynamicDataset, ABC):
     def _update_or_add_sequence(
         sequence, row, sequence_hierarchy_df, encoded_col_names
     ):
+        """
+        Updates an existing sequence entry or adds a new one to the DataFrame.
+
+        Args:
+            sequence (str): Amino acid sequence of the chain.
+            row (pd.Series): Row data containing SCOPe hierarchy levels and associated values.
+            sequence_hierarchy_df (pd.DataFrame): DataFrame storing sequences and their hierarchy labels.
+            encoded_col_names (Dict[str, List[str]]): Mapping of hierarchy levels to encoded column names.
+
+        Raises:
+            AssertionError: If a sequence instance belongs to more than one hierarchy level.
+        """
         if sequence in sequence_hierarchy_df.index:
             # Update encoded columns only if they are True
             for col in encoded_col_names:
@@ -397,7 +497,53 @@ class _SCOPeDataExtractor(_DynamicDataset, ABC):
             sequence_hierarchy_df.loc[sequence] = new_row
 
     # ------------------------------ Phase: Setup data -----------------------------------
+    def setup_processed(self) -> None:
+        """
+        Transform and prepare processed data for the SCOPe dataset.
+
+        Main function of this method is to transform `data.pkl` into a model input data format (`data.pt`),
+        ensuring that the data is in a format compatible for input to the model.
+        The transformed data must contain the following keys: `ident`, `features`, `labels`, and `group`.
+        This method uses a subclass of Data Reader to perform the transformation.
+
+        It will transform the data related to `scope_version_train`, if specified.
+        """
+        super().setup_processed()
+
+        # Transform the data related to "scope_version_train" to encoded data, if it doesn't exist
+        if self.scope_version_train is not None and not os.path.isfile(
+            os.path.join(
+                self._scope_version_train_obj.processed_dir,
+                self._scope_version_train_obj.processed_file_names_dict["data"],
+            )
+        ):
+            print(
+                f"Missing encoded data related to train version: {self.scope_version_train}"
+            )
+            print("Calling the setup method related to it")
+            self._scope_version_train_obj.setup()
+
     def _load_dict(self, input_file_path: str) -> Generator[Dict[str, Any], None, None]:
+        """
+        Loads data from a pickled file and yields individual dictionaries for each row.
+
+        The pickled file is expected to contain rows with the following structure:
+            - Data at row index `self._ID_IDX`: ID of go data instance
+            - Data at row index `self._DATA_REPRESENTATION_IDX`: Sequence representation of protein
+            - Data from row index `self._LABELS_START_IDX` onwards: Labels
+
+        This method is used by `_load_data_from_file` to generate dictionaries that are then
+        processed and converted into a list of dictionaries containing the features and labels.
+
+        Args:
+            input_file_path (str): The path to the pickled input file.
+
+        Yields:
+            Dict[str, Any]: A dictionary containing:
+                - `features` (str): The sequence data from the file.
+                - `labels` (np.ndarray): A boolean array of labels starting from row index 4.
+                - `ident` (Any): The identifier from row index 0.
+        """
         with open(input_file_path, "rb") as input_file:
             df = pd.read_pickle(input_file)
             for row in df.values:
@@ -412,9 +558,33 @@ class _SCOPeDataExtractor(_DynamicDataset, ABC):
 
     # ------------------------------ Phase: Dynamic Splits -----------------------------------
     def _get_data_splits(self) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+        """
+        Loads encoded/transformed data and generates training, validation, and test splits.
+
+        This method first loads encoded data from a file named `data.pt`, which is derived from either
+        `scope_version` or `scope_version_train`. It then splits the data into training, validation, and test sets.
+
+        If `scope_version_train` is provided:
+            - Loads additional encoded data from `scope_version_train`.
+            - Splits this data into training and validation sets, while using the test set from `scope_version`.
+            - Prunes the test set from `scope_version` to include only labels that exist in `scope_version_train`.
+
+        If `scope_version_train` is not provided:
+            - Splits the data from `scope_version` into training, validation, and test sets without modification.
+
+        Raises:
+            FileNotFoundError: If the required `data.pt` file(s) do not exist. Ensure that `prepare_data`
+            and/or `setup` methods have been called to generate the dataset files.
+
+        Returns:
+            Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]: A tuple containing three DataFrames:
+                - Training set
+                - Validation set
+                - Test set
+        """
         try:
             filename = self.processed_file_names_dict["data"]
-            data_go = torch.load(
+            data_scope_version = torch.load(
                 os.path.join(self.processed_dir, filename), weights_only=False
             )
         except FileNotFoundError:
@@ -423,19 +593,101 @@ class _SCOPeDataExtractor(_DynamicDataset, ABC):
                 f"Please call 'prepare_data' and/or 'setup' methods to generate the dataset files"
             )
 
-        df_go_data = pd.DataFrame(data_go)
-        train_df_go, df_test = self.get_test_split(
-            df_go_data, seed=self.dynamic_data_split_seed
+        df_scope_version = pd.DataFrame(data_scope_version)
+        train_df_scope_ver, df_test_scope_ver = self.get_test_split(
+            df_scope_version, seed=self.dynamic_data_split_seed
         )
 
-        # Get all splits
-        df_train, df_val = self.get_train_val_splits_given_test(
-            train_df_go,
-            df_test,
-            seed=self.dynamic_data_split_seed,
-        )
+        if self.scope_version_train is not None:
+            # Load encoded data derived from "scope_version_train"
+            try:
+                filename_train = (
+                    self._scope_version_train_obj.processed_file_names_dict["data"]
+                )
+                data_scope_train_version = torch.load(
+                    os.path.join(
+                        self._scope_version_train_obj.processed_dir, filename_train
+                    ),
+                    weights_only=False,
+                )
+            except FileNotFoundError:
+                raise FileNotFoundError(
+                    f"File data.pt doesn't exists related to scope_version_train {self.scope_version_train}."
+                    f"Please call 'prepare_data' and/or 'setup' methods to generate the dataset files"
+                )
+
+            df_scope_train_version = pd.DataFrame(data_scope_train_version)
+            # Get train/val split of data based on "scope_version_train", but
+            # using test set from "scope_version"
+            df_train, df_val = self.get_train_val_splits_given_test(
+                df_scope_train_version,
+                df_test_scope_ver,
+                seed=self.dynamic_data_split_seed,
+            )
+            # Modify test set from "scope_version" to only include the labels that
+            # exists in "scope_version_train", all other entries remains same.
+            df_test = self._setup_pruned_test_set(df_test_scope_ver)
+        else:
+            # Get all splits based on "scope_version"
+            df_train, df_val = self.get_train_val_splits_given_test(
+                train_df_scope_ver,
+                df_test_scope_ver,
+                seed=self.dynamic_data_split_seed,
+            )
+            df_test = df_test_scope_ver
 
         return df_train, df_val, df_test
+
+    def _setup_pruned_test_set(
+        self, df_test_scope_version: pd.DataFrame
+    ) -> pd.DataFrame:
+        """
+        Create a test set with the same leaf nodes, but use only classes that appear in the training set.
+
+        Args:
+            df_test_scope_version (pd.DataFrame): The test dataset.
+
+        Returns:
+            pd.DataFrame: The pruned test dataset.
+        """
+        # TODO: find a more efficient way to do this
+        filename_old = "classes.txt"
+        # filename_new = f"classes_v{self.scope_version_train}.txt"
+        # dataset = torch.load(os.path.join(self.processed_dir, "test.pt"))
+
+        # Load original classes (from the current ChEBI version - scope_version)
+        with open(os.path.join(self.processed_dir_main, filename_old), "r") as file:
+            orig_classes = file.readlines()
+
+        # Load new classes (from the training ChEBI version - scope_version_train)
+        with open(
+            os.path.join(
+                self._scope_version_train_obj.processed_dir_main, filename_old
+            ),
+            "r",
+        ) as file:
+            new_classes = file.readlines()
+
+        # Create a mapping which give index of a class from scope_version, if the corresponding
+        # class exists in scope_version_train, Size = Number of classes in scope_version
+        mapping = [
+            None if or_class not in new_classes else new_classes.index(or_class)
+            for or_class in orig_classes
+        ]
+
+        # Iterate over each data instance in the test set which is derived from scope_version
+        for _, row in df_test_scope_version.iterrows():
+            # Size = Number of classes in scope_version_train
+            new_labels = [False for _ in new_classes]
+            for ind, label in enumerate(row["labels"]):
+                # If the scope_version class exists in the scope_version_train and has a True label,
+                # set the corresponding label in new_labels to True
+                if mapping[ind] is not None and label:
+                    new_labels[mapping[ind]] = label
+            # Update the labels from test instance from scope_version to the new labels, which are compatible to both versions
+            row["labels"] = new_labels
+
+        return df_test_scope_version
 
     # ------------------------------ Phase: Raw Properties -----------------------------------
     @property
@@ -461,7 +713,6 @@ class _SCOPeDataExtractor(_DynamicDataset, ABC):
             "CLA": "cla.txt",
             "DES": "des.txt",
             "HIE": "hie.txt",
-            "COM": "com.txt",
             "PDB": "pdb_sequences.txt",
         }
 
