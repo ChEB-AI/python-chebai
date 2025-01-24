@@ -121,7 +121,9 @@ class _SCOPeDataExtractor(_DynamicDataset, ABC):
         The file is downloaded as a temporary gzip file, which is then extracted to the
         specified directory.
         """
-        pdb_seq_file_path = os.path.join(self.raw_dir, self.raw_file_names_dict["PDB"])
+        pdb_seq_file_path = os.path.join(
+            self.scope_root_dir, self.raw_file_names_dict["PDB"]
+        )
         os.makedirs(os.path.dirname(pdb_seq_file_path), exist_ok=True)
 
         if not os.path.isfile(pdb_seq_file_path):
@@ -450,7 +452,7 @@ class _SCOPeDataExtractor(_DynamicDataset, ABC):
         """
         pdb_chain_seq_mapping: Dict[str, Dict[str, str]] = {}
         for record in SeqIO.parse(
-            os.path.join(self.raw_dir, self.raw_file_names_dict["PDB"]), "fasta"
+            os.path.join(self.scope_root_dir, self.raw_file_names_dict["PDB"]), "fasta"
         ):
             pdb_id, chain = record.id.split("_")
             if str(record.seq):
@@ -655,11 +657,11 @@ class _SCOPeDataExtractor(_DynamicDataset, ABC):
         # filename_new = f"classes_v{self.scope_version_train}.txt"
         # dataset = torch.load(os.path.join(self.processed_dir, "test.pt"))
 
-        # Load original classes (from the current ChEBI version - scope_version)
+        # Load original classes (from the current SCOPe version - scope_version)
         with open(os.path.join(self.processed_dir_main, filename_old), "r") as file:
             orig_classes = file.readlines()
 
-        # Load new classes (from the training ChEBI version - scope_version_train)
+        # Load new classes (from the training SCOPe version - scope_version_train)
         with open(
             os.path.join(
                 self._scope_version_train_obj.processed_dir_main, filename_old
@@ -691,14 +693,24 @@ class _SCOPeDataExtractor(_DynamicDataset, ABC):
 
     # ------------------------------ Phase: Raw Properties -----------------------------------
     @property
-    def base_dir(self) -> str:
+    def scope_root_dir(self) -> str:
         """
-        Returns the base directory path for storing GO-Uniprot data.
+        Returns the root directory of scope data.
 
         Returns:
             str: The path to the base directory, which is "data/GO_UniProt".
         """
-        return os.path.join("data", "SCOPe", f"version_{self.scope_version}")
+        return os.path.join("data", "SCOPe")
+
+    @property
+    def base_dir(self) -> str:
+        """
+        Returns the base directory path for storing SCOPe data.
+
+        Returns:
+            str: The path to the base directory, which is "data/GO_UniProt".
+        """
+        return os.path.join(self.scope_root_dir, f"version_{self.scope_version}")
 
     @property
     def raw_file_names_dict(self) -> dict:
@@ -707,7 +719,6 @@ class _SCOPeDataExtractor(_DynamicDataset, ABC):
 
         Returns:
             dict: A dictionary mapping dataset names to their respective file names.
-                  For example, {"GO": "go-basic.obo", "SwissUniProt": "uniprot_sprot.dat"}.
         """
         return {
             "CLA": "cla.txt",
@@ -717,13 +728,32 @@ class _SCOPeDataExtractor(_DynamicDataset, ABC):
         }
 
 
-class SCOPE(_SCOPeDataExtractor):
+class _SCOPeOverX(_SCOPeDataExtractor, ABC):
+    """
+    A class for extracting data from the SCOPe dataset with a threshold for selecting classes/labels based on
+    the number of subclasses.
+
+    This class is designed to filter SCOPe classes/labels based on a specified threshold, selecting only those classes
+    which have a certain number of subclasses in the hierarchy.
+
+    Attributes:
+        READER (dr.ProteinDataReader): The reader used for reading the dataset.
+        THRESHOLD (int): The threshold for selecting classes/labels based on the number of subclasses.
+
+    """
+
     READER = ProteinDataReader
-    THRESHOLD = 2143
+    THRESHOLD: int = None
 
     @property
     def _name(self) -> str:
-        return "test"
+        """
+        Returns the name of the dataset.
+
+        Returns:
+            str: The dataset name, formatted with the current threshold.
+        """
+        return f"SCOPe{self.THRESHOLD}"
 
     def select_classes(self, g: nx.DiGraph, *args, **kwargs) -> Dict:
         # Filter nodes and create a dictionary of node and out-degree
@@ -743,6 +773,90 @@ class SCOPE(_SCOPeDataExtractor):
             fout.writelines(str(sun_id) + "\n" for sun_id in sorted_dict.keys())
 
         return sorted_dict
+
+
+class _SCOPeOverXPartial(_SCOPeOverX, ABC):
+    """
+    Dataset that doesn't use the full SCOPe dataset, but extracts a part of SCOPe (subclasses of a given top class)
+
+    Attributes:
+        top_class_sunid (int): The Sun-ID of the top class from which to extract subclasses.
+    """
+
+    def __init__(self, top_class_sunid: int, **kwargs):
+        """
+        Initializes the _SCOPeOverXPartial dataset.
+
+        Args:
+            top_class_sunid (int): The Sun-ID of the top class from which to extract subclasses.
+            **kwargs: Additional keyword arguments passed to the superclass initializer.
+        """
+        if "top_class_sunid" not in kwargs:
+            kwargs["top_class_sunid"] = top_class_sunid
+
+        self.top_class_sunid: int = top_class_sunid
+        super().__init__(**kwargs)
+
+    @property
+    def processed_dir_main(self) -> str:
+        """
+        Returns the main processed data directory specific to the top class.
+
+        Returns:
+            str: The processed data directory path.
+        """
+        return os.path.join(
+            self.base_dir,
+            self._name,
+            f"partial_{self.top_class_sunid}",
+            "processed",
+        )
+
+    def _extract_class_hierarchy(self, data_path: str) -> nx.DiGraph:
+        """
+        Extracts a subset of SCOPe based on subclasses of the top class ID.
+
+        This method calls the superclass method to extract the full class hierarchy,
+        then extracts the subgraph containing only the descendants of the top class ID, including itself.
+
+        Args:
+            data_path (str): The file path to the SCOPe ontology file.
+
+        Returns:
+            nx.DiGraph: The extracted class hierarchy as a directed graph, limited to the
+            descendants of the top class ID.
+        """
+        g = super()._extract_class_hierarchy(data_path)
+        g = g.subgraph(
+            list(g.successors(self.top_class_sunid)) + [self.top_class_sunid]
+        )
+        return g
+
+
+class SCOPeOver2000(_SCOPeOverX):
+    """
+    A class for extracting data from the SCOPe dataset with a threshold of 2000 for selecting classes.
+
+    Inherits from `_SCOPeOverX` and sets the threshold for selecting classes to 2000.
+
+    Attributes:
+        THRESHOLD (int): The threshold for selecting classes (2000).
+    """
+
+    THRESHOLD: int = 2000
+
+
+class SCOPeOverPartial2000(_SCOPeOverXPartial):
+    """
+    A class for extracting data from the SCOPe dataset with a threshold of 2000 for selecting classes.
+
+    Inherits from `_SCOPeOverXPartial` and sets the threshold for selecting classes to 2000.
+
+    Attributes:
+        THRESHOLD (int): The threshold for selecting classes (2000).
+    """
+
+    THRESHOLD: int = 2000
 
 
 if __name__ == "__main__":
