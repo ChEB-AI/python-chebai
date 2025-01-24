@@ -616,9 +616,6 @@ class _GOUniProtOverX(_GOUniProtDataExtractor, ABC):
     Attributes:
         READER (dr.ProteinDataReader): The reader used for reading the dataset.
         THRESHOLD (int): The threshold for selecting classes based on the number of subclasses.
-
-    Property:
-        label_number (int): The number of labels in the dataset. This property must be implemented by subclasses.
     """
 
     READER: dr.ProteinDataReader = dr.ProteinDataReader
