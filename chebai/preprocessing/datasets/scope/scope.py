@@ -279,17 +279,28 @@ class _SCOPeDataExtractor(_DynamicDataset, ABC):
         sun_ids.pop("root", None)
 
         # data_df = pd.DataFrame(OrderedDict(sun_id=sun_ids, sids=sids_list))
+        if not sun_ids:
+            raise RuntimeError("No sunid selected.")
+
         df_cla = self._get_classification_data()
+        hierarchy_levels = list(self.SCOPE_HIERARCHY.values())
+        hierarchy_levels.remove("domain")
+
+        df_cla = df_cla[["sid", "sunid"] + hierarchy_levels]
 
         for level, selected_sun_ids in sun_ids.items():
-            df_cla = df_cla[df_cla[self.SCOPE_HIERARCHY[level]].isin(selected_sun_ids)]
+            if selected_sun_ids:
+                df_cla = df_cla[
+                    df_cla[self.SCOPE_HIERARCHY[level]].isin(selected_sun_ids)
+                ]
 
         assert (
             len(df_cla) > 1
         ), "dataframe should have more than one instance for `pd.get_dummies` to work as expected"
+
         df_encoded = pd.get_dummies(
             df_cla,
-            columns=list(self.SCOPE_HIERARCHY.values()),
+            columns=hierarchy_levels,
             drop_first=False,
             sparse=True,
         )
@@ -297,13 +308,13 @@ class _SCOPeDataExtractor(_DynamicDataset, ABC):
         pdb_chain_seq_mapping = self._parse_pdb_sequence_file()
 
         encoded_target_cols = {}
-        for col in self.SCOPE_HIERARCHY.values():
+        for col in hierarchy_levels:
             encoded_target_cols[col] = [
                 t_col for t_col in df_encoded.columns if t_col.startswith(col)
             ]
 
         encoded_target_columns = []
-        for level in self.SCOPE_HIERARCHY.values():
+        for level in hierarchy_levels:
             encoded_target_columns.extend(encoded_target_cols[level])
 
         sequence_hierarchy_df = pd.DataFrame(columns=["sids"] + encoded_target_columns)
@@ -333,8 +344,8 @@ class _SCOPeDataExtractor(_DynamicDataset, ABC):
                         chain_sequence, row, sequence_hierarchy_df, encoded_target_cols
                     )
 
-        sequence_hierarchy_df.drop(columns=["sid"], axis=1, inplace=True)
         sequence_hierarchy_df.reset_index(inplace=True)
+        sequence_hierarchy_df.rename(columns={"index": "sequence"}, inplace=True)
         sequence_hierarchy_df["id"] = range(1, len(sequence_hierarchy_df) + 1)
 
         sequence_hierarchy_df = sequence_hierarchy_df[
@@ -457,7 +468,7 @@ class _SCOPeDataExtractor(_DynamicDataset, ABC):
 
 class SCOPE(_SCOPeDataExtractor):
     READER = ProteinDataReader
-    THRESHOLD = 10000
+    THRESHOLD = 2143
 
     @property
     def _name(self) -> str:
