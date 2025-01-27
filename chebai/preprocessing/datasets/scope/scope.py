@@ -12,6 +12,7 @@
 
 import gzip
 import os
+import re
 import shutil
 from abc import ABC, abstractmethod
 from tempfile import NamedTemporaryFile
@@ -441,14 +442,18 @@ class _SCOPeDataExtractor(_DynamicDataset, ABC):
             and values are dictionaries mapping chain IDs (lowercase) to their corresponding sequences.
         """
         pdb_chain_seq_mapping: Dict[str, Dict[str, str]] = {}
+        valid_amino_acids = "".join(ProteinDataReader.AA_LETTER)
+
         for record in SeqIO.parse(
             os.path.join(self.scope_root_dir, self.raw_file_names_dict["PDB"]), "fasta"
         ):
             pdb_id, chain = record.id.split("_")
             if str(record.seq):
-                pdb_chain_seq_mapping.setdefault(pdb_id.lower(), {})[chain.lower()] = (
-                    str(record.seq)
-                )
+                sequence = re.sub(f"[^{valid_amino_acids}]", "X", str(record.seq))
+
+                pdb_chain_seq_mapping.setdefault(pdb_id.lower(), {})[
+                    chain.lower()
+                ] = sequence
         return pdb_chain_seq_mapping
 
     @staticmethod
