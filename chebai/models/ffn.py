@@ -25,7 +25,7 @@ class FFN(ChebaiBaseNet):
         current_layer_input_size = input_size
         for hidden_dim in hidden_layers:
             layers.append(MLPBlock(current_layer_input_size, hidden_dim))
-            layers.append(Residual(MLPBlock(current_layer_input_size, hidden_dim)))
+            layers.append(Residual(MLPBlock(hidden_dim, hidden_dim)))
             current_layer_input_size = hidden_dim
 
         layers.append(torch.nn.Linear(current_layer_input_size, self.out_dim))
