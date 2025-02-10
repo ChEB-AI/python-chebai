@@ -509,7 +509,7 @@ class ESM2EmbeddingReader(DataReader):
 
     def __init__(
         self,
-        save_model_dir: str,
+        save_model_dir: str = os.path.join("data", "esm2_reader"),
         model_name: str = "esm2_t36_3B_UR50D",
         device: Optional[torch.device] = None,
         truncation_length: int = 1022,
@@ -617,7 +617,7 @@ class ESM2EmbeddingReader(DataReader):
         return data
 
     @staticmethod
-    def name() -> None:
+    def name() -> str:
         """
         Returns the name of the data reader. This method identifies the specific type of data reader.
 
