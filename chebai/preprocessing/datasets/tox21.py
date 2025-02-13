@@ -47,7 +47,7 @@ class Tox21MolNet(XYBaseDataModule):
     @property
     def raw_file_names(self) -> List[str]:
         """Returns a list of raw file names."""
-        return ["tox21.csv"]
+        return ["tox21_groups_04.csv"]
 
     @property
     def processed_file_names(self) -> List[str]:
@@ -68,7 +68,7 @@ class Tox21MolNet(XYBaseDataModule):
     def setup_processed(self) -> None:
         """Processes and splits the dataset."""
         print("Create splits")
-        data = list(self._load_data_from_file(os.path.join(self.raw_dir, f"tox21.csv")))
+        data = list(self._load_data_from_file(os.path.join(self.raw_dir, f"tox21_groups_04.csv")))
         groups = np.array([d.get("group") for d in data])
 
         if not all(g is None for g in groups):
@@ -92,12 +92,12 @@ class Tox21MolNet(XYBaseDataModule):
             test_split = [
                 d
                 for d in (data[temp_split_index[i]] for i in test_split_index)
-                if d["original"]
+                # if d["original"]
             ]
             validation_split = [
                 d
                 for d in (data[temp_split_index[i]] for i in validation_split_index)
-                if d["original"]
+                # if d["original"]
             ]
         else:
 
@@ -143,11 +143,13 @@ class Tox21MolNet(XYBaseDataModule):
         with open(input_file_path, "r") as input_file:
             reader = csv.DictReader(input_file)
             for row in reader:
+                print(row)
                 smiles = row["smiles"]
                 labels = [
-                    bool(int(l)) if l else None for l in (row[k] for k in self.HEADERS)
+                    bool(int(float(l))) if len(l) > 1 else None for l in (row[k] for k in self.HEADERS)
                 ]
-                yield dict(features=smiles, labels=labels, ident=row["mol_id"])
+                group = int(row["group"])
+                yield dict(features=smiles, labels=labels, ident=row["mol_id"], group=group)
                 # yield self.reader.to_data(dict(features=smiles, labels=labels, ident=row["mol_id"]))
 
 

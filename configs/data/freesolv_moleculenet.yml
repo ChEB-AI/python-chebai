@@ -1,3 +1,4 @@
 class_path: chebai.preprocessing.datasets.molecule_regression.FreeSolvChem
 init_args:
   batch_size: 32
+  train_split: 0.8

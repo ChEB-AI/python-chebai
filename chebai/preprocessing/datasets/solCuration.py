@@ -191,7 +191,7 @@ class SolESOL(XYBaseDataModule):
         ):
             self.setup_processed()
 
-    def _load_data_from_file(self, input_file_path: str) -> List[Dict]:
+    def _load_dict(self, input_file_path: str) -> List[Dict]:
         """Loads data from a CSV file.
 
         Args:

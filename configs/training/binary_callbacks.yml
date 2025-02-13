@@ -17,3 +17,10 @@
     filename: 'per_{epoch:02d}_{val_loss:.4f}_{val_f1:.4f}_{val_roc-auc:.4f}'
     every_n_epochs: 25
     save_top_k: -1
+# - class_path: lightning.pytorch.callbacks.early_stopping.EarlyStopping
+#   init_args:
+#     monitor: "val_loss_epoch"
+#     min_delta: 0.0
+#     patience: 10
+#     verbose: False
+#     mode: "min"

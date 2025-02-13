@@ -180,7 +180,7 @@ class BBBP(XYBaseDataModule):
     @property
     def raw_file_names(self) -> List[str]:
         """Returns a list of raw file names."""
-        return ["bbbp.csv"]
+        return ["bbbp_groups4.csv"]
 
     @property
     def processed_file_names(self) -> List[str]:
@@ -198,14 +198,44 @@ class BBBP(XYBaseDataModule):
     def setup_processed(self) -> None:
         """Processes and splits the dataset."""
         print("Create splits")
-        data = list(self._load_data_from_file(os.path.join(self.raw_dir, f"bbbp.csv")))
+        data = list(self._load_data_from_file(os.path.join(self.raw_dir, f"bbbp_groups4.csv")))
+        groups = np.array([d["group"] for d in data])
+        if not all(g is None for g in groups):
+            print('Group shuffled')
+            split_size = int(len(set(groups)) * self.train_split)
+            os.makedirs(self.processed_dir, exist_ok=True)
+            splitter = GroupShuffleSplit(train_size=split_size, n_splits=1)
 
-        train_split, test_split = train_test_split(
-                data, train_size=self.train_split, shuffle=True
+            train_split_index, temp_split_index = next(
+                splitter.split(data, groups=groups)
             )
-        test_split, validation_split = train_test_split(
-                test_split, train_size=0.5, shuffle=True
+
+            split_groups = groups[temp_split_index]
+
+            splitter = GroupShuffleSplit(
+                train_size=int(len(set(split_groups)) * self.train_split), n_splits=1
             )
+            test_split_index, validation_split_index = next(
+                splitter.split(temp_split_index, groups=split_groups)
+            )
+            train_split = [data[i] for i in train_split_index]
+            test_split = [
+                d
+                for d in (data[temp_split_index[i]] for i in test_split_index)
+                # if d["original"]
+            ]
+            validation_split = [
+                d
+                for d in (data[temp_split_index[i]] for i in validation_split_index)
+                # if d["original"]
+            ]
+        else:
+            train_split, test_split = train_test_split(
+                    data, train_size=self.train_split, shuffle=True
+                )
+            test_split, validation_split = train_test_split(
+                    test_split, train_size=0.5, shuffle=True
+                )
         for k, split in [
             ("test", test_split),
             ("train", train_split),
@@ -246,7 +276,8 @@ class BBBP(XYBaseDataModule):
                 i += 1
                 smiles = row["smiles"]
                 labels = [int(row["p_np"])]
-                yield dict(features=smiles, labels=labels, ident=i)
+                group = int(row["group"])
+                yield dict(features=smiles, labels=labels, ident=i, group=group)
                 # yield self.reader.to_data(dict(features=smiles, labels=labels, ident=i))
 
 class Sider(XYBaseDataModule):
@@ -279,7 +310,7 @@ class Sider(XYBaseDataModule):
     @property
     def raw_file_names(self) -> List[str]:
         """Returns a list of raw file names."""
-        return ["sider.csv"]
+        return ["sider_groups4.csv"]
 
     @property
     def processed_file_names(self) -> List[str]:
@@ -300,7 +331,7 @@ class Sider(XYBaseDataModule):
     def setup_processed(self) -> None:
         """Processes and splits the dataset."""
         print("Create splits")
-        data = list(self._load_data_from_file(os.path.join(self.raw_dir, f"sider.csv")))
+        data = list(self._load_data_from_file(os.path.join(self.raw_dir, f"sider_groups4.csv")))
         groups = np.array([d["group"] for d in data])
         if not all(g is None for g in groups):
             split_size = int(len(set(groups)) * self.train_split)
@@ -323,12 +354,12 @@ class Sider(XYBaseDataModule):
             test_split = [
                 d
                 for d in (data[temp_split_index[i]] for i in test_split_index)
-                if d["original"]
+                # if d["original"]
             ]
             validation_split = [
                 d
                 for d in (data[temp_split_index[i]] for i in validation_split_index)
-                if d["original"]
+                # if d["original"]
             ]
         else:
             train_split, test_split = train_test_split(
@@ -379,7 +410,8 @@ class Sider(XYBaseDataModule):
                 labels = [
                     bool(int(l)) if l else None for l in (row[k] for k in self.HEADERS)
                 ]
-                yield dict(features=smiles, labels=labels, ident=i)
+                group = row["group"]
+                yield dict(features=smiles, labels=labels, ident=i, group=group)
                 # yield self.reader.to_data(dict(features=smiles, labels=labels, ident=i))
 
 class Bace(XYBaseDataModule):
@@ -421,13 +453,41 @@ class Bace(XYBaseDataModule):
         """Processes and splits the dataset."""
         print("Create splits")
         data = list(self._load_data_from_file(os.path.join(self.raw_dir, f"bace.csv")))
+        # groups = np.array([d.get("group") for d in data])
 
+        # if not all(g is None for g in groups):
+        #     split_size = int(len(set(groups)) * self.train_split)
+        #     os.makedirs(self.processed_dir, exist_ok=True)
+        #     splitter = GroupShuffleSplit(train_size=split_size, n_splits=1)
+
+        #     train_split_index, temp_split_index = next(
+        #         splitter.split(data, groups=groups)
+        #     )
+
+        #     split_groups = groups[temp_split_index]
+
+        #     splitter = GroupShuffleSplit(
+        #         train_size=int(len(set(split_groups)) * self.train_split), n_splits=1
+        #     )
+        #     test_split_index, validation_split_index = next(
+        #         splitter.split(temp_split_index, groups=split_groups)
+        #     )
+        #     train_split = [data[i] for i in train_split_index]
+        #     test_split = [
+        #         d
+        #         for d in (data[temp_split_index[i]] for i in test_split_index)
+        #     ]
+        #     validation_split = [
+        #         d
+        #         for d in (data[temp_split_index[i]] for i in validation_split_index)
+        #     ]
+        # else:
         train_split, test_split = train_test_split(
-                data, train_size=self.train_split, shuffle=True
-            )
+                    data, train_size=self.train_split, shuffle=True
+                )
         test_split, validation_split = train_test_split(
-                test_split, train_size=0.5, shuffle=True
-            )
+                    test_split, train_size=0.5, shuffle=True
+                )
         for k, split in [
             ("test", test_split),
             ("train", train_split),
@@ -468,6 +528,7 @@ class Bace(XYBaseDataModule):
                 i += 1
                 smiles = row["mol"]
                 labels = [int(row["Class"])]
+                # group = row["group"]
                 yield dict(features=smiles, labels=labels, ident=i)
                 # yield self.reader.to_data(dict(features=smiles, labels=labels, ident=i))
 

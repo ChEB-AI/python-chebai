@@ -47,6 +47,7 @@ def eval_model(
             for molecule, label in batch:
                 model_outputs = model(molecule)
                 # todo: this is also just for classification, adjust to regression
+                print("THESE SHOULD BE PROBAS (in train.py):", model_outputs)
                 prediction = [1.0 if i > 0.5 else 0.0 for i in model_outputs]
                 predictions.append(prediction)
                 raw_values.append(model_outputs)
@@ -148,6 +149,7 @@ def _execute(
         loss = loss_fn(prediction, labels)
         data_size += 1
         # todo: this is also just for classification, adjust to regression
+        print("THESE SHOULD BE PROBAS (in train.py):", prediction)
         f1 += f1_score(prediction > 0.5, labels > 0.5, average="micro")
         train_running_loss += loss.item()
 

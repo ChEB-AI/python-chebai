@@ -86,7 +86,7 @@ class Lipo(XYBaseDataModule):
         ):
             self.setup_processed()
 
-    def _load_data_from_file(self, input_file_path: str) -> List[Dict]:
+    def _load_dict(self, input_file_path: str) -> List[Dict]:
         """Loads data from a CSV file.
 
         Args:
@@ -143,10 +143,10 @@ class FreeSolv(XYBaseDataModule):
         print(len(data))
         if 0 == 0:
             train_split, test_split = train_test_split(
-                data, train_size=self.train_split, shuffle=True
+                data, train_size=self.train_split, shuffle=True, random_state=5
             )
             test_split, validation_split = train_test_split(
-                test_split, train_size=0.5, shuffle=True
+                test_split, train_size=0.5, shuffle=True, random_state=5
             )
         for k, split in [
             ("test", test_split),
@@ -175,7 +175,7 @@ class FreeSolv(XYBaseDataModule):
         ):
             self.setup_processed()
 
-    def _load_data_from_file(self, input_file_path: str) -> List[Dict]:
+    def _load_dict(self, input_file_path: str) -> List[Dict]:
         """Loads data from a CSV file.
 
         Args:

@@ -102,6 +102,7 @@ def evaluate_model(
     Returns:
         Tensors with predictions and labels.
     """
+    assert model.model_type == "classification"
     model.eval()
     collate = data_module.reader.COLLATOR()
 
@@ -112,7 +113,6 @@ def evaluate_model(
     else:
         data_list = data_module.load_processed_data("test", filename)
     data_list = data_list[: data_module.data_limit]
-    print(data_list[2:5])
     preds_list = []
     labels_list = []
     if buffer_dir is not None:
