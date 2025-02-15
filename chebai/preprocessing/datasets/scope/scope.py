@@ -37,8 +37,8 @@ class _SCOPeDataExtractor(_DynamicDataset, ABC):
     Additionally, it supports downloading related data like PDB sequence files.
 
     Args:
-        scope_version (float): The SCOPe version to use.
-        scope_version_train (Optional[float]): The training SCOPe version, if different.
+        scope_version (str): The SCOPe version to use.
+        scope_version_train (Optional[str]): The training SCOPe version, if different.
         dynamic_data_split_seed (int, optional): The seed for random data splitting. Defaults to 42.
         splits_file_path (str, optional): Path to the splits CSV file. Defaults to None.
         **kwargs: Additional keyword arguments passed to DynamicDataset and  XYBaseDataModule.
@@ -70,12 +70,12 @@ class _SCOPeDataExtractor(_DynamicDataset, ABC):
 
     def __init__(
         self,
-        scope_version: float,
-        scope_version_train: Optional[float] = None,
+        scope_version: str,
+        scope_version_train: Optional[str] = None,
         **kwargs,
     ):
-        self.scope_version: float = scope_version
-        self.scope_version_train: float = scope_version_train
+        self.scope_version: str = scope_version
+        self.scope_version_train: str = scope_version_train
 
         super(_SCOPeDataExtractor, self).__init__(**kwargs)
 
@@ -89,7 +89,7 @@ class _SCOPeDataExtractor(_DynamicDataset, ABC):
             )
 
     @staticmethod
-    def _get_scope_url(data_type: str, version_number: float) -> str:
+    def _get_scope_url(data_type: str, version_number: str) -> str:
         """
         Generates the URL for downloading SCOPe files.
 
@@ -872,6 +872,6 @@ class SCOPeOverPartial2000(_SCOPeOverXPartial):
 
 
 if __name__ == "__main__":
-    scope = SCOPeOver2000(scope_version=2.08)
+    scope = SCOPeOver2000(scope_version="2.08")
     g = scope._extract_class_hierarchy("dummy/path")
     scope._graph_to_raw_dataset(g)
