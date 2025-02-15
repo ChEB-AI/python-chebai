@@ -858,6 +858,11 @@ class SCOPeOver2000(_SCOPeOverX):
     THRESHOLD: int = 2000
 
 
+class SCOPeOver50(_SCOPeOverX):
+    
+    THRESHOLD = 50
+
+
 class SCOPeOverPartial2000(_SCOPeOverXPartial):
     """
     A class for extracting data from the SCOPe dataset with a threshold of 2000 for selecting classes.
