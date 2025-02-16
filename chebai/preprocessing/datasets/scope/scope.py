@@ -23,6 +23,7 @@ import pandas as pd
 import requests
 import torch
 from Bio import SeqIO
+from tqdm import tqdm
 
 from chebai.preprocessing.datasets.base import _DynamicDataset
 from chebai.preprocessing.reader import ProteinDataReader
@@ -365,6 +366,9 @@ class _SCOPeDataExtractor(_DynamicDataset, ABC):
         # Initialize selected target columns
         df_encoded = df_cla[["sid", "sunid"]].copy()
 
+        # Collect all new columns in a dictionary first (avoids fragmentation)
+        encoded_df_columns = {}
+
         lvl_to_target_cols_mapping = {}
         # Iterate over only the selected sun_ids (nodes) to one-hot encode them
         for level, selected_sun_ids in selected_sun_ids_per_lvl.items():
@@ -375,10 +379,16 @@ class _SCOPeDataExtractor(_DynamicDataset, ABC):
                 # Create binary encoding for only relevant sun_ids
                 for sun_id in selected_sun_ids:
                     col_name = f"{level_column}_{sun_id}"
-                    df_encoded[col_name] = (df_cla[level_column] == sun_id).astype(bool)
+                    encoded_df_columns[col_name] = (
+                        df_cla[level_column] == sun_id
+                    ).astype(bool)
+
                     lvl_to_target_cols_mapping.setdefault(level_column, []).append(
                         col_name
                     )
+
+        # Convert the dictionary into a DataFrame and concatenate at once (prevents fragmentation)
+        df_encoded = pd.concat([df_encoded, pd.DataFrame(encoded_df_columns)], axis=1)
 
         # Filter to select only domains that atleast map to any one selected sunid in any level
         df_encoded = df_encoded[df_encoded.iloc[:, 2:].any(axis=1)]
@@ -392,7 +402,15 @@ class _SCOPeDataExtractor(_DynamicDataset, ABC):
         sequence_hierarchy_df = pd.DataFrame(columns=["sids"] + encoded_target_columns)
         df_encoded = df_encoded[["sid", "sunid"] + encoded_target_columns]
 
-        for _, row in df_encoded.iterrows():
+        print(
+            f"{len(encoded_target_columns)} labels has been selected for specified threshold, "
+            f"Max possible size of dataset is {len(df_encoded)} rows x {len(encoded_target_columns) + 1} columns"
+        )
+        print("Constructing data.pkl file .....")
+
+        for _, row in tqdm(
+            df_encoded.iterrows(), total=len(df_encoded), desc="Processing Rows"
+        ):
             sid = row["sid"]
             # SID: 7-char identifier ("d" + 4-char PDB ID + chain ID ('_' for none, '.' for multiple)
             # + domain specifier ('_' if not needed))
