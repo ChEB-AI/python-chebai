@@ -23,7 +23,6 @@ import pandas as pd
 import requests
 import torch
 from Bio import SeqIO
-from tqdm import tqdm
 
 from chebai.preprocessing.datasets.base import _DynamicDataset
 from chebai.preprocessing.reader import ProteinDataReader
@@ -372,9 +371,7 @@ class _SCOPeDataExtractor(_DynamicDataset, ABC):
         lvl_to_target_cols_mapping = {}
         # Iterate over only the selected sun_ids (nodes) to one-hot encode them
         for level, selected_sun_ids in selected_sun_ids_per_lvl.items():
-            level_column = self.SCOPE_HIERARCHY[
-                level
-            ]  # Get the actual column name in df_cla
+            level_column = self.SCOPE_HIERARCHY[level]
             if level_column in df_cla.columns:
                 # Create binary encoding for only relevant sun_ids
                 for sun_id in selected_sun_ids:
@@ -390,63 +387,71 @@ class _SCOPeDataExtractor(_DynamicDataset, ABC):
         # Convert the dictionary into a DataFrame and concatenate at once (prevents fragmentation)
         df_encoded = pd.concat([df_encoded, pd.DataFrame(encoded_df_columns)], axis=1)
 
-        # Filter to select only domains that atleast map to any one selected sunid in any level
-        df_encoded = df_encoded[df_encoded.iloc[:, 2:].any(axis=1)]
-
-        pdb_chain_seq_mapping = self._parse_pdb_sequence_file()
-
         encoded_target_columns = []
         for level in hierarchy_levels:
             encoded_target_columns.extend(lvl_to_target_cols_mapping[level])
 
-        sequence_hierarchy_df = pd.DataFrame(columns=["sids"] + encoded_target_columns)
-        df_encoded = df_encoded[["sid", "sunid"] + encoded_target_columns]
-
         print(
             f"{len(encoded_target_columns)} labels has been selected for specified threshold, "
-            f"Max possible size of dataset is {len(df_encoded)} rows x {len(encoded_target_columns) + 1} columns"
         )
         print("Constructing data.pkl file .....")
 
-        for _, row in tqdm(
-            df_encoded.iterrows(), total=len(df_encoded), desc="Processing Rows"
-        ):
-            sid = row["sid"]
-            # SID: 7-char identifier ("d" + 4-char PDB ID + chain ID ('_' for none, '.' for multiple)
-            # + domain specifier ('_' if not needed))
-            assert len(sid) == 7, "sid should have 7 characters"
-            pdb_id, chain_id = sid[1:5], sid[5]
+        df_encoded = df_encoded[["sid", "sunid"] + encoded_target_columns]
 
-            pdb_to_chain_mapping = pdb_chain_seq_mapping.get(pdb_id, None)
-            if not pdb_to_chain_mapping:
-                continue
+        # Filter to select only domains that atleast map to any one selected sunid in any level
+        df_encoded = df_encoded[df_encoded.iloc[:, 2:].any(axis=1)]
 
-            if chain_id != "_":
-                chain_sequence = pdb_to_chain_mapping.get(chain_id, None)
-                if chain_sequence:
-                    self._update_or_add_sequence(
-                        chain_sequence,
-                        row,
-                        sequence_hierarchy_df,
-                        encoded_target_columns,
-                    )
-            else:
-                # Add nodes and edges for chains in the mapping
-                for chain, chain_sequence in pdb_to_chain_mapping.items():
-                    self._update_or_add_sequence(
-                        chain_sequence,
-                        row,
-                        sequence_hierarchy_df,
-                        encoded_target_columns,
-                    )
+        df_encoded["pdb_id"] = df_encoded["sid"].str[1:5]
+        df_encoded["chain_id"] = df_encoded["sid"].str[5]
 
-        sequence_hierarchy_df.reset_index(inplace=True)
-        sequence_hierarchy_df.rename(columns={"index": "sequence"}, inplace=True)
-        sequence_hierarchy_df["id"] = range(1, len(sequence_hierarchy_df) + 1)
+        pdb_chain_df = self._parse_pdb_sequence_file()
 
-        sequence_hierarchy_df = sequence_hierarchy_df[
-            ["id", "sids", "sequence"] + encoded_target_columns
-        ]
+        # Handle `chain_id == "_"` Case**
+        # Split df_encoded into two: One for specific chains, one for "all chains" ("_")
+        df_specific_chains = df_encoded[df_encoded["chain_id"] != "_"]
+        df_all_chains = df_encoded[df_encoded["chain_id"] == "_"].drop(
+            columns=["chain_id"]
+        )
+
+        common_pdb_ids = set(df_specific_chains["pdb_id"]) & set(
+            df_all_chains["pdb_id"]
+        )
+        if common_pdb_ids:
+            raise RuntimeError(
+                f"{len(common_pdb_ids)} PDB chain IDs found in specific-chains df and all-chains df"
+            )
+
+        # Merge specific chains normally
+        merged_specific = df_specific_chains.merge(
+            pdb_chain_df, on=["pdb_id", "chain_id"], how="left"
+        )
+
+        # Merge all chains case -> Join by pdb_id (not chain_id)
+        merged_all_chains = df_all_chains.merge(pdb_chain_df, on="pdb_id", how="left")
+
+        # Combine both cases
+        sequence_hierarchy_df = pd.concat(
+            [merged_specific, merged_all_chains], ignore_index=True
+        ).dropna(subset=["sequence"])
+
+        # Vectorized Aggregation Instead of Row-wise Updates
+        sequence_hierarchy_df = (
+            sequence_hierarchy_df.groupby("sequence", as_index=False)
+            .agg(
+                {
+                    "sid": list,  # Collect all SIDs per sequence
+                    **{
+                        col: "max" for col in encoded_target_columns
+                    },  # Max works as Bitwise OR for labels
+                }
+            )
+            .rename(columns={"sid": "sids"})
+        )  # Rename for clarity
+
+        sequence_hierarchy_df = sequence_hierarchy_df.assign(
+            id=range(1, len(sequence_hierarchy_df) + 1)
+        )[["id", "sids", "sequence"] + encoded_target_columns]
+
         # Ensure atleast one label is true for each protein sequence
         sequence_hierarchy_df = sequence_hierarchy_df[
             sequence_hierarchy_df.iloc[:, self._LABELS_START_IDX :].any(axis=1)
@@ -457,64 +462,39 @@ class _SCOPeDataExtractor(_DynamicDataset, ABC):
 
         return sequence_hierarchy_df
 
-    def _parse_pdb_sequence_file(self) -> Dict[str, Dict[str, str]]:
+    def _parse_pdb_sequence_file(self) -> pd.DataFrame:
         """
-        Parses the PDB sequence file to create a mapping of PDB IDs and chain sequences.
+        Parses the PDB sequence file and returns a DataFrame containing PDB IDs, chain IDs, and sequences.
 
         Returns:
-            Dict[str, Dict[str, str]]: A nested dictionary where keys are PDB IDs (lowercase),
-            and values are dictionaries mapping chain IDs (lowercase) to their corresponding sequences.
+            pd.DataFrame: A DataFrame with columns ["pdb_id", "chain_id", "sequence"].
         """
-        pdb_chain_seq_mapping: Dict[str, Dict[str, str]] = {}
+        records = []
         valid_amino_acids = "".join(ProteinDataReader.AA_LETTER)
 
         for record in SeqIO.parse(
             os.path.join(self.scope_root_dir, self.raw_file_names_dict["PDB"]), "fasta"
         ):
             pdb_id, chain = record.id.split("_")
-            if str(record.seq):
-                sequence = re.sub(f"[^{valid_amino_acids}]", "X", str(record.seq))
-
-                pdb_chain_seq_mapping.setdefault(pdb_id.lower(), {})[
-                    chain.lower()
-                ] = sequence
-        return pdb_chain_seq_mapping
-
-    @staticmethod
-    def _update_or_add_sequence(
-        sequence: str,
-        row: pd.Series,
-        sequence_hierarchy_df: pd.DataFrame,
-        encoded_target_columns: List[str],
-    ):
-        """
-        Updates an existing sequence entry or adds a new one to the DataFrame.
-
-        Args:
-            sequence (str): Amino acid sequence of the chain.
-            row (pd.Series): Row data containing SCOPe hierarchy levels and associated values.
-            sequence_hierarchy_df (pd.DataFrame): DataFrame storing sequences and their hierarchy labels.
-            encoded_target_columns (List): List of column names which must be in same order in row and sequence_hierarchy_df.
-
-        Raises:
-            AssertionError: If a sequence instance belongs to more than one hierarchy level.
-        """
-        if sequence in sequence_hierarchy_df.index:
-            # Update encoded columns using bitwise OR (ensures values remain True if they were previously True)
-            sequence_hierarchy_df.loc[sequence, encoded_target_columns] = (
-                row[encoded_target_columns]
-                | sequence_hierarchy_df.loc[sequence, encoded_target_columns]
+            sequence = (
+                re.sub(f"[^{valid_amino_acids}]", "X", str(record.seq))
+                if record.seq
+                else ""
             )
 
-            sequence_hierarchy_df.at[sequence, "sids"] = sequence_hierarchy_df.at[
-                sequence, "sids"
-            ] + [row["sid"]]
+            # Store as a dictionary entry (list of dicts -> DataFrame later)
+            records.append(
+                {
+                    "pdb_id": pdb_id.lower(),
+                    "chain_id": chain.lower(),
+                    "sequence": sequence,
+                }
+            )
 
-        else:
-            # Add new row with sequence as the index and hierarchy data
-            new_row = row.to_dict()
-            new_row["sids"] = [row["sid"]]
-            sequence_hierarchy_df.loc[sequence] = new_row
+        # Convert list of dictionaries to a DataFrame
+        pdb_chain_df = pd.DataFrame.from_records(records)
+
+        return pdb_chain_df
 
     @abstractmethod
     def select_classes(self, g: nx.DiGraph, *args, **kwargs) -> Dict[str, List[int]]:
