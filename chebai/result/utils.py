@@ -1,4 +1,5 @@
 import os
+import shutil
 from typing import Optional, Tuple, Union
 
 import torch
@@ -16,9 +17,7 @@ def get_checkpoint_from_wandb(
     epoch: int,
     run: wandb.apis.public.Run,
     root: str = os.path.join("logs", "downloaded_ckpts"),
-    model_class: Optional[Union[Electra, ChebaiBaseNet]] = None,
-    map_device_to: Optional[torch.device] = None,
-) -> Optional[ChebaiBaseNet]:
+):
     """
     Gets a wandb checkpoint based on run and epoch, downloads it if necessary.
 
@@ -26,28 +25,31 @@ def get_checkpoint_from_wandb(
         epoch: The epoch number of the checkpoint to retrieve.
         run: The wandb run object.
         root: The root directory to save the downloaded checkpoint.
-        model_class: The class of the model to load.
-        map_device_to: The device to map the model to.
 
     Returns:
-        The loaded model or None if no checkpoint is found.
+        The location of the downloaded checkpoint.
     """
     api = wandb.Api()
-    if model_class is None:
-        model_class = Electra
 
     files = run.files()
     for file in files:
         if file.name.startswith(
             f"checkpoints/per_epoch={epoch}"
         ) or file.name.startswith(f"checkpoints/best_epoch={epoch}"):
-            dest_path = os.path.join(root, run.name, file.name.split("/")[-1])
-            if not os.path.isfile(dest_path):
-                print(f"Downloading checkpoint to {dest_path}")
-                wandb_util.download_file_from_url(dest_path, file.url, api.api_key)
-            return model_class.load_from_checkpoint(
-                dest_path, strict=False, map_location=map_device_to
+            dest_path = os.path.join(
+                root, run.id, file.name.split("/")[-1].split("_")[1] + ".ckpt"
             )
+            # legacy: also look for ckpts in the old format
+            old_dest_path = os.path.join(root, run.name, file.name.split("/")[-1])
+            if not os.path.isfile(dest_path):
+                if os.path.isfile(old_dest_path):
+                    print(f"Copying checkpoint from {old_dest_path} to {dest_path}")
+                    os.makedirs(os.path.dirname(dest_path), exist_ok=True)
+                    shutil.copy2(old_dest_path, dest_path)
+                else:
+                    print(f"Downloading checkpoint to {dest_path}")
+                    wandb_util.download_file_from_url(dest_path, file.url, api.api_key)
+            return dest_path
     print(f"No model found for epoch {epoch}")
     return None
 
@@ -153,10 +155,9 @@ def evaluate_model(
         test_preds = _concat_tuple(preds_list)
         if labels_list is not None:
             test_labels = _concat_tuple(labels_list)
-
             return test_preds, test_labels
         return test_preds, None
-    else:
+    elif len(preds_list) < 0:
         torch.save(
             _concat_tuple(preds_list),
             os.path.join(buffer_dir, f"preds{save_ind:03d}.pt"),

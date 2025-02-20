@@ -50,6 +50,10 @@ class ChebaiCLI(LightningCLI):
         parser.link_arguments(
             "data", "model.init_args.criterion.init_args.data_extractor"
         )
+        parser.link_arguments(
+            "data.init_args.chebi_version",
+            "model.init_args.criterion.init_args.data_extractor.init_args.chebi_version",
+        )
 
     @staticmethod
     def subcommands() -> Dict[str, Set[str]]:

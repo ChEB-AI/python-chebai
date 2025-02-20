@@ -68,6 +68,14 @@ class ChebaiBaseNet(LightningModule):
         self.test_metrics = test_metrics
         self.pass_loss_kwargs = pass_loss_kwargs
 
+    def on_load_checkpoint(self, checkpoint: Dict[str, Any]) -> None:
+        # avoid errors due to unexpected keys (e.g., if loading checkpoint from a bce model and using it with a
+        # different loss)
+        if "criterion.base_loss.pos_weight" in checkpoint["state_dict"]:
+            del checkpoint["state_dict"]["criterion.base_loss.pos_weight"]
+        if "criterion.pos_weight" in checkpoint["state_dict"]:
+            del checkpoint["state_dict"]["criterion.pos_weight"]
+
     def __init_subclass__(cls, **kwargs):
         """
         Automatically registers subclasses in the model registry to prevent duplicates.
@@ -252,17 +260,32 @@ class ChebaiBaseNet(LightningModule):
                 loss_kwargs = dict()
                 if self.pass_loss_kwargs:
                     loss_kwargs = loss_kwargs_candidates
-                # todo: check here too    
+                # todo: fix this and make it conditional 
+                # loss_kwargs["current_epoch"] = self.trainer.current_epoch
                 loss = self.criterion(loss_data, loss_labels, **loss_kwargs)
                 if isinstance(loss, tuple):
-                    loss_additional = loss[1:]
+                    unnamed_loss_index = 1
+                    if isinstance(loss[1], dict):
+                        unnamed_loss_index = 2
+                        for key, value in loss[1].items():
+                            self.log(
+                                key,
+                                value if isinstance(value, int) else value.item(),
+                                batch_size=len(batch),
+                                on_step=True,
+                                on_epoch=True,
+                                prog_bar=False,
+                                logger=True,
+                                sync_dist=sync_dist,
+                            )
+                    loss_additional = loss[unnamed_loss_index:]
                     for i, loss_add in enumerate(loss_additional):
                         self.log(
                             f"{prefix}loss_{i}",
                             loss_add if isinstance(loss_add, int) else loss_add.item(),
                             batch_size=len(batch),
                             on_step=True,
-                            on_epoch=False,
+                            on_epoch=True,
                             prog_bar=False,
                             logger=True,
                             sync_dist=sync_dist,
