@@ -347,7 +347,6 @@ class _SCOPeDataExtractor(_DynamicDataset, ABC):
 
         Raises:
             RuntimeError: If no sunids are selected.
-            AssertionError: If the input data is insufficient for encoding or validation fails.
         """
         print(f"Process graph")
 
@@ -404,22 +403,17 @@ class _SCOPeDataExtractor(_DynamicDataset, ABC):
         df_encoded["pdb_id"] = df_encoded["sid"].str[1:5]
         df_encoded["chain_id"] = df_encoded["sid"].str[5]
 
+        # "_" (underscore) means it has no chain
+        df_encoded = df_encoded[df_encoded["chain_id"] != "_"]
+
         pdb_chain_df = self._parse_pdb_sequence_file()
 
-        # Handle `chain_id == "_"` Case**
-        # Split df_encoded into two: One for specific chains, one for "all chains" ("_")
-        df_specific_chains = df_encoded[df_encoded["chain_id"] != "_"]
-        df_all_chains = df_encoded[df_encoded["chain_id"] == "_"].drop(
+        # Handle chain_id == "." - Multiple chain case
+        # Split df_encoded into two: One for specific chains, one for "multiple chains" (".")
+        df_specific_chains = df_encoded[df_encoded["chain_id"] != "."]
+        df_multiple_chains = df_encoded[df_encoded["chain_id"] == "."].drop(
             columns=["chain_id"]
         )
-
-        common_pdb_ids = set(df_specific_chains["pdb_id"]) & set(
-            df_all_chains["pdb_id"]
-        )
-        if common_pdb_ids:
-            raise RuntimeError(
-                f"{len(common_pdb_ids)} PDB chain IDs found in specific-chains df and all-chains df"
-            )
 
         # Merge specific chains normally
         merged_specific = df_specific_chains.merge(
@@ -427,7 +421,9 @@ class _SCOPeDataExtractor(_DynamicDataset, ABC):
         )
 
         # Merge all chains case -> Join by pdb_id (not chain_id)
-        merged_all_chains = df_all_chains.merge(pdb_chain_df, on="pdb_id", how="left")
+        merged_all_chains = df_multiple_chains.merge(
+            pdb_chain_df, on="pdb_id", how="left"
+        )
 
         # Combine both cases
         sequence_hierarchy_df = pd.concat(
