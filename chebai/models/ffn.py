@@ -20,10 +20,15 @@ class FFN(ChebaiBaseNet):
         **kwargs
     ):
         super().__init__(**kwargs)
+        self.input_size = input_size
+        self.hidden_layers = hidden_layers
+
+    def setup(self, stage: str) -> None:
+        super().setup(stage)
 
         layers = []
-        current_layer_input_size = input_size
-        for hidden_dim in hidden_layers:
+        current_layer_input_size = self.input_size
+        for hidden_dim in self.hidden_layers:
             layers.append(MLPBlock(current_layer_input_size, hidden_dim))
             layers.append(Residual(MLPBlock(hidden_dim, hidden_dim)))
             current_layer_input_size = hidden_dim
