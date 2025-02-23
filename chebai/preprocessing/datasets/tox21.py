@@ -129,6 +129,8 @@ class Tox21MolNet(XYBaseDataModule):
         ):
             self.setup_processed()
 
+        self._add_num_of_labels_to_hparams()
+
     def _load_data_from_file(self, input_file_path: str) -> List[Dict]:
         """Loads data from a CSV file.
 
@@ -310,6 +312,8 @@ class Tox21Challenge(XYBaseDataModule):
             for f in self.processed_file_names
         ):
             self.setup_processed()
+
+        self._add_num_of_labels_to_hparams()
 
     def _load_dict(self, input_file_path: str) -> Generator[Dict, None, None]:
         """Loads data from a CSV file as a generator.

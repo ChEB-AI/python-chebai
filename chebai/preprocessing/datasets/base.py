@@ -401,6 +401,21 @@ class XYBaseDataModule(LightningDataModule):
         if not ("keep_reader" in kwargs and kwargs["keep_reader"]):
             self.reader.on_finish()
 
+        self._add_num_of_labels_to_hparams()
+
+    def _add_num_of_labels_to_hparams(self):
+        num_of_labels = len(
+            torch.load(
+                os.path.join(
+                    self.processed_dir, self.processed_file_names_dict["data"]
+                ),
+                weights_only=False,
+            )[0]["labels"]
+        )
+
+        print(f"Number of labels for loaded data: {num_of_labels}")
+        self.hparams.num_of_labels = num_of_labels
+
     def setup_processed(self):
         """
         Setup the processed data.
@@ -540,6 +555,8 @@ class MergedDataset(XYBaseDataModule):
         """
         for s in self.subsets:
             s.setup(**kwargs)
+
+        self._add_num_of_labels_to_hparams()
 
     def dataloader(self, kind: str, **kwargs) -> DataLoader:
         """
