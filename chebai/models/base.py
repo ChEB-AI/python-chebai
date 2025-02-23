@@ -35,7 +35,6 @@ class ChebaiBaseNet(LightningModule):
     def __init__(
         self,
         criterion: torch.nn.Module = None,
-        out_dim: Optional[int] = None,
         train_metrics: Optional[torch.nn.Module] = None,
         val_metrics: Optional[torch.nn.Module] = None,
         test_metrics: Optional[torch.nn.Module] = None,
@@ -48,7 +47,7 @@ class ChebaiBaseNet(LightningModule):
         self.save_hyperparameters(
             ignore=["criterion", "train_metrics", "val_metrics", "test_metrics"]
         )
-        self.out_dim = out_dim
+        self.out_dim = None
         if optimizer_kwargs:
             self.optimizer_kwargs = optimizer_kwargs
         else:
@@ -69,6 +68,14 @@ class ChebaiBaseNet(LightningModule):
             raise ValueError(f"Model {cls.NAME} does already exist")
         else:
             _MODEL_REGISTRY[cls.NAME] = cls
+
+    def setup(self, stage: str) -> None:
+        if self.trainer and hasattr(self.trainer, "datamodule"):
+            self.out_dim = int(self.trainer.datamodule.hparams.num_of_labels)
+        else:
+            raise ValueError("Trainer has no data module")
+        assert self.out_dim is not None, "Model output dimension is None"
+        print(f"Output Dimension for the model: {self.out_dim}")
 
     def _get_prediction_and_labels(
         self, data: Dict[str, Any], labels: torch.Tensor, output: torch.Tensor

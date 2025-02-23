@@ -38,15 +38,15 @@ class ChebaiCLI(LightningCLI):
         Args:
             parser (LightningArgumentParser): Argument parser instance.
         """
-        for kind in ("train", "val", "test"):
-            for average in ("micro-f1", "macro-f1", "balanced-accuracy"):
-                parser.link_arguments(
-                    "model.init_args.out_dim",
-                    f"model.init_args.{kind}_metrics.init_args.metrics.{average}.init_args.num_labels",
-                )
-        parser.link_arguments(
-            "model.init_args.out_dim", "trainer.callbacks.init_args.num_labels"
-        )
+        # for kind in ("train", "val", "test"):
+        #     for average in ("micro-f1", "macro-f1", "balanced-accuracy"):
+        #         parser.link_arguments(
+        #             "model.init_args.out_dim",
+        #             f"model.init_args.{kind}_metrics.init_args.metrics.{average}.init_args.num_labels",
+        #         )
+        # parser.link_arguments(
+        #     "model.init_args.out_dim", "trainer.callbacks.init_args.num_labels"
+        # )
         parser.link_arguments(
             "data", "model.init_args.criterion.init_args.data_extractor"
         )
