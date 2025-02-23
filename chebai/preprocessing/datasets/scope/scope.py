@@ -128,7 +128,7 @@ class _SCOPeDataExtractor(_DynamicDataset, ABC):
         os.makedirs(os.path.dirname(pdb_seq_file_path), exist_ok=True)
 
         if not os.path.isfile(pdb_seq_file_path):
-            print(f"Downloading PDB sequence data....")
+            print(f"Missing PDB raw data, Downloading PDB sequence data....")
 
             # Create a temporary file
             with NamedTemporaryFile(delete=False) as tf:
