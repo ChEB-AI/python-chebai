@@ -64,6 +64,11 @@ class _ProteinPretrainingData(_DynamicDataset, ABC):
             *args: Additional positional arguments.
             **kwargs: Additional keyword arguments.
         """
+        if self._prepare_data_flag != 1:
+            return
+
+        self._prepare_data_flag += 1
+
         processed_name = self.processed_main_file_names_dict["data"]
         if not os.path.isfile(os.path.join(self.processed_dir_main, processed_name)):
             print("Missing processed data file (`data.pkl` file)")

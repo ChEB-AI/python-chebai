@@ -118,6 +118,10 @@ class Tox21MolNet(XYBaseDataModule):
 
     def setup(self, **kwargs) -> None:
         """Sets up the dataset by downloading and processing if necessary."""
+        if self._setup_data_flag != 1:
+            return
+
+        self._setup_data_flag += 1
         if any(
             not os.path.isfile(os.path.join(self.raw_dir, f))
             for f in self.raw_file_names
@@ -129,7 +133,7 @@ class Tox21MolNet(XYBaseDataModule):
         ):
             self.setup_processed()
 
-        self._add_num_of_labels_to_hparams()
+        self._set_processed_data_props()
 
     def _load_data_from_file(self, input_file_path: str) -> List[Dict]:
         """Loads data from a CSV file.
@@ -302,6 +306,10 @@ class Tox21Challenge(XYBaseDataModule):
 
     def setup(self, **kwargs) -> None:
         """Sets up the dataset by downloading and processing if necessary."""
+        if self._setup_data_flag != 1:
+            return
+
+        self._setup_data_flag += 1
         if any(
             not os.path.isfile(os.path.join(self.raw_dir, f))
             for f in self.raw_file_names
@@ -313,7 +321,7 @@ class Tox21Challenge(XYBaseDataModule):
         ):
             self.setup_processed()
 
-        self._add_num_of_labels_to_hparams()
+        self._set_processed_data_props()
 
     def _load_dict(self, input_file_path: str) -> Generator[Dict, None, None]:
         """Loads data from a CSV file as a generator.

@@ -783,6 +783,11 @@ class _DeepGOMigratedData(_GOUniProtDataExtractor, ABC):
         Raises:
             FileNotFoundError: If the processed data file does not exist.
         """
+        if self._prepare_data_flag != 1:
+            return
+
+        self._prepare_data_flag += 1
+
         print("Checking for processed data in", self.processed_dir_main)
 
         processed_name = self.processed_main_file_names_dict["data"]

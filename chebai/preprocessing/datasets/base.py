@@ -117,6 +117,25 @@ class XYBaseDataModule(LightningDataModule):
             os.makedirs(os.path.join(self.processed_dir, self.fold_dir), exist_ok=True)
         self.save_hyperparameters()
 
+        self._num_of_labels = None
+        self._feature_vector_size = None
+        self._prepare_data_flag = 1
+        self._setup_data_flag = 1
+        self.prepare_data()
+        self.setup()
+
+    @property
+    def num_of_labels(self):
+        assert self._num_of_labels is not None, "num of labels must be set"
+        return self._num_of_labels
+
+    @property
+    def feature_vector_size(self):
+        assert (
+            self._feature_vector_size is not None
+        ), "size of feature vector must be set"
+        return self._feature_vector_size
+
     @property
     def identifier(self) -> tuple:
         """Identifier for the dataset."""
@@ -381,6 +400,12 @@ class XYBaseDataModule(LightningDataModule):
         """
         return self.dataloader(self.prediction_kind, shuffle=False, **kwargs)
 
+    def prepare_data(self) -> None:
+        if self._prepare_data_flag != 1:
+            return
+
+        self._prepare_data_flag += 1
+
     def setup(self, **kwargs):
         """
         Setup the data module.
@@ -390,6 +415,11 @@ class XYBaseDataModule(LightningDataModule):
         Args:
             **kwargs: Additional keyword arguments.
         """
+        if self._setup_data_flag != 1:
+            return
+
+        self._setup_data_flag += 1
+
         rank_zero_info(f"Check for processed data in {self.processed_dir}")
         rank_zero_info(f"Cross-validation enabled: {self.use_inner_cross_validation}")
         if any(
@@ -401,20 +431,20 @@ class XYBaseDataModule(LightningDataModule):
         if not ("keep_reader" in kwargs and kwargs["keep_reader"]):
             self.reader.on_finish()
 
-        self._add_num_of_labels_to_hparams()
+        self._set_processed_data_props()
 
-    def _add_num_of_labels_to_hparams(self):
-        num_of_labels = len(
-            torch.load(
-                os.path.join(
-                    self.processed_dir, self.processed_file_names_dict["data"]
-                ),
-                weights_only=False,
-            )[0]["labels"]
-        )
+    def _set_processed_data_props(self):
 
-        print(f"Number of labels for loaded data: {num_of_labels}")
-        self.hparams.num_of_labels = num_of_labels
+        single_data_instance = torch.load(
+            os.path.join(self.processed_dir, self.processed_file_names_dict["data"]),
+            weights_only=False,
+        )[0]
+
+        self._num_of_labels = len(single_data_instance["labels"])
+        self._feature_vector_size = len(single_data_instance["features"])
+
+        print(f"Number of labels for loaded data: {self._num_of_labels}")
+        print(f"Feature vector size: {self._feature_vector_size}")
 
     def setup_processed(self):
         """
@@ -541,6 +571,7 @@ class MergedDataset(XYBaseDataModule):
         """
         Placeholder for data preparation logic.
         """
+        super().prepare_data()
         for s in self.subsets:
             s.prepare_data()
 
@@ -553,10 +584,14 @@ class MergedDataset(XYBaseDataModule):
         Args:
             **kwargs: Additional keyword arguments.
         """
+        if self._setup_data_flag != 1:
+            return
+
+        self._setup_data_flag += 1
         for s in self.subsets:
             s.setup(**kwargs)
 
-        self._add_num_of_labels_to_hparams()
+        self._set_processed_data_props()
 
     def dataloader(self, kind: str, **kwargs) -> DataLoader:
         """
@@ -752,6 +787,7 @@ class _DynamicDataset(XYBaseDataModule, ABC):
         Returns:
             None
         """
+        super().prepare_data()
         print("Checking for processed data in", self.processed_dir_main)
 
         processed_name = self.processed_main_file_names_dict["data"]

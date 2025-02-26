@@ -60,6 +60,7 @@ class JCIBase(XYBaseDataModule):
         return ["test.pkl", "train.pkl", "validation.pkl"]
 
     def prepare_data(self, *args, **kwargs):
+        super().prepare_data()
         print("Check for raw data in", self.raw_dir)
         if any(
             not os.path.isfile(os.path.join(self.raw_dir, f))
