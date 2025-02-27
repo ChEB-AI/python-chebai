@@ -435,13 +435,13 @@ class XYBaseDataModule(LightningDataModule):
 
     def _set_processed_data_props(self):
 
-        single_data_instance = torch.load(
+        data_pt = torch.load(
             os.path.join(self.processed_dir, self.processed_file_names_dict["data"]),
             weights_only=False,
-        )[0]
+        )
 
-        self._num_of_labels = len(single_data_instance["labels"])
-        self._feature_vector_size = len(single_data_instance["features"])
+        self._num_of_labels = len(data_pt[0]["labels"])
+        self._feature_vector_size = max(len(d["features"]) for d in data_pt)
 
         print(f"Number of labels for loaded data: {self._num_of_labels}")
         print(f"Feature vector size: {self._feature_vector_size}")
