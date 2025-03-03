@@ -35,7 +35,12 @@ jobs:
         run: python -m unittest discover -s tests/unit -v
         env:
           ACTIONS_STEP_DEBUG: true  # Enable debug logs
+          ACTIONS_RUNNER_DEBUG: true # Additional debug logs from Github Actions itself
 
-      # SSH Debugging (Optional, Uncomment if needed)
-      # - name: Debug with SSH
-      #   uses: mxschmitt/action-tmate@v3
+      # SSH Debugging (Optional)
+      # Uncomment this step to open an SSH session into the GitHub Actions runner.
+      # This helps debug issues that occur only in CI by allowing manual inspection.
+      # Once enabled, GitHub will print an SSH command in the logs, which you can use to connect.
+      # To exit the session and continue the workflow, type 'exit' in the terminal.
+      #- name: Debug with SSH
+      #  uses: mxschmitt/action-tmate@v3
