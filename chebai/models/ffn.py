@@ -37,7 +37,7 @@ class FFN(ChebaiBaseNet):
         loss_kwargs = data.get("loss_kwargs", dict())
         if "non_null_labels" in loss_kwargs:
             n = loss_kwargs["non_null_labels"]
-            d = data[n]
+            d = d[n]
         return torch.sigmoid(d), labels.int() if labels is not None else None
 
     def _process_for_loss(
