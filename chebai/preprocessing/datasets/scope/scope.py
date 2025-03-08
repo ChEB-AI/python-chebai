@@ -195,22 +195,52 @@ class _SCOPeDataExtractor(_DynamicDataset, ABC):
         """
         print("Extracting class hierarchy...")
         df_scope = self._get_scope_data()
+        pdb_chain_df = self._parse_pdb_sequence_file()
+        pdb_id_set = set(pdb_chain_df["pdb_id"])  # Search time complexity - O(1)
 
         g = nx.DiGraph()
 
-        egdes = []
-        for _, row in df_scope.iterrows():
-            g.add_node(row["sunid"], **{"sid": row["sid"], "level": row["level"]})
-            if row["parent_sunid"] != -1:
-                egdes.append((row["parent_sunid"], row["sunid"]))
+        edges = []
+        node_attrs = {}
+        px_level_nodes = set()
 
-            for children_id in row["children_sunids"]:
-                egdes.append((row["sunid"], children_id))
+        # Step 1: Build the graph and store attributes
+        for row in df_scope.itertuples(index=False):
+            if row.level == "px":
+                if row.sid[1:5] not in pdb_id_set:
+                    # Don't add domain level nodes that don't have pdb_id in pdb_sequences.txt file
+                    continue
+                px_level_nodes.add(row.sunid)
 
-        g.add_edges_from(egdes)
+            node_attrs[row.sunid] = {"sid": row.sid, "level": row.level}
 
+            if row.parent_sunid != -1:
+                edges.append((row.parent_sunid, row.sunid))
+
+            for child_id in row.children_sunids:
+                edges.append((row.sunid, child_id))
+
+        g.add_nodes_from((node, attrs) for node, attrs in node_attrs.items())
+        g.add_edges_from(edges)
+
+        # Step 2: Compute the transitive closure first
         print("Computing transitive closure")
-        return nx.transitive_closure_dag(g)
+        g_tc = nx.transitive_closure_dag(g)
+
+        print(
+            "Remove node without domain descendants that don't have pdb correspondence"
+        )
+        # Step 3: Identify and remove nodes that don’t have a "px" descendant with correspondence to pdb_sequences file
+        nodes_to_remove = set()
+        for node in g_tc.nodes:
+            if node not in px_level_nodes and not any(
+                desc in px_level_nodes for desc in g_tc.successors(node)
+            ):
+                nodes_to_remove.add(node)
+
+        g_tc.remove_nodes_from(nodes_to_remove)
+
+        return g_tc
 
     def _get_scope_data(self) -> pd.DataFrame:
         """
@@ -388,7 +418,8 @@ class _SCOPeDataExtractor(_DynamicDataset, ABC):
 
         encoded_target_columns = []
         for level in hierarchy_levels:
-            encoded_target_columns.extend(lvl_to_target_cols_mapping[level])
+            if level in lvl_to_target_cols_mapping:
+                encoded_target_columns.extend(lvl_to_target_cols_mapping[level])
 
         print(
             f"{len(encoded_target_columns)} labels has been selected for specified threshold, "
@@ -471,12 +502,12 @@ class _SCOPeDataExtractor(_DynamicDataset, ABC):
         for record in SeqIO.parse(
             os.path.join(self.scope_root_dir, self.raw_file_names_dict["PDB"]), "fasta"
         ):
+
+            if not record.seq:
+                continue
+
             pdb_id, chain = record.id.split("_")
-            sequence = (
-                re.sub(f"[^{valid_amino_acids}]", "X", str(record.seq))
-                if record.seq
-                else ""
-            )
+            sequence = re.sub(f"[^{valid_amino_acids}]", "X", str(record.seq))
 
             # Store as a dictionary entry (list of dicts -> DataFrame later)
             records.append(
@@ -876,7 +907,8 @@ class SCOPeOverPartial2000(_SCOPeOverXPartial):
 
 
 if __name__ == "__main__":
-    scope = SCOPeOver2000(scope_version="2.08")
+    scope = SCOPeOver50(scope_version="2.08")
+
     # g = scope._extract_class_hierarchy("dummy/path")
     # # Save graph
     # import pickle
