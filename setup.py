@@ -34,7 +34,7 @@ setup(
         "urllib3",
         "transformers",
         "fastobo",
-        "pysmiles",
+        "pysmiles==1.1.2",
         "scikit-network",
         "svgutils",
         "matplotlib",
