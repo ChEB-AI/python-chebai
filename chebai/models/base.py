@@ -246,7 +246,7 @@ class ChebaiBaseNet(LightningModule):
             predictions, and loss (if applicable).
         """
         assert isinstance(batch, XYData)
-        batch = batch.to(self.device)
+        batch = batch.to(self.device) # if this is in lightning why do we need to do .to(device)? see https://lightning.ai/docs/pytorch/stable/common/lightning_module.html
         data = self._process_batch(batch, batch_idx)
         labels = data["labels"]
         model_output = self(data, **data.get("model_kwargs", dict()))
