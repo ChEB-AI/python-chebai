@@ -1,5 +1,5 @@
 import logging
-from typing import Any, Dict, Optional, Union
+from typing import Any, Dict, Optional, Union, Iterable
 
 import torch
 from lightning.pytorch.core.module import LightningModule
@@ -41,12 +41,21 @@ class ChebaiBaseNet(LightningModule):
         test_metrics: Optional[torch.nn.Module] = None,
         pass_loss_kwargs: bool = True,
         optimizer_kwargs: Optional[Dict[str, Any]] = None,
+        exclude_hyperparameter_logging: Optional[Iterable[str]] = None,
         **kwargs,
     ):
         super().__init__()
+        if exclude_hyperparameter_logging is None:
+            exclude_hyperparameter_logging = tuple()
         self.criterion = criterion
         self.save_hyperparameters(
-            ignore=["criterion", "train_metrics", "val_metrics", "test_metrics"]
+            ignore=[
+                "criterion",
+                "train_metrics",
+                "val_metrics",
+                "test_metrics",
+                *exclude_hyperparameter_logging,
+            ]
         )
         self.out_dim = out_dim
         if optimizer_kwargs:
@@ -57,6 +66,14 @@ class ChebaiBaseNet(LightningModule):
         self.validation_metrics = val_metrics
         self.test_metrics = test_metrics
         self.pass_loss_kwargs = pass_loss_kwargs
+
+    def on_load_checkpoint(self, checkpoint: Dict[str, Any]) -> None:
+        # avoid errors due to unexpected keys (e.g., if loading checkpoint from a bce model and using it with a
+        # different loss)
+        if "criterion.base_loss.pos_weight" in checkpoint["state_dict"]:
+            del checkpoint["state_dict"]["criterion.base_loss.pos_weight"]
+        if "criterion.pos_weight" in checkpoint["state_dict"]:
+            del checkpoint["state_dict"]["criterion.pos_weight"]
 
     def __init_subclass__(cls, **kwargs):
         """
@@ -242,16 +259,31 @@ class ChebaiBaseNet(LightningModule):
                 loss_kwargs = dict()
                 if self.pass_loss_kwargs:
                     loss_kwargs = loss_kwargs_candidates
+                loss_kwargs["current_epoch"] = self.trainer.current_epoch
                 loss = self.criterion(loss_data, loss_labels, **loss_kwargs)
                 if isinstance(loss, tuple):
-                    loss_additional = loss[1:]
+                    unnamed_loss_index = 1
+                    if isinstance(loss[1], dict):
+                        unnamed_loss_index = 2
+                        for key, value in loss[1].items():
+                            self.log(
+                                key,
+                                value if isinstance(value, int) else value.item(),
+                                batch_size=len(batch),
+                                on_step=True,
+                                on_epoch=True,
+                                prog_bar=False,
+                                logger=True,
+                                sync_dist=sync_dist,
+                            )
+                    loss_additional = loss[unnamed_loss_index:]
                     for i, loss_add in enumerate(loss_additional):
                         self.log(
                             f"{prefix}loss_{i}",
                             loss_add if isinstance(loss_add, int) else loss_add.item(),
                             batch_size=len(batch),
                             on_step=True,
-                            on_epoch=False,
+                            on_epoch=True,
                             prog_bar=False,
                             logger=True,
                             sync_dist=sync_dist,

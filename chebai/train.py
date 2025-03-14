@@ -93,7 +93,7 @@ def crawl_info(
 
 
 def collate(
-    batch: List[Tuple[Molecule, torch.Tensor]]
+    batch: List[Tuple[Molecule, torch.Tensor]],
 ) -> Tuple[List[Molecule], torch.Tensor]:
     """
     Collate function for DataLoader.

@@ -5,5 +5,6 @@ init_args:
     class_path: chebai.loss.bce_weighted.BCEWeighted
     init_args:
       beta: 0.99
-  tnorm: product
-  impl_loss_weight: 0.01
+  multiply_by_softmax: true
+  impl_loss_weight: 100
+  disjoint_loss_weight: 1000000
