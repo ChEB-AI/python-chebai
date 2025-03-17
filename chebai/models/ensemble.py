@@ -1,6 +1,6 @@
 import os.path
 from abc import ABC, abstractmethod
-from typing import Any, Dict, Optional, Union
+from typing import Any, Dict, Optional, Tuple, Union
 
 import torch
 from torch import Tensor
@@ -94,7 +94,7 @@ class ChebiEnsemble(_EnsembleBase):
     def __init__(self, model_configs: Dict[str, ModelConfig], **kwargs):
         super().__init__(model_configs, **kwargs)
         # Add a dummy trainable parameter
-        self.dummy_param = torch.nn.Parameter(torch.randn(1))
+        self.dummy_param = torch.nn.Parameter(torch.randn(1, requires_grad=True))
 
     def forward(self, data: Dict[str, Tensor], **kwargs: Any) -> Dict[str, Any]:
         predictions = {}
@@ -102,8 +102,6 @@ class ChebiEnsemble(_EnsembleBase):
         total_logits = torch.zeros(
             data["labels"].shape[0], data["labels"].shape[1], device=self.device
         ).to(self.device)
-
-        print(data["features"].shape)  # Debugging
 
         for name, model in self.models.items():
             output = model(data)
@@ -193,7 +191,8 @@ class ChebiEnsemble(_EnsembleBase):
                         )
                     loss = loss[0]
 
-                d["loss"] = loss
+                d["loss"] = loss + 0 * self.dummy_param.sum()
+
                 self.log(
                     f"{prefix}loss",
                     loss.item(),
@@ -228,6 +227,28 @@ class ChebiEnsemble(_EnsembleBase):
             false_scores += weight * (1 - preds)
 
         return (true_scores > false_scores).long()  # Final class decision
+
+    def _process_for_loss(
+        self,
+        model_output: Dict[str, Tensor],
+        labels: Tensor,
+        loss_kwargs: Dict[str, Any],
+    ) -> Tuple[Tensor, Tensor, Dict[str, Any]]:
+        """
+        Process the model output for calculating the loss.
+
+        Args:
+            model_output (Dict[str, Tensor]): The output of the model.
+            labels (Tensor): The target labels.
+            loss_kwargs (Dict[str, Any]): Additional loss arguments.
+
+        Returns:
+            tuple: A tuple containing the processed model output, labels, and loss arguments.
+        """
+        kwargs_copy = dict(loss_kwargs)
+        if labels is not None:
+            labels = labels.float()
+        return model_output["logits"], labels, kwargs_copy
 
 
 class ChebiEnsembleLearning(_EnsembleBase):
