@@ -1,9 +1,10 @@
 import logging
-from typing import Any, Dict, Optional, Union, Iterable
+
+from abc import ABC, abstractmethod
+from typing import Any, Dict, Optional, Union
 
 import torch
 from lightning.pytorch.core.module import LightningModule
-from torchmetrics import Metric
 
 from chebai.preprocessing.structures import XYData
 
@@ -12,7 +13,7 @@ logging.getLogger("pysmiles").setLevel(logging.CRITICAL)
 _MODEL_REGISTRY = dict()
 
 
-class ChebaiBaseNet(LightningModule):
+class ChebaiBaseNet(LightningModule, ABC):
     """
     Base class for Chebai neural network models inheriting from PyTorch Lightning's LightningModule.
 
@@ -347,6 +348,7 @@ class ChebaiBaseNet(LightningModule):
                     logger=True,
                 )
 
+    @abstractmethod
     def forward(self, x: Dict[str, Any]) -> torch.Tensor:
         """
         Defines the forward pass.
@@ -357,7 +359,7 @@ class ChebaiBaseNet(LightningModule):
         Returns:
             torch.Tensor: The model output.
         """
-        raise NotImplementedError
+        pass
 
     def configure_optimizers(self, **kwargs) -> torch.optim.Optimizer:
         """
