@@ -132,7 +132,7 @@ def _execute(
 
     Returns:
     - train_running_loss (float): Average loss over the data.
-    - f1 (float): Average F1 score over the data.
+    - f1 (float): Average F1 score over the data. -> so this is for classification tasks only?
     """
 
     train_running_loss = 0.0
