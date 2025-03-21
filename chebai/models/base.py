@@ -1,7 +1,6 @@
 import logging
-
 from abc import ABC, abstractmethod
-from typing import Any, Dict, Optional, Union
+from typing import Any, Dict, Iterable, Optional, Union
 
 import torch
 from lightning.pytorch.core.module import LightningModule
