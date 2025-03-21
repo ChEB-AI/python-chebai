@@ -19,13 +19,19 @@ class _EnsembleBase(ChebaiBaseNet, ABC):
 
         for model_name in self.model_configs:
             model_path = self.model_configs[model_name]["path"]
-            if os.path.exists(model_path):
-                self.models[model_name] = Electra.load_from_checkpoint(
-                    model_path, map_location="cpu"
-                )
-            else:
+            if not os.path.exists(model_path):
                 raise FileNotFoundError(
-                    f"Model {model_name} does not exist in the given path {model_path}"
+                    f"Model path '{model_path}' for '{model_name}' does not exist."
+                )
+
+            # Attempt to load the model to check validity
+            try:
+                self.models[model_name] = Electra.load_from_checkpoint(
+                    model_path, map_location=self.device
+                )
+            except Exception as e:
+                raise RuntimeError(
+                    f"Failed to load model '{model_name}' from {model_path}: {e}"
                 )
 
         for model in self.models.values():
@@ -70,10 +76,6 @@ class ChebiEnsemble(_EnsembleBase):
                 )
 
             model_path = config["path"]
-            if not os.path.exists(model_path):
-                raise FileNotFoundError(
-                    f"Model path '{model_path}' for '{model_name}' does not exist."
-                )
 
             # if model_path in path_set:
             #     raise ValueError(
@@ -100,14 +102,13 @@ class ChebiEnsemble(_EnsembleBase):
         confidences = {}
         total_logits = torch.zeros(
             data["labels"].shape[0], data["labels"].shape[1], device=self.device
-        ).to(self.device)
+        )
 
         for name, model in self.models.items():
             output = model(data)
-            confidences[name] = torch.sigmoid(output["logits"])
-            predictions[name] = (
-                torch.sigmoid(output["logits"]) > 0.5
-            ).long()  # Multi-label classification
+            sigmoid_logits = torch.sigmoid(output["logits"])
+            confidences[name] = sigmoid_logits
+            predictions[name] = (sigmoid_logits > 0.5).long()
             total_logits += output["logits"]
 
         return {
@@ -211,21 +212,18 @@ class ChebiEnsemble(_EnsembleBase):
     def aggregate_predictions(self, predictions, confidences):
         """Implements weighted voting based on trustworthiness."""
         batch_size, num_classes = list(predictions.values())[0].shape
-
         true_scores = torch.zeros(batch_size, num_classes, device=self.device)
         false_scores = torch.zeros(batch_size, num_classes, device=self.device)
 
         for model, preds in predictions.items():
             tpv = float(self.model_configs[model]["TPV"])
             npv = float(self.model_configs[model]["FPV"])
-
-            confidence = confidences[model]
-            weight = confidence * (tpv * preds + npv * (1 - preds))
+            weight = confidences[model] * (tpv * preds + npv * (1 - preds))
 
             true_scores += weight * preds
             false_scores += weight * (1 - preds)
 
-        return (true_scores > false_scores).long()  # Final class decision
+        return (true_scores > false_scores).long()
 
     def _process_for_loss(
         self,
@@ -264,11 +262,7 @@ class ChebiEnsembleLearning(_EnsembleBase):
         self.ffn: FFN = FFN(**ffn_kwargs)
 
     def forward(self, data: Dict[str, Tensor], **kwargs: Any) -> Dict[str, Any]:
-        logits_list = []
-        for name, model in self.models.items():
-            output = model(data)
-            logits_list.append(output["logits"])
-
+        logits_list = [model(data)["logits"] for model in self.models.values()]
         return self.ffn({"features": torch.cat(logits_list, dim=1)})
 
     def _get_prediction_and_labels(
