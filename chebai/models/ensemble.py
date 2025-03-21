@@ -14,8 +14,6 @@ class _EnsembleBase(ChebaiBaseNet, ABC):
     def __init__(self, model_configs: Dict[str, ModelConfig], **kwargs):
         super().__init__(**kwargs)
 
-        self._validate_model_configs(model_configs)
-
         self.models: Dict[str, ChebaiBaseNet] = {}
         self.model_configs: Dict[str, ModelConfig] = model_configs
 
@@ -40,6 +38,23 @@ class _EnsembleBase(ChebaiBaseNet, ABC):
         #     self.threshold = int(first_metric.threshold)  # Access threshold
         # else:
         #     self.threshold = int(kwargs["threshold"])
+
+    @abstractmethod
+    def _get_prediction_and_labels(
+        self, data: Dict[str, Any], labels: torch.Tensor, output: torch.Tensor
+    ) -> (torch.Tensor, torch.Tensor):
+        pass
+
+
+class ChebiEnsemble(_EnsembleBase):
+
+    NAME = "ChebiEnsemble"
+
+    def __init__(self, model_configs: Dict[str, ModelConfig], **kwargs):
+        self._validate_model_configs(model_configs)
+        super().__init__(model_configs, **kwargs)
+        # Add a dummy trainable parameter
+        self.dummy_param = torch.nn.Parameter(torch.randn(1, requires_grad=True))
 
     @classmethod
     def _validate_model_configs(cls, model_configs: Dict[str, ModelConfig]):
@@ -79,22 +94,6 @@ class _EnsembleBase(ChebaiBaseNet, ABC):
                     raise ValueError(
                         f"'{key}' in model '{model_name}' must be a float or convertible to float, but got {config[key]}."
                     )
-
-    @abstractmethod
-    def _get_prediction_and_labels(
-        self, data: Dict[str, Any], labels: torch.Tensor, output: torch.Tensor
-    ) -> (torch.Tensor, torch.Tensor):
-        pass
-
-
-class ChebiEnsemble(_EnsembleBase):
-
-    NAME = "ChebiEnsemble"
-
-    def __init__(self, model_configs: Dict[str, ModelConfig], **kwargs):
-        super().__init__(model_configs, **kwargs)
-        # Add a dummy trainable parameter
-        self.dummy_param = torch.nn.Parameter(torch.randn(1, requires_grad=True))
 
     def forward(self, data: Dict[str, Tensor], **kwargs: Any) -> Dict[str, Any]:
         predictions = {}
@@ -255,30 +254,35 @@ class ChebiEnsembleLearning(_EnsembleBase):
 
     NAME = "ChebiEnsembleLearning"
 
-    def __init__(self, model_configs: Dict[str, ModelConfig], **kwargs):
+    def __init__(self, model_configs: Dict[str, Dict], **kwargs):
         super().__init__(model_configs, **kwargs)
-        self.ensemble_classifier = torch.nn.Linear(
-            in_features=len(self.models) * self.out_dim, out_features=self.out_dim
-        )
+
+        from chebai.models.ffn import FFN
+
+        ffn_kwargs = kwargs.copy()
+        ffn_kwargs["input_size"] = len(self.model_configs) * int(kwargs["out_dim"])
+        self.ffn: FFN = FFN(**ffn_kwargs)
 
     def forward(self, data: Dict[str, Tensor], **kwargs: Any) -> Dict[str, Any]:
-        predictions = {}
-        confidences = {}
-
+        logits_list = []
         for name, model in self.models.items():
-            output = model(data["features"])
-            confidence = torch.sigmoid(output)  # Assuming confidence scores
-            predictions[name] = output.argmax(dim=1)  # Convert logits to class
-            confidences[name] = confidence.max(dim=1).values  # Max confidence
+            output = model(data)
+            logits_list.append(output["logits"])
 
-        # Aggregate predictions using weighted voting
-        final_preds = self.aggregate_predictions(predictions, confidences)
-        return final_preds
+        return self.ffn({"features": torch.cat(logits_list, dim=1)})
 
     def _get_prediction_and_labels(
         self, data: Dict[str, Any], labels: torch.Tensor, output: torch.Tensor
     ) -> (torch.Tensor, torch.Tensor):
-        pass
+        return self.ffn._get_prediction_and_labels(data, labels, output)
+
+    def _process_for_loss(
+        self,
+        model_output: Dict[str, torch.Tensor],
+        labels: torch.Tensor,
+        loss_kwargs: Dict[str, Any],
+    ) -> (torch.Tensor, torch.Tensor, Dict[str, Any]):
+        return self.ffn._process_for_loss(model_output, labels, loss_kwargs)
 
 
 if __name__ == "__main__":

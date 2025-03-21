@@ -1,0 +1,4 @@
+class_path: chebai.models.ensemble.ChebiEnsembleLearning
+init_args:
+  optimizer_kwargs:
+    lr: 1e-3
