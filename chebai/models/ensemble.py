@@ -1,41 +1,53 @@
+import importlib
 import os.path
 from abc import ABC, abstractmethod
 from typing import Any, Dict, Optional, Tuple, Union
 
 import torch
+from lightning.pytorch import LightningModule
 from torch import Tensor
 
-from chebai.custom_typehints import ModelConfig
-from chebai.models import ChebaiBaseNet, Electra
+from chebai.models import ChebaiBaseNet
 from chebai.preprocessing.structures import XYData
 
 
 class _EnsembleBase(ChebaiBaseNet, ABC):
-    def __init__(self, model_configs: Dict[str, ModelConfig], **kwargs):
+    def __init__(self, model_configs: Dict[str, Dict], **kwargs):
         super().__init__(**kwargs)
+        self._validate_model_configs(model_configs)
 
-        self.models: Dict[str, ChebaiBaseNet] = {}
-        self.model_configs: Dict[str, ModelConfig] = model_configs
+        self.models: Dict[str, LightningModule] = {}
+        self.model_configs = model_configs
 
         for model_name in self.model_configs:
-            model_path = self.model_configs[model_name]["path"]
-            if not os.path.exists(model_path):
+            model_ckpt_path = self.model_configs[model_name]["ckpt_path"]
+            model_class_path = self.model_configs[model_name]["class_path"]
+            if not os.path.exists(model_ckpt_path):
                 raise FileNotFoundError(
-                    f"Model path '{model_path}' for '{model_name}' does not exist."
+                    f"Model path '{model_ckpt_path}' for '{model_name}' does not exist."
                 )
 
-            # Attempt to load the model to check validity
+            class_name = model_class_path.split(".")[-1]
+            module_path = ".".join(model_class_path.split(".")[:-1])
+
             try:
-                self.models[model_name] = Electra.load_from_checkpoint(
-                    model_path, map_location=self.device
-                )
+                module = importlib.import_module(module_path)
+                lightning_cls: LightningModule = getattr(module, class_name)
+
+                model = lightning_cls.load_from_checkpoint(model_ckpt_path)
+                model.eval()
+                model.freeze()
+                self.models[model_name] = model
+
+            except ModuleNotFoundError:
+                print(f"Module '{module_path}' not found!")
+            except AttributeError:
+                print(f"Class '{class_name}' not found in '{module_path}'!")
+
             except Exception as e:
                 raise RuntimeError(
-                    f"Failed to load model '{model_name}' from {model_path}: {e}"
+                    f"Failed to load model '{model_name}' from {model_ckpt_path}: \n {e}"
                 )
-
-        for model in self.models.values():
-            model.freeze()
 
         # TODO: Later discuss whether this threshold should be independent of metric threshold or not ?
         # if kwargs.get("threshold") is None:
@@ -44,6 +56,43 @@ class _EnsembleBase(ChebaiBaseNet, ABC):
         #     self.threshold = int(first_metric.threshold)  # Access threshold
         # else:
         #     self.threshold = int(kwargs["threshold"])
+
+    @classmethod
+    def _validate_model_configs(cls, model_configs: Dict[str, Dict]):
+        path_set = set()
+        class_set = set()
+
+        required_keys = {"class_path", "ckpt_path"}
+
+        for model_name, config in model_configs.items():
+            missing_keys = required_keys - config.keys()
+
+            if missing_keys:
+                raise AttributeError(
+                    f"Missing keys {missing_keys} in model '{model_name}' configuration."
+                )
+
+            model_path = config["ckpt_path"]
+            class_path = config["class_path"]
+
+            # if model_path in path_set:
+            #     raise ValueError(
+            #         f"Duplicate model path detected: '{model_path}'. Each model must have a unique path."
+            #     )
+
+            # if class_path not in class_set:
+            #     raise ValueError(
+            #             f"Duplicate class path detected: '{class_path}'. Each model must have a unique path."
+            #     )
+
+            path_set.add(model_path)
+            class_set.add(class_path)
+
+            cls._extra_validation(model_name, config)
+
+    @classmethod
+    def _extra_validation(cls, model_name: str, config: Dict[str, Any]):
+        pass
 
     @abstractmethod
     def _get_prediction_and_labels(
@@ -56,46 +105,32 @@ class ChebiEnsemble(_EnsembleBase):
 
     NAME = "ChebiEnsemble"
 
-    def __init__(self, model_configs: Dict[str, ModelConfig], **kwargs):
-        self._validate_model_configs(model_configs)
+    def __init__(self, model_configs: Dict[str, Dict], **kwargs):
         super().__init__(model_configs, **kwargs)
+
         # Add a dummy trainable parameter
         self.dummy_param = torch.nn.Parameter(torch.randn(1, requires_grad=True))
 
     @classmethod
-    def _validate_model_configs(cls, model_configs: Dict[str, ModelConfig]):
-        path_set = set()
-        required_keys = {"path", "TPV", "FPV"}
+    def _extra_validation(cls, model_name: str, config: Dict[str, Any]):
 
-        for model_name, config in model_configs.items():
-            missing_keys = required_keys - config.keys()
+        if "TPV" not in config.keys() or "FPV" not in config.keys():
+            raise AttributeError(
+                f"Missing keys 'TPV' and/or 'FPV' in model '{model_name}' configuration."
+            )
 
-            if missing_keys:
-                raise AttributeError(
-                    f"Missing keys {missing_keys} in model '{model_name}' configuration."
-                )
-
-            model_path = config["path"]
-
-            # if model_path in path_set:
-            #     raise ValueError(
-            #         f"Duplicate model path detected: '{model_path}'. Each model must have a unique path."
-            #     )
-
-            path_set.add(model_path)
-
-            # Validate 'tpv' and 'fpv' are either floats or convertible to float
-            for key in ["TPV", "FPV"]:
-                try:
-                    value = float(config[key])
-                    if value < 0:
-                        raise ValueError(
-                            f"'{key}' in model '{model_name}' must be non-negative, but got {value}."
-                        )
-                except (TypeError, ValueError):
+        # Validate 'tpv' and 'fpv' are either floats or convertible to float
+        for key in ["TPV", "FPV"]:
+            try:
+                value = float(config[key])
+                if value < 0:
                     raise ValueError(
-                        f"'{key}' in model '{model_name}' must be a float or convertible to float, but got {config[key]}."
+                        f"'{key}' in model '{model_name}' must be non-negative, but got {value}."
                     )
+            except (TypeError, ValueError):
+                raise ValueError(
+                    f"'{key}' in model '{model_name}' must be a float or convertible to float, but got {config[key]}."
+                )
 
     def forward(self, data: Dict[str, Tensor], **kwargs: Any) -> Dict[str, Any]:
         predictions = {}
