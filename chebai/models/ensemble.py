@@ -61,7 +61,9 @@ class _EnsembleBase(ChebaiBaseNet, ABC):
     def _validate_model_configs(cls, model_configs: Dict[str, Dict]):
         path_set = set()
         class_set = set()
+        labels_set = set()
 
+        sets_ = {"path": path_set, "class": class_set, "labels": labels_set}
         required_keys = {"class_path", "ckpt_path"}
 
         for model_name, config in model_configs.items():
@@ -88,10 +90,12 @@ class _EnsembleBase(ChebaiBaseNet, ABC):
             path_set.add(model_path)
             class_set.add(class_path)
 
-            cls._extra_validation(model_name, config)
+            cls._extra_validation(model_name, config, sets_)
 
     @classmethod
-    def _extra_validation(cls, model_name: str, config: Dict[str, Any]):
+    def _extra_validation(
+        cls, model_name: str, config: Dict[str, Any], sets_: Dict[str, set]
+    ):
         pass
 
     @abstractmethod
@@ -110,9 +114,23 @@ class ChebiEnsemble(_EnsembleBase):
 
         # Add a dummy trainable parameter
         self.dummy_param = torch.nn.Parameter(torch.randn(1, requires_grad=True))
+        self._num_models_per_label: Optional[torch.Tensor] = None
+        self._generate_model_label_mask()
 
     @classmethod
-    def _extra_validation(cls, model_name: str, config: Dict[str, Any]):
+    def _extra_validation(
+        cls, model_name: str, config: Dict[str, Any], sets_: Dict[str, set]
+    ):
+
+        if "labels_path" not in config:
+            raise AttributeError("Missing 'labels_path' key in config!")
+
+        labels_path = config["labels_path"]
+        # if labels_path not in sets_["labels"]:
+        #     raise ValueError(
+        #             f"Duplicate labels path detected: '{labels_path}'. Each model must have a unique path."
+        #     )
+        sets_["labels"].add(labels_path)
 
         if "TPV" not in config.keys() or "FPV" not in config.keys():
             raise AttributeError(
@@ -132,19 +150,62 @@ class ChebiEnsemble(_EnsembleBase):
                     f"'{key}' in model '{model_name}' must be a float or convertible to float, but got {config[key]}."
                 )
 
+    def _generate_model_label_mask(self):
+        labels_dict = {}
+        num_models_per_label = torch.zeros(1, self.out_dim, device=self.device)
+        for model_name, model_config in self.model_configs.items():
+            labels_path = model_config["labels_path"]
+            if not os.path.exists(labels_path):
+                raise FileNotFoundError(f"Labels path '{labels_path}' does not exist.")
+
+            with open(labels_path, "r") as f:
+                labels_list = [int(line.strip()) for line in f]
+
+            model_label_indices = []
+            for label in labels_list:
+                if label not in labels_dict:
+                    labels_dict[label] = len(labels_dict)
+
+                model_label_indices.append(labels_dict[label])
+
+            # Create masks to apply predictions only to known classes
+            mask = torch.zeros(self.out_dim, device=self.device, dtype=torch.bool)
+            mask[
+                torch.tensor(model_label_indices, dtype=torch.int, device=self.device)
+            ] = True
+
+            self.model_configs[model_name]["labels_mask"] = mask
+            num_models_per_label += mask
+
+        self._num_models_per_label = num_models_per_label
+
     def forward(self, data: Dict[str, Tensor], **kwargs: Any) -> Dict[str, Any]:
         predictions = {}
         confidences = {}
+
+        assert data["labels"].shape[1] == self.out_dim
+
+        # Initialize total_logits with zeros
         total_logits = torch.zeros(
-            data["labels"].shape[0], data["labels"].shape[1], device=self.device
+            data["labels"].shape[0], self.out_dim, device=self.device
         )
 
         for name, model in self.models.items():
             output = model(data)
+            mask = self.model_configs[name]["labels_mask"]
+
+            # Consider logits and confidence only for valid classes
             sigmoid_logits = torch.sigmoid(output["logits"])
-            confidences[name] = sigmoid_logits
-            predictions[name] = (sigmoid_logits > 0.5).long()
-            total_logits += output["logits"]
+            prediction = torch.full_like(total_logits, -1, dtype=torch.bool)
+            confidence = torch.full_like(total_logits, -1, dtype=torch.float)
+            prediction[:, mask] = sigmoid_logits > 0.5
+            confidence[:, mask] = sigmoid_logits
+
+            predictions[name] = prediction
+            confidences[name] = confidence
+            total_logits += output[
+                "logits"
+            ]  # Don't play a role here, just for lightning flow completeness
 
         return {
             "logits": total_logits,
@@ -250,15 +311,25 @@ class ChebiEnsemble(_EnsembleBase):
         true_scores = torch.zeros(batch_size, num_classes, device=self.device)
         false_scores = torch.zeros(batch_size, num_classes, device=self.device)
 
-        for model, preds in predictions.items():
+        for model, conf in confidences.items():
             tpv = float(self.model_configs[model]["TPV"])
             npv = float(self.model_configs[model]["FPV"])
-            weight = confidences[model] * (tpv * preds + npv * (1 - preds))
 
-            true_scores += weight * preds
-            false_scores += weight * (1 - preds)
+            # Determine which classes the model provides predictions for
+            mask = self.model_configs[model]["labels_mask"]
+            weight = conf * (tpv * conf + npv * (1 - conf))
 
-        return (true_scores > false_scores).long()
+            # Apply mask: Only update scores for valid classes
+            true_scores += weight * conf * mask
+            false_scores += weight * (1 - conf) * mask
+
+        # Avoid division by zero: Set valid_counts to 1 where it's zero
+        valid_counts = self._num_models_per_label.clamp(min=1)
+
+        # Normalize by valid contributions to prevent bias, this step can be optional depending upon scenario
+        final_preds = (true_scores / valid_counts) > (false_scores / valid_counts)
+
+        return final_preds
 
     def _process_for_loss(
         self,
