@@ -50,32 +50,25 @@ class BCEWeighted(torch.nn.BCEWithLogitsLoss):
             and self.data_extractor is not None
             and all(
                 os.path.exists(
-                    os.path.join(self.data_extractor.processed_dir_main, file_name)
+                    os.path.join(self.data_extractor.processed_dir, file_name)
                 )
-                for file_name in self.data_extractor.processed_main_file_names
+                for file_name in self.data_extractor.processed_file_names
             )
             and self.pos_weight is None
         ):
             print(
                 f"Computing loss-weights based on v{self.data_extractor.chebi_version} dataset (beta={self.beta})"
             )
-            complete_data = pd.concat(
+            complete_labels = torch.concat(
                 [
-                    pd.read_pickle(
-                        open(
-                            os.path.join(
-                                self.data_extractor.processed_dir_main,
-                                file_name,
-                            ),
-                            "rb",
-                        )
-                    )
-                    for file_name in self.data_extractor.processed_main_file_names
+                    torch.stack([
+                        torch.Tensor(row["labels"]) for row in
+                        self.data_extractor.load_processed_data(filename=file_name)
+                    ])
+                    for file_name in self.data_extractor.processed_file_names
                 ]
             )
-            value_counts = []
-            for c in complete_data.columns[3:]:
-                value_counts.append(len([v for v in complete_data[c] if v]))
+            value_counts = complete_labels.sum(dim=0)
             weights = [
                 (1 - self.beta) / (1 - pow(self.beta, value)) for value in value_counts
             ]
