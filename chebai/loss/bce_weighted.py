@@ -5,14 +5,16 @@ import pandas as pd
 import torch
 
 from chebai.preprocessing.datasets.base import XYBaseDataModule
+from chebai.preprocessing.datasets.chebi import _ChEBIDataExtractor
 from chebai.preprocessing.datasets.pubchem import LabeledUnlabeledMixed
 
 
 class BCEWeighted(torch.nn.BCEWithLogitsLoss):
     """
     BCEWithLogitsLoss with weights automatically computed according to the beta parameter.
+    If beta is None or data_extractor is None, the loss is unweighted.
 
-    This class computes weights based on the formula from the paper:
+    This class computes weights based on the formula from the paper by Cui et al. (2019):
     https://openaccess.thecvf.com/content_CVPR_2019/papers/Cui_Class-Balanced_Loss_Based_on_Effective_Number_of_Samples_CVPR_2019_paper.pdf
 
     Args:
@@ -24,13 +26,17 @@ class BCEWeighted(torch.nn.BCEWithLogitsLoss):
         self,
         beta: Optional[float] = None,
         data_extractor: Optional[XYBaseDataModule] = None,
+        **kwargs,
     ):
         self.beta = beta
         if isinstance(data_extractor, LabeledUnlabeledMixed):
             data_extractor = data_extractor.labeled
         self.data_extractor = data_extractor
-
-        super().__init__()
+        assert (
+            isinstance(self.data_extractor, _ChEBIDataExtractor)
+            or self.data_extractor is None
+        )
+        super().__init__(**kwargs)
 
     def set_pos_weight(self, input: torch.Tensor) -> None:
         """
@@ -50,6 +56,9 @@ class BCEWeighted(torch.nn.BCEWithLogitsLoss):
             )
             and self.pos_weight is None
         ):
+            print(
+                f"Computing loss-weights based on v{self.data_extractor.chebi_version} dataset (beta={self.beta})"
+            )
             complete_data = pd.concat(
                 [
                     pd.read_pickle(
@@ -75,7 +84,9 @@ class BCEWeighted(torch.nn.BCEWithLogitsLoss):
                 [w / mean for w in weights], device=input.device
             )
 
-    def forward(self, input: torch.Tensor, target: torch.Tensor) -> torch.Tensor:
+    def forward(
+        self, input: torch.Tensor, target: torch.Tensor, **kwargs
+    ) -> torch.Tensor:
         """
         Forward pass for the loss calculation.
 
