@@ -61,10 +61,14 @@ class BCEWeighted(torch.nn.BCEWithLogitsLoss):
             )
             complete_labels = torch.concat(
                 [
-                    torch.stack([
-                        torch.Tensor(row["labels"]) for row in
-                        self.data_extractor.load_processed_data(filename=file_name)
-                    ])
+                    torch.stack(
+                        [
+                            torch.Tensor(row["labels"])
+                            for row in self.data_extractor.load_processed_data(
+                                filename=file_name
+                            )
+                        ]
+                    )
                     for file_name in self.data_extractor.processed_file_names
                 ]
             )
