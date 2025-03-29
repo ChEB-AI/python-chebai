@@ -37,7 +37,7 @@ class TestProteinPretrainingData(unittest.TestCase):
         _ProteinPretrainingData.READER = ProteinDataReader
 
         # Initialize the extractor instance
-        cls.extractor = _ProteinPretrainingData()
+        cls.extractor = _ProteinPretrainingData(_skip_data_methods_on_init=True)
 
     @patch(
         "builtins.open",

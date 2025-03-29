@@ -35,7 +35,7 @@ class TestChEBIDataExtractor(unittest.TestCase):
 
         # Create an instance of the dataset
         cls.extractor: _ChEBIDataExtractor = _ChEBIDataExtractor(
-            chebi_version=231, chebi_version_train=200
+            chebi_version=231, chebi_version_train=200, _skip_data_methods_on_init=True
         )
 
         # Mock instance for _chebi_version_train_obj

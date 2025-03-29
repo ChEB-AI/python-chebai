@@ -38,7 +38,7 @@ class _ProteinPretrainingData(_DynamicDataset, ABC):
         Args:
             **kwargs: Additional arguments for the superclass initialization.
         """
-        self._go_uniprot_extractor = GOUniProtOver250()
+        self._go_uniprot_extractor = GOUniProtOver250(_skip_data_methods_on_init=True)
         assert self._go_uniprot_extractor.go_branch == GOUniProtOver250._ALL_GO_BRANCHES
 
         self.max_sequence_length: int = int(kwargs.get("max_sequence_length", 1002))

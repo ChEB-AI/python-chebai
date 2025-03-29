@@ -121,6 +121,12 @@ class XYBaseDataModule(LightningDataModule):
         self._feature_vector_size = None
         self._prepare_data_flag = 1
         self._setup_data_flag = 1
+
+        # Skips data setup in the constructor; methods will be called later according to the CLI workflow.
+        if kwargs.get("_skip_data_methods_on_init", False):
+            # This change enables to skip these methods during initialization for unit-testing GitHub CI/CD
+            return
+
         self.prepare_data()
         self.setup()
 

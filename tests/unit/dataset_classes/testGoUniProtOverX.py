@@ -17,7 +17,7 @@ class TestGOUniProtOverX(unittest.TestCase):
         """
         Set up the class for tests by initializing the extractor, graph, and input DataFrame.
         """
-        cls.extractor = _GOUniProtOverX()
+        cls.extractor = _GOUniProtOverX(_skip_data_methods_on_init=True)
         cls.test_graph: nx.DiGraph = GOUniProtMockData.get_transitively_closed_graph()
         cls.input_df: pd.DataFrame = GOUniProtMockData.get_data_in_dataframe().iloc[
             :, :4

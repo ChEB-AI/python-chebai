@@ -19,7 +19,9 @@ class TestChEBIOverX(unittest.TestCase):
             mock_processed_dir_main (PropertyMock): Mocked property for the processed directory path.
         """
         mock_processed_dir_main.return_value = "/mock/processed_dir"
-        cls.chebi_extractor = ChEBIOverX(chebi_version=231)
+        cls.chebi_extractor = ChEBIOverX(
+            chebi_version=231, _skip_data_methods_on_init=True
+        )
         cls.test_graph = ChebiMockOntology.get_transitively_closed_graph()
 
     @patch("builtins.open", new_callable=mock_open)

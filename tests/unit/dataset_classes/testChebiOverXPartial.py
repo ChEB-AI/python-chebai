@@ -16,7 +16,9 @@ class TestChEBIOverX(unittest.TestCase):
         """
         Set up the ChEBIOverXPartial instance with a mock processed directory path and a test graph.
         """
-        cls.chebi_extractor = ChEBIOverXPartial(top_class_id=11111, chebi_version=231)
+        cls.chebi_extractor = ChEBIOverXPartial(
+            top_class_id=11111, chebi_version=231, _skip_data_methods_on_init=True
+        )
         cls.test_graph = ChebiMockOntology.get_transitively_closed_graph()
 
     @patch(
