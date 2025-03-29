@@ -50,8 +50,8 @@ setup(
         "chardet",
         "pyyaml",
         "torchmetrics",
-        "biopython",
-        "fair-esm",
+        # "biopython",
+        # "fair-esm",
     ],
     extras_require={"dev": ["black", "isort", "pre-commit"]},
 )
