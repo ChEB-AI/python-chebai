@@ -525,18 +525,6 @@ class XYBaseDataModule(LightningDataModule):
         """
         raise NotImplementedError
 
-    @property
-    def label_number(self) -> int:
-        """
-        Returns the number of labels.
-
-        This property should be implemented by subclasses to provide the number of labels.
-
-        Returns:
-            int: The number of labels. Returns -1 for seq2seq encoding.
-        """
-        raise NotImplementedError
-
 
 class MergedDataset(XYBaseDataModule):
     MERGED = []
@@ -672,13 +660,6 @@ class MergedDataset(XYBaseDataModule):
         Returns the list of processed file names.
         """
         return ["test.pt", "train.pt", "validation.pt"]
-
-    @property
-    def label_number(self) -> int:
-        """
-        Returns the number of labels from the first subset.
-        """
-        return self.subsets[0].label_number
 
     @property
     def limits(self):

@@ -40,11 +40,6 @@ class Tox21MolNet(XYBaseDataModule):
         return "Tox21MN"
 
     @property
-    def label_number(self) -> int:
-        """Returns the number of labels."""
-        return 12
-
-    @property
     def raw_file_names(self) -> List[str]:
         """Returns a list of raw file names."""
         return ["tox21.csv"]
@@ -176,11 +171,6 @@ class Tox21Challenge(XYBaseDataModule):
     def _name(self) -> str:
         """Returns the name of the dataset."""
         return "Tox21Chal"
-
-    @property
-    def label_number(self) -> int:
-        """Returns the number of labels."""
-        return 12
 
     @property
     def raw_file_names(self) -> List[str]:

@@ -693,13 +693,6 @@ class PubchemChem(PubChem):
 
     READER: Type[dr.ChemDataReader] = dr.ChemDataReader
 
-    @property
-    def label_number(self) -> int:
-        """
-        Returns the label number.
-        """
-        return -1
-
 
 class PubchemBPE(PubChem):
     """
@@ -712,13 +705,6 @@ class PubchemBPE(PubChem):
     """
 
     READER: Type[dr.ChemBPEReader] = dr.ChemBPEReader
-
-    @property
-    def label_number(self) -> int:
-        """
-        Returns the label number.
-        """
-        return -1
 
 
 class SWJChem(SWJPreChem):
@@ -733,13 +719,6 @@ class SWJChem(SWJPreChem):
 
     READER: Type[dr.ChemDataUnlabeledReader] = dr.ChemDataUnlabeledReader
 
-    @property
-    def label_number(self) -> int:
-        """
-        Returns the label number.
-        """
-        return -1
-
 
 class SWJBPE(SWJPreChem):
     """
@@ -752,13 +731,6 @@ class SWJBPE(SWJPreChem):
     """
 
     READER: Type[dr.ChemBPEReader] = dr.ChemBPEReader
-
-    @property
-    def label_number(self) -> int:
-        """
-        Returns the label number.
-        """
-        return -1
 
 
 class PubChemTokens(PubChem):

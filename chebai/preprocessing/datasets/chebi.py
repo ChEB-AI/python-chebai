@@ -89,10 +89,6 @@ class JCIBase(XYBaseDataModule):
                 os.path.join(self.processed_dir, f"{k}.pt"),
             )
 
-    @property
-    def label_number(self):
-        return 500
-
 
 class JCIData(JCIBase):
     READER = dr.OrdReader
@@ -547,10 +543,6 @@ class _ChEBIDataExtractor(_DynamicDataset, ABC):
 class JCIExtendedBase(_ChEBIDataExtractor):
 
     @property
-    def label_number(self):
-        return 500
-
-    @property
     def _name(self):
         return "JCI_extended"
 
@@ -573,16 +565,6 @@ class ChEBIOverX(_ChEBIDataExtractor):
 
     READER: dr.ChemDataReader = dr.ChemDataReader
     THRESHOLD: int = None
-
-    @property
-    def label_number(self) -> int:
-        """
-        Returns the number of labels in the dataset.
-
-        Returns:
-            int: The number of labels.
-        """
-        return 854
 
     @property
     def _name(self) -> str:
@@ -676,17 +658,6 @@ class ChEBIOver100(ChEBIOverX):
 
     THRESHOLD: int = 100
 
-    def label_number(self) -> int:
-        """
-        Returns the number of labels in the dataset.
-
-        Overrides the base class method to return the correct number of labels for this threshold.
-
-        Returns:
-            int: The number of labels.
-        """
-        return 854
-
 
 class ChEBIOver50(ChEBIOverX):
     """
@@ -699,17 +670,6 @@ class ChEBIOver50(ChEBIOverX):
     """
 
     THRESHOLD: int = 50
-
-    def label_number(self) -> int:
-        """
-        Returns the number of labels in the dataset.
-
-        Overrides the base class method to return the correct number of labels for this threshold.
-
-        Returns:
-            int: The number of labels.
-        """
-        return 1332
 
 
 class ChEBIOver100DeepSMILES(ChEBIOverXDeepSMILES, ChEBIOver100):
