@@ -23,6 +23,7 @@ import torch
 
 from chebai.preprocessing import reader as dr
 from chebai.preprocessing.datasets.base import XYBaseDataModule, _DynamicDataset
+from chebai.preprocessing.reader import ChemDataReaderAugmented
 
 # exclude some entities from the dataset because the violate disjointness axioms
 CHEBI_BLACKLIST = [
@@ -62,8 +63,8 @@ class JCIBase(XYBaseDataModule):
     def prepare_data(self, *args, **kwargs):
         print("Check for raw data in", self.raw_dir)
         if any(
-            not os.path.isfile(os.path.join(self.raw_dir, f))
-            for f in self.raw_file_names
+                not os.path.isfile(os.path.join(self.raw_dir, f))
+                for f in self.raw_file_names
         ):
             raise ValueError("Raw data is missing")
 
@@ -135,10 +136,10 @@ class _ChEBIDataExtractor(_DynamicDataset, ABC):
     _LABELS_START_IDX: int = 3
 
     def __init__(
-        self,
-        chebi_version_train: Optional[int] = None,
-        single_class: Optional[int] = None,
-        **kwargs,
+            self,
+            chebi_version_train: Optional[int] = None,
+            single_class: Optional[int] = None,
+            **kwargs,
     ):
         # predict only single class (given as id of one of the classes present in the raw data set)
         self.single_class = single_class
@@ -183,12 +184,12 @@ class _ChEBIDataExtractor(_DynamicDataset, ABC):
 
         if self.chebi_version_train is not None:
             if not os.path.isfile(
-                os.path.join(
-                    self._chebi_version_train_obj.processed_dir_main,
-                    self._chebi_version_train_obj.processed_main_file_names_dict[
-                        "data"
-                    ],
-                )
+                    os.path.join(
+                        self._chebi_version_train_obj.processed_dir_main,
+                        self._chebi_version_train_obj.processed_main_file_names_dict[
+                            "data"
+                        ],
+                    )
             ):
                 print(
                     f"Missing processed data related to train version: {self.chebi_version_train}"
@@ -245,9 +246,9 @@ class _ChEBIDataExtractor(_DynamicDataset, ABC):
         elements = []
         for term_doc in fastobo.loads(chebi):
             if (
-                term_doc
-                and isinstance(term_doc.id, fastobo.id.PrefixedIdent)
-                and term_doc.id.prefix == "CHEBI"
+                    term_doc
+                    and isinstance(term_doc.id, fastobo.id.PrefixedIdent)
+                    and term_doc.id.prefix == "CHEBI"
             ):
                 term_dict = term_callback(term_doc)
                 if term_dict:
@@ -307,7 +308,7 @@ class _ChEBIDataExtractor(_DynamicDataset, ABC):
         data = data[[name not in CHEBI_BLACKLIST for name, _ in data.iterrows()]]
         # This filters the DataFrame to include only the rows where at least one value in the row from 4th column
         # onwards is True/non-zero.
-        data = data[data.iloc[:, self._LABELS_START_IDX :].any(axis=1)]
+        data = data[data.iloc[:, self._LABELS_START_IDX:].any(axis=1)]
         return data
 
     # ------------------------------ Phase: Setup data -----------------------------------
@@ -326,10 +327,10 @@ class _ChEBIDataExtractor(_DynamicDataset, ABC):
 
         # Transform the data related to "chebi_version_train" to encoded data, if it doesn't exist
         if self.chebi_version_train is not None and not os.path.isfile(
-            os.path.join(
-                self._chebi_version_train_obj.processed_dir,
-                self._chebi_version_train_obj.processed_file_names_dict["data"],
-            )
+                os.path.join(
+                    self._chebi_version_train_obj.processed_dir,
+                    self._chebi_version_train_obj.processed_file_names_dict["data"],
+                )
         ):
             print(
                 f"Missing encoded data related to train version: {self.chebi_version_train}"
@@ -368,7 +369,7 @@ class _ChEBIDataExtractor(_DynamicDataset, ABC):
                 single_cls_index = list(df.columns).index(int(self.single_class))
             for row in df.values:
                 if self.single_class is None:
-                    labels = row[self._LABELS_START_IDX :].astype(bool)
+                    labels = row[self._LABELS_START_IDX:].astype(bool)
                 else:
                     labels = [bool(row[single_cls_index])]
                 yield dict(
@@ -460,7 +461,7 @@ class _ChEBIDataExtractor(_DynamicDataset, ABC):
         return df_train, df_val, df_test
 
     def _setup_pruned_test_set(
-        self, df_test_chebi_version: pd.DataFrame
+            self, df_test_chebi_version: pd.DataFrame
     ) -> pd.DataFrame:
         """
         Create a test set with the same leaf nodes, but use only classes that appear in the training set.
@@ -482,10 +483,10 @@ class _ChEBIDataExtractor(_DynamicDataset, ABC):
 
         # Load new classes (from the training ChEBI version - chebi_version_train)
         with open(
-            os.path.join(
-                self._chebi_version_train_obj.processed_dir_main, filename_old
-            ),
-            "r",
+                os.path.join(
+                    self._chebi_version_train_obj.processed_dir_main, filename_old
+                ),
+                "r",
         ) as file:
             new_classes = file.readlines()
 
@@ -625,9 +626,9 @@ class ChEBIOverX(_ChEBIDataExtractor):
                     node
                     for node in g.nodes
                     if sum(
-                        1 if smiles[s] is not None else 0 for s in g.successors(node)
-                    )
-                    >= self.THRESHOLD
+                    1 if smiles[s] is not None else 0 for s in g.successors(node)
+                )
+                       >= self.THRESHOLD
                 }
             )
         )
@@ -802,6 +803,61 @@ class ChEBIOver50Partial(ChEBIOverXPartial, ChEBIOver50):
     pass
 
 
+class ChEBIOver100Parthood(ChEBIOver100):
+    """Modified dataset that contains additional parthood information (i.e., which group substructures were found
+    in a molecule). The creation of the dataset is not implemented, it expects that a data_parthoods.pkl file is
+    provided with columns for each label ('{id}') and for parthoods ('{has_part_{id}')"""
+
+    def __init__(self, use_parthood_labels=False, use_parthood_features=False, **kwargs):
+        super().__init__(**kwargs)
+        self.use_parthood_labels = use_parthood_labels
+        self.use_parthood_features = use_parthood_features
+
+    READER = ChemDataReaderAugmented
+
+    @property
+    def processed_main_file_names_dict(self) -> dict:
+        return {
+            "data": "data_parthoods.pkl",
+        }
+
+    @property
+    def processed_file_names_dict(self) -> dict:
+        return {
+            "data": f"data_parthoods{'_labels' if self.use_parthood_labels else ''}"
+                    f"{'_features' if self.use_parthood_features else ''}.pt"
+        }
+
+    def prepare_data(self) -> None:
+        f = os.path.join(self.processed_dir_main, self.processed_main_file_names_dict["data"])
+        if not os.path.isfile(f):
+            raise NotImplementedError(f"The dataset at "
+                                      f"{os.path.join(self.processed_dir_main, self.processed_main_file_names_dict['data'])} "
+                                      f"must be supplied manually.")
+
+    def _load_dict(self, input_file_path: str) -> Generator[Dict[str, Any], None, None]:
+        with open(input_file_path, "rb") as input_file:
+            df = pd.read_pickle(input_file)
+            if self.single_class is not None:
+                single_cls_index = list(df.columns).index(int(self.single_class))
+            parthood_filter = [i for i, c in enumerate(df.columns) if str(c).startswith("has_part")]
+            rest_filter = [i for i, c in enumerate(df.columns) if not str(c).startswith("has_part")]
+            for row in df.values:
+                parts = row[parthood_filter]
+                if not self.use_parthood_labels:
+                    row = row[rest_filter]
+                if self.single_class is None:
+                    labels = row[self._LABELS_START_IDX:].astype(bool)
+                else:
+                    labels = [bool(row[single_cls_index])]
+                yield dict(
+                    features=row[self._DATA_REPRESENTATION_IDX],
+                    labels=labels,
+                    ident=row[self._ID_IDX],
+                    additional_kwargs={"parthoods": parts},
+                )
+
+
 class JCIExtendedBPEData(JCIExtendedBase):
     READER = dr.ChemBPEReader
 
@@ -824,7 +880,7 @@ def chebi_to_int(s: str) -> int:
     Returns:
     - int: The integer ID extracted from the ChEBI term string.
     """
-    return int(s[s.index(":") + 1 :])
+    return int(s[s.index(":") + 1:])
 
 
 def term_callback(doc: fastobo.term.TermFrame) -> Union[Dict, bool]:

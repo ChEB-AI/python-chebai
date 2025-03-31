@@ -804,16 +804,15 @@ class _DynamicDataset(XYBaseDataModule, ABC):
     # ------------------------------ Phase: Setup data -----------------------------------
     def setup_processed(self) -> None:
         """
-        Transforms `data.pkl` into a model input data format (`data.pt`), ensuring that the data is in a format
+        Tokenizes `data.pkl` into a model input data format (`data.pt`), ensuring that the data is in a format
         compatible for input to the model.
-        The transformed data contains the following keys: `ident`, `features`, `labels`, and `group`.
-        This method uses a subclass of Data Reader to perform the transformation.
+        The tokenized data is a list of dicts with the following keys: `ident`, `features`, `labels`, and `group`.
 
         Returns:
             None
         """
         os.makedirs(self.processed_dir, exist_ok=True)
-        print("Missing transformed data (`data.pt` file). Transforming data.... ")
+        print(f"Missing tokenized data (`{self.processed_file_names_dict['data']}` file). Tokenizing data.... ")
         torch.save(
             self._load_data_from_file(
                 os.path.join(
