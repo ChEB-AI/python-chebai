@@ -1,4 +1,5 @@
 import importlib
+import json
 import os.path
 from abc import ABC, abstractmethod
 from typing import Any, Dict, Optional, Tuple, Union
@@ -12,42 +13,19 @@ from chebai.preprocessing.structures import XYData
 
 
 class _EnsembleBase(ChebaiBaseNet, ABC):
-    def __init__(self, model_configs: Dict[str, Dict], **kwargs):
+    def __init__(
+        self, model_configs: Dict[str, Dict], data_processed_dir_main: str, **kwargs
+    ):
         super().__init__(**kwargs)
         self._validate_model_configs(model_configs)
 
+        self.data_processed_dir_main = data_processed_dir_main
         self.models: Dict[str, LightningModule] = {}
         self.model_configs = model_configs
+        self.dm_labels: Dict[str, int] = {}
 
-        for model_name in self.model_configs:
-            model_ckpt_path = self.model_configs[model_name]["ckpt_path"]
-            model_class_path = self.model_configs[model_name]["class_path"]
-            if not os.path.exists(model_ckpt_path):
-                raise FileNotFoundError(
-                    f"Model path '{model_ckpt_path}' for '{model_name}' does not exist."
-                )
-
-            class_name = model_class_path.split(".")[-1]
-            module_path = ".".join(model_class_path.split(".")[:-1])
-
-            try:
-                module = importlib.import_module(module_path)
-                lightning_cls: LightningModule = getattr(module, class_name)
-
-                model = lightning_cls.load_from_checkpoint(model_ckpt_path)
-                model.eval()
-                model.freeze()
-                self.models[model_name] = model
-
-            except ModuleNotFoundError:
-                print(f"Module '{module_path}' not found!")
-            except AttributeError:
-                print(f"Class '{class_name}' not found in '{module_path}'!")
-
-            except Exception as e:
-                raise RuntimeError(
-                    f"Failed to load model '{model_name}' from {model_ckpt_path}: \n {e}"
-                )
+        self._load_data_module_labels()
+        self._load_ensemble_models()
 
         # TODO: Later discuss whether this threshold should be independent of metric threshold or not ?
         # if kwargs.get("threshold") is None:
@@ -98,6 +76,47 @@ class _EnsembleBase(ChebaiBaseNet, ABC):
     ):
         pass
 
+    def _load_ensemble_models(self):
+        for model_name in self.model_configs:
+            model_ckpt_path = self.model_configs[model_name]["ckpt_path"]
+            model_class_path = self.model_configs[model_name]["class_path"]
+            if not os.path.exists(model_ckpt_path):
+                raise FileNotFoundError(
+                    f"Model path '{model_ckpt_path}' for '{model_name}' does not exist."
+                )
+
+            class_name = model_class_path.split(".")[-1]
+            module_path = ".".join(model_class_path.split(".")[:-1])
+
+            try:
+                module = importlib.import_module(module_path)
+                lightning_cls: LightningModule = getattr(module, class_name)
+
+                model = lightning_cls.load_from_checkpoint(model_ckpt_path)
+                model.eval()
+                model.freeze()
+                self.models[model_name] = model
+
+            except ModuleNotFoundError:
+                print(f"Module '{module_path}' not found!")
+            except AttributeError:
+                print(f"Class '{class_name}' not found in '{module_path}'!")
+
+            except Exception as e:
+                raise RuntimeError(
+                    f"Failed to load model '{model_name}' from {model_ckpt_path}: \n {e}"
+                )
+
+    def _load_data_module_labels(self):
+        classes_txt_file = os.path.join(self.data_processed_dir_main, "classes.txt")
+        if not os.path.exists(classes_txt_file):
+            raise FileNotFoundError(f"{classes_txt_file} does not exist")
+        else:
+            with open(classes_txt_file, "r") as f:
+                for line in f:
+                    if line.strip() not in self.dm_labels:
+                        self.dm_labels[line.strip()] = len(self.dm_labels)
+
     @abstractmethod
     def _get_prediction_and_labels(
         self, data: Dict[str, Any], labels: torch.Tensor, output: torch.Tensor
@@ -132,41 +151,49 @@ class ChebiEnsemble(_EnsembleBase):
         #     )
         sets_["labels"].add(labels_path)
 
-        if "TPV" not in config.keys() or "FPV" not in config.keys():
-            raise AttributeError(
-                f"Missing keys 'TPV' and/or 'FPV' in model '{model_name}' configuration."
-            )
+        with open(labels_path, "r") as f:
+            model_labels = json.load(f)
 
-        # Validate 'tpv' and 'fpv' are either floats or convertible to float
-        for key in ["TPV", "FPV"]:
-            try:
-                value = float(config[key])
-                if value < 0:
-                    raise ValueError(
-                        f"'{key}' in model '{model_name}' must be non-negative, but got {value}."
-                    )
-            except (TypeError, ValueError):
-                raise ValueError(
-                    f"'{key}' in model '{model_name}' must be a float or convertible to float, but got {config[key]}."
+        for label, label_dict in model_labels.items():
+
+            if "TPV" not in label_dict.keys() or "FPV" not in label_dict.keys():
+                raise AttributeError(
+                    f"Missing keys 'TPV' and/or 'FPV' in model '{model_name}' configuration."
                 )
 
+            # Validate 'tpv' and 'fpv' are either floats or convertible to float
+            for key in ["TPV", "FPV"]:
+                try:
+                    value = float(label_dict[key])
+                    if value < 0:
+                        raise ValueError(
+                            f"'{key}' in model '{model_name}' and label '{label}' must be non-negative, but got {value}."
+                        )
+                except (TypeError, ValueError):
+                    raise ValueError(
+                        f"'{key}' in model '{model_name}' and label '{label}' must be a float or convertible to float, but got {label_dict[key]}."
+                    )
+
     def _generate_model_label_mask(self):
-        labels_dict = {}
         num_models_per_label = torch.zeros(1, self.out_dim, device=self.device)
+
         for model_name, model_config in self.model_configs.items():
             labels_path = model_config["labels_path"]
             if not os.path.exists(labels_path):
                 raise FileNotFoundError(f"Labels path '{labels_path}' does not exist.")
 
             with open(labels_path, "r") as f:
-                labels_list = [int(line.strip()) for line in f]
+                labels_dict = json.load(f)
 
-            model_label_indices = []
-            for label in labels_list:
-                if label not in labels_dict:
-                    labels_dict[label] = len(labels_dict)
+            model_label_indices, tpv_label_values, fpv_label_values = [], [], []
+            for label in labels_dict.keys():
+                if label in self.dm_labels:
+                    model_label_indices.append(self.dm_labels[label])
+                    tpv_label_values.append(float(labels_dict[label]["TPV"]))
+                    fpv_label_values.append(float(labels_dict[label]["FPV"]))
 
-                model_label_indices.append(labels_dict[label])
+            if not all([model_label_indices, tpv_label_values, fpv_label_values]):
+                raise ValueError(f"Values are empty for labels of model {model_name}")
 
             # Create masks to apply predictions only to known classes
             mask = torch.zeros(self.out_dim, device=self.device, dtype=torch.bool)
@@ -174,7 +201,23 @@ class ChebiEnsemble(_EnsembleBase):
                 torch.tensor(model_label_indices, dtype=torch.int, device=self.device)
             ] = True
 
+            tpv_tensor = torch.full_like(
+                mask, -1, dtype=torch.float, device=self.device
+            )
+            fpv_tensor = torch.full_like(
+                mask, -1, dtype=torch.float, device=self.device
+            )
+
+            tpv_tensor[mask] = torch.tensor(
+                tpv_label_values, dtype=torch.float, device=self.device
+            )
+            fpv_tensor[mask] = torch.tensor(
+                fpv_label_values, dtype=torch.float, device=self.device
+            )
+
             self.model_configs[model_name]["labels_mask"] = mask
+            self.model_configs[model_name]["tpv_tensor"] = tpv_tensor
+            self.model_configs[model_name]["fpv_tensor"] = fpv_tensor
             num_models_per_label += mask
 
         self._num_models_per_label = num_models_per_label
@@ -312,8 +355,8 @@ class ChebiEnsemble(_EnsembleBase):
         false_scores = torch.zeros(batch_size, num_classes, device=self.device)
 
         for model, conf in confidences.items():
-            tpv = float(self.model_configs[model]["TPV"])
-            npv = float(self.model_configs[model]["FPV"])
+            tpv = self.model_configs[model]["tpv_tensor"]
+            npv = self.model_configs[model]["fpv_tensor"]
 
             # Determine which classes the model provides predictions for
             mask = self.model_configs[model]["labels_mask"]
