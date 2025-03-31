@@ -199,7 +199,7 @@ class ChebiEnsemble(_EnsembleBase):
             prediction = torch.full_like(total_logits, -1, dtype=torch.bool)
             confidence = torch.full_like(total_logits, -1, dtype=torch.float)
             prediction[:, mask] = sigmoid_logits > 0.5
-            confidence[:, mask] = sigmoid_logits
+            confidence[:, mask] = 2 * torch.abs(sigmoid_logits - 0.5)
 
             predictions[name] = prediction
             confidences[name] = confidence
