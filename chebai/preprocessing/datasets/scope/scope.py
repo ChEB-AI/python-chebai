@@ -72,10 +72,12 @@ class _SCOPeDataExtractor(_DynamicDataset, ABC):
         self,
         scope_version: str,
         scope_version_train: Optional[str] = None,
+        max_sequence_len: int = 1000,
         **kwargs,
     ):
         self.scope_version: str = scope_version
         self.scope_version_train: str = scope_version_train
+        self.max_sequence_len: int = max_sequence_len
 
         super(_SCOPeDataExtractor, self).__init__(**kwargs)
 
@@ -545,7 +547,7 @@ class _SCOPeDataExtractor(_DynamicDataset, ABC):
             os.path.join(self.scope_root_dir, self.raw_file_names_dict["PDB"]), "fasta"
         ):
 
-            if not record.seq:
+            if not record.seq or len(record.seq) > self.max_sequence_len:
                 continue
 
             pdb_id, chain = record.id.split("_")
