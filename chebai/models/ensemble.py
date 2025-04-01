@@ -9,13 +9,35 @@ from lightning.pytorch import LightningModule
 from torch import Tensor
 
 from chebai.models import ChebaiBaseNet
+from chebai.models.ffn import FFN
 from chebai.preprocessing.structures import XYData
 
 
 class _EnsembleBase(ChebaiBaseNet, ABC):
+    """
+    Base class for ensemble models in the Chebai framework.
+
+    Inherits from ChebaiBaseNet and provides functionality to load multiple models,
+    validate configuration, and manage predictions.
+
+    Attributes:
+        data_processed_dir_main (str): Directory where the processed data is stored.
+        models (Dict[str, LightningModule]): A dictionary of loaded models.
+        model_configs (Dict[str, Dict]): Configuration dictionary for models in the ensemble.
+        dm_labels (Dict[str, int]): Mapping of label names to integer indices.
+    """
+
     def __init__(
         self, model_configs: Dict[str, Dict], data_processed_dir_main: str, **kwargs
     ):
+        """
+        Initializes the ensemble model and loads configuration, models, and labels.
+
+        Args:
+            model_configs (Dict[str, Dict]): Dictionary of model configurations.
+            data_processed_dir_main (str): Path to the processed data directory.
+            **kwargs: Additional arguments for initialization.
+        """
         super().__init__(**kwargs)
         self._validate_model_configs(model_configs)
 
@@ -27,16 +49,18 @@ class _EnsembleBase(ChebaiBaseNet, ABC):
         self._load_data_module_labels()
         self._load_ensemble_models()
 
-        # TODO: Later discuss whether this threshold should be independent of metric threshold or not ?
-        # if kwargs.get("threshold") is None:
-        #     first_metric_key = next(iter(self.train_metrics))  # Get the first key
-        #     first_metric = self.train_metrics[first_metric_key]  # Get the metric object
-        #     self.threshold = int(first_metric.threshold)  # Access threshold
-        # else:
-        #     self.threshold = int(kwargs["threshold"])
-
     @classmethod
     def _validate_model_configs(cls, model_configs: Dict[str, Dict]):
+        """
+        Validates the model configurations to ensure required keys are present.
+
+        Args:
+            model_configs (Dict[str, Dict]): Dictionary of model configurations.
+
+        Raises:
+            AttributeError: If required keys are missing in the configuration.
+            ValueError: If there are duplicate model paths or class paths.
+        """
         path_set = set()
         class_set = set()
         labels_set = set()
@@ -55,15 +79,15 @@ class _EnsembleBase(ChebaiBaseNet, ABC):
             model_path = config["ckpt_path"]
             class_path = config["class_path"]
 
-            # if model_path in path_set:
-            #     raise ValueError(
-            #         f"Duplicate model path detected: '{model_path}'. Each model must have a unique path."
-            #     )
+            if model_path in path_set:
+                raise ValueError(
+                    f"Duplicate model path detected: '{model_path}'. Each model must have a unique path."
+                )
 
-            # if class_path not in class_set:
-            #     raise ValueError(
-            #             f"Duplicate class path detected: '{class_path}'. Each model must have a unique path."
-            #     )
+            if class_path not in class_set:
+                raise ValueError(
+                    f"Duplicate class path detected: '{class_path}'. Each model must have a unique path."
+                )
 
             path_set.add(model_path)
             class_set.add(class_path)
@@ -74,9 +98,27 @@ class _EnsembleBase(ChebaiBaseNet, ABC):
     def _extra_validation(
         cls, model_name: str, config: Dict[str, Any], sets_: Dict[str, set]
     ):
+        """
+        Perform extra validation on the model configuration, if necessary.
+
+        This method can be extended by subclasses to add additional validation logic.
+
+        Args:
+            model_name (str): The name of the model.
+            config (Dict[str, Any]): The configuration dictionary for the model.
+            sets_ (Dict[str, set]): A dictionary of sets to track model paths, class paths, and labels.
+        """
         pass
 
     def _load_ensemble_models(self):
+        """
+        Loads the models specified in the configuration and initializes them.
+
+        Raises:
+            FileNotFoundError: If the model checkpoint path does not exist.
+            ModuleNotFoundError: If the module containing the model class is not found.
+            AttributeError: If the specified class is not found within the module.
+        """
         for model_name in self.model_configs:
             model_ckpt_path = self.model_configs[model_name]["ckpt_path"]
             model_class_path = self.model_configs[model_name]["class_path"]
@@ -108,6 +150,12 @@ class _EnsembleBase(ChebaiBaseNet, ABC):
                 )
 
     def _load_data_module_labels(self):
+        """
+        Loads the label mapping from the classes.txt file for loaded data.
+
+        Raises:
+            FileNotFoundError: If the classes.txt file does not exist.
+        """
         classes_txt_file = os.path.join(self.data_processed_dir_main, "classes.txt")
         if not os.path.exists(classes_txt_file):
             raise FileNotFoundError(f"{classes_txt_file} does not exist")
@@ -120,15 +168,43 @@ class _EnsembleBase(ChebaiBaseNet, ABC):
     @abstractmethod
     def _get_prediction_and_labels(
         self, data: Dict[str, Any], labels: torch.Tensor, output: torch.Tensor
-    ) -> (torch.Tensor, torch.Tensor):
+    ) -> Tuple[torch.Tensor, torch.Tensor]:
+        """
+        Abstract method for obtaining predictions and labels.
+
+        Args:
+            data (Dict[str, Any]): The input data.
+            labels (torch.Tensor): The target labels.
+            output (torch.Tensor): The model output.
+
+        Returns:
+            Tuple[torch.Tensor, torch.Tensor]: The predicted labels and the ground truth labels.
+        """
         pass
 
 
 class ChebiEnsemble(_EnsembleBase):
+    """
+    Ensemble model that aggregates predictions from multiple models for the Chebai task.
+
+    This model combines the outputs of several individual models and aggregates their predictions
+    using a weighted voting strategy based on trustworthiness (TPV and FPV). This strategy can modified by overriding
+    `aggregate_predictions` method by subclasses, as per needs.
+
+    There is are relevant trainable parameters for this ensemble model, hence trainer.max_epochs should be set to 1.
+    `_dummy_param` exists for only lighting module completeness and compatability purpose.
+    """
 
     NAME = "ChebiEnsemble"
 
     def __init__(self, model_configs: Dict[str, Dict], **kwargs):
+        """
+        Initializes the ensemble model and computes the model-label mask.
+
+        Args:
+            model_configs (Dict[str, Dict]): Dictionary of model configurations.
+            **kwargs: Additional arguments for initialization.
+        """
         super().__init__(model_configs, **kwargs)
 
         # Add a dummy trainable parameter
@@ -140,15 +216,27 @@ class ChebiEnsemble(_EnsembleBase):
     def _extra_validation(
         cls, model_name: str, config: Dict[str, Any], sets_: Dict[str, set]
     ):
+        """
+        Additional validation for the ensemble model configuration.
 
+        Args:
+            model_name (str): The model name.
+            config (Dict[str, Any]): The configuration dictionary.
+            sets_ (Dict[str, set]): The set of paths for labels.
+
+        Raises:
+            AttributeError: If the 'labels_path' key is missing.
+            ValueError: If the 'labels_path' contains duplicate entries or certain are not convertible to float.
+        """
         if "labels_path" not in config:
             raise AttributeError("Missing 'labels_path' key in config!")
 
         labels_path = config["labels_path"]
-        # if labels_path not in sets_["labels"]:
-        #     raise ValueError(
-        #             f"Duplicate labels path detected: '{labels_path}'. Each model must have a unique path."
-        #     )
+        if labels_path not in sets_["labels"]:
+            raise ValueError(
+                f"Duplicate labels path detected: '{labels_path}'. Each model must have a unique path."
+            )
+
         sets_["labels"].add(labels_path)
 
         with open(labels_path, "r") as f:
@@ -175,6 +263,14 @@ class ChebiEnsemble(_EnsembleBase):
                     )
 
     def _generate_model_label_mask(self):
+        """
+        Generates a mask indicating the labels handled by each model, and retrieves corresponding the TPV and FPV values
+        as tensors.
+
+        Raises:
+            FileNotFoundError: If the labels path does not exist.
+            ValueError: If label values are empty for any model.
+        """
         num_models_per_label = torch.zeros(1, self.out_dim, device=self.device)
 
         for model_name, model_config in self.model_configs.items():
@@ -223,6 +319,16 @@ class ChebiEnsemble(_EnsembleBase):
         self._num_models_per_label = num_models_per_label
 
     def forward(self, data: Dict[str, Tensor], **kwargs: Any) -> Dict[str, Any]:
+        """
+        Forward pass through the ensemble model, aggregating predictions from all models.
+
+        Args:
+            data (Dict[str, Tensor]): Input data including features and labels.
+            **kwargs: Additional arguments for the forward pass.
+
+        Returns:
+            Dict[str, Any]: The aggregated logits, predictions, and confidences.
+        """
         predictions = {}
         confidences = {}
 
@@ -257,6 +363,17 @@ class ChebiEnsemble(_EnsembleBase):
         }
 
     def _get_prediction_and_labels(self, data, labels, model_output):
+        """
+        Gets predictions and labels from the model output.
+
+        Args:
+            data (Dict[str, Any]): The input data.
+            labels (torch.Tensor): The target labels.
+            model_output (Dict[str, Tensor]): The model's output.
+
+        Returns:
+            Tuple[torch.Tensor, torch.Tensor]: The predictions and the ground truth labels.
+        """
         d = model_output["logits"]
         # Aggregate predictions using weighted voting
         metrics_preds = self.aggregate_predictions(
@@ -348,8 +465,30 @@ class ChebiEnsemble(_EnsembleBase):
                 self._log_metrics(prefix, metrics, len(batch))
         return d
 
-    def aggregate_predictions(self, predictions, confidences):
-        """Implements weighted voting based on trustworthiness."""
+    def aggregate_predictions(
+        self, predictions: Dict[str, torch.Tensor], confidences: Dict[str, torch.Tensor]
+    ) -> torch.Tensor:
+        """
+        Implements weighted voting based on trustworthiness.
+
+        This method aggregates predictions from multiple models using a weighted voting mechanism.
+        The weight of each model's prediction is determined by its True Positive Value (TPV) and
+        False Positive Value (FPV), scaled by the confidence score.
+
+        Args:
+            predictions (Dict[str, torch.Tensor]):
+                A dictionary mapping model names to their respective binary class predictions
+                (shape: `[batch_size, num_classes]`).
+            confidences (Dict[str, torch.Tensor]):
+                A dictionary mapping model names to their respective confidence scores
+                (shape: `[batch_size, num_classes]`).
+
+        Returns:
+            torch.Tensor:
+                A tensor of final aggregated predictions based on weighted voting
+                (shape: `[batch_size, num_classes]`), where values are `True` for positive class
+                and `False` otherwise.
+        """
         batch_size, num_classes = list(predictions.values())[0].shape
         true_scores = torch.zeros(batch_size, num_classes, device=self.device)
         false_scores = torch.zeros(batch_size, num_classes, device=self.device)
@@ -369,7 +508,7 @@ class ChebiEnsemble(_EnsembleBase):
         # Avoid division by zero: Set valid_counts to 1 where it's zero
         valid_counts = self._num_models_per_label.clamp(min=1)
 
-        # Normalize by valid contributions to prevent bias, this step can be optional depending upon scenario
+        # Normalize by valid contributions to prevent bias
         final_preds = (true_scores / valid_counts) > (false_scores / valid_counts)
 
         return final_preds
@@ -398,33 +537,76 @@ class ChebiEnsemble(_EnsembleBase):
 
 
 class ChebiEnsembleLearning(_EnsembleBase):
+    """
+    A specialized ensemble learning class for ChEBI classification.
+
+    This ensemble combines multiple models by concatenating their logits and
+    passing them through a feedforward neural network (FFN) for final predictions.
+    """
 
     NAME = "ChebiEnsembleLearning"
 
-    def __init__(self, model_configs: Dict[str, Dict], **kwargs):
-        super().__init__(model_configs, **kwargs)
+    def __init__(self, model_configs: Dict[str, Dict], **kwargs: Any):
+        """
+        Initializes the ChebiEnsembleLearning class.
 
-        from chebai.models.ffn import FFN
+        Args:
+            model_configs (Dict[str, Dict]): Configuration dictionary for each model.
+            **kwargs (Any): Additional keyword arguments for configuring the FFN.
+        """
+        super().__init__(model_configs, **kwargs)
 
         ffn_kwargs = kwargs.copy()
         ffn_kwargs["input_size"] = len(self.model_configs) * int(kwargs["out_dim"])
         self.ffn: FFN = FFN(**ffn_kwargs)
 
     def forward(self, data: Dict[str, Tensor], **kwargs: Any) -> Dict[str, Any]:
+        """
+        Performs a forward pass through the ensemble model.
+
+        Args:
+            data (Dict[str, Tensor]): Input data dictionary for the models.
+            **kwargs (Any): Additional keyword arguments.
+
+        Returns:
+            Dict[str, Any]: Output from the FFN model.
+        """
         logits_list = [model(data)["logits"] for model in self.models.values()]
         return self.ffn({"features": torch.cat(logits_list, dim=1)})
 
     def _get_prediction_and_labels(
-        self, data: Dict[str, Any], labels: torch.Tensor, output: torch.Tensor
-    ) -> (torch.Tensor, torch.Tensor):
+        self, data: Dict[str, Any], labels: Tensor, output: Tensor
+    ) -> Tuple[Tensor, Tensor]:
+        """
+        Extracts predictions and labels for evaluation.
+
+        Args:
+            data (Dict[str, Any]): Input data dictionary.
+            labels (Tensor): Ground truth labels.
+            output (Tensor): Model output.
+
+        Returns:
+            Tuple[Tensor, Tensor]: Processed predictions and labels.
+        """
         return self.ffn._get_prediction_and_labels(data, labels, output)
 
     def _process_for_loss(
         self,
-        model_output: Dict[str, torch.Tensor],
-        labels: torch.Tensor,
+        model_output: Dict[str, Tensor],
+        labels: Tensor,
         loss_kwargs: Dict[str, Any],
-    ) -> (torch.Tensor, torch.Tensor, Dict[str, Any]):
+    ) -> Tuple[Tensor, Tensor, Dict[str, Any]]:
+        """
+        Processes model output and labels for computing the loss.
+
+        Args:
+            model_output (Dict[str, Tensor]): Output dictionary from the model.
+            labels (Tensor): Ground truth labels.
+            loss_kwargs (Dict[str, Any]): Additional arguments for loss computation.
+
+        Returns:
+            Tuple[Tensor, Tensor, Dict[str, Any]]: Loss, processed predictions, and additional info.
+        """
         return self.ffn._process_for_loss(model_output, labels, loss_kwargs)
 
 
