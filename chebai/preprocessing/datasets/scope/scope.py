@@ -72,10 +72,12 @@ class _SCOPeDataExtractor(_DynamicDataset, ABC):
         self,
         scope_version: str,
         scope_version_train: Optional[str] = None,
+        max_sequence_len: int = 1000,
         **kwargs,
     ):
         self.scope_version: str = scope_version
         self.scope_version_train: str = scope_version_train
+        self.max_sequence_len: int = max_sequence_len
 
         super(_SCOPeDataExtractor, self).__init__(**kwargs)
 
@@ -195,21 +197,93 @@ class _SCOPeDataExtractor(_DynamicDataset, ABC):
         """
         print("Extracting class hierarchy...")
         df_scope = self._get_scope_data()
+        pdb_chain_df = self._parse_pdb_sequence_file()
+        pdb_id_set = set(pdb_chain_df["pdb_id"])  # Search time complexity - O(1)
+
+        # Initialize sets and dictionaries for storing edges and attributes
+        parent_node_edges, node_child_edges = set(), set()
+        node_attrs = {}
+        px_level_nodes = set()
+        sequence_nodes = dict()
+        px_to_seq_edges = set()
+        required_graph_nodes = set()
+
+        # Create a lookup dictionary for PDB chain sequences
+        lookup_dict = (
+            pdb_chain_df.groupby("pdb_id")[["chain_id", "sequence"]]
+            .apply(lambda x: dict(zip(x["chain_id"], x["sequence"])))
+            .to_dict()
+        )
+
+        def add_sequence_nodes_edges(chain_sequence, px_sun_id):
+            """Adds sequence nodes and edges connecting px-level nodes to sequence nodes."""
+            if chain_sequence not in sequence_nodes:
+                sequence_nodes[chain_sequence] = f"seq_{len(sequence_nodes)}"
+            px_to_seq_edges.add((px_sun_id, sequence_nodes[chain_sequence]))
+
+        # Step 1: Build the graph structure and store node attributes
+        for row in df_scope.itertuples(index=False):
+            if row.level == "px":
+
+                pdb_id, chain_id = row.sid[1:5], row.sid[5]
+
+                if pdb_id not in pdb_id_set or chain_id == "_":
+                    # Don't add domain level nodes that don't have pdb_id in pdb_sequences.txt file
+                    # Also chain_id with "_" which corresponds to no chain
+                    continue
+                px_level_nodes.add(row.sunid)
+
+                # Add edges between px-level nodes and sequence nodes
+                if chain_id != ".":
+                    if chain_id not in lookup_dict[pdb_id]:
+                        continue
+                    add_sequence_nodes_edges(lookup_dict[pdb_id][chain_id], row.sunid)
+                else:
+                    # If chain_id is '.', connect all chains of this PDB ID
+                    for chain, chain_sequence in lookup_dict[pdb_id].items():
+                        add_sequence_nodes_edges(chain_sequence, row.sunid)
+            else:
+                required_graph_nodes.add(row.sunid)
+
+            node_attrs[row.sunid] = {"sid": row.sid, "level": row.level}
+
+            if row.parent_sunid != -1:
+                parent_node_edges.add((row.parent_sunid, row.sunid))
+
+            for child_id in row.children_sunids:
+                node_child_edges.add((row.sunid, child_id))
+
+        del df_scope, pdb_chain_df, pdb_id_set
 
         g = nx.DiGraph()
+        g.add_nodes_from(node_attrs.items())
+        # Note - `add_edges` internally create a node, if a node doesn't exist already
+        g.add_edges_from({(p, c) for p, c in parent_node_edges if p in node_attrs})
+        g.add_edges_from({(p, c) for p, c in node_child_edges if c in node_attrs})
 
-        egdes = []
-        for _, row in df_scope.iterrows():
-            g.add_node(row["sunid"], **{"sid": row["sid"], "level": row["level"]})
-            if row["parent_sunid"] != -1:
-                egdes.append((row["parent_sunid"], row["sunid"]))
+        seq_nodes = set(sequence_nodes.values())
+        g.add_nodes_from([(seq_id, {"level": "sequence"}) for seq_id in seq_nodes])
+        g.add_edges_from(
+            {
+                (px_node, seq_node)
+                for px_node, seq_node in px_to_seq_edges
+                if px_node in node_attrs and seq_node in seq_nodes
+            }
+        )
 
-            for children_id in row["children_sunids"]:
-                egdes.append((row["sunid"], children_id))
+        # Step 2: Count sequence successors for required graph nodes only
+        for node in required_graph_nodes:
+            num_seq_successors = sum(
+                g.nodes[child]["level"] == "sequence"
+                for child in nx.descendants(g, node)
+            )
+            g.nodes[node]["num_seq_successors"] = num_seq_successors
 
-        g.add_edges_from(egdes)
+        # Step 3: Remove nodes which are not required before computing transitive closure for better efficiency
+        g.remove_nodes_from(px_level_nodes | seq_nodes)
 
-        print("Computing transitive closure")
+        print("Computing Transitive Closure.........")
+        # Transitive closure is not needed in `select_classes` method but is required in _SCOPeOverXPartial
         return nx.transitive_closure_dag(g)
 
     def _get_scope_data(self) -> pd.DataFrame:
@@ -388,7 +462,8 @@ class _SCOPeDataExtractor(_DynamicDataset, ABC):
 
         encoded_target_columns = []
         for level in hierarchy_levels:
-            encoded_target_columns.extend(lvl_to_target_cols_mapping[level])
+            if level in lvl_to_target_cols_mapping:
+                encoded_target_columns.extend(lvl_to_target_cols_mapping[level])
 
         print(
             f"{len(encoded_target_columns)} labels has been selected for specified threshold, "
@@ -471,12 +546,12 @@ class _SCOPeDataExtractor(_DynamicDataset, ABC):
         for record in SeqIO.parse(
             os.path.join(self.scope_root_dir, self.raw_file_names_dict["PDB"]), "fasta"
         ):
+
+            if not record.seq or len(record.seq) > self.max_sequence_len:
+                continue
+
             pdb_id, chain = record.id.split("_")
-            sequence = (
-                re.sub(f"[^{valid_amino_acids}]", "X", str(record.seq))
-                if record.seq
-                else ""
-            )
+            sequence = re.sub(f"[^{valid_amino_acids}]", "X", str(record.seq))
 
             # Store as a dictionary entry (list of dicts -> DataFrame later)
             records.append(
@@ -777,12 +852,15 @@ class _SCOPeOverX(_SCOPeDataExtractor, ABC):
         """
         selected_sunids_for_level = {}
         for node, attr_dict in g.nodes(data=True):
-            if g.out_degree(node) >= self.THRESHOLD:
+            if attr_dict["level"] in {"root", "px", "sequence"}:
+                # Skip nodes with level "root", "px", or "sequence"
+                continue
+
+            # Check if the number of "sequence"-level successors meets or exceeds the threshold
+            if g.nodes[node]["num_seq_successors"] >= self.THRESHOLD:
                 selected_sunids_for_level.setdefault(attr_dict["level"], []).append(
                     node
                 )
-        # Remove root node, as it will True for all instances
-        selected_sunids_for_level.pop("root", None)
         return selected_sunids_for_level
 
 
@@ -876,7 +954,8 @@ class SCOPeOverPartial2000(_SCOPeOverXPartial):
 
 
 if __name__ == "__main__":
-    scope = SCOPeOver2000(scope_version="2.08")
+    scope = SCOPeOver50(scope_version="2.08")
+
     # g = scope._extract_class_hierarchy("dummy/path")
     # # Save graph
     # import pickle

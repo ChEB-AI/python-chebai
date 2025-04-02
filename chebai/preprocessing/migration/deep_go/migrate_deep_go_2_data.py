@@ -213,10 +213,8 @@ class DeepGo2DataMigration:
             "proteins",
             "accessions",
             "sequences",
-            # https://github.com/bio-ontology-research-group/deepgo2/blob/main/gendata/uni2pandas.py#L45-L58
-            "exp_annotations",  # Directly associated GO ids
             # https://github.com/bio-ontology-research-group/deepgo2/blob/main/gendata/uni2pandas.py#L60-L69
-            "prop_annotations",  # Transitively associated GO ids
+            "prop_annotations",  # Direct and Transitively associated GO ids
             "esm2",
         ]
 
@@ -228,10 +226,8 @@ class DeepGo2DataMigration:
             ],
             ignore_index=True,
         )
-        new_df["go_ids"] = new_df.apply(
-            lambda row: self.extract_go_id(row["exp_annotations"])
-            + self.extract_go_id(row["prop_annotations"]),
-            axis=1,
+        new_df["go_ids"] = new_df["prop_annotations"].apply(
+            lambda x: self.extract_go_id(x)
         )
 
         data_df = pd.DataFrame(
@@ -270,7 +266,7 @@ class DeepGo2DataMigration:
         """
         print("Generating labels based on terms.pkl file.......")
         parsed_go_ids: pd.Series = self._terms_df["gos"].apply(
-            lambda gos: DeepGO2MigratedData._parse_go_id(gos)
+            DeepGO2MigratedData._parse_go_id
         )
         all_go_ids_list = parsed_go_ids.values.tolist()
         self._classes = all_go_ids_list
