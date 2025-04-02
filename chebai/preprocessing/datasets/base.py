@@ -155,8 +155,19 @@ class XYBaseDataModule(LightningDataModule):
         return f"cv_{self.inner_k_folds}_fold"
 
     @property
+    @abstractmethod
     def _name(self) -> str:
-        raise NotImplementedError
+        """
+        Abstract property representing the name of the data module.
+
+        This property should be implemented in subclasses to provide a unique name for the data module.
+        The name is used to create subdirectories within the base directory or `processed_dir_main`
+        for storing relevant data associated with this module.
+
+        Returns:
+            str: The name of the data module.
+        """
+        pass
 
     def _filter_labels(self, row: dict) -> dict:
         """
@@ -729,7 +740,7 @@ class _DynamicDataset(XYBaseDataModule, ABC):
 
         processed_name = self.processed_main_file_names_dict["data"]
         if not os.path.isfile(os.path.join(self.processed_dir_main, processed_name)):
-            print("Missing processed data file (`data.pkl` file)")
+            print(f"Missing processed data file (`{processed_name}` file)")
             os.makedirs(self.processed_dir_main, exist_ok=True)
             data_path = self._download_required_data()
             g = self._extract_class_hierarchy(data_path)
@@ -813,7 +824,10 @@ class _DynamicDataset(XYBaseDataModule, ABC):
             None
         """
         os.makedirs(self.processed_dir, exist_ok=True)
-        print("Missing transformed data (`data.pt` file). Transforming data.... ")
+        transformed_file_name = self.processed_file_names_dict["data"]
+        print(
+            f"Missing transformed data (`{transformed_file_name}` file). Transforming data.... "
+        )
         torch.save(
             self._load_data_from_file(
                 os.path.join(
@@ -821,7 +835,7 @@ class _DynamicDataset(XYBaseDataModule, ABC):
                     self.processed_main_file_names_dict["data"],
                 )
             ),
-            os.path.join(self.processed_dir, self.processed_file_names_dict["data"]),
+            os.path.join(self.processed_dir, transformed_file_name),
         )
 
     @staticmethod

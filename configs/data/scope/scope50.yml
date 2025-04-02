@@ -1,0 +1,3 @@
+class_path: chebai.preprocessing.datasets.scope.scope.SCOPeOver50
+init_args:
+  scope_version: "2.08"

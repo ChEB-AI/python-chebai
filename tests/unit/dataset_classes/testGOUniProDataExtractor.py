@@ -6,7 +6,7 @@ import fastobo
 import networkx as nx
 import pandas as pd
 
-from chebai.preprocessing.datasets.go_uniprot import _GOUniProtDataExtractor
+from chebai.preprocessing.datasets.deepGO.go_uniprot import _GOUniProtDataExtractor
 from chebai.preprocessing.reader import ProteinDataReader
 from tests.unit.mock_data.ontology_mock_data import GOUniProtMockData
 
