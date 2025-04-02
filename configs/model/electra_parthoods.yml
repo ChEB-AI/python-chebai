@@ -1,5 +1,7 @@
-class_path: chebai.models.Electra
+class_path: chebai.models.ElectraAugmented
 init_args:
+  add_embedding_size: 16
+  n_global_properties: 2841
   optimizer_kwargs:
     lr: 1e-3
   config:
@@ -9,3 +11,4 @@ init_args:
     num_hidden_layers: 6
     type_vocab_size: 1
     hidden_size: 256
+

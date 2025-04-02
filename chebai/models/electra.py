@@ -1,4 +1,5 @@
 import logging
+from copy import copy
 from math import pi
 from tempfile import TemporaryDirectory
 from typing import Any, Dict, Optional, Tuple
@@ -12,10 +13,12 @@ from transformers import (
     ElectraForPreTraining,
     ElectraModel,
 )
+from transformers.models.electra.modeling_electra import ElectraEmbeddings
 
 from chebai.loss.pretraining import ElectraPreLoss  # noqa
 from chebai.models.base import ChebaiBaseNet
 from chebai.preprocessing.reader import CLS_TOKEN, MASK_TOKEN_INDEX
+from chebai.preprocessing.structures import XYData
 
 logging.getLogger("pysmiles").setLevel(logging.CRITICAL)
 
@@ -180,12 +183,12 @@ class Electra(ChebaiBaseNet):
 
     NAME = "Electra"
 
-    def _process_batch(self, batch: Dict[str, Any], batch_idx: int) -> Dict[str, Any]:
+    def _process_batch(self, batch: XYData, batch_idx: int) -> Dict[str, Any]:
         """
         Process a batch of data.
 
         Args:
-            batch (Dict[str, Any]): The input batch of data.
+            batch XYData: The input batch of data.
             batch_idx (int): The index of the batch (not used).
 
         Returns:
@@ -326,6 +329,65 @@ class Electra(ChebaiBaseNet):
         self.batch_size = data["features"].shape[0]
         try:
             inp = self.electra.embeddings.forward(data["features"].int())
+        except RuntimeError as e:
+            print(f"RuntimeError at forward: {e}")
+            print(f'data[features]: {data["features"]}')
+            raise Exception
+        inp = self.word_dropout(inp)
+        electra = self.electra(inputs_embeds=inp, **kwargs)
+        d = electra.last_hidden_state[:, 0, :]
+        return dict(
+            logits=self.output(d),
+            attentions=electra.attentions,
+        )
+
+
+class ElectraAugmented(Electra):
+    """Electra model that takes global properties (i.e., which substructures are part of a molecule) into account.
+    The smiles embedding of size [batch_size, smiles_len, config.embedding_size - """
+
+    NAME = "ElectraAugmented"
+
+    def __init__(
+        self,
+        add_embedding_size = 16,
+        n_global_properties = 2841,
+        **kwargs: Any,
+    ):
+
+        super().__init__(**kwargs)
+        # config for smiles embedding needs a different embedding size -> will be concatenated with missing dimensions
+        smiles_config = copy(self.config)
+        smiles_config.embedding_size = self.config.embedding_size - add_embedding_size
+        self.smiles_embedding = ElectraEmbeddings(config=smiles_config)
+
+        self.add_embedding = nn.Linear(n_global_properties, add_embedding_size)
+        self.add_norm = nn.LayerNorm(add_embedding_size)
+
+    def _process_batch(self, batch: XYData, batch_idx: int) -> Dict[str, Any]:
+        res = super()._process_batch(batch, batch_idx)
+        res["parthoods"] = batch.additional_fields["parthoods"]
+        return res
+
+    def forward(self, data: Dict[str, Tensor], **kwargs: Any) -> Dict[str, Any]:
+        """
+        Forward pass of the Electra model.
+
+        Args:
+            data (Dict[str, Tensor]): The input data (expects a key `features`).
+            **kwargs: Additional keyword arguments for `self.electra`.
+
+        Returns:
+            dict: A dictionary containing the model output (logits and attentions).
+        """
+        self.batch_size = data["features"].shape[0]
+        try:
+            inp_smiles = self.smiles_embedding.forward(torch.LongTensor(data["features"]))
+            inp_add = self.add_embedding(data["parthoods"])
+            # scale global properties and add them to each smiles token
+            inp_add = inp_add.unsqueeze(1).repeat(1, inp_smiles.shape[1], 1)
+            inp_add = self.add_norm(inp_add)
+            inp = torch.cat((inp_smiles, inp_add), dim=-1)
         except RuntimeError as e:
             print(f"RuntimeError at forward: {e}")
             print(f'data[features]: {data["features"]}')

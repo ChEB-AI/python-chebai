@@ -86,6 +86,9 @@ class RaggedCollator(Collator):
             x, y, idents, additional_kwargs = zip(
                 *((d["features"], d["labels"], d.get("ident"), d.get("additional_kwargs", dict())) for d in data)
             )
+            if "additional_kwargs" in data[0]:
+                additional_kwargs = {k: torch.stack([d["additional_kwargs"][k] for d in data])
+                                     for k in additional_kwargs[0].keys()}
         if any(x is not None for x in y):
             # If any label is not None: (None, None, `1`, None)
             if any(x is None for x in y):
@@ -114,7 +117,7 @@ class RaggedCollator(Collator):
             model_kwargs=model_kwargs,
             loss_kwargs=loss_kwargs,
             idents=idents,
-            additional_kwargs=additional_kwargs,
+            **additional_kwargs,
         )
 
     def process_label_rows(self, labels: Tuple) -> torch.Tensor:

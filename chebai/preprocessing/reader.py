@@ -12,9 +12,6 @@ EMBEDDING_OFFSET = 10
 PADDING_TOKEN_INDEX = 0
 MASK_TOKEN_INDEX = 1
 CLS_TOKEN = 2
-PARTHOOD_TOKEN_POS = 3
-PARTHOOD_TOKEN_NEG = 4
-PARTHOOD_TOKEN_DELIMITER = 5
 
 
 class DataReader:
@@ -112,7 +109,7 @@ class DataReader:
             labels=self._read_label(d["labels"]),
             ident=self._read_id(d["ident"]),
             group=self._read_group(d["group"]),
-            **d["additional_kwargs"],
+            additional_kwargs=d["additional_kwargs"],
         )
 
     def on_finish(self) -> None:
@@ -168,26 +165,6 @@ class ChemDataReader(DataReader):
             print(f"saving {len(self.cache)} tokens to {self.token_path}...")
             print(f"first 10 tokens: {self.cache[:10]}")
             pk.writelines([f"{c}\n" for c in self.cache])
-
-
-class ChemDataReaderAugmented(ChemDataReader):
-    """
-    Adds fixed-length vector to features (e.g., for encoding functional groups)
-    """
-
-    def _read_data(self, raw_data: Union[tuple, str]) -> List[int]:
-        if isinstance(raw_data, tuple):
-            parts, raw_data = raw_data
-            parts = [PARTHOOD_TOKEN_POS if p else PARTHOOD_TOKEN_NEG for p in parts]
-        else:
-            parts = []
-        return parts + [PARTHOOD_TOKEN_DELIMITER] + [self._get_token_index(v[1]) for v in _tokenize(raw_data)]
-
-    def _get_raw_data(self, row: Dict[str, Any]) -> Any:
-        """Get raw data from the row."""
-        if "parthoods" in row["additional_kwargs"]:
-            return row["additional_kwargs"]["parthoods"], row["features"]
-        return row["features"]
 
 
 class DeepChemDataReader(ChemDataReader):

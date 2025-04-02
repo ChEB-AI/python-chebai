@@ -806,14 +806,16 @@ class ChEBIOver50Partial(ChEBIOverXPartial, ChEBIOver50):
 class ChEBIOver100Parthood(ChEBIOver100):
     """Modified dataset that contains additional parthood information (i.e., which group substructures were found
     in a molecule). The creation of the dataset is not implemented, it expects that a data_parthoods.pkl file is
-    provided with columns for each label ('{id}') and for parthoods ('{has_part_{id}')"""
+    provided with columns for each label ('{id}') and for parthoods ('{has_part_{id}'). This class only implements
+    the tokenisation (.pkl -> .pt).
+    The final dataset has an additional argument 'additional_kwargs', which is a dictionary in which the key is
+    'parthoods'. If `use_parthood_labels` is set to True, the parthood relations are included as labels as well."""
 
-    def __init__(self, use_parthood_labels=False, use_parthood_features=False, **kwargs):
+    def __init__(self, use_parthood_labels=False, **kwargs):
         super().__init__(**kwargs)
         self.use_parthood_labels = use_parthood_labels
-        self.use_parthood_features = use_parthood_features
 
-    READER = ChemDataReaderAugmented
+    #READER = ChemDataReaderAugmented
 
     @property
     def processed_main_file_names_dict(self) -> dict:
@@ -824,8 +826,7 @@ class ChEBIOver100Parthood(ChEBIOver100):
     @property
     def processed_file_names_dict(self) -> dict:
         return {
-            "data": f"data_parthoods{'_labels' if self.use_parthood_labels else ''}"
-                    f"{'_features' if self.use_parthood_features else ''}.pt"
+            "data": f"data_parthoods{'_labels' if self.use_parthood_labels else ''}.pt"
         }
 
     def prepare_data(self) -> None:
@@ -843,7 +844,7 @@ class ChEBIOver100Parthood(ChEBIOver100):
             parthood_filter = [i for i, c in enumerate(df.columns) if str(c).startswith("has_part")]
             rest_filter = [i for i, c in enumerate(df.columns) if not str(c).startswith("has_part")]
             for row in df.values:
-                parts = row[parthood_filter]
+                parts = torch.tensor(row[parthood_filter].astype(bool), dtype=torch.float)
                 if not self.use_parthood_labels:
                     row = row[rest_filter]
                 if self.single_class is None:
