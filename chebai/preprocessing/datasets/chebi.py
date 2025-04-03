@@ -23,7 +23,6 @@ import torch
 
 from chebai.preprocessing import reader as dr
 from chebai.preprocessing.datasets.base import XYBaseDataModule, _DynamicDataset
-from chebai.preprocessing.reader import ChemDataReaderAugmented
 
 # exclude some entities from the dataset because the violate disjointness axioms
 CHEBI_BLACKLIST = [
