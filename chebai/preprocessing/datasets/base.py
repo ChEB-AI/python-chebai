@@ -138,9 +138,10 @@ class XYBaseDataModule(LightningDataModule):
         super().__init_subclass__(*args, **kwargs)
         original_init = cls.__init__
 
+        # Creates updated definition for init method
         def new_init(self, *args, **kwargs):
             original_init(self, *args, **kwargs)  # Call the original __init__
-            if type(self) == cls:  # Only run __post_init__ if it's the final class
+            if type(self) == cls:  # Only run method if it's the final class
                 self._call_data_processing_methods(*args, **kwargs)
 
         cls.__init__ = new_init
@@ -448,6 +449,10 @@ class XYBaseDataModule(LightningDataModule):
             return
 
         self._prepare_data_flag += 1
+        self._perform_data_preparation(*args, **kwargs)
+
+    def _perform_data_preparation(self, *args, **kwargs) -> None:
+        raise NotImplementedError
 
     def setup(self, *args, **kwargs) -> None:
         """
@@ -598,11 +603,10 @@ class MergedDataset(XYBaseDataModule):
         os.makedirs(self.processed_dir, exist_ok=True)
         super(pl.LightningDataModule, self).__init__(**kwargs)
 
-    def prepare_data(self):
+    def _perform_data_preparation(self):
         """
         Placeholder for data preparation logic.
         """
-        super().prepare_data()
         for s in self.subsets:
             s.prepare_data()
 
@@ -792,7 +796,7 @@ class _DynamicDataset(XYBaseDataModule, ABC):
         return splits_file_path
 
     # ------------------------------ Phase: Prepare data -----------------------------------
-    def prepare_data(self, *args: Any, **kwargs: Any) -> None:
+    def _perform_data_preparation(self, *args: Any, **kwargs: Any) -> None:
         """
         Prepares the data for the dataset.
 
@@ -811,7 +815,6 @@ class _DynamicDataset(XYBaseDataModule, ABC):
         Returns:
             None
         """
-        super().prepare_data()
         print("Checking for processed data in", self.processed_dir_main)
 
         processed_name = self.processed_main_file_names_dict["data"]

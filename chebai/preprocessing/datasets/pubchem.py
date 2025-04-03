@@ -179,11 +179,10 @@ class PubChem(XYBaseDataModule):
         """
         return ["test.pt", "train.pt", "validation.pt"]
 
-    def prepare_data(self, *args, **kwargs):
+    def _perform_data_preparation(self, *args, **kwargs):
         """
         Checks for raw data and downloads if necessary.
         """
-        super().prepare_data()
         print("Check for raw data in", self.raw_dir)
         if any(
             not os.path.isfile(os.path.join(self.raw_dir, f))

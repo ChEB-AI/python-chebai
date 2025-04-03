@@ -59,8 +59,7 @@ class JCIBase(XYBaseDataModule):
     def raw_file_names(self):
         return ["test.pkl", "train.pkl", "validation.pkl"]
 
-    def prepare_data(self, *args, **kwargs):
-        super().prepare_data()
+    def _perform_data_preparation(self, *args, **kwargs):
         print("Check for raw data in", self.raw_dir)
         if any(
             not os.path.isfile(os.path.join(self.raw_dir, f))
@@ -156,7 +155,7 @@ class _ChEBIDataExtractor(_DynamicDataset, ABC):
             )
 
     # ------------------------------ Phase: Prepare data -----------------------------------
-    def prepare_data(self, *args: Any, **kwargs: Any) -> None:
+    def _perform_data_preparation(self, *args: Any, **kwargs: Any) -> None:
         """
         Prepares the data for the Chebi dataset.
 
@@ -177,8 +176,6 @@ class _ChEBIDataExtractor(_DynamicDataset, ABC):
         Returns:
             None
         """
-        super().prepare_data(args, kwargs)
-
         if self.chebi_version_train is not None:
             if not os.path.isfile(
                 os.path.join(

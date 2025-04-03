@@ -770,7 +770,7 @@ class _DeepGOMigratedData(_GOUniProtDataExtractor, ABC):
         return f"{threshold_part}{self.max_sequence_length}"
 
     # ------------------------------ Phase: Prepare data -----------------------------------
-    def prepare_data(self, *args: Any, **kwargs: Any) -> None:
+    def _perform_data_preparation(self, *args: Any, **kwargs: Any) -> None:
         """
         Checks for the existence of migrated DeepGO data in the specified directory.
         Raises an error if the required data file is not found, prompting
@@ -783,11 +783,6 @@ class _DeepGOMigratedData(_GOUniProtDataExtractor, ABC):
         Raises:
             FileNotFoundError: If the processed data file does not exist.
         """
-        if self._prepare_data_flag != 1:
-            return
-
-        self._prepare_data_flag += 1
-
         print("Checking for processed data in", self.processed_dir_main)
 
         processed_name = self.processed_main_file_names_dict["data"]
