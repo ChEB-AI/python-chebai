@@ -149,6 +149,7 @@ class _ChEBIDataExtractor(_DynamicDataset, ABC):
             # This is to get the data from respective directory related to "chebi_version_train"
             _init_kwargs = kwargs
             _init_kwargs["chebi_version"] = self.chebi_version_train
+            _init_kwargs["_skip_data_methods_on_init"] = True
             self._chebi_version_train_obj = self.__class__(
                 single_class=self.single_class,
                 **_init_kwargs,

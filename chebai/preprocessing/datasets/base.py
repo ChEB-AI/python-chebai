@@ -1,9 +1,8 @@
-from __future__ import annotations
-
 import os
 import random
 from abc import ABC, abstractmethod
-from typing import Any, Dict, Generator, List, Optional, Tuple, Type, Union
+from dataclasses import dataclass
+from typing import Any, Dict, Generator, List, Optional, Tuple, Union
 
 import lightning as pl
 import networkx as nx
@@ -22,40 +21,8 @@ from torch.utils.data import DataLoader
 from chebai.preprocessing import reader as dr
 
 
-class _InitMeta(type):
-    """
-    Metaclass that ensures a specific method (`_call_data_processing_methods`)
-    is called after an instance (meaning the most derived class instance) is fully initialized.
-
-    Purpose:
-    - Automatically calls `_call_data_processing_methods(**kwargs)` on instances
-      of classes that use this metaclass, if the method is defined.
-    - Ensures additional processing logic is executed immediately after object instantiation.
-    - Useful in cases where post-initialization processing is required across multiple subclasses.
-    """
-
-    def __call__(
-        cls: Type[XYBaseDataModule], *args: Any, **kwargs: Any
-    ) -> XYBaseDataModule:
-        """
-        Overrides the instance creation process to call `_after_init` after the most derived class instance
-        is initialized.
-
-        Args:
-            cls (Type[XYBaseDataModule]): The class being instantiated.
-            *args (Any): Positional arguments for the class constructor.
-            **kwargs (Any): Keyword arguments for the class constructor.
-
-        Returns:
-            XYBaseDataModule: The initialized instance of the class.
-        """
-        instance = super().__call__(*args, **kwargs)  # Create the instance
-        if hasattr(instance, "_after_init"):
-            instance._after_init(**kwargs)  # Call the method if defined
-        return instance
-
-
-class XYBaseDataModule(LightningDataModule, metaclass=_InitMeta):
+@dataclass
+class XYBaseDataModule(LightningDataModule):
     """
     Base class for data modules.
 
@@ -157,26 +124,47 @@ class XYBaseDataModule(LightningDataModule, metaclass=_InitMeta):
         self._prepare_data_flag = 1
         self._setup_data_flag = 1
 
-    def _after_init(self, **kwargs):
+    def __init_subclass__(cls, *args, **kwargs):
         """
-        This method is called after the instantiation of most derived class is completed.
-        Refer the `_InitMeta` metaclass for more details.
-        """
-        self._call_data_processing_methods(**kwargs)
+        This method ensures that the '_call_data_processing_methods' is called only for the final subclass
+        in the class hierarchy. It overrides the default __init__ behavior to add custom initialization logic.
 
-    def _call_data_processing_methods(self, **kwargs) -> None:
+            - The method saves the original `__init__` method of the class and then defines a new `__init__` method.
+            - This new `__init__` method calls the original `__init__` method of the class and then checks if the
+                current class is the final subclass (i.e., not a subclass of a subclass).
+            - If it's the final class, it invokes the `_call_data_processing_methods` method to perform any necessary
+                data processing tasks.
+        """
+        super().__init_subclass__(*args, **kwargs)
+        original_init = cls.__init__
+
+        def new_init(self, *args, **kwargs):
+            original_init(self, *args, **kwargs)  # Call the original __init__
+            if type(self) == cls:  # Only run __post_init__ if it's the final class
+                self._call_data_processing_methods(*args, **kwargs)
+
+        cls.__init__ = new_init
+
+    def _call_data_processing_methods(self, *args, **kwargs) -> None:
         """
         Calls data processing methods unless explicitly skipped.
 
         - Skips execution if `_skip_data_methods_on_init` is `True` (e.g., for unit tests).
         - Otherwise, calls `prepare_data()` and `setup()` for data preparation.
 
+        Note: This method is called after the instantiation of most derived class is completed.
         """
         if kwargs.get("_skip_data_methods_on_init", False):
+            print(
+                f"Skipping data methods of class '{os.path.join(self.base_dir, self._name)}' during initialization"
+            )
             return
 
-        self.prepare_data()
-        self.setup()
+        print(
+            f"Calling data method of class {os.path.join(self.base_dir, self._name)} during initialization"
+        )
+        self.prepare_data(*args, **kwargs)
+        self.setup(*args, **kwargs)
 
     @property
     def num_of_labels(self):
@@ -455,13 +443,13 @@ class XYBaseDataModule(LightningDataModule, metaclass=_InitMeta):
         """
         return self.dataloader(self.prediction_kind, shuffle=False, **kwargs)
 
-    def prepare_data(self) -> None:
+    def prepare_data(self, *args, **kwargs) -> None:
         if self._prepare_data_flag != 1:
             return
 
         self._prepare_data_flag += 1
 
-    def setup(self, **kwargs):
+    def setup(self, *args, **kwargs) -> None:
         """
         Setup the data module.
 
