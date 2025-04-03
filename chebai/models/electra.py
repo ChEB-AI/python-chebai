@@ -382,7 +382,7 @@ class ElectraAugmented(Electra):
         """
         self.batch_size = data["features"].shape[0]
         try:
-            inp_smiles = self.smiles_embedding.forward(torch.LongTensor(data["features"]))
+            inp_smiles = self.smiles_embedding.forward(data["features"])
             inp_add = self.add_embedding(data["parthoods"])
             # scale global properties and add them to each smiles token
             inp_add = inp_add.unsqueeze(1).repeat(1, inp_smiles.shape[1], 1)
@@ -391,7 +391,7 @@ class ElectraAugmented(Electra):
         except RuntimeError as e:
             print(f"RuntimeError at forward: {e}")
             print(f'data[features]: {data["features"]}')
-            raise Exception
+            raise e
         inp = self.word_dropout(inp)
         electra = self.electra(inputs_embeds=inp, **kwargs)
         d = electra.last_hidden_state[:, 0, :]
