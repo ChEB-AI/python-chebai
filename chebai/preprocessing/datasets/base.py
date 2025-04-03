@@ -1,7 +1,9 @@
+from __future__ import annotations
+
 import os
 import random
 from abc import ABC, abstractmethod
-from typing import Any, Dict, Generator, List, Optional, Tuple, Union
+from typing import Any, Dict, Generator, List, Optional, Tuple, Type, Union
 
 import lightning as pl
 import networkx as nx
@@ -20,7 +22,40 @@ from torch.utils.data import DataLoader
 from chebai.preprocessing import reader as dr
 
 
-class XYBaseDataModule(LightningDataModule):
+class _InitMeta(type):
+    """
+    Metaclass that ensures a specific method (`_call_data_processing_methods`)
+    is called after an instance (meaning the most derived class instance) is fully initialized.
+
+    Purpose:
+    - Automatically calls `_call_data_processing_methods(**kwargs)` on instances
+      of classes that use this metaclass, if the method is defined.
+    - Ensures additional processing logic is executed immediately after object instantiation.
+    - Useful in cases where post-initialization processing is required across multiple subclasses.
+    """
+
+    def __call__(
+        cls: Type[XYBaseDataModule], *args: Any, **kwargs: Any
+    ) -> XYBaseDataModule:
+        """
+        Overrides the instance creation process to call `_after_init` after the most derived class instance
+        is initialized.
+
+        Args:
+            cls (Type[XYBaseDataModule]): The class being instantiated.
+            *args (Any): Positional arguments for the class constructor.
+            **kwargs (Any): Keyword arguments for the class constructor.
+
+        Returns:
+            XYBaseDataModule: The initialized instance of the class.
+        """
+        instance = super().__call__(*args, **kwargs)  # Create the instance
+        if hasattr(instance, "_after_init"):
+            instance._after_init(**kwargs)  # Call the method if defined
+        return instance
+
+
+class XYBaseDataModule(LightningDataModule, metaclass=_InitMeta):
     """
     Base class for data modules.
 
@@ -122,9 +157,22 @@ class XYBaseDataModule(LightningDataModule):
         self._prepare_data_flag = 1
         self._setup_data_flag = 1
 
-        # Skips data setup in the constructor; methods will be called later according to the CLI workflow.
+    def _after_init(self, **kwargs):
+        """
+        This method is called after the instantiation of most derived class is completed.
+        Refer the `_InitMeta` metaclass for more details.
+        """
+        self._call_data_processing_methods(**kwargs)
+
+    def _call_data_processing_methods(self, **kwargs) -> None:
+        """
+        Calls data processing methods unless explicitly skipped.
+
+        - Skips execution if `_skip_data_methods_on_init` is `True` (e.g., for unit tests).
+        - Otherwise, calls `prepare_data()` and `setup()` for data preparation.
+
+        """
         if kwargs.get("_skip_data_methods_on_init", False):
-            # This change enables to skip these methods during initialization for unit-testing GitHub CI/CD
             return
 
         self.prepare_data()
