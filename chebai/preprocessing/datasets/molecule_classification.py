@@ -694,7 +694,7 @@ class MUV(XYBaseDataModule):
     def setup_processed(self) -> None:
         """Processes and splits the dataset."""
         print("Create splits")
-        data = list(self._load_data_from_file(os.path.join(self.raw_dir, f"sider_groups4.csv")))
+        data = list(self._load_data_from_file(os.path.join(self.raw_dir, f"muv.csv")))
         groups = np.array([d["group"] for d in data])
         if not all(g is None for g in groups):
             split_size = int(len(set(groups)) * self.train_split)
@@ -777,6 +777,7 @@ class MUV(XYBaseDataModule):
                 yield dict(features=smiles, labels=labels, ident=i)# , group=group)
                 # yield self.reader.to_data(dict(features=smiles, labels=labels, ident=i))
 
+
 class BaceChem(Bace):
     """Chemical data reader for Tox21MolNet dataset."""
 
@@ -801,6 +802,11 @@ class ClinToxChem(ClinTox):
 
 
 class HIVChem(HIV):
+    """Chemical data reader for Tox21MolNet dataset."""
+
+    READER = dr.ChemDataReader
+
+class MUVChem(MUV):
     """Chemical data reader for Tox21MolNet dataset."""
 
     READER = dr.ChemDataReader
