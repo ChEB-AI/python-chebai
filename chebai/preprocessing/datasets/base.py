@@ -79,6 +79,7 @@ class XYBaseDataModule(LightningDataModule):
         inner_k_folds: int = -1,  # use inner cross-validation if > 1
         fold_index: Optional[int] = None,
         base_dir: Optional[str] = None,
+        n_token_limit: Optional[int] = None,
         **kwargs,
     ):
         super().__init__()
@@ -110,6 +111,7 @@ class XYBaseDataModule(LightningDataModule):
             ), "fold_index can't be larger than the total number of folds"
         self.fold_index = fold_index
         self._base_dir = base_dir
+        self.n_token_limit = n_token_limit
         os.makedirs(self.raw_dir, exist_ok=True)
         os.makedirs(self.processed_dir, exist_ok=True)
         if self.use_inner_cross_validation:
@@ -155,8 +157,19 @@ class XYBaseDataModule(LightningDataModule):
         return f"cv_{self.inner_k_folds}_fold"
 
     @property
+    @abstractmethod
     def _name(self) -> str:
-        raise NotImplementedError
+        """
+        Abstract property representing the name of the data module.
+
+        This property should be implemented in subclasses to provide a unique name for the data module.
+        The name is used to create subdirectories within the base directory or `processed_dir_main`
+        for storing relevant data associated with this module.
+
+        Returns:
+            str: The name of the data module.
+        """
+        pass
 
     def _filter_labels(self, row: dict) -> dict:
         """
@@ -300,8 +313,14 @@ class XYBaseDataModule(LightningDataModule):
             for d in tqdm.tqdm(self._load_dict(path), total=lines)
             if d["features"] is not None
         ]
-        # filter for missing features in resulting data
-        data = [val for val in data if val["features"] is not None]
+        # filter for missing features in resulting data, keep features length below token limit
+        data = [
+            val
+            for val in data
+            if val["features"] is not None
+            and self.n_token_limit is None
+            or len(val["features"]) <= self.n_token_limit
+        ]
 
         return data
 
@@ -729,7 +748,7 @@ class _DynamicDataset(XYBaseDataModule, ABC):
 
         processed_name = self.processed_main_file_names_dict["data"]
         if not os.path.isfile(os.path.join(self.processed_dir_main, processed_name)):
-            print("Missing processed data file (`data.pkl` file)")
+            print(f"Missing processed data file (`{processed_name}` file)")
             os.makedirs(self.processed_dir_main, exist_ok=True)
             data_path = self._download_required_data()
             g = self._extract_class_hierarchy(data_path)
@@ -812,7 +831,10 @@ class _DynamicDataset(XYBaseDataModule, ABC):
             None
         """
         os.makedirs(self.processed_dir, exist_ok=True)
-        print(f"Missing tokenized data (`{self.processed_file_names_dict['data']}` file). Tokenizing data.... ")
+        transformed_file_name = self.processed_file_names_dict["data"]
+        print(
+            f"Missing transformed data (`{transformed_file_name}` file). Transforming data.... "
+        )
         torch.save(
             self._load_data_from_file(
                 os.path.join(
@@ -820,7 +842,7 @@ class _DynamicDataset(XYBaseDataModule, ABC):
                     self.processed_main_file_names_dict["data"],
                 )
             ),
-            os.path.join(self.processed_dir, self.processed_file_names_dict["data"]),
+            os.path.join(self.processed_dir, transformed_file_name),
         )
 
     @staticmethod
