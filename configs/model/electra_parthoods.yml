@@ -11,4 +11,3 @@ init_args:
     num_hidden_layers: 6
     type_vocab_size: 1
     hidden_size: 256
-

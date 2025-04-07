@@ -84,11 +84,21 @@ class RaggedCollator(Collator):
             additional_kwargs = {}
         else:
             x, y, idents, additional_kwargs = zip(
-                *((d["features"], d["labels"], d.get("ident"), d.get("additional_kwargs", dict())) for d in data)
+                *(
+                    (
+                        d["features"],
+                        d["labels"],
+                        d.get("ident"),
+                        d.get("additional_kwargs", dict()),
+                    )
+                    for d in data
+                )
             )
             if "additional_kwargs" in data[0]:
-                additional_kwargs = {k: torch.stack([d["additional_kwargs"][k] for d in data])
-                                     for k in additional_kwargs[0].keys()}
+                additional_kwargs = {
+                    k: torch.stack([d["additional_kwargs"][k] for d in data])
+                    for k in additional_kwargs[0].keys()
+                }
             else:
                 additional_kwargs = {}
         if any(x is not None for x in y):

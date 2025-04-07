@@ -1,5 +1,5 @@
 import logging
-from typing import Any, Dict, Optional, Union, Iterable
+from typing import Any, Dict, Iterable, Optional, Union
 
 import torch
 from lightning.pytorch.core.module import LightningModule
