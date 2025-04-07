@@ -89,6 +89,8 @@ class RaggedCollator(Collator):
             if "additional_kwargs" in data[0]:
                 additional_kwargs = {k: torch.stack([d["additional_kwargs"][k] for d in data])
                                      for k in additional_kwargs[0].keys()}
+            else:
+                additional_kwargs = {}
         if any(x is not None for x in y):
             # If any label is not None: (None, None, `1`, None)
             if any(x is None for x in y):

@@ -361,8 +361,8 @@ class ElectraAugmented(Electra):
         smiles_config.embedding_size = self.config.embedding_size - add_embedding_size
         self.smiles_embedding = ElectraEmbeddings(config=smiles_config)
 
-        self.add_embedding = nn.Linear(n_global_properties, add_embedding_size)
-        self.add_norm = nn.LayerNorm(add_embedding_size)
+        self.add_embedding = nn.Linear(n_global_properties, add_embedding_size, device=self.device)
+        self.add_norm = nn.LayerNorm(add_embedding_size, device=self.device)
 
     def _process_batch(self, batch: XYData, batch_idx: int) -> Dict[str, Any]:
         res = super()._process_batch(batch, batch_idx)
@@ -382,8 +382,8 @@ class ElectraAugmented(Electra):
         """
         self.batch_size = data["features"].shape[0]
         try:
-            inp_smiles = self.smiles_embedding.forward(data["features"])
-            inp_add = self.add_embedding(data["parthoods"])
+            inp_smiles = self.smiles_embedding.forward(data["features"].to(self.device))
+            inp_add = self.add_embedding(data["parthoods"].to(self.device))
             # scale global properties and add them to each smiles token
             inp_add = inp_add.unsqueeze(1).repeat(1, inp_smiles.shape[1], 1)
             inp_add = self.add_norm(inp_add)

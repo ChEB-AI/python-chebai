@@ -6,6 +6,7 @@ import torch
 import tqdm
 import wandb
 import wandb.util as wandb_util
+from torch import Tensor
 
 from chebai.models.base import ChebaiBaseNet
 from chebai.models.electra import Electra
@@ -83,7 +84,7 @@ def evaluate_model(
     batch_size: int = 32,
     skip_existing_preds: bool = False,
     kind: str = "test",
-) -> Tuple[torch.Tensor, Optional[torch.Tensor]]:
+) -> None | tuple[tuple[Tensor, ...] | Tensor, None] | tuple[tuple[Tensor, ...] | Tensor, tuple[Tensor, ...] | Tensor]:
     """
     Runs the model on the test set of the data module or on the dataset found in the specified file.
     If buffer_dir is set, results will be saved in buffer_dir.
@@ -94,7 +95,7 @@ def evaluate_model(
     Args:
         model: The model to evaluate.
         data_module: The data module containing the dataset.
-        filename: Optional file name for the dataset.
+        filename: Optional file name for the dataset. This filename is only used for non-chebi datasets
         buffer_dir: Optional directory to save the results.
         batch_size: The batch size for evaluation.
         skip_existing_preds: Whether to skip evaluation if predictions already exist.
