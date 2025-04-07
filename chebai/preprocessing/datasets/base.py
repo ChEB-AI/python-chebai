@@ -314,8 +314,13 @@ class XYBaseDataModule(LightningDataModule):
             if d["features"] is not None
         ]
         # filter for missing features in resulting data, keep features length below token limit
-        data = [val for val in data if val["features"] is not None
-                and self.n_token_limit is None or len(val["features"]) <= self.n_token_limit]
+        data = [
+            val
+            for val in data
+            if val["features"] is not None
+            and self.n_token_limit is None
+            or len(val["features"]) <= self.n_token_limit
+        ]
 
         return data
 
