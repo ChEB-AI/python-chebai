@@ -1,0 +1,3 @@
+class_path: chebai.preprocessing.datasets.go_uniprot.deepGO.GOUniProtOver250
+init_args:
+  go_branch: "BP"

@@ -84,7 +84,11 @@ def evaluate_model(
     batch_size: int = 32,
     skip_existing_preds: bool = False,
     kind: str = "test",
-) -> None | tuple[tuple[Tensor, ...] | Tensor, None] | tuple[tuple[Tensor, ...] | Tensor, tuple[Tensor, ...] | Tensor]:
+) -> (
+    None
+    | tuple[tuple[Tensor, ...] | Tensor, None]
+    | tuple[tuple[Tensor, ...] | Tensor, tuple[Tensor, ...] | Tensor]
+):
     """
     Runs the model on the test set of the data module or on the dataset found in the specified file.
     If buffer_dir is set, results will be saved in buffer_dir.
@@ -157,11 +161,12 @@ def evaluate_model(
             return test_preds, test_labels
         return test_preds, None
     elif len(preds_list) < 0:
-        torch.save(
-            _concat_tuple(preds_list),
-            os.path.join(buffer_dir, f"preds{save_ind:03d}.pt"),
-        )
-        if labels_list[0] is not None:
+        if len(preds_list) > 0 and preds_list[0] is not None:
+            torch.save(
+                _concat_tuple(preds_list),
+                os.path.join(buffer_dir, f"preds{save_ind:03d}.pt"),
+            )
+        if len(labels_list) > 0 and labels_list[0] is not None:
             torch.save(
                 _concat_tuple(labels_list),
                 os.path.join(buffer_dir, f"labels{save_ind:03d}.pt"),

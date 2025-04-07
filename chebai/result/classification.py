@@ -78,7 +78,7 @@ def print_metrics(
     print(f"Micro-Recall: {recall_micro(preds, labels):3f}")
     if markdown_output:
         print(
-            f"| Model | Macro-F1 | Micro-F1 | Macro-Precision | Micro-Precision | Macro-Recall | Micro-Recall | Balanced Accuracy"
+            f"| Model | Macro-F1 | Micro-F1 | Macro-Precision | Micro-Precision | Macro-Recall | Micro-Recall | Balanced Accuracy |"
         )
         print(f"| --- | --- | --- | --- | --- | --- | --- | --- |")
         print(

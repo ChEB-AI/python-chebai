@@ -1,18 +1,29 @@
-# Reference for this file :
+# References for this file :
+# Reference 1:
 # Maxat Kulmanov, Mohammed Asif Khan, Robert Hoehndorf;
 # DeepGO: Predicting protein functions from sequence and interactions
 # using a deep ontology-aware classifier, Bioinformatics, 2017.
 # https://doi.org/10.1093/bioinformatics/btx624
 # Github: https://github.com/bio-ontology-research-group/deepgo
+
+# Reference 2:
 # https://www.ebi.ac.uk/GOA/downloads
 # https://ftp.uniprot.org/pub/databases/uniprot/current_release/knowledgebase/complete/docs/keywlist.txt
 # https://www.uniprot.org/uniprotkb
+
+# Reference 3:
+# Kulmanov, M., Guzmán-Vega, F.J., Duek Roggli,
+# P. et al. Protein function prediction as approximate semantic entailment. Nat Mach Intell 6, 220–228 (2024).
+# https://doi.org/10.1038/s42256-024-00795-w
+# https://github.com/bio-ontology-research-group/deepgo2
 
 __all__ = [
     "GOUniProtOver250",
     "GOUniProtOver50",
     "EXPERIMENTAL_EVIDENCE_CODES",
     "AMBIGUOUS_AMINO_ACIDS",
+    "DeepGO1MigratedData",
+    "DeepGO2MigratedData",
 ]
 
 import gzip
@@ -29,11 +40,13 @@ import networkx as nx
 import pandas as pd
 import requests
 import torch
+import tqdm
 from Bio import SwissProt
 
 from chebai.preprocessing import reader as dr
 from chebai.preprocessing.datasets.base import _DynamicDataset
 
+# https://github.com/bio-ontology-research-group/deepgo/blob/master/utils.py#L15
 EXPERIMENTAL_EVIDENCE_CODES = {
     "EXP",
     "IDA",
@@ -43,10 +56,19 @@ EXPERIMENTAL_EVIDENCE_CODES = {
     "IEP",
     "TAS",
     "IC",
+    # New evidence codes added in latest paper year 2024 Reference number 3
+    # https://github.com/bio-ontology-research-group/deepgo2/blob/main/deepgo/utils.py#L24-L26
+    "HTP",
+    "HDA",
+    "HMP",
+    "HGI",
+    "HEP",
 }
 
 # https://github.com/bio-ontology-research-group/deepgo/blob/d97447a05c108127fee97982fd2c57929b2cf7eb/aaindex.py#L8
-AMBIGUOUS_AMINO_ACIDS = {"B", "O", "J", "U", "X", "Z", "*"}
+# https://github.com/bio-ontology-research-group/deepgo2/blob/main/deepgo/aminoacids.py#L10
+# `X` is now considered as valid amino acid, as per latest paper year 2024 Refernce number 3
+AMBIGUOUS_AMINO_ACIDS = {"B", "O", "J", "U", "Z", "*"}
 
 
 class _GOUniProtDataExtractor(_DynamicDataset, ABC):
@@ -56,10 +78,16 @@ class _GOUniProtDataExtractor(_DynamicDataset, ABC):
     Args:
         dynamic_data_split_seed (int, optional): The seed for random data splitting. Defaults to 42.
         splits_file_path (str, optional): Path to the splits CSV file. Defaults to None.
-        **kwargs: Additional keyword arguments passed to XYBaseDataModule.
+        max_sequence_length (int, optional): Specifies the maximum allowed sequence length for a protein, with a
+        default of 1002. During data preprocessing, any proteins exceeding this length will be excluded from further
+        processing.
+        **kwargs: Additional keyword arguments passed to DynamicDataset and  XYBaseDataModule.
 
     Attributes:
         dynamic_data_split_seed (int): The seed for random data splitting, default is 42.
+        max_sequence_length (int, optional): Specifies the maximum allowed sequence length for a protein, with a
+        default of 1002. During data preprocessing, any proteins exceeding this length will be excluded from further
+        processing.
         splits_file_path (Optional[str]): Path to the CSV file containing split assignments.
     """
 
@@ -405,12 +433,9 @@ class _GOUniProtDataExtractor(_DynamicDataset, ABC):
 
         Note:
             This mapping is necessary because the GO data does not include the protein sequence representation.
-
-            Quote from the DeepGo Paper:
-            `We select proteins with annotations having experimental evidence codes
-            (EXP, IDA, IPI, IMP, IGI, IEP, TAS, IC) and filter the proteins by a
-            maximum length of 1002, ignoring proteins with ambiguous amino acid codes
-            (B, O, J, U, X, Z) in their sequence.`
+            We select proteins with annotations having experimental evidence codes, as specified in
+            `EXPERIMENTAL_EVIDENCE_CODES` and filter the proteins by a maximum length of 1002, ignoring proteins with
+            ambiguous amino acid codes specified in `AMBIGUOUS_AMINO_ACIDS` in their sequence.
 
             Check the link below for keyword details:
             https://ftp.uniprot.org/pub/databases/uniprot/current_release/knowledgebase/complete/docs/keywlist.txt
@@ -591,9 +616,6 @@ class _GOUniProtOverX(_GOUniProtDataExtractor, ABC):
     Attributes:
         READER (dr.ProteinDataReader): The reader used for reading the dataset.
         THRESHOLD (int): The threshold for selecting classes based on the number of subclasses.
-
-    Property:
-        label_number (int): The number of labels in the dataset. This property must be implemented by subclasses.
     """
 
     READER: dr.ProteinDataReader = dr.ProteinDataReader
@@ -709,3 +731,277 @@ class GOUniProtOver50(_GOUniProtOverX):
     """
 
     THRESHOLD: int = 50
+
+
+class _DeepGOMigratedData(_GOUniProtDataExtractor, ABC):
+    """
+    Base class for use of the migrated DeepGO data with common properties, name formatting, and file paths.
+
+    Attributes:
+        READER (dr.ProteinDataReader): Protein data reader class.
+        THRESHOLD (Optional[int]): Threshold value for GO class selection,
+            determined by the GO branch type in derived classes.
+    """
+
+    READER: dr.ProteinDataReader = dr.ProteinDataReader
+    THRESHOLD: Optional[int] = None
+
+    # Mapping from GO branch conventions used in DeepGO to our conventions
+    GO_BRANCH_MAPPING: dict = {
+        "cc": "CC",
+        "mf": "MF",
+        "bp": "BP",
+    }
+
+    @property
+    def _name(self) -> str:
+        """
+        Generates a unique identifier for the migrated data based on the GO
+        branch and max sequence length, optionally including a threshold.
+
+        Returns:
+            str: A formatted name string for the data.
+        """
+        threshold_part = f"GO{self.THRESHOLD}_" if self.THRESHOLD is not None else "GO_"
+
+        if self.go_branch != self._ALL_GO_BRANCHES:
+            return f"{threshold_part}{self.go_branch}_{self.max_sequence_length}"
+
+        return f"{threshold_part}{self.max_sequence_length}"
+
+    # ------------------------------ Phase: Prepare data -----------------------------------
+    def prepare_data(self, *args: Any, **kwargs: Any) -> None:
+        """
+        Checks for the existence of migrated DeepGO data in the specified directory.
+        Raises an error if the required data file is not found, prompting
+        migration from DeepGO to this data structure.
+
+        Args:
+            *args (Any): Additional positional arguments.
+            **kwargs (Any): Additional keyword arguments.
+
+        Raises:
+            FileNotFoundError: If the processed data file does not exist.
+        """
+        print("Checking for processed data in", self.processed_dir_main)
+
+        processed_name = self.processed_main_file_names_dict["data"]
+        if not os.path.isfile(os.path.join(self.processed_dir_main, processed_name)):
+            raise FileNotFoundError(
+                f"File {processed_name} not found.\n"
+                f"You must run the appropriate DeepGO migration script "
+                f"(chebai/preprocessing/migration/deep_go) before executing this configuration "
+                f"to migrate data from DeepGO to this data structure."
+            )
+
+    def select_classes(self, g: nx.DiGraph, *args, **kwargs) -> List:
+        # Selection of GO classes not needed for migrated data
+        pass
+
+    # ------------------------------ Phase: Raw Properties -----------------------------------
+    @property
+    @abstractmethod
+    def processed_main_file_names_dict(self) -> Dict[str, str]:
+        """
+        Abstract property for defining main processed file names.
+        These files are stored in the same directory as the generated data files
+        but have distinct names to differentiate them during training.
+
+        Returns:
+            dict: A dictionary with key-value pairs for main processed file names.
+        """
+        pass
+
+    @property
+    @abstractmethod
+    def processed_file_names_dict(self) -> Dict[str, str]:
+        """
+        Abstract property for defining additional processed file names.
+        These files are stored in the same directory as the generated data files
+        but have distinct names to differentiate them during training.
+
+        Returns:
+            dict: A dictionary with key-value pairs for processed file names.
+        """
+        pass
+
+
+class DeepGO1MigratedData(_DeepGOMigratedData):
+    """
+    Migrated data class specific to DeepGO1. Sets threshold values according
+    to the research paper based on the GO branch.
+
+    Note:
+        Refer reference number 1 at the top of this file for the corresponding research paper.
+
+    Args:
+        **kwargs: Arbitrary keyword arguments passed to the superclass.
+
+    Raises:
+        ValueError: If an unsupported GO branch is provided.
+    """
+
+    def __init__(self, **kwargs):
+        # https://github.com/bio-ontology-research-group/deepgo2/blob/main/deepgo/aminoacids.py#L11
+        assert int(kwargs.get("max_sequence_length")) == 1002
+
+        # Set threshold based on GO branch, as per DeepGO1 paper and its data.
+        if kwargs.get("go_branch") in ["CC", "MF"]:
+            self.THRESHOLD = 50
+        elif kwargs.get("go_branch") == "BP":
+            self.THRESHOLD = 250
+        else:
+            raise ValueError(
+                f"DeepGO1 paper has no defined threshold for branch {self.go_branch}"
+            )
+
+        super(_DeepGOMigratedData, self).__init__(**kwargs)
+
+    @property
+    def processed_main_file_names_dict(self) -> Dict[str, str]:
+        """
+        Returns main processed file names specific to DeepGO1.
+
+        Returns:
+            dict: Dictionary with the main data file name for DeepGO1.
+        """
+        return {"data": "data_deep_go1.pkl"}
+
+    @property
+    def processed_file_names_dict(self) -> Dict[str, str]:
+        """
+        Returns processed file names specific to DeepGO1.
+
+        Returns:
+            dict: Dictionary with data file name for DeepGO1.
+        """
+        return {"data": "data_deep_go1.pt"}
+
+
+class DeepGO2MigratedData(_DeepGOMigratedData):
+    """
+    Migrated data class specific to DeepGO2, inheriting from DeepGO1MigratedData
+    with different processed file names.
+
+    Note:
+        Refer reference number 3 at the top of this file for the corresponding research paper.
+
+    Returns:
+        dict: Dictionary with file names specific to DeepGO2.
+    """
+
+    _LABELS_START_IDX: int = 5  # additional esm2_embeddings column in the dataframe
+    _ESM_EMBEDDINGS_COL_IDX: int = 4
+
+    def __init__(self, use_esm2_embeddings=False, **kwargs):
+        # https://github.com/bio-ontology-research-group/deepgo2/blob/main/deepgo/aminoacids.py#L11
+        assert int(kwargs.get("max_sequence_length")) == 1000
+        self.use_esm2_embeddings: bool = use_esm2_embeddings
+        super(_DeepGOMigratedData, self).__init__(**kwargs)
+
+    # ------------------------------ Phase: Setup data -----------------------------------
+    def _load_data_from_file(self, path: str) -> List[Dict[str, Any]]:
+        """
+        Load and process data from a file into a list of dictionaries containing features and labels.
+
+        This method processes data differently based on the `use_esm2_embeddings` flag:
+        - If `use_esm2_embeddings` is True, raw dictionaries from `_load_dict` are returned, _load_dict already returns
+        the numerical features (esm2 embeddings) from the data file, hence no reader is required.
+        - Otherwise, a reader is used to process the data (generate numerical features).
+
+        Args:
+            path (str): The path to the input file.
+
+        Returns:
+            List[Dict[str, Any]]: A list of dictionaries with the following keys:
+                - `features`: Sequence or embedding data, depending on the context.
+                - `labels`: A boolean array of labels.
+                - `ident`: The identifier for the sequence.
+        """
+        lines = self._get_data_size(path)
+        print(f"Processing {lines} lines...")
+
+        if self.use_esm2_embeddings:
+            data = [
+                d
+                for d in tqdm.tqdm(self._load_dict(path), total=lines)
+                if d["features"] is not None
+            ]
+        else:
+            data = [
+                self.reader.to_data(d)
+                for d in tqdm.tqdm(self._load_dict(path), total=lines)
+                if d["features"] is not None
+            ]
+
+        # filter for missing features in resulting data
+        data = [val for val in data if val["features"] is not None]
+
+        return data
+
+    def _load_dict(self, input_file_path: str) -> Generator[Dict[str, Any], None, None]:
+        """
+        Loads data from a pickled file and yields individual dictionaries for each row.
+
+        The pickled file is expected to contain rows with the following structure:
+            - Data at row index `self._ID_IDX`: ID of go data instance
+            - Data at row index `self._DATA_REPRESENTATION_IDX`: Sequence representation of protein
+            - Data at row index `self._ESM2_EMBEDDINGS_COL_IDX`: ESM2 embeddings of the protein
+            - Data from row index `self._LABELS_START_IDX` onwards: Labels
+
+        The method adapts based on the `use_esm2_embeddings` flag:
+            - If `use_esm2_embeddings` is True, features are loaded from the column specified by `self._ESM_EMBEDDINGS_COL_IDX`.
+            - Otherwise, features are loaded from the column specified by `self._DATA_REPRESENTATION_IDX`.
+
+        Args:
+            input_file_path (str): The path to the pickled input file.
+
+        Yields:
+            Dict[str, Any]: A dictionary containing:
+                - `features` (Any): Sequence or embedding data for the instance.
+                - `labels` (np.ndarray): A boolean array of labels starting from row index 4.
+                - `ident` (Any): The identifier from row index 0.
+        """
+        with open(input_file_path, "rb") as input_file:
+            df = pd.read_pickle(input_file)
+
+            if self.use_esm2_embeddings:
+                features_idx = self._ESM_EMBEDDINGS_COL_IDX
+            else:
+                features_idx = self._DATA_REPRESENTATION_IDX
+
+            for row in df.values:
+                labels = row[self._LABELS_START_IDX :].astype(bool)
+                yield dict(
+                    features=row[features_idx],
+                    labels=labels,
+                    ident=row[self._ID_IDX],
+                )
+
+    # ------------------------------ Phase: Raw Properties -----------------------------------
+    @property
+    def processed_main_file_names_dict(self) -> Dict[str, str]:
+        """
+        Returns main processed file names specific to DeepGO2.
+
+        Returns:
+            dict: Dictionary with the main data file name for DeepGO2.
+        """
+        return {"data": "data_deep_go2.pkl"}
+
+    @property
+    def processed_file_names_dict(self) -> Dict[str, str]:
+        """
+        Returns processed file names specific to DeepGO2.
+
+        Returns:
+            dict: Dictionary with data file name for DeepGO2.
+        """
+        return {"data": "data_deep_go2.pt"}
+
+    @property
+    def identifier(self) -> tuple:
+        """Identifier for the dataset."""
+        if self.use_esm2_embeddings:
+            return (dr.ESM2EmbeddingReader.name(),)
+        return (self.reader.name(),)

@@ -332,7 +332,7 @@ class Electra(ChebaiBaseNet):
         except RuntimeError as e:
             print(f"RuntimeError at forward: {e}")
             print(f'data[features]: {data["features"]}')
-            raise Exception
+            raise e
         inp = self.word_dropout(inp)
         electra = self.electra(inputs_embeds=inp, **kwargs)
         d = electra.last_hidden_state[:, 0, :]
@@ -344,14 +344,14 @@ class Electra(ChebaiBaseNet):
 
 class ElectraAugmented(Electra):
     """Electra model that takes global properties (i.e., which substructures are part of a molecule) into account.
-    The smiles embedding of size [batch_size, smiles_len, config.embedding_size - """
+    The smiles embedding of size [batch_size, smiles_len, config.embedding_size -"""
 
     NAME = "ElectraAugmented"
 
     def __init__(
         self,
-        add_embedding_size = 16,
-        n_global_properties = 2841,
+        add_embedding_size=16,
+        n_global_properties=2841,
         **kwargs: Any,
     ):
 
@@ -361,7 +361,9 @@ class ElectraAugmented(Electra):
         smiles_config.embedding_size = self.config.embedding_size - add_embedding_size
         self.smiles_embedding = ElectraEmbeddings(config=smiles_config)
 
-        self.add_embedding = nn.Linear(n_global_properties, add_embedding_size, device=self.device)
+        self.add_embedding = nn.Linear(
+            n_global_properties, add_embedding_size, device=self.device
+        )
         self.add_norm = nn.LayerNorm(add_embedding_size, device=self.device)
 
     def _process_batch(self, batch: XYData, batch_idx: int) -> Dict[str, Any]:

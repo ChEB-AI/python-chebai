@@ -1,7 +1,9 @@
 import unittest
 from unittest.mock import PropertyMock, mock_open, patch
 
-from chebai.preprocessing.datasets.protein_pretraining import _ProteinPretrainingData
+from chebai.preprocessing.datasets.deepGO.protein_pretraining import (
+    _ProteinPretrainingData,
+)
 from chebai.preprocessing.reader import ProteinDataReader
 from tests.unit.mock_data.ontology_mock_data import GOUniProtMockData
 

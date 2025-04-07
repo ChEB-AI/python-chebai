@@ -5,7 +5,7 @@ from unittest.mock import mock_open, patch
 import networkx as nx
 import pandas as pd
 
-from chebai.preprocessing.datasets.go_uniprot import _GOUniProtOverX
+from chebai.preprocessing.datasets.deepGO.go_uniprot import _GOUniProtOverX
 from tests.unit.mock_data.ontology_mock_data import GOUniProtMockData
 
 
