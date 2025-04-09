@@ -39,9 +39,19 @@ class ChebaiCLI(LightningCLI):
             parser (LightningArgumentParser): Argument parser instance.
         """
 
+        def call_data_methods(data):
+            if data._num_of_labels is None:
+                data.prepare_data()
+                data.setup()
+            return data.num_of_labels
+
         parser.link_arguments(
-            "data.num_of_labels", "model.init_args.out_dim", apply_on="instantiate"
+            "data",
+            "model.init_args.out_dim",
+            apply_on="instantiate",
+            compute_fn=call_data_methods,
         )
+
         parser.link_arguments(
             "data.feature_vector_size",
             "model.init_args.input_dim",
