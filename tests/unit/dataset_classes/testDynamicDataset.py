@@ -38,7 +38,7 @@ class TestDynamicDataset(unittest.TestCase):
         _DynamicDataset.READER = ReaderMock
 
         # Creating an instance of the dataset
-        cls.dataset: _DynamicDataset = _DynamicDataset(_skip_data_methods_on_init=True)
+        cls.dataset: _DynamicDataset = _DynamicDataset()
 
         # Dataset with a balanced distribution of labels
         X = [

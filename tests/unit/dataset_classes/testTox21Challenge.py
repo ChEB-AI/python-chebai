@@ -24,7 +24,7 @@ class TestTox21Challenge(unittest.TestCase):
         This is run once for the test class.
         """
         Tox21Challenge.READER = ChemDataReader
-        cls.tox21 = Tox21Challenge(_skip_data_methods_on_init=True)
+        cls.tox21 = Tox21Challenge()
 
     @patch("rdkit.Chem.SDMolSupplier")
     def test_load_data_from_file(self, mock_sdmol_supplier: patch) -> None:

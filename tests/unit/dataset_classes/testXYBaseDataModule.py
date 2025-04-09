@@ -30,7 +30,6 @@ class TestXYBaseDataModule(unittest.TestCase):
         cls.module = XYBaseDataModule(
             label_filter=1,  # Provide a label_filter
             balance_after_filter=1.0,  # Balance ratio
-            _skip_data_methods_on_init=True,
         )
 
     def test_filter_labels_valid_index(self) -> None:
