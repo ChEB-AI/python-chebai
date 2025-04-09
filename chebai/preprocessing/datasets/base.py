@@ -21,7 +21,6 @@ from torch.utils.data import DataLoader
 from chebai.preprocessing import reader as dr
 
 
-@dataclass
 class XYBaseDataModule(LightningDataModule):
     """
     Base class for data modules.
@@ -123,49 +122,6 @@ class XYBaseDataModule(LightningDataModule):
         self._feature_vector_size = None
         self._prepare_data_flag = 1
         self._setup_data_flag = 1
-
-    def __init_subclass__(cls, *args, **kwargs):
-        """
-        This method ensures that the '_call_data_processing_methods' is called only for the final subclass
-        in the class hierarchy. It overrides the default __init__ behavior to add custom initialization logic.
-
-            - The method saves the original `__init__` method of the class and then defines a new `__init__` method.
-            - This new `__init__` method calls the original `__init__` method of the class and then checks if the
-                current class is the final subclass (i.e., not a subclass of a subclass).
-            - If it's the final class, it invokes the `_call_data_processing_methods` method to perform any necessary
-                data processing tasks.
-        """
-        super().__init_subclass__(*args, **kwargs)
-        original_init = cls.__init__
-
-        # Creates updated definition for init method
-        def new_init(self, *args, **kwargs):
-            original_init(self, *args, **kwargs)  # Call the original __init__
-            if type(self) == cls:  # Only run method if it's the final class
-                self._call_data_processing_methods(*args, **kwargs)
-
-        cls.__init__ = new_init
-
-    def _call_data_processing_methods(self, *args, **kwargs) -> None:
-        """
-        Calls data processing methods unless explicitly skipped.
-
-        - Skips execution if `_skip_data_methods_on_init` is `True` (e.g., for unit tests).
-        - Otherwise, calls `prepare_data()` and `setup()` for data preparation.
-
-        Note: This method is called after the instantiation of most derived class is completed.
-        """
-        if kwargs.get("_skip_data_methods_on_init", False):
-            print(
-                f"Skipping data methods of class '{os.path.join(self.base_dir, self._name)}' during initialization"
-            )
-            return
-
-        print(
-            f"Calling data method of class {os.path.join(self.base_dir, self._name)} during initialization"
-        )
-        self.prepare_data(*args, **kwargs)
-        self.setup(*args, **kwargs)
 
     @property
     def num_of_labels(self):
