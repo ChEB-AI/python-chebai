@@ -20,6 +20,7 @@ class FFN(ChebaiBaseNet):
         **kwargs
     ):
         super().__init__(**kwargs)
+
         layers = []
         current_layer_input_size = input_size
         for hidden_dim in hidden_layers:

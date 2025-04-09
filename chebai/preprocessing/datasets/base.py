@@ -1,7 +1,6 @@
 import os
 import random
 from abc import ABC, abstractmethod
-from dataclasses import dataclass
 from typing import Any, Dict, Generator, List, Optional, Tuple, Union
 
 import lightning as pl
