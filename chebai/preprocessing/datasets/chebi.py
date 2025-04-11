@@ -175,6 +175,8 @@ class _ChEBIDataExtractor(_DynamicDataset, ABC):
         Returns:
             None
         """
+        super()._perform_data_preparation(args, kwargs)
+
         if self.chebi_version_train is not None:
             if not os.path.isfile(
                 os.path.join(
