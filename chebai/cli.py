@@ -1,7 +1,8 @@
-from typing import Dict, Set
+from typing import Dict, Set, Type
 
 from lightning.pytorch.cli import LightningArgumentParser, LightningCLI
 
+from chebai.preprocessing.datasets import XYBaseDataModule
 from chebai.trainer.CustomTrainer import CustomTrainer
 
 
@@ -39,7 +40,7 @@ class ChebaiCLI(LightningCLI):
             parser (LightningArgumentParser): Argument parser instance.
         """
 
-        def call_data_methods(data):
+        def call_data_methods(data: Type[XYBaseDataModule]):
             if data._num_of_labels is None:
                 data.prepare_data()
                 data.setup()
