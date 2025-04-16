@@ -119,6 +119,23 @@ class XYBaseDataModule(LightningDataModule):
             os.makedirs(os.path.join(self.processed_dir, self.fold_dir), exist_ok=True)
         self.save_hyperparameters()
 
+        self._num_of_labels = None
+        self._feature_vector_size = None
+        self._prepare_data_flag = 1
+        self._setup_data_flag = 1
+
+    @property
+    def num_of_labels(self):
+        assert self._num_of_labels is not None, "num of labels must be set"
+        return self._num_of_labels
+
+    @property
+    def feature_vector_size(self):
+        assert (
+            self._feature_vector_size is not None
+        ), "size of feature vector must be set"
+        return self._feature_vector_size
+
     @property
     def identifier(self) -> tuple:
         """Identifier for the dataset."""
@@ -390,7 +407,17 @@ class XYBaseDataModule(LightningDataModule):
         """
         return self.dataloader(self.prediction_kind, shuffle=False, **kwargs)
 
-    def setup(self, **kwargs):
+    def prepare_data(self, *args, **kwargs) -> None:
+        if self._prepare_data_flag != 1:
+            return
+
+        self._prepare_data_flag += 1
+        self._perform_data_preparation(*args, **kwargs)
+
+    def _perform_data_preparation(self, *args, **kwargs) -> None:
+        raise NotImplementedError
+
+    def setup(self, *args, **kwargs) -> None:
         """
         Setup the data module.
 
@@ -399,6 +426,11 @@ class XYBaseDataModule(LightningDataModule):
         Args:
             **kwargs: Additional keyword arguments.
         """
+        if self._setup_data_flag != 1:
+            return
+
+        self._setup_data_flag += 1
+
         rank_zero_info(f"Check for processed data in {self.processed_dir}")
         rank_zero_info(f"Cross-validation enabled: {self.use_inner_cross_validation}")
         if any(
@@ -409,6 +441,21 @@ class XYBaseDataModule(LightningDataModule):
 
         if not ("keep_reader" in kwargs and kwargs["keep_reader"]):
             self.reader.on_finish()
+
+        self._set_processed_data_props()
+
+    def _set_processed_data_props(self):
+
+        data_pt = torch.load(
+            os.path.join(self.processed_dir, self.processed_file_names_dict["data"]),
+            weights_only=False,
+        )
+
+        self._num_of_labels = len(data_pt[0]["labels"])
+        self._feature_vector_size = max(len(d["features"]) for d in data_pt)
+
+        print(f"Number of labels for loaded data: {self._num_of_labels}")
+        print(f"Feature vector size: {self._feature_vector_size}")
 
     def setup_processed(self):
         """
@@ -482,18 +529,6 @@ class XYBaseDataModule(LightningDataModule):
         """
         raise NotImplementedError
 
-    @property
-    def label_number(self) -> int:
-        """
-        Returns the number of labels.
-
-        This property should be implemented by subclasses to provide the number of labels.
-
-        Returns:
-            int: The number of labels. Returns -1 for seq2seq encoding.
-        """
-        raise NotImplementedError
-
 
 class MergedDataset(XYBaseDataModule):
     MERGED = []
@@ -531,7 +566,7 @@ class MergedDataset(XYBaseDataModule):
         os.makedirs(self.processed_dir, exist_ok=True)
         super(pl.LightningDataModule, self).__init__(**kwargs)
 
-    def prepare_data(self):
+    def _perform_data_preparation(self):
         """
         Placeholder for data preparation logic.
         """
@@ -547,8 +582,14 @@ class MergedDataset(XYBaseDataModule):
         Args:
             **kwargs: Additional keyword arguments.
         """
+        if self._setup_data_flag != 1:
+            return
+
+        self._setup_data_flag += 1
         for s in self.subsets:
             s.setup(**kwargs)
+
+        self._set_processed_data_props()
 
     def dataloader(self, kind: str, **kwargs) -> DataLoader:
         """
@@ -622,13 +663,6 @@ class MergedDataset(XYBaseDataModule):
         Returns the list of processed file names.
         """
         return ["test.pt", "train.pt", "validation.pt"]
-
-    @property
-    def label_number(self) -> int:
-        """
-        Returns the number of labels from the first subset.
-        """
-        return self.subsets[0].label_number
 
     @property
     def limits(self):
@@ -725,7 +759,7 @@ class _DynamicDataset(XYBaseDataModule, ABC):
         return splits_file_path
 
     # ------------------------------ Phase: Prepare data -----------------------------------
-    def prepare_data(self, *args: Any, **kwargs: Any) -> None:
+    def _perform_data_preparation(self, *args: Any, **kwargs: Any) -> None:
         """
         Prepares the data for the dataset.
 
