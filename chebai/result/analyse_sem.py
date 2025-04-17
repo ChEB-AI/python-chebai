@@ -11,7 +11,7 @@ from torchmetrics.functional.classification import (
 )
 from utils import *
 
-from chebai.loss.semantic import DisjointLoss
+from chebai.loss.semantic import DisjointLossTerm, FuzzyLoss, ImplicationLossTerm
 from chebai.preprocessing.datasets.base import _DynamicDataset
 from chebai.preprocessing.datasets.chebi import ChEBIOver100
 from chebai.preprocessing.datasets.pubchem import PubChemKMeans
@@ -250,12 +250,16 @@ def build_prediction_filter(data_module_labeled=None):
         data_module_labeled = ChEBIOver100(chebi_version=231)
     # prepare filters
     print(f"Loading implication / disjointness filters...")
-    dl = DisjointLoss(
-        path_to_disjointness=os.path.join("data", "disjoint.csv"),
+    dl = FuzzyLoss(
         data_extractor=data_module_labeled,
+        fuzzy_terms=[
+            ImplicationLossTerm(),
+            DisjointLossTerm(path_to_disjointness=os.path.join("data", "disjoint.csv")),
+        ],
     )
-    impl = _filter_to_dense(dl.implication_filter_l)
-    disj = _filter_to_dense(dl.disjoint_filter_l)
+    # todo - filters should already be dense
+    impl = _filter_to_dense(dl.filters_l["implication"])
+    disj = _filter_to_dense(dl.filters_r["disjointness"])
 
     return [
         (impl[:, 0], impl[:, 1], "impl"),

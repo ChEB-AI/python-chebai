@@ -12,7 +12,81 @@ from chebai.preprocessing.datasets.chebi import ChEBIOver100, _ChEBIDataExtracto
 from chebai.preprocessing.datasets.pubchem import LabeledUnlabeledMixed
 
 
-class ImplicationLoss(torch.nn.Module):
+class FuzzyLossTerm:
+
+    def __init__(self, weight: float = 1):
+        self.weight = weight
+
+    @property
+    def name(self) -> str:
+        raise NotImplementedError()
+
+    def get_axiom_filter(
+        self, data_extractor: Union[_ChEBIDataExtractor, LabeledUnlabeledMixed]
+    ):
+        raise NotImplementedError()
+
+    def process_preds_l(self, preds):
+        return preds
+
+    def process_preds_r(self, preds):
+        return preds
+
+
+class ImplicationLossTerm(FuzzyLossTerm):
+    def __init__(self, weight: float = 0.1):
+        super().__init__(weight)
+
+    @property
+    def name(self) -> str:
+        return "implication"
+
+    def get_axiom_filter(
+        self, data_extractor: Union[_ChEBIDataExtractor, LabeledUnlabeledMixed]
+    ):
+        label_names = _load_label_names(
+            os.path.join(data_extractor.processed_dir_main, "classes.txt")
+        )
+        hierarchy = _load_implications(
+            os.path.join(data_extractor.raw_dir, "chebi.obo"), data_extractor
+        )
+        implication_filter_dense = _build_dense_filter(
+            _build_implication_filter(label_names, hierarchy),
+            len(label_names),
+        )
+        implication_filter_l = implication_filter_dense
+        implication_filter_r = implication_filter_l.transpose(0, 1)
+        return implication_filter_l, implication_filter_r
+
+
+class DisjointLossTerm(FuzzyLossTerm):
+
+    def __init__(self, path_to_disjointness: str, weight: float = 100):
+        super().__init__(weight)
+        self.path_to_disjointness = path_to_disjointness
+
+    @property
+    def name(self) -> str:
+        return "disjointness"
+
+    def get_axiom_filter(self, data_extractor):
+        label_names = _load_label_names(
+            os.path.join(data_extractor.processed_dir_main, "classes.txt")
+        )
+        hierarchy = _load_implications(
+            os.path.join(data_extractor.raw_dir, "chebi.obo"), data_extractor
+        )
+
+        return _build_disjointness_filter(
+            self.path_to_disjointness, label_names, hierarchy
+        )
+
+    def process_preds_r(self, preds):
+        # for disjointness, we need to use 1-pred
+        return 1 - preds
+
+
+class FuzzyLoss(torch.nn.Module):
     """
     Implication Loss module.
 
@@ -20,7 +94,6 @@ class ImplicationLoss(torch.nn.Module):
         data_extractor _ChEBIDataExtractor: Data extractor for labels.
         base_loss (torch.nn.Module, optional): Base loss function. Defaults to None.
         fuzzy_implication (Literal["product", "lukasiewicz", "xu19"], optional): T-norm type. Defaults to "product".
-        impl_loss_weight (float, optional): Weight of implication loss relative to base loss. Defaults to 0.1.
         pos_scalar (int, optional): Positive scalar exponent. Defaults to 1.
         pos_epsilon (float, optional): Epsilon value for numerical stability. Defaults to 0.01.
         multiply_by_softmax (bool, optional): Whether to multiply by softmax. Defaults to False.
@@ -40,6 +113,7 @@ class ImplicationLoss(torch.nn.Module):
         self,
         data_extractor: XYBaseDataModule,
         base_loss: torch.nn.Module = None,
+        fuzzy_terms: List[FuzzyLossTerm] = None,
         fuzzy_implication: Literal[
             "reichenbach",
             "rc",
@@ -55,7 +129,6 @@ class ImplicationLoss(torch.nn.Module):
             "binary",
             "b",
         ] = "reichenbach",
-        impl_loss_weight: float = 0.1,
         pos_scalar: Union[int, float] = 1,
         pos_epsilon: float = 0.01,
         multiply_by_softmax: bool = False,
@@ -81,21 +154,8 @@ class ImplicationLoss(torch.nn.Module):
                 "none"  # needed to multiply fuzzy loss with base loss for each sample
             )
         self.base_loss = base_loss
-        self.implication_cache_file = f"implications_{self.data_extractor.name}.cache"
-        self.label_names = _load_label_names(
-            os.path.join(data_extractor.processed_dir_main, "classes.txt")
-        )
-        self.hierarchy = self._load_implications(
-            os.path.join(data_extractor.raw_dir, "chebi.obo")
-        )
-        implication_filter_dense = _build_dense_filter(
-            _build_implication_filter(self.label_names, self.hierarchy),
-            len(self.label_names),
-        )
-        self.implication_filter_l = implication_filter_dense
-        self.implication_filter_r = self.implication_filter_l.transpose(0, 1)
+
         self.fuzzy_implication = fuzzy_implication
-        self.impl_weight = impl_loss_weight
         self.pos_scalar = pos_scalar
         self.eps = pos_epsilon
         self.multiply_by_softmax = multiply_by_softmax
@@ -105,6 +165,14 @@ class ImplicationLoss(torch.nn.Module):
         self.violations_per_cls_aggregator = violations_per_cls_aggregator
         self.multiply_with_base_loss = multiply_with_base_loss
         self.no_grads = no_grads
+
+        self.fuzzy_terms = fuzzy_terms
+        self.filters_l = {}
+        self.filters_r = {}
+        for fuzzy_term in fuzzy_terms:
+            filter_l, filter_r = fuzzy_term.get_axiom_filter(data_extractor)
+            self.filters_l[fuzzy_term.name] = filter_l
+            self.filters_r[fuzzy_term.name] = filter_r
 
     def _calculate_unaggregated_fuzzy_loss(
         self,
@@ -189,7 +257,7 @@ class ImplicationLoss(torch.nn.Module):
 
     def forward(self, input: torch.Tensor, target: torch.Tensor, **kwargs) -> tuple:
         """
-        Forward pass of the implication loss module.
+        Forward pass of the disjoint loss module.
 
         Args:
             input (torch.Tensor): Input tensor.
@@ -197,7 +265,7 @@ class ImplicationLoss(torch.nn.Module):
             **kwargs: Additional arguments.
 
         Returns:
-            tuple: Tuple containing total loss, base loss, and implication loss.
+            tuple: Tuple containing total loss, base loss, implication loss, and disjointness loss.
         """
         base_loss = self._calculate_unaggregated_base_loss(input, target, **kwargs)
         loss_components = {"base_loss": base_loss.mean()}
@@ -206,26 +274,34 @@ class ImplicationLoss(torch.nn.Module):
             return base_loss.mean(), loss_components
 
         pred = torch.sigmoid(input)
-        fuzzy_loss, unweighted_fuzzy_mean, weighted_fuzzy_mean = (
-            self._calculate_unaggregated_fuzzy_loss(
-                pred,
-                pred,
-                self.impl_weight,
-                self.implication_filter_l,
-                self.implication_filter_r,
-                **kwargs,
+        term_loss_list = []
+        for fuzzy_term in self.fuzzy_terms:
+            pred_l = fuzzy_term.process_preds_l(pred)
+            pred_r = fuzzy_term.process_preds_r(pred)
+            term_loss, unweighted_term_mean, weighted_term_mean = (
+                self._calculate_unaggregated_fuzzy_loss(
+                    pred_l,
+                    pred_r,
+                    fuzzy_term.weight,
+                    self.filters_l[fuzzy_term.name],
+                    self.filters_r[fuzzy_term.name],
+                    **kwargs,
+                )
             )
-        )
-        if self.no_grads:
-            fuzzy_loss = fuzzy_loss.detach()
-        loss_components["unweighted_fuzzy_loss"] = unweighted_fuzzy_mean
-        loss_components["weighted_fuzzy_loss"] = weighted_fuzzy_mean
+
+            if self.no_grads:
+                term_loss = term_loss.detach()
+            term_loss_list.append(term_loss)
+            loss_components[f"unweighted_{fuzzy_term.name}_loss"] = unweighted_term_mean
+            loss_components[f"weighted_{fuzzy_term.name}_loss"] = weighted_term_mean
+
         if self.base_loss is None or target is None:
-            total_loss = self.impl_weight * fuzzy_loss
+            total_loss = sum(term_loss_list)
         elif self.multiply_with_base_loss:
-            total_loss = base_loss * (1 + self.impl_weight * fuzzy_loss)
+            total_loss = base_loss * sum(term_loss_list + [1])
         else:
-            total_loss = base_loss + self.impl_weight * fuzzy_loss
+            total_loss = sum([base_loss] + term_loss_list)
+
         return total_loss.mean(), loss_components
 
     def _calculate_implication_loss(
@@ -303,114 +379,27 @@ class ImplicationLoss(torch.nn.Module):
 
         return individual_loss
 
-    def _load_implications(self, path_to_chebi: str) -> dict:
-        """
-        Load class hierarchy implications.
 
-        Args:
-            path_to_chebi (str): Path to the ChEBI ontology file.
+def _load_implications(path_to_chebi: str, data_extractor) -> dict:
+    implication_cache_file = f"implications_{data_extractor.name}.cache"
 
-        Returns:
-            dict: Loaded hierarchy of implications.
-        """
-        if os.path.isfile(self.implication_cache_file):
-            with open(self.implication_cache_file, "rb") as fin:
-                hierarchy = pickle.load(fin)
-        else:
-            hierarchy = self.data_extractor._extract_class_hierarchy(path_to_chebi)
-            with open(self.implication_cache_file, "wb") as fout:
-                pickle.dump(hierarchy, fout)
-        return hierarchy
-
-
-class DisjointLoss(ImplicationLoss):
     """
-    Disjoint Loss module, extending ImplicationLoss.
+    Load class hierarchy implications.
 
     Args:
-        path_to_disjointness (str): Path to the disjointness data file (a csv file containing pairs of disjoint classes)
-        data_extractor (Union[_ChEBIDataExtractor, LabeledUnlabeledMixed]): Data extractor for labels.
-        base_loss (torch.nn.Module, optional): Base loss function. Defaults to None.
-        disjoint_loss_weight (float, optional): Weight of disjointness loss. Defaults to 100.
-        **kwargs: Additional arguments.
+        path_to_chebi (str): Path to the ChEBI ontology file.
+
+    Returns:
+        dict: Loaded hierarchy of implications.
     """
-
-    def __init__(
-        self,
-        path_to_disjointness: str,
-        data_extractor: Union[_ChEBIDataExtractor, LabeledUnlabeledMixed],
-        base_loss: torch.nn.Module = None,
-        disjoint_loss_weight: float = 100,
-        **kwargs,
-    ):
-        super().__init__(data_extractor, base_loss, **kwargs)
-        self.disjoint_filter_l, self.disjoint_filter_r = _build_disjointness_filter(
-            path_to_disjointness, self.label_names, self.hierarchy
-        )
-        self.disjoint_weight = disjoint_loss_weight
-
-    def forward(self, input: torch.Tensor, target: torch.Tensor, **kwargs) -> tuple:
-        """
-        Forward pass of the disjoint loss module.
-
-        Args:
-            input (torch.Tensor): Input tensor.
-            target (torch.Tensor): Target tensor.
-            **kwargs: Additional arguments.
-
-        Returns:
-            tuple: Tuple containing total loss, base loss, implication loss, and disjointness loss.
-        """
-        base_loss = self._calculate_unaggregated_base_loss(input, target, **kwargs)
-        loss_components = {"base_loss": base_loss.mean()}
-
-        if "current_epoch" in kwargs and self.start_at_epoch > kwargs["current_epoch"]:
-            return base_loss.mean(), loss_components
-
-        pred = torch.sigmoid(input)
-        impl_loss, unweighted_impl_mean, weighted_impl_mean = (
-            self._calculate_unaggregated_fuzzy_loss(
-                pred,
-                pred,
-                self.impl_weight,
-                self.implication_filter_l,
-                self.implication_filter_r,
-                **kwargs,
-            )
-        )
-        if self.no_grads:
-            impl_loss = impl_loss.detach()
-        loss_components["unweighted_implication_loss"] = unweighted_impl_mean
-        loss_components["weighted_implication_loss"] = weighted_impl_mean
-
-        disj_loss, unweighted_disj_mean, weighted_disj_mean = (
-            self._calculate_unaggregated_fuzzy_loss(
-                pred,
-                1 - pred,  # for disjointness, we need to use 1-pred
-                self.disjoint_weight,
-                self.disjoint_filter_l,
-                self.disjoint_filter_r,
-                **kwargs,
-            )
-        )
-        if self.no_grads:
-            disj_loss = disj_loss.detach()
-        loss_components["unweighted_disjointness_loss"] = unweighted_disj_mean
-        loss_components["weighted_disjointness_loss"] = weighted_disj_mean
-
-        if self.base_loss is None or target is None:
-            total_loss = self.impl_weight * impl_loss + self.disjoint_weight * disj_loss
-        elif self.multiply_with_base_loss:
-            total_loss = base_loss * (
-                1 + self.impl_weight * impl_loss + self.disjoint_weight * disj_loss
-            )
-        else:
-            total_loss = (
-                base_loss
-                + self.impl_weight * impl_loss
-                + self.disjoint_weight * disj_loss
-            )
-        return total_loss.mean(), loss_components
+    if os.path.isfile(implication_cache_file):
+        with open(implication_cache_file, "rb") as fin:
+            hierarchy = pickle.load(fin)
+    else:
+        hierarchy = data_extractor._extract_class_hierarchy(path_to_chebi)
+        with open(implication_cache_file, "wb") as fout:
+            pickle.dump(hierarchy, fout)
+    return hierarchy
 
 
 def _load_label_names(path_to_label_names: str) -> List:
@@ -499,12 +488,13 @@ def _build_disjointness_filter(
 
 
 if __name__ == "__main__":
-    loss = DisjointLoss(
-        os.path.join("data", "disjoint.csv"),
+    loss = FuzzyLoss(
         ChEBIOver100(chebi_version=231),
+        fuzzy_terms=[
+            ImplicationLossTerm(weight=1),
+            DisjointLossTerm(os.path.join("data", "disjoint.csv"), weight=1),
+        ],
         base_loss=BCEWeighted(),
-        impl_loss_weight=1,
-        disjoint_loss_weight=1,
     )
     random_preds = torch.randn(10, 997)
     random_labels = torch.randint(0, 2, (10, 997))
@@ -514,14 +504,14 @@ if __name__ == "__main__":
         print(f"Loss with {agg} aggregation for random input:", l)
 
     # simplified example for ontology with 4 classes, A -> B, B -> C, D -> C, B and D disjoint
-    loss.implication_filter_l = torch.tensor(
+    loss.filters_l["implication"] = torch.tensor(
         [[0, 1, 1, 0], [0, 0, 1, 0], [0, 0, 0, 0], [0, 0, 1, 0]]
     )
-    loss.implication_filter_r = loss.implication_filter_l.transpose(0, 1)
-    loss.disjoint_filter_l = torch.tensor(
+    loss.filters_r["implication"] = loss.filters_l["implication"].transpose(0, 1)
+    loss.filters_l["disjointness"] = torch.tensor(
         [[0, 0, 0, 0], [0, 0, 0, 1], [0, 0, 0, 0], [0, 1, 0, 0]]
     )
-    loss.disjoint_filter_r = loss.disjoint_filter_l.transpose(0, 1)
+    loss.filters_r["disjointness"] = loss.filters_l["disjointness"].transpose(0, 1)
     # expected result: first sample: moderately high loss for B disj D, otherwise low, second sample: high loss for A -> B (applied to A), otherwise low
     preds = torch.tensor([[0.1, 0.3, 0.7, 0.4], [0.5, 0.2, 0.9, 0.1]])
     labels = [[0, 1, 1, 0], [0, 0, 1, 1]]

@@ -1,0 +1,19 @@
+class_path: chebai.loss.semantic.FuzzyLoss
+init_args:
+  data_extractor:
+    class_path: chebai.preprocessing.datasets.chebi.ChEBIOver100
+    init_args:
+      chebi_version: 231
+  fuzzy_terms:
+    - class_path: chebai.loss.semantic.ImplicationLossTerm
+      init_args:
+        weight: 100
+    - class_path: chebai.loss.semantic.DisjointLossTerm
+      init_args:
+        path_to_disjointness: data/disjoint.csv
+        weight: 1000000
+  base_loss:
+    class_path: chebai.loss.bce_weighted.BCEWeighted
+    init_args:
+      beta: 0.99
+  multiply_by_softmax: true

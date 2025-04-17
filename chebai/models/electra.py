@@ -22,7 +22,7 @@ from chebai.preprocessing.structures import XYData
 
 logging.getLogger("pysmiles").setLevel(logging.CRITICAL)
 
-from chebai.loss.semantic import DisjointLoss as ElectraChEBIDisjointLoss  # noqa
+from chebai.loss.semantic import FuzzyLoss as ElectraChEBIDisjointLoss  # noqa
 
 
 class ElectraPre(ChebaiBaseNet):
