@@ -65,7 +65,7 @@ class ImplicationLoss(torch.nn.Module):
         violations_per_cls_aggregator: Literal[
             "sum", "max", "mean", "log-sum", "log-max", "log-mean"
         ] = "sum",
-        multiply_with_base_loss: bool = True,
+        multiply_with_base_loss: bool = False,
         no_grads: bool = False,
     ):
         super().__init__()
@@ -108,36 +108,36 @@ class ImplicationLoss(torch.nn.Module):
 
     def _calculate_unaggregated_fuzzy_loss(
         self,
-        pred,
-        target: torch.Tensor,
+        pred_left,
+        pred_right,
         weight,
         filter_l,
         filter_r,
-        mode="impl",
         **kwargs,
     ):
+        """Calculates fuzzy loss for I(pred_left, pred_right)"""
         # for each batch, get all pairwise losses: [a1, a2, a3] -> [[a1*a1, a1*a2, a1*a3],[a2*a1,...],[a3*a1,...]]
-        preds_expanded1 = pred.unsqueeze(1).expand(-1, pred.shape[1], -1)
-        preds_expanded2 = pred.unsqueeze(2).expand(-1, -1, pred.shape[1])
+        preds_expanded1 = pred_right.unsqueeze(1).expand(-1, pred_right.shape[1], -1)
+        preds_expanded2 = pred_left.unsqueeze(2).expand(-1, -1, pred_left.shape[1])
         # filter by implication relations and labels
 
-        label_filter = target.unsqueeze(2).expand(-1, -1, pred.shape[1])
-        filter_l = filter_l.to(pred.device).unsqueeze(0).expand(pred.shape[0], -1, -1)
-        filter_r = filter_r.to(pred.device).unsqueeze(0).expand(pred.shape[0], -1, -1)
-        if mode == "impl":
-            all_implications = self._calculate_implication_loss(
-                preds_expanded2, preds_expanded1
-            )
-        else:
-            all_implications = self._calculate_implication_loss(
-                preds_expanded2, 1 - preds_expanded1
-            )
-        loss_impl_l = all_implications * filter_l * (1 - label_filter)
-        if mode == "impl":
-            loss_impl_r = all_implications.transpose(1, 2) * filter_r * label_filter
-            loss_impl_sum = loss_impl_l + loss_impl_r
-        else:
-            loss_impl_sum = loss_impl_l
+        filter_l = (
+            filter_l.to(pred_left.device)
+            .unsqueeze(0)
+            .expand(pred_left.shape[0], -1, -1)
+        )
+        filter_r = (
+            filter_r.to(pred_right.device)
+            .unsqueeze(0)
+            .expand(pred_left.shape[0], -1, -1)
+        )
+        all_implications = self._calculate_implication_loss(
+            preds_expanded2, preds_expanded1
+        )
+
+        loss_impl_l = all_implications * filter_l
+        loss_impl_r = all_implications.transpose(1, 2) * filter_r
+        loss_impl_sum = loss_impl_l + loss_impl_r
 
         if self.violations_per_cls_aggregator.startswith("log-"):
             loss_impl_sum = -torch.log(1 - loss_impl_sum)
@@ -209,7 +209,7 @@ class ImplicationLoss(torch.nn.Module):
         fuzzy_loss, unweighted_fuzzy_mean, weighted_fuzzy_mean = (
             self._calculate_unaggregated_fuzzy_loss(
                 pred,
-                target,
+                pred,
                 self.impl_weight,
                 self.implication_filter_l,
                 self.implication_filter_r,
@@ -317,7 +317,7 @@ class ImplicationLoss(torch.nn.Module):
             with open(self.implication_cache_file, "rb") as fin:
                 hierarchy = pickle.load(fin)
         else:
-            hierarchy = self.data_extractor.extract_class_hierarchy(path_to_chebi)
+            hierarchy = self.data_extractor._extract_class_hierarchy(path_to_chebi)
             with open(self.implication_cache_file, "wb") as fout:
                 pickle.dump(hierarchy, fout)
         return hierarchy
@@ -371,7 +371,7 @@ class DisjointLoss(ImplicationLoss):
         impl_loss, unweighted_impl_mean, weighted_impl_mean = (
             self._calculate_unaggregated_fuzzy_loss(
                 pred,
-                target,
+                pred,
                 self.impl_weight,
                 self.implication_filter_l,
                 self.implication_filter_r,
@@ -386,11 +386,10 @@ class DisjointLoss(ImplicationLoss):
         disj_loss, unweighted_disj_mean, weighted_disj_mean = (
             self._calculate_unaggregated_fuzzy_loss(
                 pred,
-                target,
+                1 - pred,  # for disjointness, we need to use 1-pred
                 self.disjoint_weight,
                 self.disjoint_filter_l,
                 self.disjoint_filter_r,
-                mode="disj",
                 **kwargs,
             )
         )
