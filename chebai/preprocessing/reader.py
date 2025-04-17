@@ -1,18 +1,8 @@
 import os
-from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple, Union
-from urllib.error import HTTPError
+from typing import Any, Dict, List, Optional, Tuple
 
 import deepsmiles
 import selfies as sf
-import torch
-from esm import Alphabet
-from esm.model.esm2 import ESM2
-from esm.pretrained import (
-    _has_regression_weights,
-    load_model_and_alphabet_core,
-    load_model_and_alphabet_local,
-)
 from pysmiles.read_smiles import _tokenize
 from transformers import RobertaTokenizerFast
 

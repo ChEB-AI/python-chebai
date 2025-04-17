@@ -1,3 +1,0 @@
-class_path: chebai.preprocessing.datasets.scope.scope.SCOPeOver2000
-init_args:
-  scope_version: "2.08"
