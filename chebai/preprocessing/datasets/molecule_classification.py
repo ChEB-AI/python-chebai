@@ -552,7 +552,7 @@ class HIV(XYBaseDataModule):
     @property
     def raw_file_names(self) -> List[str]:
         """Returns a list of raw file names."""
-        return ["HIV.csv"]
+        return ["hiv_groups4.csv"]
 
     @property
     def processed_file_names(self) -> List[str]:
@@ -562,7 +562,7 @@ class HIV(XYBaseDataModule):
     def download(self) -> None:
         
         """Downloads and extracts the dataset."""
-        with open(os.path.join(self.raw_dir, "HIV.csv"), "ab") as dst:
+        with open(os.path.join(self.raw_dir, "hiv_groups4"), "ab") as dst:
             with request.urlopen(f"https://deepchemdata.s3-us-west-1.amazonaws.com/datasets/HIV.csv",) as src:
                 shutil.copyfileobj(src, dst)
 
@@ -570,7 +570,7 @@ class HIV(XYBaseDataModule):
     def setup_processed(self) -> None:
         """Processes and splits the dataset."""
         print("Create splits")
-        data = list(self._load_data_from_file(os.path.join(self.raw_dir, f"HIV.csv")))
+        data = list(self._load_data_from_file(os.path.join(self.raw_dir, f"hiv_groups4.csv")))
         groups = np.array([d["group"] for d in data])
         if not all(g is None for g in groups):
             print('Group shuffled')
@@ -643,11 +643,12 @@ class HIV(XYBaseDataModule):
         with open(input_file_path, "r") as input_file:
             reader = csv.DictReader(input_file)
             for row in reader:
-                i += 1
-                smiles = row["smiles"]
-                labels = [int(row["HIV_active"])]
-                # group = int(row["group"])
-                yield dict(features=smiles, labels=labels, ident=i) #, group=group)
+                if len(row) > 1:
+                    i += 1
+                    smiles = row["smiles"]
+                    labels = [int(row["HIV_active"])]
+                    group = int(row["group"])
+                    yield dict(features=smiles, labels=labels, ident=i, group=group)
                 # yield self.reader.to_data(dict(features=smiles, labels=labels, ident=i))
 
 
