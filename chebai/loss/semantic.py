@@ -110,15 +110,10 @@ class ParthoodLossTerm(FuzzyLossTerm):
         return "parthood"
 
     def get_axiom_filter(self, data_extractor):
-        print("Building parthood axiom filter...")
         label_names = _load_label_names(
             os.path.join(data_extractor.processed_dir_main, "classes.txt")
         )
         part_names = _load_label_names(self.path_to_parts)
-        print(
-            f"Loaded {len(label_names)} label classes, starting with {label_names[:5]}"
-        )
-        print(f"Loaded {len(part_names)} parts, starting with {part_names[:5]}")
 
         with open(self.path_to_parthoods, "r") as f:
             cls_group_pairs = [[int(r.strip()) for r in row.split(",")] for row in f]
@@ -127,7 +122,7 @@ class ParthoodLossTerm(FuzzyLossTerm):
         ]
 
         print(
-            f"Identified {len(cls_group_indices)} parthood axioms, starting with {cls_group_indices[:5]}"
+            f"Using {len(cls_group_indices)} parthood axioms for loss, starting with {cls_group_indices[:5]}"
         )
 
         dense = _build_dense_filter(
@@ -333,7 +328,6 @@ class FuzzyLoss(torch.nn.Module):
 
         pred = torch.sigmoid(input)
         term_loss_list = []
-        print("kwargs", kwargs)
         for fuzzy_term in self.fuzzy_terms:
             pred_l = fuzzy_term.process_preds_l(pred, **kwargs)
             pred_r = fuzzy_term.process_preds_r(pred, **kwargs)
