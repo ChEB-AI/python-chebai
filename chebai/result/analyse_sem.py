@@ -535,7 +535,7 @@ def run_all(
     consistency_metrics: Optional[List[callable]] = None,
     prediction_datasets: List[Tuple] = None,
     remove_violations: bool = False,
-    results_dir="_fuzzy_loss_eval",
+    results_dir="fuzzy_loss_eval",
     check_consistency_on=None,
     verbose_violation_output=False,
 ):
@@ -699,10 +699,10 @@ def run_fuzzy_loss(tag="fuzzy_loss", skip_first_n=0):
             "data", "chebi_v231", "ChEBI100", "fuzzy_loss_splits.csv"
         ),
     )
-    local_ckpts = [][skip_first_n:]
-    pubchem_kmeans = PubChemKMeans()
+    local_ckpts = [("fzd0tu2j", 197), ("8l30ujrg", 190)][skip_first_n:]
+    # pubchem_kmeans = PubChemKMeans()
     run_all(
-        ids[max(0, skip_first_n - len(local_ckpts)) :],  # ids,
+        [],  # ids[max(0, skip_first_n - len(local_ckpts)) :],  # ids,
         local_ckpts,
         consistency_metrics=[binary],
         check_consistency_on=chebi100,

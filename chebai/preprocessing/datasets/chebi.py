@@ -775,8 +775,6 @@ class ChEBIOver100Parthood(ChEBIOver100):
         super().__init__(**kwargs)
         self.use_parthood_labels = use_parthood_labels
 
-    # READER = ChemDataReaderAugmented
-
     @property
     def processed_main_file_names_dict(self) -> dict:
         return {

@@ -99,6 +99,8 @@ class RaggedCollator(Collator):
                     k: torch.stack([d["additional_kwargs"][k] for d in data])
                     for k in additional_kwargs[0].keys()
                 }
+                # also make additional_kwargs available to loss
+                loss_kwargs = {**additional_kwargs}
             else:
                 additional_kwargs = {}
         if any(x is not None for x in y):

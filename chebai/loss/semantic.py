@@ -2,13 +2,17 @@ import csv
 import math
 import os
 import pickle
-from typing import List, Literal, Union
+from typing import Iterable, List, Literal, Union
 
 import torch
 
 from chebai.loss.bce_weighted import BCEWeighted
 from chebai.preprocessing.datasets import XYBaseDataModule
-from chebai.preprocessing.datasets.chebi import ChEBIOver100, _ChEBIDataExtractor
+from chebai.preprocessing.datasets.chebi import (
+    ChEBIOver100,
+    ChEBIOver100Parthood,
+    _ChEBIDataExtractor,
+)
 from chebai.preprocessing.datasets.pubchem import LabeledUnlabeledMixed
 
 
@@ -26,10 +30,10 @@ class FuzzyLossTerm:
     ):
         raise NotImplementedError()
 
-    def process_preds_l(self, preds):
+    def process_preds_l(self, preds, **kwargs):
         return preds
 
-    def process_preds_r(self, preds):
+    def process_preds_r(self, preds, **kwargs):
         return preds
 
 
@@ -52,6 +56,7 @@ class ImplicationLossTerm(FuzzyLossTerm):
         )
         implication_filter_dense = _build_dense_filter(
             _build_implication_filter(label_names, hierarchy),
+            len(label_names),
             len(label_names),
         )
         implication_filter_l = implication_filter_dense
@@ -81,9 +86,62 @@ class DisjointLossTerm(FuzzyLossTerm):
             self.path_to_disjointness, label_names, hierarchy
         )
 
-    def process_preds_r(self, preds):
+    def process_preds_r(self, preds, **kwargs):
         # for disjointness, we need to use 1-pred
         return 1 - preds
+
+
+class ParthoodLossTerm(FuzzyLossTerm):
+    """
+    A ParthoodLossTerm uses parthood relations between molecule classes and functional groups.
+    For instance, ChEBI has an axiom that _thiocarbonyl compound (CHEBI:50492) has part some thiocarbonyl group (CHEBI:30256)_
+    If we predict a molecule as a thiocarbonyl compound that has **no** thiocarbonyl group, it gets a loss for that.
+
+    As a subsumption: instead of $A subseteq B$ (which gets a loss for A=1 and B=0), we can use $A subseteq has part some G$.
+    """
+
+    def __init__(self, path_to_parthoods: str, path_to_parts: str, weight: float = 100):
+        super().__init__(weight)
+        self.path_to_parthoods = path_to_parthoods
+        self.path_to_parts = path_to_parts
+
+    @property
+    def name(self) -> str:
+        return "parthood"
+
+    def get_axiom_filter(self, data_extractor):
+        print("Building parthood axiom filter...")
+        label_names = _load_label_names(
+            os.path.join(data_extractor.processed_dir_main, "classes.txt")
+        )
+        part_names = _load_label_names(self.path_to_parts)
+        print(
+            f"Loaded {len(label_names)} label classes, starting with {label_names[:5]}"
+        )
+        print(f"Loaded {len(part_names)} parts, starting with {part_names[:5]}")
+
+        with open(self.path_to_parthoods, "r") as f:
+            cls_group_pairs = [[int(r.strip()) for r in row.split(",")] for row in f]
+        cls_group_indices = [
+            [label_names.index(r[0]), part_names.index(r[1])] for r in cls_group_pairs
+        ]
+
+        print(
+            f"Identified {len(cls_group_indices)} parthood axioms, starting with {cls_group_indices[:5]}"
+        )
+
+        dense = _build_dense_filter(
+            cls_group_indices, len(label_names), len(part_names)
+        )
+        dense_r = dense.transpose(0, 1)
+        return dense, dense_r
+
+    def process_preds_r(self, preds, **kwargs):
+        assert (
+            "parthoods" in kwargs
+        ), "Parthood loss requires that information about the parts of molecules are given in the loss_kwargs"
+        # for disjointness, we need to use 1-pred
+        return kwargs["parthoods"]
 
 
 class FuzzyLoss(torch.nn.Module):
@@ -185,8 +243,8 @@ class FuzzyLoss(torch.nn.Module):
     ):
         """Calculates fuzzy loss for I(pred_left, pred_right)"""
         # for each batch, get all pairwise losses: [a1, a2, a3] -> [[a1*a1, a1*a2, a1*a3],[a2*a1,...],[a3*a1,...]]
-        preds_expanded1 = pred_right.unsqueeze(1).expand(-1, pred_right.shape[1], -1)
-        preds_expanded2 = pred_left.unsqueeze(2).expand(-1, -1, pred_left.shape[1])
+        preds_expanded1 = pred_right.unsqueeze(1).expand(-1, pred_left.shape[1], -1)
+        preds_expanded2 = pred_left.unsqueeze(2).expand(-1, -1, pred_right.shape[1])
         # filter by implication relations and labels
 
         filter_l = (
@@ -194,18 +252,18 @@ class FuzzyLoss(torch.nn.Module):
             .unsqueeze(0)
             .expand(pred_left.shape[0], -1, -1)
         )
-        filter_r = (
-            filter_r.to(pred_right.device)
-            .unsqueeze(0)
-            .expand(pred_left.shape[0], -1, -1)
-        )
+        # filter_r = (
+        #    filter_r.to(pred_right.device)
+        #    .unsqueeze(0)
+        #    .expand(pred_right.shape[0], -1, -1)
+        # )
         all_implications = self._calculate_implication_loss(
             preds_expanded2, preds_expanded1
         )
 
         loss_impl_l = all_implications * filter_l
-        loss_impl_r = all_implications.transpose(1, 2) * filter_r
-        loss_impl_sum = loss_impl_l + loss_impl_r
+        # loss_impl_r = all_implications.transpose(1, 2) * filter_r
+        loss_impl_sum = loss_impl_l  # + loss_impl_r
 
         if self.violations_per_cls_aggregator.startswith("log-"):
             loss_impl_sum = -torch.log(1 - loss_impl_sum)
@@ -251,7 +309,7 @@ class FuzzyLoss(torch.nn.Module):
         labeled_input = input[nnl] if nnl else input
 
         if target is not None and self.base_loss is not None:
-            return self.base_loss(labeled_input, target.float())
+            return self.base_loss(labeled_input.float(), target.float())
         else:
             return torch.zeros(input.shape, device=input.device)
 
@@ -275,9 +333,10 @@ class FuzzyLoss(torch.nn.Module):
 
         pred = torch.sigmoid(input)
         term_loss_list = []
+        print("kwargs", kwargs)
         for fuzzy_term in self.fuzzy_terms:
-            pred_l = fuzzy_term.process_preds_l(pred)
-            pred_r = fuzzy_term.process_preds_r(pred)
+            pred_l = fuzzy_term.process_preds_l(pred, **kwargs)
+            pred_r = fuzzy_term.process_preds_r(pred, **kwargs)
             term_loss, unweighted_term_mean, weighted_term_mean = (
                 self._calculate_unaggregated_fuzzy_loss(
                     pred_l,
@@ -439,8 +498,8 @@ def _build_implication_filter(label_names: List, hierarchy: dict) -> torch.Tenso
     )
 
 
-def _build_dense_filter(sparse_filter: torch.Tensor, n_labels: int) -> torch.Tensor:
-    res = torch.zeros((n_labels, n_labels), dtype=torch.bool)
+def _build_dense_filter(sparse_filter: Iterable, l_size: int, r_size) -> torch.Tensor:
+    res = torch.zeros((l_size, r_size), dtype=torch.bool)
     for l, r in sparse_filter:
         res[l, r] = True
     return res
@@ -482,40 +541,47 @@ def _build_disjointness_filter(
             )
 
     dis_filter = torch.tensor(list(disjoints))
-    dense = _build_dense_filter(dis_filter, len(label_names))
+    dense = _build_dense_filter(dis_filter, len(label_names), len(label_names))
     dense_r = dense.transpose(0, 1)
     return dense, dense_r
 
 
 if __name__ == "__main__":
     loss = FuzzyLoss(
-        ChEBIOver100(chebi_version=231),
+        ChEBIOver100Parthood(
+            chebi_version=231,
+            splits_file_path=os.path.join(
+                "data", "chebi_v231", "ChEBI100", "fuzzy_loss_splits.csv"
+            ),
+        ),
         fuzzy_terms=[
-            ImplicationLossTerm(weight=1),
-            DisjointLossTerm(os.path.join("data", "disjoint.csv"), weight=1),
+            # ImplicationLossTerm(weight=1),
+            # DisjointLossTerm(os.path.join("data", "disjoint.csv"), weight=1),
+            ParthoodLossTerm(
+                os.path.join("parthood", "label_group_pairs.csv"),
+                os.path.join("parthood", "groups2841.txt"),
+                weight=1,
+            )
         ],
         base_loss=BCEWeighted(),
+    )
+    processed = loss.data_extractor.load_processed_data(filename="data_parthoods.pt")
+    parthoods = torch.stack(
+        [processed[i]["additional_kwargs"]["parthoods"] for i in range(10)]
     )
     random_preds = torch.randn(10, 997)
     random_labels = torch.randint(0, 2, (10, 997))
     for agg in ["sum", "max", "mean", "log-mean"]:
         loss.violations_per_cls_aggregator = agg
-        l = loss(random_preds, random_labels)
+        l = loss(random_preds, random_labels, parthoods=parthoods)
         print(f"Loss with {agg} aggregation for random input:", l)
 
-    # simplified example for ontology with 4 classes, A -> B, B -> C, D -> C, B and D disjoint
-    loss.filters_l["implication"] = torch.tensor(
-        [[0, 1, 1, 0], [0, 0, 1, 0], [0, 0, 0, 0], [0, 0, 1, 0]]
-    )
-    loss.filters_r["implication"] = loss.filters_l["implication"].transpose(0, 1)
-    loss.filters_l["disjointness"] = torch.tensor(
-        [[0, 0, 0, 0], [0, 0, 0, 1], [0, 0, 0, 0], [0, 1, 0, 0]]
-    )
-    loss.filters_r["disjointness"] = loss.filters_l["disjointness"].transpose(0, 1)
-    # expected result: first sample: moderately high loss for B disj D, otherwise low, second sample: high loss for A -> B (applied to A), otherwise low
-    preds = torch.tensor([[0.1, 0.3, 0.7, 0.4], [0.5, 0.2, 0.9, 0.1]])
-    labels = [[0, 1, 1, 0], [0, 0, 1, 1]]
+    loss.filters_l["parthood"] = torch.tensor([[0, 0, 1], [1, 1, 0]])
+    loss.filters_r["parthood"] = loss.filters_l["parthood"].transpose(0, 1)
+    preds = torch.tensor([[0, 100000], [100000, 0]])
+    labels = [[0, 1], [1, 0]]
+    parthoods = torch.tensor([[1, 1, 0], [0, 0, 1]])
     for agg in ["sum", "max", "mean", "log-mean"]:
         loss.violations_per_cls_aggregator = agg
-        l = loss(preds, torch.tensor(labels))
+        l = loss(preds, torch.tensor(labels), parthoods=parthoods)
         print(f"Loss with {agg} aggregation for simple input:", l)

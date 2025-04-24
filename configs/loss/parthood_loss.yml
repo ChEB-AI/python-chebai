@@ -1,0 +1,17 @@
+class_path: chebai.loss.semantic.FuzzyLoss
+init_args:
+  data_extractor:
+    class_path: chebai.preprocessing.datasets.chebi.ChEBIOver100
+    init_args:
+      chebi_version: 231
+  fuzzy_terms:
+    - class_path: chebai.loss.semantic.ParthoodLossTerm
+      init_args:
+        weight: 100
+        path_to_parthoods: parthood/label_group_pairs.csv
+        path_to_parts: parthood/groups2841.txt
+  base_loss:
+    class_path: chebai.loss.bce_weighted.BCEWeighted
+    init_args:
+      beta: 0.99
+  multiply_by_softmax: true
