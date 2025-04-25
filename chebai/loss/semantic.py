@@ -54,14 +54,11 @@ class ImplicationLossTerm(FuzzyLossTerm):
         hierarchy = _load_implications(
             os.path.join(data_extractor.raw_dir, "chebi.obo"), data_extractor
         )
-        implication_filter_dense = _build_dense_filter(
+        return _build_dense_filter(
             _build_implication_filter(label_names, hierarchy),
             len(label_names),
             len(label_names),
         )
-        implication_filter_l = implication_filter_dense
-        implication_filter_r = implication_filter_l.transpose(0, 1)
-        return implication_filter_l, implication_filter_r
 
 
 class DisjointLossTerm(FuzzyLossTerm):
@@ -125,18 +122,15 @@ class ParthoodLossTerm(FuzzyLossTerm):
             f"Using {len(cls_group_indices)} parthood axioms for loss, starting with {cls_group_indices[:5]}"
         )
 
-        dense = _build_dense_filter(
-            cls_group_indices, len(label_names), len(part_names)
-        )
-        dense_r = dense.transpose(0, 1)
-        return dense, dense_r
+        return _build_dense_filter(cls_group_indices, len(label_names), len(part_names))
 
     def process_preds_r(self, preds, **kwargs):
         assert (
             "parthoods" in kwargs
         ), "Parthood loss requires that information about the parts of molecules are given in the loss_kwargs"
-        # for disjointness, we need to use 1-pred
-        return kwargs["parthoods"]
+        if isinstance(kwargs["parthoods"], torch.Tensor):
+            return kwargs["parthoods"]
+        return torch.stack(kwargs["parthoods"])
 
 
 class FuzzyLoss(torch.nn.Module):
@@ -220,20 +214,17 @@ class FuzzyLoss(torch.nn.Module):
         self.no_grads = no_grads
 
         self.fuzzy_terms = fuzzy_terms
-        self.filters_l = {}
-        self.filters_r = {}
+        self.filters = {}
         for fuzzy_term in fuzzy_terms:
-            filter_l, filter_r = fuzzy_term.get_axiom_filter(data_extractor)
-            self.filters_l[fuzzy_term.name] = filter_l
-            self.filters_r[fuzzy_term.name] = filter_r
+            filter = fuzzy_term.get_axiom_filter(data_extractor)
+            self.filters[fuzzy_term.name] = filter
 
     def _calculate_unaggregated_fuzzy_loss(
         self,
         pred_left,
         pred_right,
         weight,
-        filter_l,
-        filter_r,
+        filter,
         **kwargs,
     ):
         """Calculates fuzzy loss for I(pred_left, pred_right)"""
@@ -242,35 +233,27 @@ class FuzzyLoss(torch.nn.Module):
         preds_expanded2 = pred_left.unsqueeze(2).expand(-1, -1, pred_right.shape[1])
         # filter by implication relations and labels
 
-        filter_l = (
-            filter_l.to(pred_left.device)
-            .unsqueeze(0)
-            .expand(pred_left.shape[0], -1, -1)
+        filter = (
+            filter.to(pred_left.device).unsqueeze(0).expand(pred_left.shape[0], -1, -1)
         )
-        # filter_r = (
-        #    filter_r.to(pred_right.device)
-        #    .unsqueeze(0)
-        #    .expand(pred_right.shape[0], -1, -1)
-        # )
         all_implications = self._calculate_implication_loss(
             preds_expanded2, preds_expanded1
         )
 
-        loss_impl_l = all_implications * filter_l
-        # loss_impl_r = all_implications.transpose(1, 2) * filter_r
-        loss_impl_sum = loss_impl_l  # + loss_impl_r
+        loss_sum = all_implications * filter
 
         if self.violations_per_cls_aggregator.startswith("log-"):
-            loss_impl_sum = -torch.log(1 - loss_impl_sum)
+            loss_sum = -torch.log(1 - loss_sum)
             violations_per_cls_aggregator = self.violations_per_cls_aggregator[4:]
         else:
             violations_per_cls_aggregator = self.violations_per_cls_aggregator
+        # not implemented: aggregation per r-class instead of per l-class
         if violations_per_cls_aggregator == "sum":
-            loss_by_cls = loss_impl_sum.sum(dim=-1)
+            loss_by_cls = loss_sum.sum(dim=-1)
         elif violations_per_cls_aggregator == "max":
-            loss_by_cls = loss_impl_sum.max(dim=-1).values
+            loss_by_cls = loss_sum.max(dim=-1).values
         elif violations_per_cls_aggregator == "mean":
-            loss_by_cls = loss_impl_sum.mean(dim=-1)
+            loss_by_cls = loss_sum.mean(dim=-1)
         else:
             raise NotImplementedError(
                 f"Unknown violations_per_cls_aggregator {self.violations_per_cls_aggregator}"
@@ -336,8 +319,7 @@ class FuzzyLoss(torch.nn.Module):
                     pred_l,
                     pred_r,
                     fuzzy_term.weight,
-                    self.filters_l[fuzzy_term.name],
-                    self.filters_r[fuzzy_term.name],
+                    self.filters[fuzzy_term.name],
                     **kwargs,
                 )
             )
@@ -501,7 +483,7 @@ def _build_dense_filter(sparse_filter: Iterable, l_size: int, r_size) -> torch.T
 
 def _build_disjointness_filter(
     path_to_disjointness: str, label_names: List, hierarchy: dict
-) -> tuple:
+) -> torch.Tensor:
     """
     Build disjointness filter based on disjointness data and hierarchy.
 
@@ -535,9 +517,7 @@ def _build_disjointness_filter(
             )
 
     dis_filter = torch.tensor(list(disjoints))
-    dense = _build_dense_filter(dis_filter, len(label_names), len(label_names))
-    dense_r = dense.transpose(0, 1)
-    return dense, dense_r
+    return _build_dense_filter(dis_filter, len(label_names), len(label_names))
 
 
 if __name__ == "__main__":
@@ -570,8 +550,8 @@ if __name__ == "__main__":
         l = loss(random_preds, random_labels, parthoods=parthoods)
         print(f"Loss with {agg} aggregation for random input:", l)
 
-    loss.filters_l["parthood"] = torch.tensor([[0, 0, 1], [1, 1, 0]])
-    loss.filters_r["parthood"] = loss.filters_l["parthood"].transpose(0, 1)
+    loss.filters["parthood"] = torch.tensor([[0, 0, 1], [1, 1, 0]])
+    loss.filters_r["parthood"] = loss.filters["parthood"].transpose(0, 1)
     preds = torch.tensor([[0, 100000], [100000, 0]])
     labels = [[0, 1], [1, 0]]
     parthoods = torch.tensor([[1, 1, 0], [0, 0, 1]])

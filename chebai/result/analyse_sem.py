@@ -11,9 +11,14 @@ from torchmetrics.functional.classification import (
 )
 from utils import *
 
-from chebai.loss.semantic import DisjointLossTerm, FuzzyLoss, ImplicationLossTerm
+from chebai.loss.semantic import (
+    DisjointLossTerm,
+    FuzzyLoss,
+    ImplicationLossTerm,
+    ParthoodLossTerm,
+)
 from chebai.preprocessing.datasets.base import _DynamicDataset
-from chebai.preprocessing.datasets.chebi import ChEBIOver100
+from chebai.preprocessing.datasets.chebi import ChEBIOver100, ChEBIOver100Parthood
 from chebai.preprocessing.datasets.pubchem import PubChemKMeans
 
 DEVICE = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
@@ -40,7 +45,20 @@ def lukasiewicz(left, right):
 
 
 def apply_metric(metric, left, right):
-    return torch.sum(metric(left, right), dim=0)
+    step_size = 2000
+    partial_sum = []
+    with tqdm.tqdm(total=len(left), desc=f"Metric {metric.__name__}") as pbar:
+        for i in range(0, len(left), step_size):
+            # expand [batch_size, n_classes_l] to [batch_size, n_classes_l, n_classes_r]
+            left_exp = (
+                left[i : i + step_size].unsqueeze(2).expand(-1, -1, right.shape[1])
+            )
+            right_exp = (
+                right[i : i + step_size].unsqueeze(1).expand(-1, left.shape[1], -1)
+            )
+            partial_sum.append(torch.sum(metric(left_exp, right_exp), dim=0))
+            pbar.update(step_size)
+    return torch.sum(torch.stack(partial_sum), dim=0)
 
 
 ALL_CONSISTENCY_METRICS = [product, lukasiewicz, weak, strict, binary]
@@ -114,7 +132,7 @@ def load_preds_labels(
         ),
         kind=data_subset_key,
         skip_existing_preds=True,
-        batch_size=1,
+        batch_size=16,
     )
     return load_results_from_buffer(buffer_dir, device=torch.device("cpu"))
 
@@ -236,184 +254,91 @@ class PredictionSmoother:
         return preds
 
 
-def _filter_to_dense(filter):
-    filter_dense = []
-    for i in range(filter.shape[0]):
-        for j in range(filter.shape[1]):
-            if filter[i, j] > 0:
-                filter_dense.append([i, j])
-    return torch.tensor(filter_dense)
-
-
-def build_prediction_filter(data_module_labeled=None):
-    if data_module_labeled is None:
-        data_module_labeled = ChEBIOver100(chebi_version=231)
-    # prepare filters
-    print(f"Loading implication / disjointness filters...")
-    dl = FuzzyLoss(
-        data_extractor=data_module_labeled,
-        fuzzy_terms=[
-            ImplicationLossTerm(),
-            DisjointLossTerm(path_to_disjointness=os.path.join("data", "disjoint.csv")),
-        ],
-    )
-    # todo - filters should already be dense
-    impl = _filter_to_dense(dl.filters_l["implication"])
-    disj = _filter_to_dense(dl.filters_r["disjointness"])
-
-    return [
-        (impl[:, 0], impl[:, 1], "impl"),
-        (disj[:, 0], disj[:, 1], "disj"),
-    ]
-
-
 def run_consistency_metrics(
     preds,
-    consistency_filters,
-    data_module_labeled=None,  # use labels from this dataset for violations
+    fuzzy_loss: FuzzyLoss,
+    processed_data,
     violation_metrics=None,
-    verbose_violation_output=False,
     save_details_to=None,
 ):
     """Calculates all semantic metrics for given predictions (and supervised metrics if labels are provided)"""
     if violation_metrics is None:
         violation_metrics = ALL_CONSISTENCY_METRICS
-    if data_module_labeled is None:
-        data_module_labeled = ChEBIOver100(chebi_version=231)
     if save_details_to is not None:
         os.makedirs(save_details_to, exist_ok=True)
 
     preds.to("cpu")
 
-    n_labels = preds.size(1)
-    print(f"Found {preds.shape[0]} predictions ({n_labels} classes)")
+    print(
+        f"Calculating consistency metrics for fuzzy terms {[term.name for term in fuzzy_loss.fuzzy_terms]}"
+    )
 
     results = {}
 
-    for dl_filter_l, dl_filter_r, filter_type in consistency_filters:
-        l_preds = preds[:, dl_filter_l]
-        r_preds = preds[:, dl_filter_r]
+    for fuzzy_term in fuzzy_loss.fuzzy_terms:
+        parthoods = [r["additional_kwargs"]["parthoods"] for r in processed_data]
+        preds_l = fuzzy_term.process_preds_l(preds, parthoods=parthoods)
+        preds_r = fuzzy_term.process_preds_r(preds, parthoods=parthoods)
+
+        filter = fuzzy_loss.filters[fuzzy_term.name]
+
         for i, metric in enumerate(violation_metrics):
             if metric.__name__ not in results:
                 results[metric.__name__] = {}
-            print(f"Calculating metrics {metric.__name__} on {filter_type}")
 
             metric_results = {}
-            metric_results["tps"] = torch.sum(
-                torch.stack(
-                    [
-                        apply_metric(
-                            metric,
-                            l_preds[i : i + 1000],
-                            (
-                                r_preds[i : i + 1000]
-                                if filter_type == "impl"
-                                else 1 - r_preds[i : i + 1000]
-                            ),
-                        )
-                        for i in range(0, r_preds.shape[0], 1000)
-                    ]
-                ),
-                dim=0,
-            )
-            metric_results["fns"] = torch.sum(
-                torch.stack(
-                    [
-                        apply_metric(
-                            metric,
-                            l_preds[i : i + 1000],
-                            (
-                                1 - r_preds[i : i + 1000]
-                                if filter_type == "impl"
-                                else r_preds[i : i + 1000]
-                            ),
-                        )
-                        for i in range(0, r_preds.shape[0], 1000)
-                    ]
-                ),
-                dim=0,
-            )
-            if verbose_violation_output:
-                label_names = get_label_names(data_module_labeled)
-                print(
-                    f"Found {torch.sum(metric_results['fns'])} {filter_type}-violations"
-                )
-                # for k, fn_cls in enumerate(metric_results['fns']):
-                #    if fn_cls > 0:
-                #        print(f"\tThereof, {fn_cls.item()} belong to class {label_names[k]}")
-                if torch.sum(metric_results["fns"]) != 0:
-                    fns = metric(
-                        l_preds, 1 - r_preds if filter_type == "impl" else r_preds
-                    )
-                    print(fns.shape)
-                    for k, row in enumerate(fns):
-                        if torch.sum(row) != 0:
-                            print(f"{torch.sum(row)} violations for entity {k}")
-                            for j, violation in enumerate(row):
-                                if violation > 0:
-                                    print(
-                                        f"\tviolated ({label_names[dl_filter_l[j]]} -> {preds[k, dl_filter_l[j]]:.3f}"
-                                        f", {label_names[dl_filter_r[j]]} -> {preds[k, dl_filter_r[j]]:.3f})"
-                                    )
+            metric_results["tps"] = apply_metric(metric, preds_l, preds_r) * filter
+            metric_results["fns"] = apply_metric(metric, preds_l, 1 - preds_r) * filter
 
             m_l_agg = {}
             for key, value in metric_results.items():
-                m_l_agg[key] = _sort_results_by_label(
-                    n_labels,
-                    value,
-                    dl_filter_l,
-                )
+                m_l_agg[key] = torch.sum(value, dim=1)
             m_r_agg = {}
             for key, value in metric_results.items():
-                m_r_agg[key] = _sort_results_by_label(
-                    n_labels,
-                    value,
-                    dl_filter_r,
-                )
+                m_r_agg[key] = torch.sum(value, dim=0)
 
             if save_details_to is not None:
                 with open(
                     os.path.join(
-                        save_details_to, f"{metric.__name__}_{filter_type}_all.csv"
+                        save_details_to, f"{metric.__name__}_{fuzzy_term.name}_all.csv"
                     ),
                     "w+",
                 ) as f:
                     f.write("left,right,tps,fns\n")
-                    for left, right, tps, fns in zip(
-                        dl_filter_l,
-                        dl_filter_r,
-                        metric_results["tps"],
-                        metric_results["fns"],
-                    ):
-                        f.write(f"{left},{right},{tps},{fns}\n")
+                    for i in range(metric_results["tps"].shape[0]):
+                        for j in range(metric_results["fns"].shape[1]):
+                            # todo - instead of i,j, get actual names from label lists
+                            f.write(
+                                f"{i},{j},{metric_results['tps'][i,j].item()},{metric_results['fns'][i,j].item()}\n"
+                            )
                 with open(
                     os.path.join(
-                        save_details_to, f"{metric.__name__}_{filter_type}_l.csv"
+                        save_details_to, f"{metric.__name__}_{fuzzy_term.name}_l.csv"
                     ),
                     "w+",
                 ) as f:
                     f.write("left,tps,fns\n")
-                    for left in range(n_labels):
+                    for left in range(metric_results["tps"].shape[0]):
                         f.write(
                             f"{left},{m_l_agg['tps'][left].item()},{m_l_agg['fns'][left].item()}\n"
                         )
                 with open(
                     os.path.join(
-                        save_details_to, f"{metric.__name__}_{filter_type}_r.csv"
+                        save_details_to, f"{metric.__name__}_{fuzzy_term.name}_r.csv"
                     ),
                     "w+",
                 ) as f:
                     f.write("right,tps,fns\n")
-                    for right in range(n_labels):
+                    for right in range(metric_results["tps"].shape[1]):
                         f.write(
                             f"{right},{m_r_agg['tps'][right].item()},{m_r_agg['fns'][right].item()}\n"
                         )
                 print(
-                    f"Saved unaggregated consistency metrics ({metric.__name__}, {filter_type}) to {save_details_to}"
+                    f"Saved unaggregated consistency metrics ({metric.__name__}, {fuzzy_term.name}) to {save_details_to}"
                 )
 
             fns_sum = torch.sum(metric_results["fns"]).item()
-            results[metric.__name__][f"micro-fnr-{filter_type}"] = (
+            results[metric.__name__][f"micro-fnr-{fuzzy_term.name}"] = (
                 0
                 if fns_sum == 0
                 else (
@@ -425,32 +350,23 @@ def run_consistency_metrics(
                 ).item()
             )
             macro_fnr_l = m_l_agg[f"fns"] / (m_l_agg[f"tps"] + m_l_agg[f"fns"])
-            results[metric.__name__][f"lmacro-fnr-{filter_type}"] = (
+            results[metric.__name__][f"lmacro-fnr-{fuzzy_term.name}"] = (
                 0
                 if fns_sum == 0
                 else torch.mean(macro_fnr_l[~macro_fnr_l.isnan()]).item()
             )
             macro_fnr_r = m_r_agg[f"fns"] / (m_r_agg[f"tps"] + m_r_agg[f"fns"])
-            results[metric.__name__][f"rmacro-fnr-{filter_type}"] = (
+            results[metric.__name__][f"rmacro-fnr-{fuzzy_term.name}"] = (
                 0
                 if fns_sum == 0
                 else torch.mean(macro_fnr_r[~macro_fnr_r.isnan()]).item()
             )
-            results[metric.__name__][f"fn-sum-{filter_type}"] = torch.sum(
+            results[metric.__name__][f"fn-sum-{fuzzy_term.name}"] = torch.sum(
                 metric_results["fns"]
             ).item()
-            results[metric.__name__][f"tp-sum-{filter_type}"] = torch.sum(
+            results[metric.__name__][f"tp-sum-{fuzzy_term.name}"] = torch.sum(
                 metric_results["tps"]
             ).item()
-
-            del metric_results
-            del m_l_agg
-            del m_r_agg
-
-            gc.collect()
-        del l_preds
-        del r_preds
-        gc.collect()
 
     return results
 
@@ -459,25 +375,16 @@ def run_supervised_metrics(preds, labels, save_details_to=None):
     # calculate supervised metrics
     results = {}
     if labels is not None:
-        results["micro-f1"] = multilabel_f1_score(
-            preds, labels, num_labels=preds.size(1), average="micro"
-        ).item()
-        results["macro-f1"] = multilabel_f1_score(
-            preds, labels, num_labels=preds.size(1), average="macro"
-        ).item()
-        results["micro-roc-auc"] = multilabel_auroc(
-            preds, labels, num_labels=preds.size(1), average="micro"
-        ).item()
-        results["macro-roc-auc"] = multilabel_auroc(
-            preds, labels, num_labels=preds.size(1), average="macro"
-        ).item()
-
-        results["micro-ap"] = multilabel_average_precision(
-            preds, labels, num_labels=preds.size(1), average="micro"
-        ).item()
-        results["macro-ap"] = multilabel_average_precision(
-            preds, labels, num_labels=preds.size(1), average="macro"
-        ).item()
+        for average in ["micro", "macro"]:
+            results[f"{average}-f1"] = multilabel_f1_score(
+                preds, labels, num_labels=preds.size(1), average=average
+            ).item()
+            results[f"{average}-roc-auc"] = multilabel_auroc(
+                preds, labels, num_labels=preds.size(1), average=average
+            ).item()
+            results[f"{average}-ap"] = multilabel_average_precision(
+                preds, labels, num_labels=preds.size(1), average=average
+            ).item()
 
         if save_details_to is not None:
             f1_by_label = multilabel_f1_score(
@@ -558,23 +465,35 @@ def run_all(
         smooth_preds = lambda x: x
 
     timestamp = datetime.now().strftime("%y%m%d-%H%M%S")
-    prediction_filters = build_prediction_filter(check_consistency_on)
+    fuzzy_loss = FuzzyLoss(
+        data_extractor=check_consistency_on,
+        fuzzy_terms=[
+            ImplicationLossTerm(),
+            DisjointLossTerm(path_to_disjointness=os.path.join("data", "disjoint.csv")),
+            ParthoodLossTerm(
+                os.path.join("parthood", "label_group_pairs.csv"),
+                os.path.join("parthood", "groups2841.txt"),
+            ),
+        ],
+    )
 
     results_path_consistency = os.path.join(
         results_dir,
         f"consistency_metrics_{timestamp}{'_violations_removed' if remove_violations else ''}.csv",
     )
     consistency_keys = [
-        "micro-fnr-impl",
-        "lmacro-fnr-impl",
-        "rmacro-fnr-impl",
-        "fn-sum-impl",
-        "tp-sum-impl",
-        "micro-fnr-disj",
-        "lmacro-fnr-disj",
-        "rmacro-fnr-disj",
-        "fn-sum-disj",
-        "tp-sum-disj",
+        l
+        for r in [
+            [
+                f"micro-fnr-{term.name}",
+                f"lmacro-fnr-{term.name}",
+                f"rmacro-fnr-{term.name}",
+                f"fn-sum-{term.name}",
+                f"tp-sum-{term.name}",
+            ]
+            for term in fuzzy_loss.fuzzy_terms
+        ]
+        for l in r
     ]
     with open(results_path_consistency, "x") as f:
         f.write(
@@ -643,6 +562,7 @@ def run_all(
                 preds, labels = load_preds_labels(
                     ckpt_path, dataset, dataset_key, buffer_dir
                 )
+                processed_data = dataset.load_processed_data(dataset_key)
                 # identity function if remove_violations is False
                 smooth_preds(preds)
 
@@ -652,10 +572,10 @@ def run_all(
                 # )
                 metrics_dict = run_consistency_metrics(
                     preds,
-                    prediction_filters,
-                    check_consistency_on,
+                    fuzzy_loss,
+                    processed_data,
                     consistency_metrics,
-                    verbose_violation_output,
+                    # verbose_violation_output,
                     save_details_to=details_path,
                 )
                 with open(results_path_consistency, "a") as f:
@@ -693,7 +613,7 @@ def run_fuzzy_loss(tag="fuzzy_loss", skip_first_n=0):
     runs = api.runs("chebai/chebai", filters={"tags": tag})
     print(f"Found {len(runs)} wandb runs tagged with '{tag}'")
     ids = [run.id for run in runs]
-    chebi100 = ChEBIOver100(
+    chebi100parthood = ChEBIOver100Parthood(
         chebi_version=231,
         splits_file_path=os.path.join(
             "data", "chebi_v231", "ChEBI100", "fuzzy_loss_splits.csv"
@@ -705,9 +625,9 @@ def run_fuzzy_loss(tag="fuzzy_loss", skip_first_n=0):
         [],  # ids[max(0, skip_first_n - len(local_ckpts)) :],  # ids,
         local_ckpts,
         consistency_metrics=[binary],
-        check_consistency_on=chebi100,
+        check_consistency_on=chebi100parthood,
         prediction_datasets=[
-            (chebi100, "test"),
+            (chebi100parthood, "test"),
             # (pubchem_kmeans, "cluster1_cutoff2k.pt"),
             # (pubchem_kmeans, "cluster2.pt"),
             # (pubchem_kmeans, "ten_from_each_cluster.pt"),

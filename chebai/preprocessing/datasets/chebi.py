@@ -908,7 +908,7 @@ def term_callback(doc: fastobo.term.TermFrame) -> Union[Dict, bool]:
 
 
 atom_index = (
-    "\*",
+    "\\*",
     "H",
     "He",
     "Li",
