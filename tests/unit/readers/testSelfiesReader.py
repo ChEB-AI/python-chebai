@@ -27,11 +27,13 @@ class TestSelfiesReader(unittest.TestCase):
         """
         cls.reader = SelfiesReader(token_path="/mock/path")
         # After initializing, cls.reader.cache should now be set to ['[C]', '[O]', '[=C]']
-        assert cls.reader.cache == [
-            "[C]",
-            "[O]",
-            "[=C]",
-        ], "Cache initialization did not match expected tokens."
+        assert list(cls.reader.cache.items()) == list(
+            {
+                "[C]": 0,
+                "[O]": 1,
+                "[=C]": 2,
+            }.items()
+        ), "Cache initialization did not match expected tokens or the expected order."
 
     def test_read_data(self) -> None:
         """
@@ -98,7 +100,7 @@ class TestSelfiesReader(unittest.TestCase):
         )
         # Ensure it's at the correct index
         self.assertEqual(
-            self.reader.cache.index("[H-1]"),
+            self.reader.cache["[H-1]"],
             index_for_last_token,
             "The new token '[H-1]' was not added at the correct index in the cache.",
         )

@@ -27,14 +27,16 @@ class TestChemDataReader(unittest.TestCase):
         """
         cls.reader = ChemDataReader(token_path="/mock/path")
         # After initializing, cls.reader.cache should now be set to ['C', 'O', 'N', '=', '1', '(']
-        assert cls.reader.cache == [
-            "C",
-            "O",
-            "N",
-            "=",
-            "1",
-            "(",
-        ], "Initial cache does not match expected values."
+        assert list(cls.reader.cache.items()) == list(
+            {
+                "C": 0,
+                "O": 1,
+                "N": 2,
+                "=": 3,
+                "1": 4,
+                "(": 5,
+            }.items()
+        ), "Initial cache does not match expected values or the order doesn't match."
 
     def test_read_data(self) -> None:
         """
@@ -87,7 +89,7 @@ class TestChemDataReader(unittest.TestCase):
         )
         # Ensure it's at the correct index
         self.assertEqual(
-            self.reader.cache.index("[H-]"),
+            self.reader.cache["[H-]"],
             index_for_last_token,
             "The new token '[H-]' was not added at the correct index in the cache.",
         )
