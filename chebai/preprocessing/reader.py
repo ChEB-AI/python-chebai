@@ -1,4 +1,5 @@
 import os
+import sys
 from itertools import islice
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -171,6 +172,10 @@ class ChemDataReader(DataReader):
         if total_tokens > self._loaded_tokens_count:
             print("New tokens added to the cache, Saving them to token file.....")
 
+            assert sys.version_info >= (
+                3,
+                7,
+            ), "This code requires Python 3.7 or higher."
             # For python 3.7+, the standard dict type preserves insertion order, and is iterated over in same order
             # https://docs.python.org/3/whatsnew/3.7.html#summary-release-highlights
             # https://mail.python.org/pipermail/python-dev/2017-December/151283.html
