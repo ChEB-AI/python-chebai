@@ -146,7 +146,7 @@ class ChemDataReader(DataReader):
     def _get_token_index(self, token: str) -> int:
         """Returns a unique number for each token, automatically adds new tokens."""
         if not str(token) in self.cache:
-            self.cache[(str(token))] = len(self.cache) - 1  # as index begins from 0
+            self.cache[(str(token))] = len(self.cache)
         return self.cache[str(token)] + EMBEDDING_OFFSET
 
     def _read_data(self, raw_data: str) -> List[int]:
