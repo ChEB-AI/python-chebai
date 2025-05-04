@@ -79,6 +79,7 @@ class XYBaseDataModule(LightningDataModule):
         inner_k_folds: int = -1,  # use inner cross-validation if > 1
         fold_index: Optional[int] = None,
         base_dir: Optional[str] = None,
+        n_token_limit: Optional[int] = None,
         **kwargs,
     ):
         super().__init__()
@@ -110,12 +111,30 @@ class XYBaseDataModule(LightningDataModule):
             ), "fold_index can't be larger than the total number of folds"
         self.fold_index = fold_index
         self._base_dir = base_dir
+        self.n_token_limit = n_token_limit
         os.makedirs(self.raw_dir, exist_ok=True)
         os.makedirs(self.processed_dir, exist_ok=True)
         if self.use_inner_cross_validation:
             os.makedirs(os.path.join(self.raw_dir, self.fold_dir), exist_ok=True)
             os.makedirs(os.path.join(self.processed_dir, self.fold_dir), exist_ok=True)
         self.save_hyperparameters()
+
+        self._num_of_labels = None
+        self._feature_vector_size = None
+        self._prepare_data_flag = 1
+        self._setup_data_flag = 1
+
+    @property
+    def num_of_labels(self):
+        assert self._num_of_labels is not None, "num of labels must be set"
+        return self._num_of_labels
+
+    @property
+    def feature_vector_size(self):
+        assert (
+            self._feature_vector_size is not None
+        ), "size of feature vector must be set"
+        return self._feature_vector_size
 
     @property
     def identifier(self) -> tuple:
@@ -155,8 +174,19 @@ class XYBaseDataModule(LightningDataModule):
         return f"cv_{self.inner_k_folds}_fold"
 
     @property
+    @abstractmethod
     def _name(self) -> str:
-        raise NotImplementedError
+        """
+        Abstract property representing the name of the data module.
+
+        This property should be implemented in subclasses to provide a unique name for the data module.
+        The name is used to create subdirectories within the base directory or `processed_dir_main`
+        for storing relevant data associated with this module.
+
+        Returns:
+            str: The name of the data module.
+        """
+        pass
 
     def _filter_labels(self, row: dict) -> dict:
         """
@@ -300,8 +330,14 @@ class XYBaseDataModule(LightningDataModule):
             for d in tqdm.tqdm(self._load_dict(path), total=lines)
             if d["features"] is not None
         ]
-        # filter for missing features in resulting data
-        data = [val for val in data if val["features"] is not None]
+        # filter for missing features in resulting data, keep features length below token limit
+        data = [
+            val
+            for val in data
+            if val["features"] is not None
+            and self.n_token_limit is None
+            or len(val["features"]) <= self.n_token_limit
+        ]
 
         return data
 
@@ -371,7 +407,17 @@ class XYBaseDataModule(LightningDataModule):
         """
         return self.dataloader(self.prediction_kind, shuffle=False, **kwargs)
 
-    def setup(self, **kwargs):
+    def prepare_data(self, *args, **kwargs) -> None:
+        if self._prepare_data_flag != 1:
+            return
+
+        self._prepare_data_flag += 1
+        self._perform_data_preparation(*args, **kwargs)
+
+    def _perform_data_preparation(self, *args, **kwargs) -> None:
+        raise NotImplementedError
+
+    def setup(self, *args, **kwargs) -> None:
         """
         Setup the data module.
 
@@ -380,6 +426,11 @@ class XYBaseDataModule(LightningDataModule):
         Args:
             **kwargs: Additional keyword arguments.
         """
+        if self._setup_data_flag != 1:
+            return
+
+        self._setup_data_flag += 1
+
         rank_zero_info(f"Check for processed data in {self.processed_dir}")
         rank_zero_info(f"Cross-validation enabled: {self.use_inner_cross_validation}")
         if any(
@@ -390,6 +441,21 @@ class XYBaseDataModule(LightningDataModule):
 
         if not ("keep_reader" in kwargs and kwargs["keep_reader"]):
             self.reader.on_finish()
+
+        self._set_processed_data_props()
+
+    def _set_processed_data_props(self):
+
+        data_pt = torch.load(
+            os.path.join(self.processed_dir, self.processed_file_names_dict["data"]),
+            weights_only=False,
+        )
+
+        self._num_of_labels = len(data_pt[0]["labels"])
+        self._feature_vector_size = max(len(d["features"]) for d in data_pt)
+
+        print(f"Number of labels for loaded data: {self._num_of_labels}")
+        print(f"Feature vector size: {self._feature_vector_size}")
 
     def setup_processed(self):
         """
@@ -463,18 +529,6 @@ class XYBaseDataModule(LightningDataModule):
         """
         raise NotImplementedError
 
-    @property
-    def label_number(self) -> int:
-        """
-        Returns the number of labels.
-
-        This property should be implemented by subclasses to provide the number of labels.
-
-        Returns:
-            int: The number of labels. Returns -1 for seq2seq encoding.
-        """
-        raise NotImplementedError
-
 
 class MergedDataset(XYBaseDataModule):
     MERGED = []
@@ -512,7 +566,7 @@ class MergedDataset(XYBaseDataModule):
         os.makedirs(self.processed_dir, exist_ok=True)
         super(pl.LightningDataModule, self).__init__(**kwargs)
 
-    def prepare_data(self):
+    def _perform_data_preparation(self):
         """
         Placeholder for data preparation logic.
         """
@@ -528,8 +582,14 @@ class MergedDataset(XYBaseDataModule):
         Args:
             **kwargs: Additional keyword arguments.
         """
+        if self._setup_data_flag != 1:
+            return
+
+        self._setup_data_flag += 1
         for s in self.subsets:
             s.setup(**kwargs)
+
+        self._set_processed_data_props()
 
     def dataloader(self, kind: str, **kwargs) -> DataLoader:
         """
@@ -603,13 +663,6 @@ class MergedDataset(XYBaseDataModule):
         Returns the list of processed file names.
         """
         return ["test.pt", "train.pt", "validation.pt"]
-
-    @property
-    def label_number(self) -> int:
-        """
-        Returns the number of labels from the first subset.
-        """
-        return self.subsets[0].label_number
 
     @property
     def limits(self):
@@ -706,7 +759,7 @@ class _DynamicDataset(XYBaseDataModule, ABC):
         return splits_file_path
 
     # ------------------------------ Phase: Prepare data -----------------------------------
-    def prepare_data(self, *args: Any, **kwargs: Any) -> None:
+    def _perform_data_preparation(self, *args: Any, **kwargs: Any) -> None:
         """
         Prepares the data for the dataset.
 
@@ -729,7 +782,7 @@ class _DynamicDataset(XYBaseDataModule, ABC):
 
         processed_name = self.processed_main_file_names_dict["data"]
         if not os.path.isfile(os.path.join(self.processed_dir_main, processed_name)):
-            print("Missing processed data file (`data.pkl` file)")
+            print(f"Missing processed data file (`{processed_name}` file)")
             os.makedirs(self.processed_dir_main, exist_ok=True)
             data_path = self._download_required_data()
             g = self._extract_class_hierarchy(data_path)
@@ -813,7 +866,10 @@ class _DynamicDataset(XYBaseDataModule, ABC):
             None
         """
         os.makedirs(self.processed_dir, exist_ok=True)
-        print("Missing transformed data (`data.pt` file). Transforming data.... ")
+        transformed_file_name = self.processed_file_names_dict["data"]
+        print(
+            f"Missing transformed data (`{transformed_file_name}` file). Transforming data.... "
+        )
         torch.save(
             self._load_data_from_file(
                 os.path.join(
@@ -821,7 +877,7 @@ class _DynamicDataset(XYBaseDataModule, ABC):
                     self.processed_main_file_names_dict["data"],
                 )
             ),
-            os.path.join(self.processed_dir, self.processed_file_names_dict["data"]),
+            os.path.join(self.processed_dir, transformed_file_name),
         )
 
     @staticmethod
@@ -1167,4 +1223,6 @@ class _DynamicDataset(XYBaseDataModule, ABC):
             dict: A dictionary mapping dataset keys to their respective file names.
                   For example, {"data": "data.pt"}.
         """
+        if self.n_token_limit is not None:
+            return {"data": f"data_maxlen{self.n_token_limit}.pt"}
         return {"data": "data.pt"}

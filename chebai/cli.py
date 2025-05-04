@@ -1,7 +1,8 @@
-from typing import Dict, Set
+from typing import Dict, Set, Type
 
 from lightning.pytorch.cli import LightningArgumentParser, LightningCLI
 
+from chebai.preprocessing.datasets import XYBaseDataModule
 from chebai.trainer.CustomTrainer import CustomTrainer
 
 
@@ -38,14 +39,35 @@ class ChebaiCLI(LightningCLI):
         Args:
             parser (LightningArgumentParser): Argument parser instance.
         """
+
+        def call_data_methods(data: Type[XYBaseDataModule]):
+            if data._num_of_labels is None:
+                data.prepare_data()
+                data.setup()
+            return data.num_of_labels
+
+        parser.link_arguments(
+            "data",
+            "model.init_args.out_dim",
+            apply_on="instantiate",
+            compute_fn=call_data_methods,
+        )
+
+        parser.link_arguments(
+            "data.feature_vector_size",
+            "model.init_args.input_dim",
+            apply_on="instantiate",
+        )
+
         for kind in ("train", "val", "test"):
             for average in ("micro-f1", "macro-f1", "balanced-accuracy"):
                 parser.link_arguments(
-                    "model.init_args.out_dim",
+                    "data.num_of_labels",
                     f"model.init_args.{kind}_metrics.init_args.metrics.{average}.init_args.num_labels",
+                    apply_on="instantiate",
                 )
         parser.link_arguments(
-            "model.init_args.out_dim", "trainer.callbacks.init_args.num_labels"
+            "data.num_of_labels", "trainer.callbacks.init_args.num_labels"
         )
 
         parser.link_arguments(

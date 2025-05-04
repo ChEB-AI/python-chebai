@@ -36,6 +36,7 @@ class ChebaiBaseNet(LightningModule, ABC):
         self,
         criterion: torch.nn.Module = None,
         out_dim: Optional[int] = None,
+        input_dim: Optional[int] = None,
         train_metrics: Optional[torch.nn.Module] = None,
         val_metrics: Optional[torch.nn.Module] = None,
         test_metrics: Optional[torch.nn.Module] = None,
@@ -57,7 +58,12 @@ class ChebaiBaseNet(LightningModule, ABC):
                 *exclude_hyperparameter_logging,
             ]
         )
+
         self.out_dim = out_dim
+        self.input_dim = input_dim
+        assert out_dim is not None, "out_dim must be specified"
+        assert input_dim is not None, "input_dim must be specified"
+
         if optimizer_kwargs:
             self.optimizer_kwargs = optimizer_kwargs
         else:

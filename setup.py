@@ -4,7 +4,7 @@ packages = find_packages()
 print(packages)
 setup(
     name="chebai",
-    version="0.0.2.dev0",
+    version="1.0.0",
     packages=packages,
     package_data={"": ["**/*.txt", "**/*.json"]},
     include_package_data=True,
@@ -20,7 +20,7 @@ setup(
         "idna",
         "joblib",
         "networkx",
-        "numpy<2",
+        "numpy",
         "pandas",
         "python-dateutil",
         "pytz",
@@ -50,7 +50,6 @@ setup(
         "chardet",
         "pyyaml",
         "torchmetrics",
-        "biopython",
     ],
     extras_require={"dev": ["black", "isort", "pre-commit"]},
 )

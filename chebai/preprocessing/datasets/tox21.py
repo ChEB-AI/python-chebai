@@ -40,11 +40,6 @@ class Tox21MolNet(XYBaseDataModule):
         return "Tox21MN"
 
     @property
-    def label_number(self) -> int:
-        """Returns the number of labels."""
-        return 12
-
-    @property
     def raw_file_names(self) -> List[str]:
         """Returns a list of raw file names."""
         return ["tox21.csv"]
@@ -118,6 +113,10 @@ class Tox21MolNet(XYBaseDataModule):
 
     def setup(self, **kwargs) -> None:
         """Sets up the dataset by downloading and processing if necessary."""
+        if self._setup_data_flag != 1:
+            return
+
+        self._setup_data_flag += 1
         if any(
             not os.path.isfile(os.path.join(self.raw_dir, f))
             for f in self.raw_file_names
@@ -128,6 +127,8 @@ class Tox21MolNet(XYBaseDataModule):
             for f in self.processed_file_names
         ):
             self.setup_processed()
+
+        self._set_processed_data_props()
 
     def _load_data_from_file(self, input_file_path: str) -> List[Dict]:
         """Loads data from a CSV file.
@@ -170,11 +171,6 @@ class Tox21Challenge(XYBaseDataModule):
     def _name(self) -> str:
         """Returns the name of the dataset."""
         return "Tox21Chal"
-
-    @property
-    def label_number(self) -> int:
-        """Returns the number of labels."""
-        return 12
 
     @property
     def raw_file_names(self) -> List[str]:
@@ -300,6 +296,10 @@ class Tox21Challenge(XYBaseDataModule):
 
     def setup(self, **kwargs) -> None:
         """Sets up the dataset by downloading and processing if necessary."""
+        if self._setup_data_flag != 1:
+            return
+
+        self._setup_data_flag += 1
         if any(
             not os.path.isfile(os.path.join(self.raw_dir, f))
             for f in self.raw_file_names
@@ -310,6 +310,8 @@ class Tox21Challenge(XYBaseDataModule):
             for f in self.processed_file_names
         ):
             self.setup_processed()
+
+        self._set_processed_data_props()
 
     def _load_dict(self, input_file_path: str) -> Generator[Dict, None, None]:
         """Loads data from a CSV file as a generator.
