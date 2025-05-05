@@ -61,12 +61,9 @@ class _EnsembleBase(ChebaiBaseNet, ABC):
             AttributeError: If required keys are missing in the configuration.
             ValueError: If there are duplicate model paths or class paths.
         """
-        path_set = set()
-        class_set = set()
-        labels_set = set()
+        path_set, class_set, labels_set = set(), set(), set()
 
-        sets_ = {"path": path_set, "class": class_set, "labels": labels_set}
-        required_keys = {"class_path", "ckpt_path"}
+        required_keys = {"class_path", "ckpt_path", "labels_path"}
 
         for model_name, config in model_configs.items():
             missing_keys = required_keys - config.keys()
@@ -78,37 +75,26 @@ class _EnsembleBase(ChebaiBaseNet, ABC):
 
             model_path = config["ckpt_path"]
             class_path = config["class_path"]
+            labels_path = config["labels_path"]
 
             if model_path in path_set:
                 raise ValueError(
-                    f"Duplicate model path detected: '{model_path}'. Each model must have a unique path."
+                    f"Duplicate model path detected: '{model_path}'. Each model must have a unique model-checkpoint path."
                 )
 
-            if class_path not in class_set:
+            if class_path in class_set:
                 raise ValueError(
-                    f"Duplicate class path detected: '{class_path}'. Each model must have a unique path."
+                    f"Duplicate class path detected: '{class_path}'. Each model must have a unique class path."
+                )
+
+            if labels_path in labels_set:
+                raise ValueError(
+                    f"Duplicate labels path: {labels_path}. Each model must have unique labels path."
                 )
 
             path_set.add(model_path)
             class_set.add(class_path)
-
-            cls._extra_validation(model_name, config, sets_)
-
-    @classmethod
-    def _extra_validation(
-        cls, model_name: str, config: Dict[str, Any], sets_: Dict[str, set]
-    ):
-        """
-        Perform extra validation on the model configuration, if necessary.
-
-        This method can be extended by subclasses to add additional validation logic.
-
-        Args:
-            model_name (str): The name of the model.
-            config (Dict[str, Any]): The configuration dictionary for the model.
-            sets_ (Dict[str, set]): A dictionary of sets to track model paths, class paths, and labels.
-        """
-        pass
+            labels_path.add(labels_path)
 
     def _load_ensemble_models(self):
         """
@@ -122,6 +108,7 @@ class _EnsembleBase(ChebaiBaseNet, ABC):
         for model_name in self.model_configs:
             model_ckpt_path = self.model_configs[model_name]["ckpt_path"]
             model_class_path = self.model_configs[model_name]["class_path"]
+            model_labels_path = self.model_configs[model_name]["labels_path"]
             if not os.path.exists(model_ckpt_path):
                 raise FileNotFoundError(
                     f"Model path '{model_ckpt_path}' for '{model_name}' does not exist."
@@ -134,10 +121,15 @@ class _EnsembleBase(ChebaiBaseNet, ABC):
                 module = importlib.import_module(module_path)
                 lightning_cls: LightningModule = getattr(module, class_name)
 
-                model = lightning_cls.load_from_checkpoint(model_ckpt_path)
+                model = lightning_cls.load_from_checkpoint(
+                    model_ckpt_path, input_dim=self.input_dim
+                )
                 model.eval()
                 model.freeze()
                 self.models[model_name] = model
+                self.models_configs[model_name]["labels"] = self._load_model_labels(
+                    model_labels_path
+                )
 
             except ModuleNotFoundError:
                 print(f"Module '{module_path}' not found!")
@@ -149,21 +141,37 @@ class _EnsembleBase(ChebaiBaseNet, ABC):
                     f"Failed to load model '{model_name}' from {model_ckpt_path}: \n {e}"
                 )
 
-    def _load_data_module_labels(self):
-        """
-        Loads the label mapping from the classes.txt file for loaded data.
+    @staticmethod
+    def _load_model_labels(labels_path: str) -> Dict[str, float]:
+        if not os.path.exists(labels_path):
+            raise FileNotFoundError(f"{labels_path} does not exist.")
 
-        Raises:
-            FileNotFoundError: If the classes.txt file does not exist.
-        """
-        classes_txt_file = os.path.join(self.data_processed_dir_main, "classes.txt")
-        if not os.path.exists(classes_txt_file):
-            raise FileNotFoundError(f"{classes_txt_file} does not exist")
-        else:
-            with open(classes_txt_file, "r") as f:
-                for line in f:
-                    if line.strip() not in self.dm_labels:
-                        self.dm_labels[line.strip()] = len(self.dm_labels)
+        if not labels_path.endswith(".json"):
+            raise TypeError(f"{labels_path} is not a JSON file.")
+
+        with open(labels_path, "r") as f:
+            model_labels = json.load(f)
+
+        labels_dict = {}
+        for label, label_dict in model_labels.items():
+            msg = f"for label {label}"
+            if "TPV" not in label_dict.keys() or "FPV" not in label_dict.keys():
+                raise AttributeError(f"Missing keys 'TPV' and/or 'FPV' {msg}")
+
+            # Validate 'tpv' and 'fpv' are either floats or convertible to float
+            for key in ["TPV", "FPV"]:
+                try:
+                    value = float(label_dict[key])
+                    if value < 0:
+                        raise ValueError(
+                            f"'{key}' must be non-negative but got {value} {msg}"
+                        )
+                except (TypeError, ValueError):
+                    raise ValueError(
+                        f"'{key}' must be a float or convertible to float, but got {label_dict[key]} {msg}"
+                    )
+                labels_dict[label][key] = value
+        return labels_dict
 
     @abstractmethod
     def _get_prediction_and_labels(
@@ -180,6 +188,12 @@ class _EnsembleBase(ChebaiBaseNet, ABC):
         Returns:
             Tuple[torch.Tensor, torch.Tensor]: The predicted labels and the ground truth labels.
         """
+        pass
+
+    def controller(self):
+        pass
+
+    def consolidator(self):
         pass
 
 
@@ -211,56 +225,6 @@ class ChebiEnsemble(_EnsembleBase):
         self.dummy_param = torch.nn.Parameter(torch.randn(1, requires_grad=True))
         self._num_models_per_label: Optional[torch.Tensor] = None
         self._generate_model_label_mask()
-
-    @classmethod
-    def _extra_validation(
-        cls, model_name: str, config: Dict[str, Any], sets_: Dict[str, set]
-    ):
-        """
-        Additional validation for the ensemble model configuration.
-
-        Args:
-            model_name (str): The model name.
-            config (Dict[str, Any]): The configuration dictionary.
-            sets_ (Dict[str, set]): The set of paths for labels.
-
-        Raises:
-            AttributeError: If the 'labels_path' key is missing.
-            ValueError: If the 'labels_path' contains duplicate entries or certain are not convertible to float.
-        """
-        if "labels_path" not in config:
-            raise AttributeError("Missing 'labels_path' key in config!")
-
-        labels_path = config["labels_path"]
-        if labels_path not in sets_["labels"]:
-            raise ValueError(
-                f"Duplicate labels path detected: '{labels_path}'. Each model must have a unique path."
-            )
-
-        sets_["labels"].add(labels_path)
-
-        with open(labels_path, "r") as f:
-            model_labels = json.load(f)
-
-        for label, label_dict in model_labels.items():
-
-            if "TPV" not in label_dict.keys() or "FPV" not in label_dict.keys():
-                raise AttributeError(
-                    f"Missing keys 'TPV' and/or 'FPV' in model '{model_name}' configuration."
-                )
-
-            # Validate 'tpv' and 'fpv' are either floats or convertible to float
-            for key in ["TPV", "FPV"]:
-                try:
-                    value = float(label_dict[key])
-                    if value < 0:
-                        raise ValueError(
-                            f"'{key}' in model '{model_name}' and label '{label}' must be non-negative, but got {value}."
-                        )
-                except (TypeError, ValueError):
-                    raise ValueError(
-                        f"'{key}' in model '{model_name}' and label '{label}' must be a float or convertible to float, but got {label_dict[key]}."
-                    )
 
     def _generate_model_label_mask(self):
         """
