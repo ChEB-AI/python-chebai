@@ -1,4 +1,6 @@
 import os
+import sys
+from itertools import islice
 from typing import Any, Dict, List, Optional, Tuple
 
 import deepsmiles
@@ -137,13 +139,16 @@ class ChemDataReader(DataReader):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         with open(self.token_path, "r") as pk:
-            self.cache = [x.strip() for x in pk]
+            self.cache: Dict[str, int] = {
+                token.strip(): idx for idx, token in enumerate(pk)
+            }
+        self._loaded_tokens_count = len(self.cache)
 
     def _get_token_index(self, token: str) -> int:
         """Returns a unique number for each token, automatically adds new tokens."""
         if not str(token) in self.cache:
-            self.cache.append(str(token))
-        return self.cache.index(str(token)) + EMBEDDING_OFFSET
+            self.cache[(str(token))] = len(self.cache)
+        return self.cache[str(token)] + EMBEDDING_OFFSET
 
     def _read_data(self, raw_data: str) -> List[int]:
         """
@@ -161,10 +166,26 @@ class ChemDataReader(DataReader):
         """
         Saves the current cache of tokens to the token file. This method is called after all data processing is complete.
         """
-        with open(self.token_path, "w") as pk:
-            print(f"saving {len(self.cache)} tokens to {self.token_path}...")
-            print(f"first 10 tokens: {self.cache[:10]}")
-            pk.writelines([f"{c}\n" for c in self.cache])
+        print(f"first 10 tokens: {list(islice(self.cache, 10))}")
+
+        total_tokens = len(self.cache)
+        if total_tokens > self._loaded_tokens_count:
+            print("New tokens added to the cache, Saving them to token file.....")
+
+            assert sys.version_info >= (
+                3,
+                7,
+            ), "This code requires Python 3.7 or higher."
+            # For python 3.7+, the standard dict type preserves insertion order, and is iterated over in same order
+            # https://docs.python.org/3/whatsnew/3.7.html#summary-release-highlights
+            # https://mail.python.org/pipermail/python-dev/2017-December/151283.html
+            new_tokens = list(
+                islice(self.cache, self._loaded_tokens_count, total_tokens)
+            )
+
+            with open(self.token_path, "a") as pk:
+                print(f"saving new {len(new_tokens)} tokens to {self.token_path}...")
+                pk.writelines([f"{c}\n" for c in new_tokens])
 
 
 class DeepChemDataReader(ChemDataReader):

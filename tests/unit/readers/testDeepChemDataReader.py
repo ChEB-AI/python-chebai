@@ -27,12 +27,14 @@ class TestDeepChemDataReader(unittest.TestCase):
         """
         cls.reader = DeepChemDataReader(token_path="/mock/path")
         # After initializing, cls.reader.cache should now be set to ['C', 'O', 'c', ')']
-        assert cls.reader.cache == [
-            "C",
-            "O",
-            "c",
-            ")",
-        ], "Cache initialization did not match expected tokens."
+        assert list(cls.reader.cache.items()) == list(
+            {
+                "C": 0,
+                "O": 1,
+                "c": 2,
+                ")": 3,
+            }.items()
+        ), "Cache initialization did not match expected tokens or the expected order."
 
     def test_read_data(self) -> None:
         """
@@ -95,7 +97,7 @@ class TestDeepChemDataReader(unittest.TestCase):
         )
         # Ensure it's at the correct index
         self.assertEqual(
-            self.reader.cache.index("[H-]"),
+            self.reader.cache["[H-]"],
             index_for_last_token,
             "The new token '[H-]' was not added to the correct index in the cache.",
         )
