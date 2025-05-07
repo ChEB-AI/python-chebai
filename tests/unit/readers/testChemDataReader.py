@@ -27,14 +27,16 @@ class TestChemDataReader(unittest.TestCase):
         """
         cls.reader = ChemDataReader(token_path="/mock/path")
         # After initializing, cls.reader.cache should now be set to ['C', 'O', 'N', '=', '1', '(']
-        assert cls.reader.cache == [
-            "C",
-            "O",
-            "N",
-            "=",
-            "1",
-            "(",
-        ], "Initial cache does not match expected values."
+        assert list(cls.reader.cache.items()) == list(
+            {
+                "C": 0,
+                "O": 1,
+                "N": 2,
+                "=": 3,
+                "1": 4,
+                "(": 5,
+            }.items()
+        ), "Initial cache does not match expected values or the order doesn't match."
 
     def test_read_data(self) -> None:
         """
@@ -87,7 +89,7 @@ class TestChemDataReader(unittest.TestCase):
         )
         # Ensure it's at the correct index
         self.assertEqual(
-            self.reader.cache.index("[H-]"),
+            self.reader.cache["[H-]"],
             index_for_last_token,
             "The new token '[H-]' was not added at the correct index in the cache.",
         )
@@ -101,6 +103,57 @@ class TestChemDataReader(unittest.TestCase):
 
         with self.assertRaises(ValueError):
             self.reader._read_data(raw_data)
+
+    @patch("builtins.open", new_callable=mock_open)
+    def test_finish_method_for_new_tokens(self, mock_file: mock_open) -> None:
+        """
+        Test the on_finish method to ensure it appends only the new tokens to the token file in order.
+        """
+        # Simulate that some tokens were already loaded
+        self.reader._loaded_tokens_count = 6  # 6 tokens already loaded
+        self.reader.cache = {
+            "C": 0,
+            "O": 1,
+            "N": 2,
+            "=": 3,
+            "1": 4,
+            "(": 5,
+            "[H-]": 6,  # New token 1
+            "Br": 7,  # New token 2
+            "Cl": 8,  # New token 3
+            "Na": 9,  # New token 4
+            "Mg": 10,  # New token 5
+        }
+
+        # Run the on_finish method
+        self.reader.on_finish()
+
+        # Check that the file was opened in append mode ('a')
+        mock_file.assert_called_with(self.reader.token_path, "a")
+
+        # Verify the new tokens were written in the correct order
+        mock_file().writelines.assert_called_with(
+            ["[H-]\n", "Br\n", "Cl\n", "Na\n", "Mg\n"]
+        )
+
+    def test_finish_method_no_new_tokens(self) -> None:
+        """
+        Test the on_finish method when no new tokens are added (cache is the same).
+        """
+        self.reader._loaded_tokens_count = 6  # No new tokens
+        self.reader.cache = {
+            "C": 0,
+            "O": 1,
+            "N": 2,
+            "=": 3,
+            "1": 4,
+            "(": 5,
+        }
+
+        with patch("builtins.open", new_callable=mock_open) as mock_file:
+            self.reader.on_finish()
+            # Check that no new tokens were written
+            mock_file().writelines.assert_not_called()
 
 
 if __name__ == "__main__":
