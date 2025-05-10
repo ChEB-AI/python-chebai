@@ -1103,7 +1103,9 @@ class _DynamicDataset(XYBaseDataModule, ABC):
         splits_df = pd.read_csv(self.splits_file_path)
 
         filename = self.processed_file_names_dict["data"]
-        data = self.load_processed_data(filename=filename)
+        data = torch.load(
+            os.path.join(self.processed_dir, filename), weights_only=False
+        )
         df_data = pd.DataFrame(data)
 
         train_ids = splits_df[splits_df["split"] == "train"]["id"]
@@ -1114,6 +1116,7 @@ class _DynamicDataset(XYBaseDataModule, ABC):
         self._dynamic_df_val = df_data[df_data["ident"].isin(validation_ids)]
         self._dynamic_df_test = df_data[df_data["ident"].isin(test_ids)]
 
+    # ------------------------------ Phase: DataLoaders -----------------------------------
     def load_processed_data(
         self, kind: Optional[str] = None, filename: Optional[str] = None
     ) -> List[Dict[str, Any]]:
