@@ -1149,24 +1149,18 @@ class _DynamicDataset(XYBaseDataModule, ABC):
 
         # If both kind and filename are given, use filename
         if kind is not None and filename is None:
-            try:
-                if self.use_inner_cross_validation and kind != "test":
-                    filename = self.processed_file_names_dict[
-                        f"fold_{self.fold_index}_{kind}"
-                    ]
-                else:
-                    data_df = self.dynamic_split_dfs[kind]
-                    return data_df.to_dict(orient="records")
-            except KeyError:
-                kind = f"{kind}"
+            if self.use_inner_cross_validation and kind != "test":
+                filename = self.processed_file_names_dict[
+                    f"fold_{self.fold_index}_{kind}"
+                ]
+            else:
+                data_df = self.dynamic_split_dfs[kind]
+                return data_df.to_dict(orient="records")
 
         # If filename is provided
-        try:
-            return torch.load(
-                os.path.join(self.processed_dir, filename), weights_only=False
-            )
-        except FileNotFoundError:
-            raise FileNotFoundError(f"File {filename} doesn't exist")
+        return torch.load(
+            os.path.join(self.processed_dir, filename), weights_only=False
+        )
 
     # ------------------------------ Phase: Raw Properties -----------------------------------
     @property
