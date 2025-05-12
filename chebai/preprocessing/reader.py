@@ -1,3 +1,4 @@
+import inspect
 import os
 import sys
 from abc import ABC
@@ -39,7 +40,7 @@ class DataReader:
         if collator_kwargs is None:
             collator_kwargs = dict()
         self.collator = self.COLLATOR(**collator_kwargs)
-        self.dirname = os.path.dirname(__file__)
+        self.dirname = os.path.dirname(inspect.getfile(self.__class__))
         self._token_path = token_path
 
     def _get_raw_data(self, row: Dict[str, Any]) -> Any:
