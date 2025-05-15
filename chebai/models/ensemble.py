@@ -9,7 +9,6 @@ from lightning.pytorch import LightningModule
 from torch import Tensor
 
 from chebai.models import ChebaiBaseNet
-from chebai.models.ffn import FFN
 from chebai.preprocessing.structures import XYData
 
 
@@ -39,7 +38,8 @@ class _EnsembleBase(ChebaiBaseNet, ABC):
             **kwargs: Additional arguments for initialization.
         """
         super().__init__(**kwargs)
-        self._validate_model_configs(model_configs)
+        if kwargs.get("_validate_configs", True):
+            self._validate_model_configs(model_configs)
 
         self.data_processed_dir_main = data_processed_dir_main
         self.models: Dict[str, LightningModule] = {}
@@ -79,7 +79,8 @@ class _EnsembleBase(ChebaiBaseNet, ABC):
 
             if model_path in path_set:
                 raise ValueError(
-                    f"Duplicate model path detected: '{model_path}'. Each model must have a unique model-checkpoint path."
+                    f"Duplicate model path detected: '{model_path}'. "
+                    f"Each model must have a unique model-checkpoint path."
                 )
 
             if class_path in class_set:
@@ -94,16 +95,11 @@ class _EnsembleBase(ChebaiBaseNet, ABC):
 
             path_set.add(model_path)
             class_set.add(class_path)
-            labels_path.add(labels_path)
+            labels_set.add(labels_path)
 
     def _load_ensemble_models(self):
         """
         Loads the models specified in the configuration and initializes them.
-
-        Raises:
-            FileNotFoundError: If the model checkpoint path does not exist.
-            ModuleNotFoundError: If the module containing the model class is not found.
-            AttributeError: If the specified class is not found within the module.
         """
         for model_name in self.model_configs:
             model_ckpt_path = self.model_configs[model_name]["ckpt_path"]
@@ -116,33 +112,38 @@ class _EnsembleBase(ChebaiBaseNet, ABC):
 
             class_name = model_class_path.split(".")[-1]
             module_path = ".".join(model_class_path.split(".")[:-1])
+            module = importlib.import_module(module_path)
+            lightning_cls: LightningModule = getattr(module, class_name)
 
-            try:
-                module = importlib.import_module(module_path)
-                lightning_cls: LightningModule = getattr(module, class_name)
+            model = lightning_cls.load_from_checkpoint(
+                model_ckpt_path, input_dim=self.input_dim
+            )
+            model.eval()
+            model.freeze()
 
-                model = lightning_cls.load_from_checkpoint(
-                    model_ckpt_path, input_dim=self.input_dim
-                )
-                model.eval()
-                model.freeze()
-                self.models[model_name] = model
-                self.models_configs[model_name]["labels"] = self._load_model_labels(
-                    model_labels_path
-                )
+            self.models[model_name] = model
+            self.model_configs[model_name]["labels"] = self._load_model_labels(
+                model_labels_path, model_name
+            )
 
-            except ModuleNotFoundError:
-                print(f"Module '{module_path}' not found!")
-            except AttributeError:
-                print(f"Class '{class_name}' not found in '{module_path}'!")
+    def _load_data_module_labels(self):
+        """
+        Loads the label mapping from the classes.txt file for loaded data.
 
-            except Exception as e:
-                raise RuntimeError(
-                    f"Failed to load model '{model_name}' from {model_ckpt_path}: \n {e}"
-                )
+        Raises:
+            FileNotFoundError: If the classes.txt file does not exist.
+        """
+        classes_txt_file = os.path.join(self.data_processed_dir_main, "classes.txt")
+        if not os.path.exists(classes_txt_file):
+            raise FileNotFoundError(f"{classes_txt_file} does not exist")
+        else:
+            with open(classes_txt_file, "r") as f:
+                for line in f:
+                    if line.strip() not in self.dm_labels:
+                        self.dm_labels[line.strip()] = len(self.dm_labels)
 
     @staticmethod
-    def _load_model_labels(labels_path: str) -> Dict[str, float]:
+    def _load_model_labels(labels_path: str, model_name: str) -> Dict[str, float]:
         if not os.path.exists(labels_path):
             raise FileNotFoundError(f"{labels_path} does not exist.")
 
@@ -154,7 +155,7 @@ class _EnsembleBase(ChebaiBaseNet, ABC):
 
         labels_dict = {}
         for label, label_dict in model_labels.items():
-            msg = f"for label {label}"
+            msg = f"for model {model_name} for label {label}"
             if "TPV" not in label_dict.keys() or "FPV" not in label_dict.keys():
                 raise AttributeError(f"Missing keys 'TPV' and/or 'FPV' {msg}")
 
@@ -170,7 +171,7 @@ class _EnsembleBase(ChebaiBaseNet, ABC):
                     raise ValueError(
                         f"'{key}' must be a float or convertible to float, but got {label_dict[key]} {msg}"
                     )
-                labels_dict[label][key] = value
+                labels_dict.setdefault(label, {})[key] = value
         return labels_dict
 
     @abstractmethod
@@ -193,7 +194,9 @@ class _EnsembleBase(ChebaiBaseNet, ABC):
     def controller(self):
         pass
 
-    def consolidator(self):
+    def consolidator(
+        self,
+    ):
         pass
 
 
@@ -238,19 +241,14 @@ class ChebiEnsemble(_EnsembleBase):
         num_models_per_label = torch.zeros(1, self.out_dim, device=self.device)
 
         for model_name, model_config in self.model_configs.items():
-            labels_path = model_config["labels_path"]
-            if not os.path.exists(labels_path):
-                raise FileNotFoundError(f"Labels path '{labels_path}' does not exist.")
-
-            with open(labels_path, "r") as f:
-                labels_dict = json.load(f)
+            labels_dict = model_config["labels"]
 
             model_label_indices, tpv_label_values, fpv_label_values = [], [], []
             for label in labels_dict.keys():
                 if label in self.dm_labels:
                     model_label_indices.append(self.dm_labels[label])
-                    tpv_label_values.append(float(labels_dict[label]["TPV"]))
-                    fpv_label_values.append(float(labels_dict[label]["FPV"]))
+                    tpv_label_values.append(labels_dict[label]["TPV"])
+                    fpv_label_values.append(labels_dict[label]["FPV"])
 
             if not all([model_label_indices, tpv_label_values, fpv_label_values]):
                 raise ValueError(f"Values are empty for labels of model {model_name}")
@@ -318,7 +316,7 @@ class ChebiEnsemble(_EnsembleBase):
             confidences[name] = confidence
             total_logits += output[
                 "logits"
-            ]  # Don't play a role here, just for lightning flow completeness
+            ]  # This doesn't play a role here, just for lightning flow completeness
 
         return {
             "logits": total_logits,
