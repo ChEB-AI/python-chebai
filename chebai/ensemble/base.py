@@ -9,6 +9,7 @@ import torch
 from lightning import LightningModule
 
 from chebai.models import ChebaiBaseNet
+from chebai.result.classification import print_metrics
 
 
 class EnsembleBase(ABC):
@@ -39,7 +40,7 @@ class EnsembleBase(ABC):
         if kwargs.get("_validate_configs", False):
             self._validate_model_configs(model_configs)
 
-        self.device = "cuda" if torch.cuda.is_available() else "cpu"
+        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.input_dim = kwargs.get("input_dim", None)
         self.num_of_labels: Optional[int] = (
             None  # will be set by `_load_data_module_labels` method
@@ -131,6 +132,8 @@ class EnsembleBase(ABC):
                 self._model_queue.popleft()
             )
             pred_conf_dict = self._controller(model, model_props)
+            del model  # Model can be huge to keep it in memory, delete as no longer needed
+
             self._consolidator(
                 pred_conf_dict,
                 model_props,
@@ -138,7 +141,15 @@ class EnsembleBase(ABC):
                 false_scores=false_scores,
             )
 
-        self._consolidate_on_finish(true_scores=true_scores, false_scores=false_scores)
+        final_preds = self._consolidate_on_finish(
+            true_scores=true_scores, false_scores=false_scores
+        )
+        print_metrics(
+            final_preds,
+            self._collated_data.y,
+            self.device,
+            classes=list(self.dm_labels.keys()),
+        )
 
     def _load_model_and_its_props(self, model_name):
         """
