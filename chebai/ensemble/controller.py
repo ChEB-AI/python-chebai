@@ -1,11 +1,14 @@
 import os.path
 from abc import ABC
+from collections import deque
+from typing import Deque
 
 import torch
 
-from chebai.ensemble.base import EnsembleBase
 from chebai.models import ChebaiBaseNet
 from chebai.preprocessing.collate import RaggedCollator
+
+from .base import EnsembleBase
 
 
 class _Controller(EnsembleBase, ABC):
@@ -14,11 +17,12 @@ class _Controller(EnsembleBase, ABC):
         self._collator = RaggedCollator()
 
         self._collated_data = self._load_and_collate_data()
+        self.input_dim = len(self._collated_data.x[0])
         self.total_data_size: int = len(self._collated_data)
 
     def _load_and_collate_data(self):
         data = torch.load(
-            os.path.join(self.data_processed_dir_main, "data.pt"),
+            os.path.join(self.data_processed_dir_main, "smiles_token", "data.pt"),
             weights_only=False,
             map_location=self.device,
         )
@@ -51,7 +55,7 @@ class _Controller(EnsembleBase, ABC):
 class NoActivationCondition(_Controller):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        self._model_queue = list(self.model_configs.keys())
+        self._model_queue: Deque = deque(list(self.model_configs.keys()))
 
     def _controller(self, model, model_props, **kwargs):
         model_output = self._forward_pass(model)

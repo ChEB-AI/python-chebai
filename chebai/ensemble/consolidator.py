@@ -1,6 +1,6 @@
 from abc import ABC
 
-from chebai.ensemble.base import EnsembleBase
+from .base import EnsembleBase
 
 
 class WeightedMajorityVoting(EnsembleBase, ABC):
