@@ -7,6 +7,7 @@ from typing import Deque, Dict, Optional
 
 import torch
 from lightning import LightningModule
+from lightning_utilities.core.rank_zero import rank_zero_info
 
 from chebai.models import ChebaiBaseNet
 from chebai.result.classification import print_metrics
@@ -37,7 +38,7 @@ class EnsembleBase(ABC):
             data_processed_dir_main (str): Path to the processed data directory.
             **kwargs: Additional arguments for initialization.
         """
-        if kwargs.get("_validate_configs", False):
+        if bool(kwargs.get("_validate_configs", True)):
             self._validate_model_configs(model_configs)
 
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -113,6 +114,8 @@ class EnsembleBase(ABC):
             FileNotFoundError: If the classes.txt file does not exist.
         """
         classes_txt_file = os.path.join(self.data_processed_dir_main, "classes.txt")
+        rank_zero_info(f"Loading {classes_txt_file} ....")
+
         if not os.path.exists(classes_txt_file):
             raise FileNotFoundError(f"{classes_txt_file} does not exist")
         else:
@@ -128,12 +131,15 @@ class EnsembleBase(ABC):
         false_scores = torch.zeros(batch_size, self.num_of_labels, device=self.device)
 
         while self._model_queue:
-            model, model_props = self._load_model_and_its_props(
-                self._model_queue.popleft()
-            )
+            model_name = self._model_queue.popleft()
+            rank_zero_info(f"Processing model: {model_name}")
+            model, model_props = self._load_model_and_its_props(model_name)
+
+            rank_zero_info("\t Passing model to controller to generate predictions...")
             pred_conf_dict = self._controller(model, model_props)
             del model  # Model can be huge to keep it in memory, delete as no longer needed
 
+            rank_zero_info("\t Passing predictions to consolidator to aggregation")
             self._consolidator(
                 pred_conf_dict,
                 model_props,
@@ -141,6 +147,9 @@ class EnsembleBase(ABC):
                 false_scores=false_scores,
             )
 
+        rank_zero_info(
+            f"Consolidate predictions of the ensemble: {self.__class__.__name__}"
+        )
         final_preds = self._consolidate_on_finish(
             true_scores=true_scores, false_scores=false_scores
         )
@@ -172,19 +181,21 @@ class EnsembleBase(ABC):
             lightning_cls, ChebaiBaseNet
         ), f"{class_name} must inherit from ChebaiBaseNet"
 
-        model = lightning_cls.load_from_checkpoint(
-            model_ckpt_path, input_dim=self.input_dim
-        )
-        model.eval()
-        model.freeze()
-
-        model_label_props = self._generate_model_label_props(
-            model_name, model_labels_path
-        )
+        try:
+            model = lightning_cls.load_from_checkpoint(
+                model_ckpt_path, input_dim=self.input_dim
+            )
+            model.eval()
+            model.freeze()
+            model_label_props = self._generate_model_label_props(model_labels_path)
+        except Exception as e:
+            raise RuntimeError(
+                f"For model {model_name} following exception as occurred \n Error: {e}"
+            )
 
         return model, model_label_props
 
-    def _generate_model_label_props(self, model_name: str, labels_path: str):
+    def _generate_model_label_props(self, labels_path: str):
         """
         Generates a mask indicating the labels handled by each model, and retrieves corresponding the TPV and FPV values
         as tensors.
@@ -193,6 +204,7 @@ class EnsembleBase(ABC):
             FileNotFoundError: If the labels path does not exist.
             ValueError: If label values are empty for any model.
         """
+        rank_zero_info("\t Generating mask model's labels and other properties")
         labels_dict = self._load_model_labels(labels_path)
 
         model_label_indices, tpv_label_values, fpv_label_values = [], [], []
@@ -208,7 +220,7 @@ class EnsembleBase(ABC):
                 fpv_label_values.append(labels_dict[label]["FPV"])
 
         if not all([model_label_indices, tpv_label_values, fpv_label_values]):
-            raise ValueError(f"Values are empty for labels of model {model_name}")
+            raise ValueError(f"Values are empty for labels of the model")
 
         # Create masks to apply predictions only to known classes
         mask = torch.zeros(self.num_of_labels, device=self.device, dtype=torch.bool)
