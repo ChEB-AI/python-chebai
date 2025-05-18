@@ -48,7 +48,7 @@ class _Controller(EnsembleBase, ABC):
         return {"prediction": prediction, "confidence": confidence}
 
 
-class SimpleController(_Controller):
+class NoActivationCondition(_Controller):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self._model_queue = list(self.model_configs.keys())
