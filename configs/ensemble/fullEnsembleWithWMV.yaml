@@ -1,0 +1,18 @@
+class_path: chebai.ensemble.FullEnsembleWMV
+init_args:
+  data_processed_dir_main: "path/to/data/processed/main/directory"
+#  reader_dir_name: "name_of_reader_dir"  # default is `smiles_token`
+#  _validate_configs: False  # To avoid check for using same model with same model configs
+  model_configs: {
+    "model_1_name": {
+      "ckpt_path": "path/to/your/model_1/checkpoint.ckpt",
+      "class_path": "path/to/your/model_1/class",
+      "labels_path": "path/to/your/model_1/classes.json",
+    },
+
+    "model_2_name": {
+      "ckpt_path": "path/to/your/model_2/checkpoint.ckpt",
+      "class_path": "path/to/your/model_2/class",
+      "labels_path": "path/to/your/model_2/classes.json",
+    },
+  }
