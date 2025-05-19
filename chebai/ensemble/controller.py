@@ -18,18 +18,18 @@ class _Controller(EnsembleBase, ABC):
 
         self._collated_data = self._load_and_collate_data()
         self.input_dim = len(self._collated_data.x[0])
-        self.total_data_size: int = len(self._collated_data)
+        self._total_data_size: int = len(self._collated_data)
 
     def _load_and_collate_data(self):
         data = torch.load(
-            os.path.join(self.data_processed_dir_main, "smiles_token", "data.pt"),
+            os.path.join(self.data_processed_dir_main, self.reader_dir_name, "data.pt"),
             weights_only=False,
-            map_location=self.device,
+            map_location=self._device,
         )
         collated_data = self._collator(data)
-        collated_data.x = collated_data.to_x(self.device)
+        collated_data.x = collated_data.to_x(self._device)
         if collated_data.y is not None:
-            collated_data.y = collated_data.to_y(self.device)
+            collated_data.y = collated_data.to_y(self._device)
         return collated_data
 
     def _forward_pass(self, model: ChebaiBaseNet):
@@ -42,10 +42,10 @@ class _Controller(EnsembleBase, ABC):
         # Consider logits and confidence only for valid classes
         sigmoid_logits = torch.sigmoid(model_output["logits"])
         prediction = torch.full(
-            (self.total_data_size, self.num_of_labels), -1, dtype=torch.bool
+            (self._total_data_size, self._num_of_labels), -1, dtype=torch.bool
         )
         confidence = torch.full(
-            (self.total_data_size, self.num_of_labels), -1, dtype=torch.float
+            (self._total_data_size, self._num_of_labels), -1, dtype=torch.float
         )
         prediction[:, model_label_mask] = sigmoid_logits > 0.5
         confidence[:, model_label_mask] = 2 * torch.abs(sigmoid_logits - 0.5)

@@ -22,13 +22,17 @@ class EnsembleBase(ABC):
 
     Attributes:
         data_processed_dir_main (str): Directory where the processed data is stored.
-        models (Dict[str, LightningModule]): A dictionary of loaded models.
+        _models (Dict[str, LightningModule]): A dictionary of loaded models.
         model_configs (Dict[str, Dict]): Configuration dictionary for models in the ensemble.
-        dm_labels (Dict[str, int]): Mapping of label names to integer indices.
+        _dm_labels (Dict[str, int]): Mapping of label names to integer indices.
     """
 
     def __init__(
-        self, model_configs: Dict[str, Dict], data_processed_dir_main: str, **kwargs
+        self,
+        model_configs: Dict[str, Dict],
+        data_processed_dir_main: str,
+        reader_dir_name: str = "smiles_token",
+        **kwargs,
     ):
         """
         Initializes the ensemble model and loads configuration, models, and labels.
@@ -41,22 +45,25 @@ class EnsembleBase(ABC):
         if bool(kwargs.get("_validate_configs", True)):
             self._validate_model_configs(model_configs)
 
-        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        self.model_configs = model_configs
+        self.data_processed_dir_main = data_processed_dir_main
+        self.reader_dir_name = reader_dir_name
         self.input_dim = kwargs.get("input_dim", None)
-        self.num_of_labels: Optional[int] = (
+
+        self._device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        self._num_of_labels: Optional[int] = (
             None  # will be set by `_load_data_module_labels` method
         )
-        self.data_processed_dir_main = data_processed_dir_main
-        self.models: Dict[str, LightningModule] = {}
-        self.model_configs = model_configs
-        self.dm_labels: Dict[str, int] = {}
+        self._models: Dict[str, LightningModule] = {}
+        self._dm_labels: Dict[str, int] = {}
 
         self._load_data_module_labels()
         self._num_models_per_label: torch.Tensor = torch.zeros(
-            1, self.num_of_labels, device=self.device
+            1, self._num_of_labels, device=self._device
         )
         self._model_queue: Deque = deque()
         self._collated_data = None
+        self._total_data_size: Optional[int] = None
 
     @classmethod
     def _validate_model_configs(cls, model_configs: Dict[str, Dict]):
@@ -121,14 +128,17 @@ class EnsembleBase(ABC):
         else:
             with open(classes_txt_file, "r") as f:
                 for line in f:
-                    if line.strip() not in self.dm_labels:
-                        self.dm_labels[line.strip()] = len(self.dm_labels)
-        self.num_of_labels = len(self.dm_labels)
+                    if line.strip() not in self._dm_labels:
+                        self._dm_labels[line.strip()] = len(self._dm_labels)
+        self._num_of_labels = len(self._dm_labels)
 
     def run_ensemble(self):
-        batch_size = 10
-        true_scores = torch.zeros(batch_size, self.num_of_labels, device=self.device)
-        false_scores = torch.zeros(batch_size, self.num_of_labels, device=self.device)
+        true_scores = torch.zeros(
+            self._total_data_size, self._num_of_labels, device=self._device
+        )
+        false_scores = torch.zeros(
+            self._total_data_size, self._num_of_labels, device=self._device
+        )
 
         while self._model_queue:
             model_name = self._model_queue.popleft()
@@ -156,8 +166,8 @@ class EnsembleBase(ABC):
         print_metrics(
             final_preds,
             self._collated_data.y,
-            self.device,
-            classes=list(self.dm_labels.keys()),
+            self._device,
+            classes=list(self._dm_labels.keys()),
         )
 
     def _load_model_and_its_props(self, model_name):
@@ -209,13 +219,13 @@ class EnsembleBase(ABC):
 
         model_label_indices, tpv_label_values, fpv_label_values = [], [], []
         for label in labels_dict.keys():
-            if label in self.dm_labels:
+            if label in self._dm_labels:
                 try:
                     self._validate_model_labels_json_element(labels_dict[label])
                 except Exception as e:
                     raise Exception(f"Label '{label}' has an unexpected error: {e}")
 
-                model_label_indices.append(self.dm_labels[label])
+                model_label_indices.append(self._dm_labels[label])
                 tpv_label_values.append(labels_dict[label]["TPV"])
                 fpv_label_values.append(labels_dict[label]["FPV"])
 
@@ -223,19 +233,19 @@ class EnsembleBase(ABC):
             raise ValueError(f"Values are empty for labels of the model")
 
         # Create masks to apply predictions only to known classes
-        mask = torch.zeros(self.num_of_labels, device=self.device, dtype=torch.bool)
-        mask[torch.tensor(model_label_indices, dtype=torch.int, device=self.device)] = (
-            True
-        )
+        mask = torch.zeros(self._num_of_labels, device=self._device, dtype=torch.bool)
+        mask[
+            torch.tensor(model_label_indices, dtype=torch.int, device=self._device)
+        ] = True
 
-        tpv_tensor = torch.full_like(mask, -1, dtype=torch.float, device=self.device)
-        fpv_tensor = torch.full_like(mask, -1, dtype=torch.float, device=self.device)
+        tpv_tensor = torch.full_like(mask, -1, dtype=torch.float, device=self._device)
+        fpv_tensor = torch.full_like(mask, -1, dtype=torch.float, device=self._device)
 
         tpv_tensor[mask] = torch.tensor(
-            tpv_label_values, dtype=torch.float, device=self.device
+            tpv_label_values, dtype=torch.float, device=self._device
         )
         fpv_tensor[mask] = torch.tensor(
-            fpv_label_values, dtype=torch.float, device=self.device
+            fpv_label_values, dtype=torch.float, device=self._device
         )
         self._num_models_per_label += mask
         return {"mask": mask, "tpv_tensor": tpv_tensor, "fpv_tensor": fpv_tensor}
