@@ -1,3 +1,0 @@
-class_path: chebai.preprocessing.datasets._dummy._DummyDataModule
-init_args:
-  feature_vector_size: 20
