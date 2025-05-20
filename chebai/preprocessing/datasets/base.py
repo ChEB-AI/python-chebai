@@ -1103,8 +1103,8 @@ class _DynamicDataset(XYBaseDataModule, ABC):
         splits_df = pd.read_csv(self.splits_file_path)
 
         filename = self.processed_file_names_dict["data"]
-        data = torch.load(
-            os.path.join(self.processed_dir, filename), weights_only=False
+        data = self.load_processed_data_from_file(
+            os.path.join(self.processed_dir, filename)
         )
         df_data = pd.DataFrame(data)
 
@@ -1161,9 +1161,10 @@ class _DynamicDataset(XYBaseDataModule, ABC):
                 return data_df.to_dict(orient="records")
 
         # If filename is provided
-        return torch.load(
-            os.path.join(self.processed_dir, filename), weights_only=False
-        )
+        return self.load_processed_data_from_file(filename)
+
+    def load_processed_data_from_file(self, filename):
+        return torch.load(os.path.join(filename), weights_only=False)
 
     # ------------------------------ Phase: Raw Properties -----------------------------------
     @property
