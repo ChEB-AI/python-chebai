@@ -1,0 +1,7 @@
+MODEL_CLS_PATH = "model_class_path"
+MODEL_LBL_PATH = "model_labels_path"
+MODEL_CKPT_PATH = "model_ckpt_path"
+
+WRAPPER_CLS_PATH = "wrapper_class_path"
+
+READER_CLS_PATH = "reader_class_path"

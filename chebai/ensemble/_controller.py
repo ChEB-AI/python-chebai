@@ -9,7 +9,7 @@ from torch import Tensor
 from chebai.models import ChebaiBaseNet
 from chebai.preprocessing.collate import RaggedCollator
 
-from .base import EnsembleBase
+from ._base import EnsembleBase
 
 
 class _Controller(EnsembleBase, ABC):
@@ -32,42 +32,8 @@ class _Controller(EnsembleBase, ABC):
         super().__init__(**kwargs)
         self._collator = RaggedCollator()
 
-        self._collated_data = self._load_and_collate_data()
         self.input_dim = len(self._collated_data.x[0])
         self._total_data_size: int = len(self._collated_data)
-
-    def _load_and_collate_data(self) -> Any:
-        """
-        Loads and collates data using RaggedCollator.
-
-        Returns:
-            Collated data object with `.x` and `.y` attributes moved to device.
-        """
-        data = torch.load(
-            os.path.join(self.data_processed_dir_main, self.reader_dir_name, "data.pt"),
-            weights_only=False,
-            map_location=self._device,
-        )
-        collated_data = self._collator(data)
-        collated_data.x = collated_data.to_x(self._device)
-        if collated_data.y is not None:
-            collated_data.y = collated_data.to_y(self._device)
-        return collated_data
-
-    def _forward_pass(self, model: ChebaiBaseNet) -> Dict[str, Tensor]:
-        """
-        Runs a forward pass of the given model on the collated data.
-
-        Args:
-            model (ChebaiBaseNet): The model to perform inference with.
-
-        Returns:
-            Dict[str, Tensor]: Model output dictionary containing logits and other keys.
-        """
-        processable_data = model._process_batch(self._collated_data, 0)
-        del processable_data["loss_kwargs"]
-        model_output = model(processable_data, **processable_data["model_kwargs"])
-        return model_output
 
     def _get_pred_conf_from_model_output(
         self, model_output: Dict[str, Tensor], model_label_mask: Tensor

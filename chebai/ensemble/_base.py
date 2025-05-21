@@ -13,6 +13,8 @@ from chebai.models import ChebaiBaseNet
 from chebai.preprocessing.structures import XYData
 from chebai.result.classification import print_metrics
 
+from ._constants import *
+
 
 class EnsembleBase(ABC):
     """
@@ -25,7 +27,6 @@ class EnsembleBase(ABC):
         self,
         model_configs: Dict[str, Dict[str, Any]],
         data_processed_dir_main: str,
-        reader_dir_name: str = "smiles_token",
         **kwargs: Any,
     ) -> None:
         """
@@ -42,7 +43,6 @@ class EnsembleBase(ABC):
 
         self.model_configs: Dict[str, Dict[str, Any]] = model_configs
         self.data_processed_dir_main: str = data_processed_dir_main
-        self.reader_dir_name: str = reader_dir_name
         self.input_dim: Optional[int] = kwargs.get("input_dim", None)
 
         self._device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -73,7 +73,13 @@ class EnsembleBase(ABC):
             ValueError: If duplicate paths are found for model checkpoint, class, or labels.
         """
         path_set, class_set, labels_set = set(), set(), set()
-        required_keys = {"class_path", "ckpt_path", "labels_path"}
+        required_keys = {
+            MODEL_CKPT_PATH,
+            MODEL_CLS_PATH,
+            MODEL_LBL_PATH,
+            WRAPPER_CLS_PATH,
+            READER_CLS_PATH,
+        }
 
         for model_name, config in model_configs.items():
             missing_keys = required_keys - config.keys()
@@ -82,22 +88,24 @@ class EnsembleBase(ABC):
                     f"Missing keys {missing_keys} in model '{model_name}' configuration."
                 )
 
-            model_path, class_path, labels_path = (
-                config["ckpt_path"],
-                config["class_path"],
-                config["labels_path"],
+            model_ckpt_path, model_class_path, model_labels_path = (
+                config[MODEL_CKPT_PATH],
+                config[MODEL_CLS_PATH],
+                config[MODEL_LBL_PATH],
             )
 
-            if model_path in path_set:
-                raise ValueError(f"Duplicate model path detected: '{model_path}'.")
-            if class_path in class_set:
-                raise ValueError(f"Duplicate class path detected: '{class_path}'.")
-            if labels_path in labels_set:
-                raise ValueError(f"Duplicate labels path: {labels_path}.")
+            if model_ckpt_path in path_set:
+                raise ValueError(f"Duplicate model path detected: '{model_ckpt_path}'.")
+            if model_class_path in class_set:
+                raise ValueError(
+                    f"Duplicate class path detected: '{model_class_path}'."
+                )
+            if model_labels_path in labels_set:
+                raise ValueError(f"Duplicate labels path: {model_labels_path}.")
 
-            path_set.add(model_path)
-            class_set.add(class_path)
-            labels_set.add(labels_path)
+            path_set.add(model_ckpt_path)
+            class_set.add(model_class_path)
+            labels_set.add(model_labels_path)
 
     def _load_data_module_labels(self) -> None:
         """
@@ -180,10 +188,11 @@ class EnsembleBase(ABC):
                 f"Model path '{model_ckpt_path}' for '{model_name}' does not exist."
             )
 
-        class_name = model_class_path.split(".")[-1]
-        module_path = ".".join(model_class_path.split(".")[:-1])
-        module = importlib.import_module(module_path)
-        lightning_cls = getattr(module, class_name)
+        def load_class(class_path):
+            class_name = class_path.split(".")[-1]
+            module_path = ".".join(class_path.split(".")[:-1])
+            module = importlib.import_module(module_path)
+            return getattr(module, class_name)
 
         assert isinstance(lightning_cls, type), f"{class_name} is not a class."
         assert issubclass(

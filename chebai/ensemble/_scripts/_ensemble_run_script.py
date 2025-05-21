@@ -4,7 +4,7 @@ from typing import Any, Dict, Type
 import yaml
 from jsonargparse import ArgumentParser
 
-from chebai.ensemble.base import EnsembleBase
+from ._base import EnsembleBase
 
 
 def load_class(class_path: str) -> Type[EnsembleBase]:

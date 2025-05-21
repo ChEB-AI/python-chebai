@@ -3,7 +3,7 @@ from typing import Any, Dict
 
 from torch import Tensor
 
-from .base import EnsembleBase
+from ._base import EnsembleBase
 
 
 class WeightedMajorityVoting(EnsembleBase, ABC):

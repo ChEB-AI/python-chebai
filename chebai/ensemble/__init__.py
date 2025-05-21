@@ -1,5 +1,5 @@
-from .consolidator import WeightedMajorityVoting
-from .controller import NoActivationCondition
+from ._consolidator import WeightedMajorityVoting
+from ._controller import NoActivationCondition
 
 
 class FullEnsembleWMV(NoActivationCondition, WeightedMajorityVoting):
