@@ -136,10 +136,3 @@ class BaseWrapper(ABC):
     @abstractmethod
     def _predict_from_data_file(self, data_file_path: str) -> dict:
         pass
-
-    @staticmethod
-    def _load_class(class_path):
-        class_name = class_path.split(".")[-1]
-        module_path = ".".join(class_path.split(".")[:-1])
-        module = importlib.import_module(module_path)
-        return getattr(module, class_name)

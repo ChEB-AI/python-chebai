@@ -8,15 +8,13 @@ from chebai.models import ChebaiBaseNet
 from chebai.preprocessing.reader import DataReader
 
 from .._constants import MODEL_CKPT_PATH, READER_CLS_PATH, READER_KWARGS
+from .._utils import _load_class
 from ._base import BaseWrapper
 
 
 class NNWrapper(BaseWrapper):
 
-    def __init__(
-        self,
-        **kwargs,
-    ):
+    def __init__(self, **kwargs):
         self._validate_model_configs(**kwargs)
         super().__init__(**kwargs)
 
@@ -28,7 +26,7 @@ class NNWrapper(BaseWrapper):
             else dict()
         )
 
-        reader_cls: Type[DataReader] = self._load_class(self._reader_class_path)
+        reader_cls: Type[DataReader] = _load_class(self._reader_class_path)
         assert issubclass(reader_cls, DataReader), ""
         self._reader = reader_cls(**self._reader_kwargs)
         self._collator = reader_cls.COLLATOR()

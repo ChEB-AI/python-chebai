@@ -1,28 +1,11 @@
-import importlib
 from typing import Any, Dict, Type
 
 import yaml
 from jsonargparse import ArgumentParser
 
-from ._base import EnsembleBase
+from chebai.ensemble._utils import _load_class
 
-
-def load_class(class_path: str) -> Type[EnsembleBase]:
-    """
-    Dynamically imports and returns a class from a full dotted path.
-
-    Args:
-        class_path (str): Full module path to the class (e.g., 'my_package.module.MyClass').
-
-    Returns:
-        Type[EnsembleBase]: The imported class object.
-
-    Raises:
-        ModuleNotFoundError, AttributeError: If module or class cannot be loaded.
-    """
-    module_path, class_name = class_path.rsplit(".", 1)
-    module = importlib.import_module(module_path)
-    return getattr(module, class_name)
+from .._base import EnsembleBase
 
 
 def load_config_and_instantiate(config_path: str) -> EnsembleBase:
@@ -44,7 +27,7 @@ def load_config_and_instantiate(config_path: str) -> EnsembleBase:
     class_path: str = config["class_path"]
     init_args: Dict[str, Any] = config.get("init_args", {})
 
-    cls = load_class(class_path)
+    cls = _load_class(class_path)
 
     if not issubclass(cls, EnsembleBase):
         raise TypeError(f"{cls} must be subclass of EnsembleBase")
