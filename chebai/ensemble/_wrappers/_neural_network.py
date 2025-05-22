@@ -15,10 +15,9 @@ class NNWrapper(BaseWrapper):
 
     def __init__(
         self,
-        reader_cls: Type[DataReader],
-        reader_kwargs: Optional[dict] = None,
         **kwargs,
     ):
+        self._validate_model_configs(**kwargs)
         super().__init__(**kwargs)
 
         self._model_ckpt_path = self._model_config[MODEL_CKPT_PATH]
@@ -29,9 +28,36 @@ class NNWrapper(BaseWrapper):
             else dict()
         )
 
-        self._reader = self._load_class(self._reader_class_path)(**self._reader_kwargs)
+        reader_cls: Type[DataReader] = self._load_class(self._reader_class_path)
+        assert issubclass(reader_cls, DataReader), ""
+        self._reader = reader_cls(**self._reader_kwargs)
         self._collator = reader_cls.COLLATOR()
         self._model: ChebaiBaseNet = self._load_model_()
+
+    @classmethod
+    def _validate_model_configs(
+        cls, model_config: dict[str, str], model_name: str
+    ) -> None:
+        """
+        Validates model configuration dictionary for required keys and uniqueness.
+
+        Args:
+            model_configs (Dict[str, Dict[str, Any]]): Model configuration dictionary.
+
+        Raises:
+            AttributeError: If any model config is missing required keys.
+            ValueError: If duplicate paths are found for model checkpoint, class, or labels.
+        """
+        required_keys = {
+            MODEL_CKPT_PATH,
+            READER_CLS_PATH,
+        }
+
+        missing_keys = required_keys - model_config.keys()
+        if missing_keys:
+            raise AttributeError(
+                f"Missing keys {missing_keys} in model '{model_name}' configuration."
+            )
 
     def _load_model_(self) -> ChebaiBaseNet:
         """
