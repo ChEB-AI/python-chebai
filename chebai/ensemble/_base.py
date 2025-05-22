@@ -7,13 +7,20 @@ from typing import Any, Deque, Dict, Optional, Tuple
 
 import torch
 from lightning import LightningModule
-from lightning_utilities.core.rank_zero import rank_zero_info
 
 from chebai.models import ChebaiBaseNet
 from chebai.preprocessing.structures import XYData
 from chebai.result.classification import print_metrics
 
-from ._constants import *
+from ._constants import (
+    MODEL_CKPT_PATH,
+    MODEL_CLS_PATH,
+    MODEL_LBL_PATH,
+    READER_CLS_PATH,
+    WRAPPER_CLS_PATH,
+)
+from ._utils import _load_class
+from ._wrappers import BaseWrapper
 
 
 class EnsembleBase(ABC):
@@ -41,18 +48,17 @@ class EnsembleBase(ABC):
         if bool(kwargs.get("_validate_configs", True)):
             self._validate_model_configs(model_configs)
 
-        self.model_configs: Dict[str, Dict[str, Any]] = model_configs
-        self.data_processed_dir_main: str = data_processed_dir_main
-        self.input_dim: Optional[int] = kwargs.get("input_dim", None)
+        self._model_configs: Dict[str, Dict[str, Any]] = model_configs
+        self._data_processed_dir_main: str = data_processed_dir_main
+        self._input_dim: Optional[int] = kwargs.get("input_dim", None)
+        self._total_data_size: int = len(self._collated_data)
 
         self._device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        self._num_of_labels: Optional[int] = (
-            None  # will be set by `_load_data_module_labels` method
-        )
-        self._models: Dict[str, LightningModule] = {}
-        self._dm_labels: Dict[str, int] = {}
 
-        self._load_data_module_labels()
+        self._models: Dict[str, LightningModule] = {}
+        self._dm_labels: Dict[str, int] = self._load_data_module_labels()
+        self._num_of_labels: int = len(self._dm_labels)
+
         self._num_models_per_label: torch.Tensor = torch.zeros(
             1, self._num_of_labels, device=self._device
         )
@@ -72,13 +78,11 @@ class EnsembleBase(ABC):
             AttributeError: If any model config is missing required keys.
             ValueError: If duplicate paths are found for model checkpoint, class, or labels.
         """
-        path_set, class_set, labels_set = set(), set(), set()
+        class_set, labels_set = set(), set()
         required_keys = {
-            MODEL_CKPT_PATH,
             MODEL_CLS_PATH,
             MODEL_LBL_PATH,
             WRAPPER_CLS_PATH,
-            READER_CLS_PATH,
         }
 
         for model_name, config in model_configs.items():
@@ -88,14 +92,11 @@ class EnsembleBase(ABC):
                     f"Missing keys {missing_keys} in model '{model_name}' configuration."
                 )
 
-            model_ckpt_path, model_class_path, model_labels_path = (
-                config[MODEL_CKPT_PATH],
+            model_class_path, model_labels_path = (
                 config[MODEL_CLS_PATH],
                 config[MODEL_LBL_PATH],
             )
 
-            if model_ckpt_path in path_set:
-                raise ValueError(f"Duplicate model path detected: '{model_ckpt_path}'.")
             if model_class_path in class_set:
                 raise ValueError(
                     f"Duplicate class path detected: '{model_class_path}'."
@@ -103,29 +104,29 @@ class EnsembleBase(ABC):
             if model_labels_path in labels_set:
                 raise ValueError(f"Duplicate labels path: {model_labels_path}.")
 
-            path_set.add(model_ckpt_path)
             class_set.add(model_class_path)
             labels_set.add(model_labels_path)
 
-    def _load_data_module_labels(self) -> None:
+    def _load_data_module_labels(self) -> dict[str, int]:
         """
         Loads class labels from the classes.txt file and sets internal label mapping.
 
         Raises:
             FileNotFoundError: If the expected classes.txt file is not found.
         """
-        classes_txt_file = os.path.join(self.data_processed_dir_main, "classes.txt")
-        rank_zero_info(f"Loading {classes_txt_file} ....")
+        classes_txt_file = os.path.join(self._data_processed_dir_main, "classes.txt")
+        print(f"Loading {classes_txt_file} ....")
 
         if not os.path.exists(classes_txt_file):
             raise FileNotFoundError(f"{classes_txt_file} does not exist")
 
+        dm_labels_dict = {}
         with open(classes_txt_file, "r") as f:
             for line in f:
                 label = line.strip()
-                if label not in self._dm_labels:
-                    self._dm_labels[label] = len(self._dm_labels)
-        self._num_of_labels = len(self._dm_labels)
+                if label not in dm_labels_dict:
+                    dm_labels_dict[label] = len(dm_labels_dict)
+        return dm_labels_dict
 
     def run_ensemble(self) -> None:
         """
@@ -140,14 +141,12 @@ class EnsembleBase(ABC):
 
         while self._model_queue:
             model_name = self._model_queue.popleft()
-            rank_zero_info(f"Processing model: {model_name}")
-            model, model_props = self._load_model_and_its_props(model_name)
+            print(f"Processing model: {model_name}")
 
-            rank_zero_info("\t Passing model to controller to generate predictions...")
-            pred_conf_dict = self._controller(model, model_props)
-            del model  # Model can be huge to keep it in memory, delete as no longer needed
+            print("\t Passing model to controller to generate predictions...")
+            pred_conf_dict, model_props = self._controller(model_name)
 
-            rank_zero_info("\t Passing predictions to consolidator for aggregation...")
+            print("\t Passing predictions to consolidator for aggregation...")
             self._consolidator(
                 pred_conf_dict,
                 model_props,
@@ -155,7 +154,7 @@ class EnsembleBase(ABC):
                 false_scores=false_scores,
             )
 
-        rank_zero_info(f"Consolidating predictions for {self.__class__.__name__}")
+        print(f"Consolidating predictions for {self.__class__.__name__}")
         final_preds = self._consolidate_on_finish(
             true_scores=true_scores, false_scores=false_scores
         )
