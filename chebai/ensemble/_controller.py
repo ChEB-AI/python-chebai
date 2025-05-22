@@ -4,12 +4,16 @@ from collections import deque
 from typing import Any, Deque, Dict
 
 import torch
+from lightning import LightningModule
 from torch import Tensor
 
 from chebai.models import ChebaiBaseNet
 from chebai.preprocessing.collate import RaggedCollator
 
 from ._base import EnsembleBase
+from ._constants import WRAPPER_CLS_PATH
+from ._utils import _load_class
+from ._wrappers import BaseWrapper
 
 
 class _Controller(EnsembleBase, ABC):
@@ -30,10 +34,7 @@ class _Controller(EnsembleBase, ABC):
             **kwargs (Any): Keyword arguments passed to the EnsembleBase initializer.
         """
         super().__init__(**kwargs)
-        self._collator = RaggedCollator()
-
-        self.input_dim = len(self._collated_data.x[0])
-        self._total_data_size: int = len(self._collated_data)
+        self._kwargs = kwargs
 
     def _get_pred_conf_from_model_output(
         self, model_output: Dict[str, Tensor], model_label_mask: Tensor
@@ -60,6 +61,20 @@ class _Controller(EnsembleBase, ABC):
         confidence[:, model_label_mask] = 2 * torch.abs(sigmoid_logits - 0.5)
         return {"prediction": prediction, "confidence": confidence}
 
+    def _wrap_model(self, model_name: str) -> BaseWrapper:
+        model_config = self._model_configs[model_name]
+        wrp_cls = _load_class(model_config[WRAPPER_CLS_PATH])
+        assert issubclass(wrp_cls, BaseWrapper), ""
+        wrapped_model = wrp_cls(
+            model_name=model_name,
+            model_config=model_config,
+            dm_labels=self._dm_labels,
+            **self._kwargs
+        )
+        assert isinstance(wrapped_model, BaseWrapper), ""
+        # del wrapped_model  # Model can be huge to keep it in memory, delete as no longer needed
+        return wrapped_model
+
 
 class NoActivationCondition(_Controller):
     """
@@ -76,11 +91,9 @@ class NoActivationCondition(_Controller):
             **kwargs (Any): Keyword arguments passed to the _Controller initializer.
         """
         super().__init__(**kwargs)
-        self._model_queue: Deque[str] = deque(list(self.model_configs.keys()))
+        self._model_queue: Deque[str] = deque(list(self._model_configs.keys()))
 
-    def _controller(
-        self, model: ChebaiBaseNet, model_props: Dict[str, Tensor], **kwargs: Any
-    ) -> Dict[str, Tensor]:
+    def _controller(self, model_name, **kwargs: Any) -> Dict[str, Tensor]:
         """
         Performs inference with the model and extracts predictions and confidence values.
 
@@ -91,5 +104,5 @@ class NoActivationCondition(_Controller):
         Returns:
             Dict[str, Tensor]: Dictionary containing predictions and confidence scores.
         """
-        model_output = self._forward_pass(model)
+        wrapped_model = self._wrap_model(model_name)
         return self._get_pred_conf_from_model_output(model_output, model_props["mask"])
