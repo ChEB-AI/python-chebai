@@ -52,7 +52,7 @@ class GNNResGated(NNWrapper):
         )
 
     def _read_smiles(self, smiles):
-        d = self.reader.to_data(dict(features=smiles, labels=None))
+        d = self._reader.to_data(dict(features=smiles, labels=None))
         geom_data = d["features"]
         assert isinstance(geom_data, GeomData), ""
         edge_attr = geom_data.edge_attr

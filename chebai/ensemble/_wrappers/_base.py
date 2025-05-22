@@ -6,7 +6,7 @@ from typing import overload
 
 import torch
 
-from ._constants import MODEL_CLS_PATH, MODEL_LBL_PATH, READER_CLS_PATH
+from .._constants import MODEL_CLS_PATH, MODEL_LBL_PATH
 
 
 class BaseWrapper(ABC):

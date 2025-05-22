@@ -7,8 +7,8 @@ from rdkit import Chem
 from chebai.models import ChebaiBaseNet
 from chebai.preprocessing.reader import DataReader
 
+from .._constants import MODEL_CKPT_PATH, READER_CLS_PATH, READER_KWARGS
 from ._base import BaseWrapper
-from ._constants import MODEL_CKPT_PATH, READER_CLS_PATH, READER_KWARGS
 
 
 class NNWrapper(BaseWrapper):
