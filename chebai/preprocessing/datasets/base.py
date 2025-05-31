@@ -440,13 +440,25 @@ class XYBaseDataModule(LightningDataModule):
         ):
             self.setup_processed()
 
-        if not ("keep_reader" in kwargs and kwargs["keep_reader"]):
-            self.reader.on_finish()
+        self._after_setup(**kwargs)
 
+    def _after_setup(self, **kwargs):
+        """
+        Finalize the setup process after ensuring the processed data is available.
+
+        This method performs post-setup tasks like finalizing the reader and setting internal properties.
+        """
+        self.reader.on_finish()
         self._set_processed_data_props()
 
     def _set_processed_data_props(self):
+        """
+        Load processed data and extract metadata.
 
+        Sets:
+            - self._num_of_labels: Number of target labels in the dataset.
+            - self._feature_vector_size: Maximum feature vector length across all data points.
+        """
         data_pt = torch.load(
             os.path.join(self.processed_dir, self.processed_file_names_dict["data"]),
             weights_only=False,
