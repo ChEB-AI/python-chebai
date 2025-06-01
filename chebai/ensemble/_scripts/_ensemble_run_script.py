@@ -1,11 +1,10 @@
-from typing import Any, Dict, Type
+from typing import Any, Dict
 
 import yaml
 from jsonargparse import ArgumentParser
 
-from chebai.ensemble._utils import _load_class
-
-from .._base import EnsembleBase
+from chebai.ensemble._base import EnsembleBase
+from chebai.ensemble._utils import load_class
 
 
 def load_config_and_instantiate(config_path: str) -> EnsembleBase:
@@ -27,7 +26,7 @@ def load_config_and_instantiate(config_path: str) -> EnsembleBase:
     class_path: str = config["class_path"]
     init_args: Dict[str, Any] = config.get("init_args", {})
 
-    cls = _load_class(class_path)
+    cls = load_class(class_path)
 
     if not issubclass(cls, EnsembleBase):
         raise TypeError(f"{cls} must be subclass of EnsembleBase")

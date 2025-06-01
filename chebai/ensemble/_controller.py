@@ -7,7 +7,7 @@ import torch
 from torch import Tensor
 
 from ._base import EnsembleBase
-from ._constants import EVAL_OP, PRED_OP, WRAPPER_CLS_PATH
+from ._constants import PRED_OP, WRAPPER_CLS_PATH
 from ._utils import load_class
 from ._wrappers import BaseWrapper
 
@@ -35,7 +35,7 @@ class _Controller(EnsembleBase, ABC):
         # This is in order to avoid re-adding models that have already been processed
         self._model_key_set: set[str] = set(self._model_configs.keys())
 
-        # Labels from any processed data.pt file for any reader
+        # Labels from any processed `data.pt` file of any reader
         self._collated_labels: torch.Tensor | None = None
 
     def _controller(
@@ -56,6 +56,12 @@ class _Controller(EnsembleBase, ABC):
             model_output, model_props = wrapped_model.predict(model_input)
         else:
             model_output, model_props = wrapped_model.evaluate(model_input)
+            if (
+                self._collated_labels is None
+                and wrapped_model.collated_labels is not None
+            ):
+                self._collated_labels = wrapped_model.collated_labels
+
         del wrapped_model  # Model can be huge to keep it in memory, delete asap as no longer needed
 
         pred_conf_dict = self._get_pred_conf_from_model_output(
@@ -98,8 +104,6 @@ class _Controller(EnsembleBase, ABC):
             dm_labels=self._dm_labels,
             **self._kwargs
         )
-        if self._collated_labels is not None and self._operation == EVAL_OP:
-            self._collated_labels = wrapped_model.collated_labels
 
         assert isinstance(wrapped_model, BaseWrapper), ""
         return wrapped_model

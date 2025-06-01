@@ -205,6 +205,9 @@ class EnsembleBase(ABC):
         )
 
         if self._operation == EVAL_OP:
+            assert (
+                self._collated_labels is not None
+            ), "Collated labels must be set for evaluation operation."
             print_metrics(
                 final_preds,
                 self._collated_labels,
