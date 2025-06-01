@@ -169,3 +169,4 @@ cython_debug/
 electra_pretrained.ckpt
 /lightning_logs
 .isort.cfg
+/.vscode
