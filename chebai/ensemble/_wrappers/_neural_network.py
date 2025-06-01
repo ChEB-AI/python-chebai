@@ -1,5 +1,5 @@
 import os
-from typing import Optional, Type
+from typing import Type
 
 import torch
 from rdkit import Chem
@@ -15,7 +15,9 @@ from ._base import BaseWrapper
 class NNWrapper(BaseWrapper):
 
     def __init__(self, **kwargs):
-        self._validate_model_configs(**kwargs)
+        self._validate_model_configs(
+            model_config=kwargs["model_config"], model_name=kwargs["model_name"]
+        )
         super().__init__(**kwargs)
 
         self._model_ckpt_path = self._model_config[MODEL_CKPT_PATH]
@@ -30,11 +32,15 @@ class NNWrapper(BaseWrapper):
         assert issubclass(reader_cls, DataReader), ""
         self._reader = reader_cls(**self._reader_kwargs)
         self._collator = reader_cls.COLLATOR()
-        self._model: ChebaiBaseNet = self._load_model_()
+        self._model: ChebaiBaseNet = self._load_model_(
+            input_dim=kwargs.get("input_dim", None)
+        )
 
     @classmethod
     def _validate_model_configs(
-        cls, model_config: dict[str, str], model_name: str
+        cls,
+        model_config: dict[str, str],
+        model_name: str,
     ) -> None:
         """
         Validates model configuration dictionary for required keys and uniqueness.
@@ -57,12 +63,12 @@ class NNWrapper(BaseWrapper):
                 f"Missing keys {missing_keys} in model '{model_name}' configuration."
             )
 
-    def _load_model_(self) -> ChebaiBaseNet:
+    def _load_model_(self, input_dim: int | None) -> ChebaiBaseNet:
         """
         Loads a model checkpoint and its label-related properties.
 
         Args:
-            model_name (str): Name of the model to load.
+            input_dim (int): Name of the model to load.
 
         Returns:
             Tuple[LightningModule, Dict[str, torch.Tensor]]: The model and its label properties.
@@ -73,22 +79,21 @@ class NNWrapper(BaseWrapper):
                 f"Model path '{self._model_ckpt_path}' for '{self._model_name}' does not exist."
             )
 
-        lightning_cls = self._load_class(self._model_class_path)
+        lightning_cls = _load_class(self._model_class_path)
 
         assert isinstance(lightning_cls, type), f"{lightning_cls} is not a class."
         assert issubclass(
             lightning_cls, ChebaiBaseNet
         ), f"{lightning_cls} must inherit from ChebaiBaseNet"
-
         try:
             model = lightning_cls.load_from_checkpoint(
-                self._model_ckpt_path, input_dim=self.input_dim
+                self._model_ckpt_path, input_dim=5
             )
-            model.eval()
-            model.freeze()
         except Exception as e:
-            raise RuntimeError(f"Error loading model {self._model_name}") from e
+            raise RuntimeError(f"Error loading model {self._model_name} \n Error: {e}")
 
+        model.eval()
+        model.freeze()
         return model
 
     def _predict_from_list_of_smiles(self, smiles_list) -> list:

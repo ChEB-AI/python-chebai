@@ -1,8 +1,7 @@
-import importlib
 import json
 import os
 from abc import ABC, abstractmethod
-from typing import overload
+from pathlib import Path
 
 import torch
 
@@ -22,10 +21,9 @@ class BaseWrapper(ABC):
         self._model_name = model_name
         self._model_class_path = self._model_config[MODEL_CLS_PATH]
         self._model_labels_path = self._model_config[MODEL_LBL_PATH]
-        self._dm_labels: dict[str, int] = dm_labels
-        self._model_props = self._generate_model_label_props()
+        self._model_props = self._generate_model_label_props(dm_labels=dm_labels)
 
-    def _generate_model_label_props(self) -> dict[str, torch.Tensor]:
+    def _generate_model_label_props(self, dm_labels) -> dict[str, torch.Tensor]:
         """
         Generates label mask and confidence tensors (TPV, FPV) for a model.
 
@@ -38,13 +36,15 @@ class BaseWrapper(ABC):
         model_label_indices, tpv_label_values, fpv_label_values = [], [], []
 
         for label, props in labels_dict.items():
-            if label in self._dm_labels:
+            if label in dm_labels:
                 try:
                     self._validate_model_labels_json_element(labels_dict[label])
                 except Exception as e:
-                    raise Exception(f"Label '{label}' has an unexpected error") from e
+                    raise Exception(
+                        f"Label '{label}' has an unexpected error \n Error: {e}"
+                    )
 
-                model_label_indices.append(self._dm_labels[label])
+                model_label_indices.append(dm_labels[label])
                 tpv_label_values.append(props["TPV"])
                 fpv_label_values.append(props["FPV"])
 
@@ -54,7 +54,7 @@ class BaseWrapper(ABC):
             )
 
         # Create masks to apply predictions only to known classes
-        mask = torch.zeros(len(self._dm_labels), dtype=torch.bool, device=self._device)
+        mask = torch.zeros(len(dm_labels), dtype=torch.bool, device=self._device)
         mask[torch.tensor(model_label_indices, device=self._device)] = True
 
         tpv_tensor = torch.full_like(mask, -1, dtype=torch.float, device=self._device)
@@ -113,26 +113,14 @@ class BaseWrapper(ABC):
     def name(self):
         return f"Wrapper({self.__class__.__name__}) for model: {self._model_name}"
 
-    @overload
-    def predict(self, smiles_list: list) -> tuple[dict, dict]:
-        pass
-
-    @overload
-    def predict(self, data_file_path: str) -> tuple[dict, dict]:
-        pass
-
-    def predict(self, x: list | str) -> tuple[dict, dict]:
-        if isinstance(x, list):
-            return self._predict_from_list_of_smiles(x), self._model_props
-        elif isinstance(x, str):
-            return self._predict_from_data_file(x), self._model_props
-        else:
-            raise TypeError(f"Type {type(x)} is not supported.")
+    def predict(self, x: list) -> tuple[dict, dict]:
+        return self._predict_from_list_of_smiles(x), self._model_props
 
     @abstractmethod
-    def _predict_from_list_of_smiles(self, smiles_list: list) -> dict:
-        pass
+    def _predict_from_list_of_smiles(self, smiles_list: list) -> dict: ...
+
+    def evaluate(self, data_processed_dir_main: Path) -> tuple[dict, dict]:
+        return self._evaluate_from_data_file(data_processed_dir_main), self._model_props
 
     @abstractmethod
-    def _predict_from_data_file(self, data_file_path: str) -> dict:
-        pass
+    def _evaluate_from_data_file(self, data_file_path: str) -> dict: ...
