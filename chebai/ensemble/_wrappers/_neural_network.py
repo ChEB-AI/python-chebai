@@ -7,9 +7,10 @@ from rdkit import Chem
 
 from chebai.models import ChebaiBaseNet
 from chebai.preprocessing.reader import DataReader
+from chebai.preprocessing.structures import XYData
 
 from .._constants import MODEL_CKPT_PATH, READER_CLS_PATH, READER_KWARGS
-from .._utils import _load_class
+from .._utils import load_class
 from ._base import BaseWrapper
 
 
@@ -29,10 +30,11 @@ class NNWrapper(BaseWrapper):
             else dict()
         )
 
-        reader_cls: Type[DataReader] = _load_class(self._reader_class_path)
+        reader_cls: Type[DataReader] = load_class(self._reader_class_path)
         assert issubclass(reader_cls, DataReader), ""
         self._reader = reader_cls(**self._reader_kwargs)
         self._collator = reader_cls.COLLATOR()
+        self.collated_labels = None
         self._model: ChebaiBaseNet = self._load_model_(
             input_dim=kwargs.get("input_dim", None)
         )
@@ -80,7 +82,7 @@ class NNWrapper(BaseWrapper):
                 f"Model path '{self._model_ckpt_path}' for '{self._model_name}' does not exist."
             )
 
-        lightning_cls = _load_class(self._model_class_path)
+        lightning_cls = load_class(self._model_class_path)
 
         assert isinstance(lightning_cls, type), f"{lightning_cls} is not a class."
         assert issubclass(
@@ -137,9 +139,9 @@ class NNWrapper(BaseWrapper):
         return self._reader.to_data(dict(features=smiles, labels=None))
 
     def _forward_pass(self, batch):
-        processable_data = self._model._process_batch(  # noqa
-            self._collator(batch).to(self._device), 0
-        )
+        collated_batch: XYData = self._collator(batch).to(self._device)
+        self.collated_labels = collated_batch.y
+        processable_data = self._model._process_batch(collated_batch, 0)  # noqa
         return self._model(processable_data, **processable_data["model_kwargs"])
 
     def _evaluate_from_data_file(

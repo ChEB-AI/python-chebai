@@ -22,6 +22,7 @@ class BaseWrapper(ABC):
         self._model_class_path = self._model_config[MODEL_CLS_PATH]
         self._model_labels_path = self._model_config[MODEL_LBL_PATH]
         self._model_props = self._generate_model_label_props(dm_labels=dm_labels)
+        self.collated_labels = None
 
     def _generate_model_label_props(self, dm_labels) -> dict[str, torch.Tensor]:
         """

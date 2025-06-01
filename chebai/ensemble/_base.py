@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 from collections import deque
 from pathlib import Path
-from typing import Any, Deque, Dict, Literal, Optional
+from typing import Any, Deque, Dict, Optional
 
 import pandas as pd
 import torch
@@ -38,7 +38,6 @@ class EnsembleBase(ABC):
         Args:
             model_configs (Dict[str, Dict[str, Any]]): Dictionary of model configurations.
             data_processed_dir_main (str): Path to the processed data directory.
-            reader_dir_name (str): Name of the directory used by the reader. Defaults to 'smiles_token'.
             **kwargs (Any): Additional arguments, such as 'input_dim' and '_validate_configs'.
         """
         if bool(kwargs.get("_perform_validation_checks", True)):
@@ -51,8 +50,8 @@ class EnsembleBase(ABC):
         self._operation: str = operation
         print(f"Ensemble operation: {self._operation}")
 
-        self._input_dim: Optional[int] = kwargs.get("input_dim", None)
-        self._total_data_size: int = None
+        # These instance variable will be set in method `_process_input_to_ensemble`
+        self._total_data_size: int | None = None
         self._ensemble_input: list[str] | Path = self._process_input_to_ensemble(
             **kwargs
         )
@@ -60,7 +59,6 @@ class EnsembleBase(ABC):
 
         self._device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-        self._models: Dict[str, LightningModule] = {}
         self._dm_labels: Dict[str, int] = self._load_data_module_labels()
         self._num_of_labels: int = len(self._dm_labels)
         print(f"Number of labes for this data is {self._num_of_labels} ")
@@ -69,6 +67,7 @@ class EnsembleBase(ABC):
             1, self._num_of_labels, device=self._device
         )
         self._model_queue: Deque[str] = deque()
+        self._collated_labels: torch.Tensor | None = None
 
     @classmethod
     def _perform_validation_checks(
@@ -126,10 +125,10 @@ class EnsembleBase(ABC):
             class_set.add(model_class_path)
             labels_set.add(model_labels_path)
 
-    def _process_input_to_ensemble(self, **kwargs: any) -> list[str] | Path:
+    def _process_input_to_ensemble(self, **kwargs: Any) -> list[str] | Path:
         if self._operation == PRED_OP:
             p = Path(kwargs["smiles_list_file_path"])
-            smiles_list = []
+            smiles_list: list[str] = []
             with open(p, "r") as f:
                 for line in f:
                     # Skip empty or whitespace-only lines
@@ -140,11 +139,14 @@ class EnsembleBase(ABC):
             self._total_data_size = len(smiles_list)
             return smiles_list
         elif self._operation == EVAL_OP:
-            data_pkl_path = Path(self._data_processed_dir_main) / "data.pkl"
+            processed_dir_path = Path(self._data_processed_dir_main)
+            data_pkl_path = processed_dir_path / "data.pkl"
             if not data_pkl_path.exists():
-                raise FileNotFoundError()
+                raise FileNotFoundError(
+                    f"data.pkl does not exist in the {processed_dir_path} directory"
+                )
             self._total_data_size = len(pd.read_pickle(data_pkl_path))
-            return p
+            return processed_dir_path
         else:
             raise ValueError("Invalid operation")
 
@@ -180,6 +182,9 @@ class EnsembleBase(ABC):
             self._total_data_size, self._num_of_labels, device=self._device
         )
 
+        print(
+            f"Running {self.__class__.__name__} ensemble for {self._operation} operation..."
+        )
         while self._model_queue:
             model_name = self._model_queue.popleft()
             print(f"Processing model: {model_name}")
@@ -195,16 +200,17 @@ class EnsembleBase(ABC):
                 false_scores=false_scores,
             )
 
-        print(f"Consolidating predictions for {self.__class__.__name__}")
         final_preds = self._consolidate_on_finish(
             true_scores=true_scores, false_scores=false_scores
         )
-        print_metrics(
-            final_preds,
-            self._collated_data.y,
-            self._device,
-            classes=list(self._dm_labels.keys()),
-        )
+
+        if self._operation == EVAL_OP:
+            print_metrics(
+                final_preds,
+                self._collated_labels,
+                self._device,
+                classes=list(self._dm_labels.keys()),
+            )
 
     @abstractmethod
     def _controller(

@@ -1,5 +1,6 @@
-from abc import ABC, abstractmethod
+from abc import ABC
 from collections import deque
+from pathlib import Path
 from typing import Any, Deque, Dict
 
 import torch
@@ -7,7 +8,7 @@ from torch import Tensor
 
 from ._base import EnsembleBase
 from ._constants import EVAL_OP, PRED_OP, WRAPPER_CLS_PATH
-from ._utils import _load_class
+from ._utils import load_class
 from ._wrappers import BaseWrapper
 
 
@@ -30,9 +31,16 @@ class _Controller(EnsembleBase, ABC):
         """
         super().__init__(**kwargs)
         self._kwargs = kwargs
+        # If an activation condition correponding model is added to queue, removed from this set
+        # This is in order to avoid re-adding models that have already been processed
+        self._model_key_set: set[str] = set(self._model_configs.keys())
 
-    @abstractmethod
-    def _controller(self, model_name, model_input, **kwargs: Any) -> Dict[str, Tensor]:
+        # Labels from any processed data.pt file for any reader
+        self._collated_labels: torch.Tensor | None = None
+
+    def _controller(
+        self, model_name: str, model_input: list[str] | Path, **kwargs: Any
+    ) -> Dict[str, Tensor]:
         """
         Performs inference with the model and extracts predictions and confidence values.
 
@@ -82,7 +90,7 @@ class _Controller(EnsembleBase, ABC):
 
     def _wrap_model(self, model_name: str) -> BaseWrapper:
         model_config = self._model_configs[model_name]
-        wrp_cls = _load_class(model_config[WRAPPER_CLS_PATH])
+        wrp_cls = load_class(model_config[WRAPPER_CLS_PATH])
         assert issubclass(wrp_cls, BaseWrapper), ""
         wrapped_model = wrp_cls(
             model_name=model_name,
@@ -90,6 +98,9 @@ class _Controller(EnsembleBase, ABC):
             dm_labels=self._dm_labels,
             **self._kwargs
         )
+        if self._collated_labels is not None and self._operation == EVAL_OP:
+            self._collated_labels = wrapped_model.collated_labels
+
         assert isinstance(wrapped_model, BaseWrapper), ""
         return wrapped_model
 
@@ -110,19 +121,3 @@ class NoActivationCondition(_Controller):
         """
         super().__init__(**kwargs)
         self._model_queue: Deque[str] = deque(list(self._model_configs.keys()))
-
-    def _controller(self, model_name, model_input, **kwargs: Any) -> Dict[str, Tensor]:
-        """
-        Performs inference with the model and extracts predictions and confidence values.
-
-        Args:
-            model (ChebaiBaseNet): The model to perform inference with.
-            model_props (Dict[str, Tensor]): Dictionary with label mask and trust scores.
-
-        Returns:
-            Dict[str, Tensor]: Dictionary containing predictions and confidence scores.
-        """
-
-        output_dict = super()._controller(model_name, model_input, **kwargs)
-        # Some activation condition can be applied, not in this controller, so we return the output directly
-        return output_dict
