@@ -1,4 +1,5 @@
 import os
+from pathlib import Path
 from typing import Type
 
 import torch
@@ -90,13 +91,18 @@ class NNWrapper(BaseWrapper):
                 self._model_ckpt_path, input_dim=5
             )
         except Exception as e:
-            raise RuntimeError(f"Error loading model {self._model_name} \n Error: {e}")
+            raise RuntimeError(
+                f"Error loading model {self._model_name} \n Error: {e}"
+            ) from e
 
+        assert isinstance(
+            model, ChebaiBaseNet
+        ), f"{model} is not a ChebaiBaseNet instance."
         model.eval()
         model.freeze()
         return model
 
-    def _predict_from_list_of_smiles(self, smiles_list) -> list:
+    def _predict_from_list_of_smiles(self, smiles_list: list[str]) -> list:
         token_dicts = []
         could_not_parse = []
         index_map = dict()
@@ -131,16 +137,16 @@ class NNWrapper(BaseWrapper):
         return self._reader.to_data(dict(features=smiles, labels=None))
 
     def _forward_pass(self, batch):
-        processable_data = self._model._process_batch(
+        processable_data = self._model._process_batch(  # noqa
             self._collator(batch).to(self._device), 0
         )
         return self._model(processable_data, **processable_data["model_kwargs"])
 
-    def _predict_from_data_file(
-        self, processed_dir_main: str, data_file_name="data.pt"
+    def _evaluate_from_data_file(
+        self, data_processed_dir_main: Path, data_file_name="data.pt"
     ) -> list:
         data = torch.load(
-            os.path.join(processed_dir_main, self._reader.name(), data_file_name),
+            data_processed_dir_main / self._reader.name() / data_file_name,
             weights_only=False,
             map_location=self._device,
         )

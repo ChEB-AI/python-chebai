@@ -6,3 +6,7 @@ WRAPPER_CLS_PATH = "wrapper_class_path"
 
 READER_CLS_PATH = "reader_class_path"
 READER_KWARGS = "reader_kwargs"
+
+
+PRED_OP = "prediction"
+EVAL_OP = "evaluation"

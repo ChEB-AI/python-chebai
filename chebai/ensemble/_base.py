@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 from collections import deque
 from pathlib import Path
-from typing import Any, Deque, Dict, Optional
+from typing import Any, Deque, Dict, Literal, Optional
 
 import pandas as pd
 import torch
@@ -9,7 +9,13 @@ from lightning import LightningModule
 
 from chebai.result.classification import print_metrics
 
-from ._constants import MODEL_CLS_PATH, MODEL_LBL_PATH, WRAPPER_CLS_PATH
+from ._constants import (
+    EVAL_OP,
+    MODEL_CLS_PATH,
+    MODEL_LBL_PATH,
+    PRED_OP,
+    WRAPPER_CLS_PATH,
+)
 
 
 class EnsembleBase(ABC):
@@ -22,8 +28,8 @@ class EnsembleBase(ABC):
     def __init__(
         self,
         model_configs: Dict[str, Dict[str, Any]],
-        data_file_path: str,
-        classes_file_path: str,
+        data_processed_dir_main: str,
+        operation: str = EVAL_OP,
         **kwargs: Any,
     ) -> None:
         """
@@ -31,29 +37,31 @@ class EnsembleBase(ABC):
 
         Args:
             model_configs (Dict[str, Dict[str, Any]]): Dictionary of model configurations.
-            data_file_path (str): Path to the processed data directory.
+            data_processed_dir_main (str): Path to the processed data directory.
             reader_dir_name (str): Name of the directory used by the reader. Defaults to 'smiles_token'.
             **kwargs (Any): Additional arguments, such as 'input_dim' and '_validate_configs'.
         """
-        if bool(kwargs.get("_validate_configs", True)):
-            self._validate_model_configs(model_configs)
+        if bool(kwargs.get("_perform_validation_checks", True)):
+            self._perform_validation_checks(
+                model_configs, operation=operation, **kwargs
+            )
 
         self._model_configs: Dict[str, Dict[str, Any]] = model_configs
-        self._data_file_path: str = data_file_path
-        self._classes_file_path: str = classes_file_path
+        self._data_processed_dir_main: str = data_processed_dir_main
+        self._operation: str = operation
+        print(f"Ensemble operation: {self._operation}")
+
         self._input_dim: Optional[int] = kwargs.get("input_dim", None)
         self._total_data_size: int = None
         self._ensemble_input: list[str] | Path = self._process_input_to_ensemble(
-            data_file_path
+            **kwargs
         )
         print(f"Total data size (data.pkl) is {self._total_data_size}")
 
         self._device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
         self._models: Dict[str, LightningModule] = {}
-        self._dm_labels: Dict[str, int] = self._load_data_module_labels(
-            classes_file_path
-        )
+        self._dm_labels: Dict[str, int] = self._load_data_module_labels()
         self._num_of_labels: int = len(self._dm_labels)
         print(f"Number of labes for this data is {self._num_of_labels} ")
 
@@ -63,7 +71,9 @@ class EnsembleBase(ABC):
         self._model_queue: Deque[str] = deque()
 
     @classmethod
-    def _validate_model_configs(cls, model_configs: Dict[str, Dict[str, Any]]) -> None:
+    def _perform_validation_checks(
+        cls, model_configs: Dict[str, Dict[str, Any]], operation, **kwargs
+    ) -> None:
         """
         Validates model configuration dictionary for required keys and uniqueness.
 
@@ -74,6 +84,19 @@ class EnsembleBase(ABC):
             AttributeError: If any model config is missing required keys.
             ValueError: If duplicate paths are found for model checkpoint, class, or labels.
         """
+        if operation not in ["evaluate", "predict"]:
+            raise ValueError(
+                f"Invalid operation '{operation}'. Must be 'evaluate' or 'predict'."
+            )
+
+        if operation == "predict" and not kwargs.get("smiles_list_file_path", None):
+            raise ValueError(
+                "For 'predict' operation, 'smiles_list_file_path' must be provided."
+            )
+
+        if not Path(kwargs.get("smiles_list_file_path")).exists():
+            raise FileNotFoundError(f"{kwargs.get('smiles_list_file_path')}")
+
         class_set, labels_set = set(), set()
         required_keys = {
             MODEL_CLS_PATH,
@@ -103,9 +126,9 @@ class EnsembleBase(ABC):
             class_set.add(model_class_path)
             labels_set.add(model_labels_path)
 
-    def _process_input_to_ensemble(self, path: str):
-        p = Path(path)
-        if p.is_file():
+    def _process_input_to_ensemble(self, **kwargs: any) -> list[str] | Path:
+        if self._operation == PRED_OP:
+            p = Path(kwargs["smiles_list_file_path"])
             smiles_list = []
             with open(p, "r") as f:
                 for line in f:
@@ -116,24 +139,23 @@ class EnsembleBase(ABC):
                         smiles_list.append(smiles)
             self._total_data_size = len(smiles_list)
             return smiles_list
-        elif p.is_dir():
-            data_pkl_path = p / "data.pkl"
+        elif self._operation == EVAL_OP:
+            data_pkl_path = Path(self._data_processed_dir_main) / "data.pkl"
             if not data_pkl_path.exists():
                 raise FileNotFoundError()
             self._total_data_size = len(pd.read_pickle(data_pkl_path))
             return p
         else:
-            raise "Invalid path"
+            raise ValueError("Invalid operation")
 
-    @staticmethod
-    def _load_data_module_labels(classes_file_path: str) -> dict[str, int]:
+    def _load_data_module_labels(self) -> dict[str, int]:
         """
         Loads class labels from the classes.txt file and sets internal label mapping.
 
         Raises:
             FileNotFoundError: If the expected classes.txt file is not found.
         """
-        classes_file_path = Path(classes_file_path)
+        classes_file_path = Path(self._data_processed_dir_main) / "classes.txt"
         if not classes_file_path.exists():
             raise FileNotFoundError(f"{classes_file_path} does not exist")
         print(f"Loading {classes_file_path} ....")
@@ -197,14 +219,13 @@ class EnsembleBase(ABC):
         Returns:
             Dict[str, torch.Tensor]: Predictions or confidence scores.
         """
-        pass
 
     @abstractmethod
     def _consolidator(
         self,
+        *,
         pred_conf_dict: Dict[str, torch.Tensor],
         model_props: Dict[str, torch.Tensor],
-        *,
         true_scores: torch.Tensor,
         false_scores: torch.Tensor,
         **kwargs: Any,
@@ -214,7 +235,6 @@ class EnsembleBase(ABC):
 
         Should update the provided `true_scores` and `false_scores`.
         """
-        pass
 
     @abstractmethod
     def _consolidate_on_finish(
@@ -226,4 +246,3 @@ class EnsembleBase(ABC):
         Returns:
             torch.Tensor: Final aggregated predictions.
         """
-        pass

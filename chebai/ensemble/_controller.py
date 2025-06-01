@@ -1,14 +1,12 @@
-from abc import ABC
+from abc import ABC, abstractmethod
 from collections import deque
 from typing import Any, Deque, Dict
 
 import torch
 from torch import Tensor
 
-from chebai.models import ChebaiBaseNet
-
 from ._base import EnsembleBase
-from ._constants import WRAPPER_CLS_PATH
+from ._constants import EVAL_OP, PRED_OP, WRAPPER_CLS_PATH
 from ._utils import _load_class
 from ._wrappers import BaseWrapper
 
@@ -32,6 +30,30 @@ class _Controller(EnsembleBase, ABC):
         """
         super().__init__(**kwargs)
         self._kwargs = kwargs
+
+    @abstractmethod
+    def _controller(self, model_name, model_input, **kwargs: Any) -> Dict[str, Tensor]:
+        """
+        Performs inference with the model and extracts predictions and confidence values.
+
+        Args:
+            model (ChebaiBaseNet): The model to perform inference with.
+            model_props (Dict[str, Tensor]): Dictionary with label mask and trust scores.
+
+        Returns:
+            Dict[str, Tensor]: Dictionary containing predictions and confidence scores.
+        """
+        wrapped_model = self._wrap_model(model_name)
+        if self._operation == PRED_OP:
+            model_output, model_props = wrapped_model.predict(model_input)
+        else:
+            model_output, model_props = wrapped_model.evaluate(model_input)
+        del wrapped_model  # Model can be huge to keep it in memory, delete asap as no longer needed
+
+        pred_conf_dict = self._get_pred_conf_from_model_output(
+            model_output, model_props["mask"]
+        )
+        return {"pred_conf_dict": pred_conf_dict, "model_props": model_props}
 
     def _get_pred_conf_from_model_output(
         self, model_output: Dict[str, Tensor], model_label_mask: Tensor
@@ -100,10 +122,7 @@ class NoActivationCondition(_Controller):
         Returns:
             Dict[str, Tensor]: Dictionary containing predictions and confidence scores.
         """
-        wrapped_model = self._wrap_model(model_name)
-        model_output, model_props = wrapped_model.predict(model_input)
-        del wrapped_model  # Model can be huge to keep it in memory, delete asap as no longer needed
-        pred_conf_dict = self._get_pred_conf_from_model_output(
-            model_output, model_props["mask"]
-        )
-        return {"pred_conf_dict": pred_conf_dict, "model_props": model_props}
+
+        output_dict = super()._controller(model_name, model_input, **kwargs)
+        # Some activation condition can be applied, not in this controller, so we return the output directly
+        return output_dict

@@ -114,13 +114,22 @@ class BaseWrapper(ABC):
         return f"Wrapper({self.__class__.__name__}) for model: {self._model_name}"
 
     def predict(self, x: list) -> tuple[dict, dict]:
+        if not isinstance(x, list):
+            raise TypeError(f"Input must be a list of SMILES strings, got {type(x)}")
         return self._predict_from_list_of_smiles(x), self._model_props
 
     @abstractmethod
     def _predict_from_list_of_smiles(self, smiles_list: list) -> dict: ...
 
-    def evaluate(self, data_processed_dir_main: Path) -> tuple[dict, dict]:
-        return self._evaluate_from_data_file(data_processed_dir_main), self._model_props
+    def evaluate(
+        self, data_processed_dir_main: Path, **kwargs: any
+    ) -> tuple[dict, dict]:
+        if not data_processed_dir_main.is_dir():
+            raise NotADirectoryError(f"{data_processed_dir_main} is not a directory.")
+        return (
+            self._evaluate_from_data_file(data_processed_dir_main, **kwargs),
+            self._model_props,
+        )
 
     @abstractmethod
     def _evaluate_from_data_file(self, data_file_path: str) -> dict: ...
