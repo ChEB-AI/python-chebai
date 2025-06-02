@@ -6,7 +6,7 @@ from pathlib import Path
 import pandas as pd
 import torch
 from jsonargparse import CLI
-from sklearn.metrics import confusion_matrix
+from sklearn.metrics import multilabel_confusion_matrix
 from torch.utils.data import DataLoader
 
 from chebai.ensemble._utils import load_class
@@ -36,30 +36,31 @@ class ClassesPropertiesGenerator:
 
     @staticmethod
     def compute_tpv_npv(
-        y_true: list[int], y_pred: list[int], class_names: list[str]
+        y_true: list[torch.Tensor], y_pred: list[torch.Tensor], class_names: list[str]
     ) -> dict[str, dict[str, float]]:
         """
-        Compute TPV and NPV for each class using the confusion matrix.
+        Compute TPV and NPV for each class in a multi-label classification problem.
 
         Args:
-            y_true (list[int]): Ground truth labels.
-            y_pred (list[int]): Predicted labels.
+            y_true (list[Tensor]): List of binary ground truth label tensors per sample.
+            y_pred (list[Tensor]): List of binary prediction tensors per sample.
             class_names (list[str]): List of class names corresponding to class indices.
 
         Returns:
             dict[str, dict[str, float]]: Dictionary with class names as keys and TPV/NPV as values.
         """
-        cm = confusion_matrix(y_true, y_pred, labels=list(range(len(class_names))))
+        # Convert list of tensors to a single binary matrix
+        y_true_tensor = torch.stack(y_true).cpu().numpy().astype(int)
+        y_pred_tensor = torch.stack(y_pred).cpu().numpy().astype(int)
+
+        cm = multilabel_confusion_matrix(y_true_tensor, y_pred_tensor)
+
         metrics = {}
-
         for i, cls in enumerate(class_names):
-            TP = cm[i, i]
-            FP = cm[:, i].sum() - TP
-            FN = cm[i, :].sum() - TP
-            TN = cm.sum() - (TP + FP + FN)
+            tn, fp, fn, tp = cm[i].ravel()
 
-            TPV = TP / (TP + FP) if (TP + FP) > 0 else 0.0
-            NPV = TN / (TN + FN) if (TN + FN) > 0 else 0.0
+            TPV = tp / (tp + fp) if (tp + fp) > 0 else 0.0
+            NPV = tn / (tn + fn) if (tn + fn) > 0 else 0.0
 
             metrics[cls] = {"TPV": round(TPV, 4), "NPV": round(NPV, 4)}
 
