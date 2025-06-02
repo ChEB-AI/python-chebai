@@ -126,7 +126,6 @@ class NNWrapper(BaseWrapper):
                 else:
                     index_map[i] = len(token_dicts)
                     token_dicts.append(d)
-        print(f"Predicting {len(token_dicts), token_dicts} out of {len(smiles_list)}")
         if token_dicts:
             model_output = self._forward_pass(token_dicts)
             if not isinstance(model_output, dict) and not "logits" in model_output:

@@ -1,4 +1,3 @@
-from ._base import EnsembleBase
 from ._consolidator import WeightedMajorityVoting
 from ._controller import NoActivationCondition
 from ._wrappers import NNWrapper

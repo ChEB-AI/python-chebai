@@ -1,11 +1,10 @@
 from abc import ABC, abstractmethod
 from collections import deque
 from pathlib import Path
-from typing import Any, Deque, Dict, Optional
+from typing import Any, Deque, Dict
 
 import pandas as pd
 import torch
-from lightning import LightningModule
 
 from chebai.result.classification import print_metrics
 
@@ -29,7 +28,7 @@ class EnsembleBase(ABC):
         self,
         model_configs: Dict[str, Dict[str, Any]],
         data_processed_dir_main: str,
-        operation: str = EVAL_OP,
+        operation_mode: str = EVAL_OP,
         **kwargs: Any,
     ) -> None:
         """
@@ -42,13 +41,13 @@ class EnsembleBase(ABC):
         """
         if bool(kwargs.get("_perform_validation_checks", True)):
             self._perform_validation_checks(
-                model_configs, operation=operation, **kwargs
+                model_configs, operation=operation_mode, **kwargs
             )
 
         self._model_configs: Dict[str, Dict[str, Any]] = model_configs
         self._data_processed_dir_main: str = data_processed_dir_main
-        self._operation: str = operation
-        print(f"Ensemble operation: {self._operation}")
+        self._operation_mode: str = operation_mode
+        print(f"Ensemble operation: {self._operation_mode}")
 
         # These instance variable will be set in method `_process_input_to_ensemble`
         self._total_data_size: int | None = None
@@ -126,7 +125,7 @@ class EnsembleBase(ABC):
             labels_set.add(model_labels_path)
 
     def _process_input_to_ensemble(self, **kwargs: Any) -> list[str] | Path:
-        if self._operation == PRED_OP:
+        if self._operation_mode == PRED_OP:
             p = Path(kwargs["smiles_list_file_path"])
             smiles_list: list[str] = []
             with open(p, "r") as f:
@@ -138,7 +137,7 @@ class EnsembleBase(ABC):
                         smiles_list.append(smiles)
             self._total_data_size = len(smiles_list)
             return smiles_list
-        elif self._operation == EVAL_OP:
+        elif self._operation_mode == EVAL_OP:
             processed_dir_path = Path(self._data_processed_dir_main)
             data_pkl_path = processed_dir_path / "data.pkl"
             if not data_pkl_path.exists():
@@ -183,7 +182,7 @@ class EnsembleBase(ABC):
         )
 
         print(
-            f"Running {self.__class__.__name__} ensemble for {self._operation} operation..."
+            f"Running {self.__class__.__name__} ensemble for {self._operation_mode} operation..."
         )
         while self._model_queue:
             model_name = self._model_queue.popleft()
@@ -204,7 +203,7 @@ class EnsembleBase(ABC):
             true_scores=true_scores, false_scores=false_scores
         )
 
-        if self._operation == EVAL_OP:
+        if self._operation_mode == EVAL_OP:
             assert (
                 self._collated_labels is not None
             ), "Collated labels must be set for evaluation operation."
@@ -214,6 +213,31 @@ class EnsembleBase(ABC):
                 self._device,
                 classes=list(self._dm_labels.keys()),
             )
+        else:
+            # Get SMILES and label names
+            smiles_list = self._ensemble_input
+            label_names = list(self._dm_labels.keys())
+            # Efficient conversion from tensor to NumPy
+            preds_np = final_preds.detach().cpu().numpy()
+
+            assert (
+                len(smiles_list) == preds_np.shape[0]
+            ), "Length of SMILES list does not match number of predictions."
+            assert (
+                len(label_names) == preds_np.shape[1]
+            ), "Number of label names does not match number of predictions."
+
+            # Build DataFrame
+            df = pd.DataFrame(preds_np, columns=label_names)
+            df.insert(0, "SMILES", smiles_list)
+
+            # Save to CSV
+            output_path = (
+                Path(self._data_processed_dir_main) / "ensemble_predictions.csv"
+            )
+            df.to_csv(output_path, index=False)
+
+            print(f"Predictions saved to {output_path}")
 
     @abstractmethod
     def _controller(

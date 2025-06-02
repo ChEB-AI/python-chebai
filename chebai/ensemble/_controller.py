@@ -52,7 +52,7 @@ class _Controller(EnsembleBase, ABC):
             Dict[str, Tensor]: Dictionary containing predictions and confidence scores.
         """
         wrapped_model = self._wrap_model(model_name)
-        if self._operation == PRED_OP:
+        if self._operation_mode == PRED_OP:
             model_output, model_props = wrapped_model.predict(model_input)
         else:
             model_output, model_props = wrapped_model.evaluate(model_input)

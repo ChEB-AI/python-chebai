@@ -43,7 +43,7 @@ class BaseWrapper(ABC):
                 except Exception as e:
                     raise Exception(
                         f"Label '{label}' has an unexpected error \n Error: {e}"
-                    )
+                    ) from e
 
                 model_label_indices.append(dm_labels[label])
                 tpv_label_values.append(props["TPV"])
