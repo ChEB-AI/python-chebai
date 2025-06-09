@@ -1,4 +1,5 @@
 MODEL_CLS_PATH = "model_class_path"
+MODEL_LD_KWARGS = "model_load_kwargs"
 MODEL_LBL_PATH = "model_labels_path"
 MODEL_CKPT_PATH = "model_ckpt_path"
 

@@ -5,7 +5,7 @@ from pathlib import Path
 
 import torch
 
-from .._constants import MODEL_CLS_PATH, MODEL_LBL_PATH
+from .._constants import MODEL_LBL_PATH
 
 _MODEL_REGISTRY = {}
 
@@ -18,10 +18,14 @@ class BaseWrapper(ABC):
         dm_labels: dict[str, int],
         **kwargs,
     ):
+        if MODEL_LBL_PATH not in model_config:
+            raise AttributeError(
+                f"Missing key {MODEL_LBL_PATH} in model '{model_name}' configuration."
+            )
+
         self._device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self._model_config = model_config
         self._model_name = model_name
-        self._model_class_path = self._model_config[MODEL_CLS_PATH]
 
         self._model_labels_path = self._model_config[MODEL_LBL_PATH]
         self._model_props = self._generate_model_label_props(dm_labels=dm_labels)

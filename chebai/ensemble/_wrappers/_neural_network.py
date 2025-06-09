@@ -9,7 +9,13 @@ from chebai.models import ChebaiBaseNet
 from chebai.preprocessing.reader import DataReader
 from chebai.preprocessing.structures import XYData
 
-from .._constants import MODEL_CKPT_PATH, READER_CLS_PATH, READER_KWARGS
+from .._constants import (
+    MODEL_CKPT_PATH,
+    MODEL_CLS_PATH,
+    MODEL_LD_KWARGS,
+    READER_CLS_PATH,
+    READER_KWARGS,
+)
 from .._utils import load_class
 from ._base import BaseWrapper
 
@@ -22,12 +28,20 @@ class NNWrapper(BaseWrapper):
         )
         super().__init__(**kwargs)
 
+        self._model_class_path = self._model_config[MODEL_CLS_PATH]
         self._model_ckpt_path = self._model_config[MODEL_CKPT_PATH]
+        self._model_ld_kwargs: dict = (
+            self._model_config[MODEL_LD_KWARGS]
+            if MODEL_LD_KWARGS in self._model_config
+            and self._model_config[MODEL_LD_KWARGS]
+            else {}
+        )
+
         self._reader_class_path = self._model_config[READER_CLS_PATH]
         self._reader_kwargs: dict = (
             self._model_config[READER_KWARGS]
-            if self._model_config[READER_KWARGS]
-            else dict()
+            if READER_KWARGS in self._model_config and self._model_config[READER_KWARGS]
+            else {}
         )
 
         reader_cls: Type[DataReader] = load_class(self._reader_class_path)
@@ -35,9 +49,7 @@ class NNWrapper(BaseWrapper):
         self._reader = reader_cls(**self._reader_kwargs)
         self._collator = reader_cls.COLLATOR()
         self.collated_labels = None
-        self._model: ChebaiBaseNet = self._load_model_(
-            input_dim=kwargs.get("input_dim", None)
-        )
+        self._model: ChebaiBaseNet = self._load_model_()
 
     @classmethod
     def _validate_model_configs(
@@ -55,10 +67,7 @@ class NNWrapper(BaseWrapper):
             AttributeError: If any model config is missing required keys.
             ValueError: If duplicate paths are found for model checkpoint, class, or labels.
         """
-        required_keys = {
-            MODEL_CKPT_PATH,
-            READER_CLS_PATH,
-        }
+        required_keys = {MODEL_CKPT_PATH, READER_CLS_PATH, MODEL_CLS_PATH}
 
         missing_keys = required_keys - model_config.keys()
         if missing_keys:
@@ -66,7 +75,7 @@ class NNWrapper(BaseWrapper):
                 f"Missing keys {missing_keys} in model '{model_name}' configuration."
             )
 
-    def _load_model_(self, input_dim: int | None) -> ChebaiBaseNet:
+    def _load_model_(self) -> ChebaiBaseNet:
         """
         Loads a model checkpoint and its label-related properties.
 
@@ -90,7 +99,7 @@ class NNWrapper(BaseWrapper):
         ), f"{lightning_cls} must inherit from ChebaiBaseNet"
         try:
             model = lightning_cls.load_from_checkpoint(
-                self._model_ckpt_path, input_dim=5
+                self._model_ckpt_path, input_dim=5, **self._model_ld_kwargs
             )
         except Exception as e:
             raise RuntimeError(
@@ -140,7 +149,9 @@ class NNWrapper(BaseWrapper):
     def _forward_pass(self, batch):
         collated_batch: XYData = self._collator(batch).to(self._device)
         self.collated_labels = collated_batch.y
-        processable_data = self._model._process_batch(collated_batch, 0)  # noqa
+        processable_data = self._model._process_batch(  # pylint: disable=W0212
+            collated_batch, 0
+        )
         return self._model(processable_data, **processable_data["model_kwargs"])
 
     def _evaluate_from_data_file(
