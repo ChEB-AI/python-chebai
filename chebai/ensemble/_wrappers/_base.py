@@ -7,6 +7,8 @@ import torch
 
 from .._constants import MODEL_CLS_PATH, MODEL_LBL_PATH
 
+_MODEL_REGISTRY = {}
+
 
 class BaseWrapper(ABC):
     def __init__(
@@ -20,9 +22,30 @@ class BaseWrapper(ABC):
         self._model_config = model_config
         self._model_name = model_name
         self._model_class_path = self._model_config[MODEL_CLS_PATH]
+
         self._model_labels_path = self._model_config[MODEL_LBL_PATH]
         self._model_props = self._generate_model_label_props(dm_labels=dm_labels)
         self.collated_labels = None
+
+    @classmethod
+    def _cls_name(cls) -> str:
+        return cls.__name__
+
+    @property
+    def name(self):
+        return f"Wrapper({self._cls_name()}) for model: {self._model_name}"
+
+    def __init_subclass__(cls):
+        """
+        Automatically registers subclasses in the model registry to prevent duplicates.
+
+        Args:
+            **kwargs: Additional keyword arguments.
+        """
+        if cls._cls_name() in _MODEL_REGISTRY:
+            raise ValueError(f"Model {cls._cls_name()} does already exist")
+        else:
+            _MODEL_REGISTRY[cls._cls_name()] = cls
 
     def _generate_model_label_props(self, dm_labels) -> dict[str, torch.Tensor]:
         """
@@ -41,7 +64,7 @@ class BaseWrapper(ABC):
                 try:
                     self._validate_model_labels_json_element(labels_dict[label])
                 except Exception as e:
-                    raise Exception(
+                    raise RuntimeError(
                         f"Label '{label}' has an unexpected error \n Error: {e}"
                     ) from e
 
@@ -110,10 +133,6 @@ class BaseWrapper(ABC):
             except (TypeError, ValueError) as e:
                 raise ValueError(f"Invalid value for '{key}': {label_dict[key]}") from e
 
-    @property
-    def name(self):
-        return f"Wrapper({self.__class__.__name__}) for model: {self._model_name}"
-
     def predict(self, x: list) -> tuple[dict, dict]:
         if not isinstance(x, list):
             raise TypeError(f"Input must be a list of SMILES strings, got {type(x)}")
@@ -133,4 +152,4 @@ class BaseWrapper(ABC):
         )
 
     @abstractmethod
-    def _evaluate_from_data_file(self, data_file_path: str) -> dict: ...
+    def _evaluate_from_data_file(self, data_processed_dir_main: str) -> dict: ...
