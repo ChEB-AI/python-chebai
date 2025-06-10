@@ -1,65 +1,47 @@
-from typing import Optional, Union
+from pathlib import Path
 
 import chebai_graph.preprocessing.properties as p
 import torch
-from chebai_graph.models.graph import ResGatedGraphConvNetGraphPred
-from chebai_graph.preprocessing.datasets.chebi import (
-    ChEBI50GraphProperties,
-    ChEBI100GraphProperties,
-    GraphPropertiesMixIn,
-)
 from chebai_graph.preprocessing.property_encoder import IndexEncoder, OneHotEncoder
 from torch_geometric.data.data import Data as GeomData
 
+from .._constants import DATA_CLS_KWARGS
 from ._neural_network import NNWrapper
-
-if torch.cuda.is_available():
-    device = "cuda"
-else:
-    device = "cpu"
 
 
 class GNNResGated(NNWrapper):
 
-    def __init__(
-        self,
-        checkpoint_path: str,
-        data_class: Union[GraphPropertiesMixIn, str],
-        prediction_headers_path: str,
-        batch_size: Optional[int] = 32,
-        name: Optional[str] = None,
-        description: Optional[str] = "Residual-gated Graph Convolutional Network for "
-        "predicting arbitrary ChEBI classes.",
-    ):
-        super().__init__(prediction_headers_path, batch_size, name, description)
-        self.model = ResGatedGraphConvNetGraphPred.load_from_checkpoint(
-            checkpoint_path,
-            map_location=torch.device(device),
-            criterion=None,
-            strict=False,
-            metrics=dict(train=dict(), test=dict(), validation=dict()),
-            pretrained_checkpoint=None,
-            config={
-                "in_length": 256,
-                "hidden_length": 512,
-                "dropout_rate": 0.1,
-                "n_conv_layers": 3,
-                "n_linear_layers": 3,
-                "n_atom_properties": 158,
-                "n_bond_properties": 7,
-                "n_molecule_properties": 200,
-            },
+    def _pre_load_hook(self):
+        self._model_config[DATA_CLS_KWARGS] = self._model_config.get(
+            DATA_CLS_KWARGS,
+            dict(
+                properties=[
+                    p.AtomType(),
+                    p.NumAtomBonds(),
+                    p.AtomCharge(),
+                    p.AtomAromaticity(),
+                    p.AtomHybridization(),
+                    p.AtomNumHs(),
+                    p.BondType(),
+                    p.BondInRing(),
+                    p.BondAromaticity(),
+                    p.RDKit2DNormalized(),
+                ]
+            ),
         )
+        return super()._pre_load_hook()
 
     def _read_smiles(self, smiles):
-        d = self._reader.to_data(dict(features=smiles, labels=None))
+        d = self._data_cls_instance.reader.to_data(dict(features=smiles, labels=None))
         geom_data = d["features"]
-        assert isinstance(geom_data, GeomData), ""
+        assert isinstance(geom_data, GeomData), "Must be an instance of GeoData"
         edge_attr = geom_data.edge_attr
         x = geom_data.x
         molecule_attr = torch.empty((1, 0))
-        for property in self.data_class.properties:
-            property_values = reader.read_property(smiles, property)
+        for property in self._data_cls_instance.properties:
+            property_values = self._data_cls_instance.reader.read_property(
+                smiles, property
+            )
             encoded_values = []
             for value in property_values:
                 # cant use standard encode for index encoder because model has been trained on a certain range of values
@@ -77,7 +59,7 @@ class GNNResGated(NNWrapper):
                         )
                     if isinstance(property.encoder, OneHotEncoder):
                         encoded_values.append(
-                            torch.nn.functional.one_hot(
+                            torch.nn.functional.one_hot(  # pylint: disable=E1102
                                 torch.tensor(index),
                                 num_classes=property.encoder.get_encoding_length(),
                             )
@@ -113,3 +95,10 @@ class GNNResGated(NNWrapper):
             molecule_attr=molecule_attr,
         )
         return d
+
+    # def _evaluate_from_data_file(
+    #     self, data_processed_dir_main: Path, data_file_name="data.pt"
+    # ) -> list:
+    #     data_path = data_processed_dir_main / self._reader.name() / data_file_name
+    #     data_dict = self._data_class.load_processed_data_from_file(data_path)
+    #     return self._forward_pass(data)

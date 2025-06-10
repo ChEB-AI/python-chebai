@@ -31,6 +31,8 @@ class NNWrapper(BaseWrapper):
         self._model_ckpt_path = self._model_config[MODEL_CKPT_PATH]
         self._model_ld_kwargs: dict = self._model_config.get(MODEL_LD_KWARGS, {})
 
+        self._pre_load_hook()
+
         self._data_cls_instance: XYBaseDataModule = self._load_data_instance()
         self.collated_labels = None
         self._model: ChebaiBaseNet = self._load_model_()
@@ -58,6 +60,8 @@ class NNWrapper(BaseWrapper):
             raise AttributeError(
                 f"Missing keys {missing_keys} in model '{model_name}' configuration."
             )
+
+    def _pre_load_hook(self) -> None: ...
 
     def _load_data_instance(self):
         data_cls = load_class(self._model_config[DATA_CLS_PATH])
