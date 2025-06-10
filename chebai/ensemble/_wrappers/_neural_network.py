@@ -1,20 +1,19 @@
 import os
 from pathlib import Path
-from typing import Type
 
 import torch
 from rdkit import Chem
 
 from chebai.models import ChebaiBaseNet
-from chebai.preprocessing.reader import DataReader
+from chebai.preprocessing.datasets.base import XYBaseDataModule
 from chebai.preprocessing.structures import XYData
 
 from .._constants import (
+    DATA_CLS_KWARGS,
+    DATA_CLS_PATH,
     MODEL_CKPT_PATH,
     MODEL_CLS_PATH,
     MODEL_LD_KWARGS,
-    READER_CLS_PATH,
-    READER_KWARGS,
 )
 from .._utils import load_class
 from ._base import BaseWrapper
@@ -30,24 +29,9 @@ class NNWrapper(BaseWrapper):
 
         self._model_class_path = self._model_config[MODEL_CLS_PATH]
         self._model_ckpt_path = self._model_config[MODEL_CKPT_PATH]
-        self._model_ld_kwargs: dict = (
-            self._model_config[MODEL_LD_KWARGS]
-            if MODEL_LD_KWARGS in self._model_config
-            and self._model_config[MODEL_LD_KWARGS]
-            else {}
-        )
+        self._model_ld_kwargs: dict = self._model_config.get(MODEL_LD_KWARGS, {})
 
-        self._reader_class_path = self._model_config[READER_CLS_PATH]
-        self._reader_kwargs: dict = (
-            self._model_config[READER_KWARGS]
-            if READER_KWARGS in self._model_config and self._model_config[READER_KWARGS]
-            else {}
-        )
-
-        reader_cls: Type[DataReader] = load_class(self._reader_class_path)
-        assert issubclass(reader_cls, DataReader), ""
-        self._reader = reader_cls(**self._reader_kwargs)
-        self._collator = reader_cls.COLLATOR()
+        self._data_cls_instance: XYBaseDataModule = self._load_data_instance()
         self.collated_labels = None
         self._model: ChebaiBaseNet = self._load_model_()
 
@@ -67,13 +51,22 @@ class NNWrapper(BaseWrapper):
             AttributeError: If any model config is missing required keys.
             ValueError: If duplicate paths are found for model checkpoint, class, or labels.
         """
-        required_keys = {MODEL_CKPT_PATH, READER_CLS_PATH, MODEL_CLS_PATH}
+        required_keys = {MODEL_CKPT_PATH, DATA_CLS_PATH, MODEL_CLS_PATH}
 
         missing_keys = required_keys - model_config.keys()
         if missing_keys:
             raise AttributeError(
                 f"Missing keys {missing_keys} in model '{model_name}' configuration."
             )
+
+    def _load_data_instance(self):
+        data_cls = load_class(self._model_config[DATA_CLS_PATH])
+        assert isinstance(data_cls, type), f"{data_cls} is not a class."
+        assert issubclass(
+            data_cls, XYBaseDataModule
+        ), f"{data_cls} must inherit from XYBaseDataModule"
+        data_kwargs = self._model_config.get(DATA_CLS_KWARGS, {})
+        return data_cls(**data_kwargs)
 
     def _load_model_(self) -> ChebaiBaseNet:
         """
@@ -143,11 +136,15 @@ class NNWrapper(BaseWrapper):
         else:
             raise ValueError()
 
-    def _read_smiles(self, smiles):
-        return self._reader.to_data(dict(features=smiles, labels=None))
+    def _read_smiles(self, smiles: str):
+        return self._data_cls_instance.reader.to_data(
+            dict(features=smiles, labels=None)
+        )
 
     def _forward_pass(self, batch):
-        collated_batch: XYData = self._collator(batch).to(self._device)
+        collated_batch: XYData = self._data_cls_instance.reader.collator(batch).to(
+            self._device
+        )
         self.collated_labels = collated_batch.y
         processable_data = self._model._process_batch(  # pylint: disable=W0212
             collated_batch, 0
@@ -158,7 +155,9 @@ class NNWrapper(BaseWrapper):
         self, data_processed_dir_main: Path, data_file_name="data.pt"
     ) -> list:
         data = torch.load(
-            data_processed_dir_main / self._reader.name() / data_file_name,
+            data_processed_dir_main
+            / self._data_cls_instance.reader.name()
+            / data_file_name,
             weights_only=False,
             map_location=self._device,
         )

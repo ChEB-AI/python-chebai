@@ -5,9 +5,8 @@ MODEL_CKPT_PATH = "model_ckpt_path"
 
 WRAPPER_CLS_PATH = "wrapper_class_path"
 
-READER_CLS_PATH = "reader_class_path"
-READER_KWARGS = "reader_kwargs"
-
+DATA_CLS_PATH = "data_class_path"
+DATA_CLS_KWARGS = "data_class_kwargs"
 
 PRED_OP = "prediction"
 EVAL_OP = "evaluation"
