@@ -1,10 +1,7 @@
-from typing import Any, Dict
-
-import yaml
 from jsonargparse import ArgumentParser
 
 from chebai.ensemble._base import EnsembleBase
-from chebai.ensemble._utils import load_class
+from chebai.ensemble._utils import load_class, parse_config_file
 
 
 def load_config_and_instantiate(config_path: str) -> EnsembleBase:
@@ -20,11 +17,8 @@ def load_config_and_instantiate(config_path: str) -> EnsembleBase:
     Raises:
         TypeError: If the loaded class is not a subclass of EnsembleBase.
     """
-    with open(config_path, "r") as f:
-        config: Dict[str, Any] = yaml.safe_load(f)
 
-    class_path: str = config["class_path"]
-    init_args: Dict[str, Any] = config.get("init_args", {})
+    class_path, init_args = parse_config_file(config_path)
 
     cls = load_class(class_path)
 
