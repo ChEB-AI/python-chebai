@@ -14,8 +14,8 @@ class GNNResGated(NNWrapper):
     def _pre_load_hook(self):
         self._model_config[DATA_CLS_KWARGS] = self._model_config.get(
             DATA_CLS_KWARGS,
-            dict(
-                properties=[
+            {
+                "properties": [
                     p.AtomType(),
                     p.NumAtomBonds(),
                     p.AtomCharge(),
@@ -27,9 +27,8 @@ class GNNResGated(NNWrapper):
                     p.BondAromaticity(),
                     p.RDKit2DNormalized(),
                 ]
-            ),
+            },
         )
-        return super()._pre_load_hook()
 
     def _read_smiles(self, smiles):
         d = self._data_cls_instance.reader.to_data(dict(features=smiles, labels=None))
@@ -95,10 +94,3 @@ class GNNResGated(NNWrapper):
             molecule_attr=molecule_attr,
         )
         return d
-
-    # def _evaluate_from_data_file(
-    #     self, data_processed_dir_main: Path, data_file_name="data.pt"
-    # ) -> list:
-    #     data_path = data_processed_dir_main / self._reader.name() / data_file_name
-    #     data_dict = self._data_class.load_processed_data_from_file(data_path)
-    #     return self._forward_pass(data)
