@@ -31,7 +31,7 @@ class _Controller(EnsembleBase, ABC):
         """
         super().__init__(**kwargs)
         self._kwargs = kwargs
-        # If an activation condition correponding model is added to queue, removed from this set
+        # If an activation condition corresponding model is added to queue, removed from this set
         # This is in order to avoid re-adding models that have already been processed
         self._model_key_set: set[str] = set(self._model_configs.keys())
 
@@ -55,7 +55,7 @@ class _Controller(EnsembleBase, ABC):
         if self._operation_mode == PRED_OP:
             model_output, model_props = wrapped_model.predict(model_input)
         else:
-            model_output, model_props = wrapped_model.evaluate(model_input)
+            model_output, model_props = wrapped_model.evaluate()
             if (
                 self._collated_labels is None
                 and wrapped_model.collated_labels is not None

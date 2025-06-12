@@ -59,10 +59,10 @@ class ClassesPropertiesGenerator:
         for i, cls in enumerate(class_names):
             tn, fp, fn, tp = cm[i].ravel()
 
-            TPV = tp / (tp + fp) if (tp + fp) > 0 else 0.0
+            PPV = tp / (tp + fp) if (tp + fp) > 0 else 0.0
             NPV = tn / (tn + fn) if (tn + fn) > 0 else 0.0
 
-            metrics[cls] = {"TPV": round(TPV, 4), "NPV": round(NPV, 4)}
+            metrics[cls] = {"PPV": round(TPV, 4), "NPV": round(NPV, 4)}
 
         return metrics
 

@@ -1,7 +1,6 @@
 import os
 from pathlib import Path
 
-import torch
 from rdkit import Chem
 
 from chebai.models import ChebaiBaseNet
@@ -113,7 +112,6 @@ class NNWrapper(BaseWrapper):
     def _predict_from_list_of_smiles(self, smiles_list: list[str]) -> list:
         token_dicts = []
         could_not_parse = []
-        index_map = dict()
         for i, smiles in enumerate(smiles_list):
             try:
                 # Try to parse the smiles string
@@ -130,7 +128,6 @@ class NNWrapper(BaseWrapper):
                 if rdmol is None:
                     could_not_parse.append(i)
                 else:
-                    index_map[i] = len(token_dicts)
                     token_dicts.append(d)
         if token_dicts:
             model_output = self._forward_pass(token_dicts)
@@ -140,12 +137,12 @@ class NNWrapper(BaseWrapper):
         else:
             raise ValueError()
 
-    def _read_smiles(self, smiles: str):
+    def _read_smiles(self, smiles: str) -> dict:
         return self._data_cls_instance.reader.to_data(
             dict(features=smiles, labels=None)
         )
 
-    def _forward_pass(self, batch):
+    def _forward_pass(self, batch: list[dict]) -> dict:
         collated_batch: XYData = self._data_cls_instance.reader.collator(batch).to(
             self._device
         )
@@ -155,14 +152,9 @@ class NNWrapper(BaseWrapper):
         )
         return self._model(processable_data, **processable_data["model_kwargs"])
 
-    def _evaluate_from_data_file(
-        self, data_processed_dir_main: Path, data_file_name="data.pt"
-    ) -> list:
-        data = torch.load(
-            data_processed_dir_main
-            / self._data_cls_instance.reader.name()
-            / data_file_name,
-            weights_only=False,
-            map_location=self._device,
+    def _evaluate_from_data_file(self) -> list:
+        filename = self._data_cls_instance.processed_file_names_dict["data"]
+        data_list_of_dict = self._data_cls_instance.load_processed_data_from_file(
+            os.path.join(self._data_cls_instance.processed_dir, filename)
         )
-        return self._forward_pass(data)
+        return self._forward_pass(data_list_of_dict)

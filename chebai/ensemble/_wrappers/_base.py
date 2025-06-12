@@ -73,8 +73,8 @@ class BaseWrapper(ABC):
                     ) from e
 
                 model_label_indices.append(dm_labels[label])
-                tpv_label_values.append(props["TPV"])
-                fpv_label_values.append(props["FPV"])
+                tpv_label_values.append(props["PPV"])
+                fpv_label_values.append(props["NPV"])
 
         if not all([model_label_indices, tpv_label_values, fpv_label_values]):
             raise ValueError(
@@ -121,13 +121,13 @@ class BaseWrapper(ABC):
         Validates a label confidence dictionary to ensure required keys and values are valid.
 
         Args:
-            label_dict (Dict[str, Any]): Label data with TPV and FPV keys.
+            label_dict (Dict[str, Any]): Label data with PPV and NPV keys.
 
         Raises:
             AttributeError: If required keys are missing.
             ValueError: If values are not valid floats or are negative.
         """
-        for key in ["TPV", "FPV"]:
+        for key in ["PPV", "NPV"]:
             if key not in label_dict:
                 raise AttributeError(f"Missing key '{key}' in label dict.")
             try:
@@ -145,15 +145,8 @@ class BaseWrapper(ABC):
     @abstractmethod
     def _predict_from_list_of_smiles(self, smiles_list: list) -> dict: ...
 
-    def evaluate(
-        self, data_processed_dir_main: Path, **kwargs: any
-    ) -> tuple[dict, dict]:
-        if not data_processed_dir_main.is_dir():
-            raise NotADirectoryError(f"{data_processed_dir_main} is not a directory.")
-        return (
-            self._evaluate_from_data_file(data_processed_dir_main, **kwargs),
-            self._model_props,
-        )
+    def evaluate(self, **kwargs) -> tuple[dict, dict]:
+        return self._evaluate_from_data_file(**kwargs), self._model_props
 
     @abstractmethod
-    def _evaluate_from_data_file(self, data_processed_dir_main: str) -> dict: ...
+    def _evaluate_from_data_file(self, **kwargs) -> dict: ...
