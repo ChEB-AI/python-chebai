@@ -94,6 +94,21 @@ class ClassesPropertiesGenerator:
             data_cls_path, data_cls_kwargs
         )
 
+        splits_file_path = Path(data_module.processed_dir_main, "splits.csv")
+        if data_module.splits_file_path is None:
+            if not splits_file_path.exists():
+                raise RuntimeError(
+                    "Either the data module should be initialized with a `splits_file_path`, "
+                    f"or the file `{splits_file_path}` must exists.\n"
+                    "This is to prevent the data module from dynamically generating the splits."
+                )
+
+            print(
+                f"`splits_file_path` is not provided as an initialization parameter to the data module\n"
+                f"Using splits from the file {splits_file_path}"
+            )
+            data_module.splits_file_path = splits_file_path
+
         model_class_path, model_kwargs = parse_config_file(model_config_file_path)
         model = load_model_for_inference(
             model_ckpt_path, model_class_path, model_kwargs
