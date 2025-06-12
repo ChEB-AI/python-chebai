@@ -335,8 +335,9 @@ class XYBaseDataModule(LightningDataModule):
             val
             for val in data
             if val["features"] is not None
-            and self.n_token_limit is None
-            or len(val["features"]) <= self.n_token_limit
+            and (
+                self.n_token_limit is None or len(val["features"]) <= self.n_token_limit
+            )
         ]
 
         return data
@@ -439,13 +440,25 @@ class XYBaseDataModule(LightningDataModule):
         ):
             self.setup_processed()
 
-        if not ("keep_reader" in kwargs and kwargs["keep_reader"]):
-            self.reader.on_finish()
+        self._after_setup(**kwargs)
 
+    def _after_setup(self, **kwargs):
+        """
+        Finalize the setup process after ensuring the processed data is available.
+
+        This method performs post-setup tasks like finalizing the reader and setting internal properties.
+        """
+        self.reader.on_finish()
         self._set_processed_data_props()
 
     def _set_processed_data_props(self):
+        """
+        Load processed data and extract metadata.
 
+        Sets:
+            - self._num_of_labels: Number of target labels in the dataset.
+            - self._feature_vector_size: Maximum feature vector length across all data points.
+        """
         data_pt = torch.load(
             os.path.join(self.processed_dir, self.processed_file_names_dict["data"]),
             weights_only=False,
@@ -1102,7 +1115,9 @@ class _DynamicDataset(XYBaseDataModule, ABC):
         splits_df = pd.read_csv(self.splits_file_path)
 
         filename = self.processed_file_names_dict["data"]
-        data = self.load_processed_data(filename=filename)
+        data = self.load_processed_data_from_file(
+            os.path.join(self.processed_dir, filename)
+        )
         df_data = pd.DataFrame(data)
 
         train_ids = splits_df[splits_df["split"] == "train"]["id"]
@@ -1113,6 +1128,7 @@ class _DynamicDataset(XYBaseDataModule, ABC):
         self._dynamic_df_val = df_data[df_data["ident"].isin(validation_ids)]
         self._dynamic_df_test = df_data[df_data["ident"].isin(test_ids)]
 
+    # ------------------------------ Phase: DataLoaders -----------------------------------
     def load_processed_data(
         self, kind: Optional[str] = None, filename: Optional[str] = None
     ) -> List[Dict[str, Any]]:
@@ -1148,24 +1164,19 @@ class _DynamicDataset(XYBaseDataModule, ABC):
 
         # If both kind and filename are given, use filename
         if kind is not None and filename is None:
-            try:
-                if self.use_inner_cross_validation and kind != "test":
-                    filename = self.processed_file_names_dict[
-                        f"fold_{self.fold_index}_{kind}"
-                    ]
-                else:
-                    data_df = self.dynamic_split_dfs[kind]
-                    return data_df.to_dict(orient="records")
-            except KeyError:
-                kind = f"{kind}"
+            if self.use_inner_cross_validation and kind != "test":
+                filename = self.processed_file_names_dict[
+                    f"fold_{self.fold_index}_{kind}"
+                ]
+            else:
+                data_df = self.dynamic_split_dfs[kind]
+                return data_df.to_dict(orient="records")
 
         # If filename is provided
-        try:
-            return torch.load(
-                os.path.join(self.processed_dir, filename), weights_only=False
-            )
-        except FileNotFoundError:
-            raise FileNotFoundError(f"File {filename} doesn't exist")
+        return self.load_processed_data_from_file(filename)
+
+    def load_processed_data_from_file(self, filename):
+        return torch.load(os.path.join(filename), weights_only=False)
 
     # ------------------------------ Phase: Raw Properties -----------------------------------
     @property

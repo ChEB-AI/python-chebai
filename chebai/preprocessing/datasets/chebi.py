@@ -401,8 +401,8 @@ class _ChEBIDataExtractor(_DynamicDataset, ABC):
         """
         try:
             filename = self.processed_file_names_dict["data"]
-            data_chebi_version = torch.load(
-                os.path.join(self.processed_dir, filename), weights_only=False
+            data_chebi_version = self.load_processed_data_from_file(
+                os.path.join(self.processed_dir, filename)
             )
         except FileNotFoundError:
             raise FileNotFoundError(

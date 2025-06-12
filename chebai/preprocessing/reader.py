@@ -1,7 +1,9 @@
+import inspect
 import os
 import sys
+from abc import ABC
 from itertools import islice
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional
 
 import deepsmiles
 import selfies as sf
@@ -38,7 +40,7 @@ class DataReader:
         if collator_kwargs is None:
             collator_kwargs = dict()
         self.collator = self.COLLATOR(**collator_kwargs)
-        self.dirname = os.path.dirname(__file__)
+        self.dirname = os.path.dirname(inspect.getfile(self.__class__))
         self._token_path = token_path
 
     def _get_raw_data(self, row: Dict[str, Any]) -> Any:
@@ -119,22 +121,13 @@ class DataReader:
         return
 
 
-class ChemDataReader(DataReader):
+class TokenIndexerReader(DataReader, ABC):
     """
-    Data reader for chemical data using SMILES tokens.
+    Abstract base class for reading tokenized data and mapping tokens to unique indices.
 
-    Args:
-        collator_kwargs: Optional dictionary of keyword arguments for the collator.
-        token_path: Optional path for the token file.
-        kwargs: Additional keyword arguments.
+    This class maintains a cache of token-to-index mappings that can be extended during runtime,
+    and saves new tokens to a persistent file at the end of processing.
     """
-
-    COLLATOR = RaggedCollator
-
-    @classmethod
-    def name(cls) -> str:
-        """Returns the name of the data reader."""
-        return "smiles_token"
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -150,21 +143,9 @@ class ChemDataReader(DataReader):
             self.cache[(str(token))] = len(self.cache)
         return self.cache[str(token)] + EMBEDDING_OFFSET
 
-    def _read_data(self, raw_data: str) -> List[int]:
-        """
-        Reads and tokenizes raw SMILES data into a list of token indices.
-
-        Args:
-            raw_data (str): The raw SMILES string to be tokenized.
-
-        Returns:
-            List[int]: A list of integers representing the indices of the SMILES tokens.
-        """
-        return [self._get_token_index(v[1]) for v in _tokenize(raw_data)]
-
     def on_finish(self) -> None:
         """
-        Saves the current cache of tokens to the token file. This method is called after all data processing is complete.
+        Saves the current cache of tokens to the token file.This method is called after all data processing is complete.
         """
         print(f"first 10 tokens: {list(islice(self.cache, 10))}")
 
@@ -186,6 +167,31 @@ class ChemDataReader(DataReader):
             with open(self.token_path, "a") as pk:
                 print(f"saving new {len(new_tokens)} tokens to {self.token_path}...")
                 pk.writelines([f"{c}\n" for c in new_tokens])
+
+
+class ChemDataReader(TokenIndexerReader):
+    """
+    Data reader for chemical data using SMILES tokens.
+    """
+
+    COLLATOR = RaggedCollator
+
+    @classmethod
+    def name(cls) -> str:
+        """Returns the name of the data reader."""
+        return "smiles_token"
+
+    def _read_data(self, raw_data: str) -> List[int]:
+        """
+        Reads and tokenizes raw SMILES data into a list of token indices.
+
+        Args:
+            raw_data (str): The raw SMILES string to be tokenized.
+
+        Returns:
+            List[int]: A list of integers representing the indices of the SMILES tokens.
+        """
+        return [self._get_token_index(v[1]) for v in _tokenize(raw_data)]
 
 
 class DeepChemDataReader(ChemDataReader):
