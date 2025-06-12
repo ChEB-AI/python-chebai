@@ -1,4 +1,3 @@
-import os
 from pathlib import Path
 
 from rdkit import Chem
@@ -14,7 +13,7 @@ from .._constants import (
     MODEL_CLS_PATH,
     MODEL_LD_KWARGS,
 )
-from .._utils import load_class
+from .._utils import load_class, load_data_instance, load_model_for_inference
 from ._base import BaseWrapper
 
 
@@ -32,9 +31,17 @@ class NNWrapper(BaseWrapper):
 
         self._pre_load_hook()
 
-        self._data_cls_instance: XYBaseDataModule = self._load_data_instance()
+        self._data_cls_instance: XYBaseDataModule = load_data_instance(
+            self._model_config[DATA_CLS_PATH],
+            self._model_config.get(DATA_CLS_KWARGS, {}),
+        )
         self.collated_labels = None
-        self._model: ChebaiBaseNet = self._load_model_()
+        self._model: ChebaiBaseNet = load_model_for_inference(
+            self._model_config[MODEL_CKPT_PATH],
+            self._model_config[MODEL_CLS_PATH],
+            self._model_config.get(MODEL_LD_KWARGS, {}),
+            **kwargs,
+        )
 
     @classmethod
     def _validate_model_configs(
@@ -61,53 +68,6 @@ class NNWrapper(BaseWrapper):
             )
 
     def _pre_load_hook(self) -> None: ...
-
-    def _load_data_instance(self):
-        data_cls = load_class(self._model_config[DATA_CLS_PATH])
-        assert isinstance(data_cls, type), f"{data_cls} is not a class."
-        assert issubclass(
-            data_cls, XYBaseDataModule
-        ), f"{data_cls} must inherit from XYBaseDataModule"
-        data_kwargs = self._model_config.get(DATA_CLS_KWARGS, {})
-        return data_cls(**data_kwargs)
-
-    def _load_model_(self) -> ChebaiBaseNet:
-        """
-        Loads a model checkpoint and its label-related properties.
-
-        Args:
-            input_dim (int): Name of the model to load.
-
-        Returns:
-            Tuple[LightningModule, Dict[str, torch.Tensor]]: The model and its label properties.
-        """
-
-        if not os.path.exists(self._model_ckpt_path):
-            raise FileNotFoundError(
-                f"Model path '{self._model_ckpt_path}' for '{self._model_name}' does not exist."
-            )
-
-        lightning_cls = load_class(self._model_class_path)
-
-        assert isinstance(lightning_cls, type), f"{lightning_cls} is not a class."
-        assert issubclass(
-            lightning_cls, ChebaiBaseNet
-        ), f"{lightning_cls} must inherit from ChebaiBaseNet"
-        try:
-            model = lightning_cls.load_from_checkpoint(
-                self._model_ckpt_path, input_dim=5, **self._model_ld_kwargs
-            )
-        except Exception as e:
-            raise RuntimeError(
-                f"Error loading model {self._model_name} \n Error: {e}"
-            ) from e
-
-        assert isinstance(
-            model, ChebaiBaseNet
-        ), f"{model} is not a ChebaiBaseNet instance."
-        model.eval()
-        model.freeze()
-        return model
 
     def _predict_from_list_of_smiles(self, smiles_list: list[str]) -> list:
         token_dicts = []
@@ -155,6 +115,6 @@ class NNWrapper(BaseWrapper):
     def _evaluate_from_data_file(self) -> list:
         filename = self._data_cls_instance.processed_file_names_dict["data"]
         data_list_of_dict = self._data_cls_instance.load_processed_data_from_file(
-            os.path.join(self._data_cls_instance.processed_dir, filename)
+            Path(self._data_cls_instance.processed_dir) / filename
         )
         return self._forward_pass(data_list_of_dict)
