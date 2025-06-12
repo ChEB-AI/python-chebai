@@ -6,14 +6,8 @@ from chebai.models import ChebaiBaseNet
 from chebai.preprocessing.datasets.base import XYBaseDataModule
 from chebai.preprocessing.structures import XYData
 
-from .._constants import (
-    DATA_CLS_KWARGS,
-    DATA_CLS_PATH,
-    MODEL_CKPT_PATH,
-    MODEL_CLS_PATH,
-    MODEL_LD_KWARGS,
-)
-from .._utils import load_class, load_data_instance, load_model_for_inference
+from .._constants import DATA_CONFIG_PATH, MODEL_CKPT_PATH, MODEL_CONFIG_PATH
+from .._utils import load_data_instance, load_model_for_inference, parse_config_file
 from ._base import BaseWrapper
 
 
@@ -25,23 +19,24 @@ class NNWrapper(BaseWrapper):
         )
         super().__init__(**kwargs)
 
-        self._model_class_path = self._model_config[MODEL_CLS_PATH]
         self._model_ckpt_path = self._model_config[MODEL_CKPT_PATH]
-        self._model_ld_kwargs: dict = self._model_config.get(MODEL_LD_KWARGS, {})
+        self._model_config_path = self._model_config[MODEL_CONFIG_PATH]
+        self._data_config_path = self._model_config[DATA_CONFIG_PATH]
 
-        self._pre_load_hook()
-
+        data_cls_path, data_kwargs = parse_config_file(self._data_config_path)
         self._data_cls_instance: XYBaseDataModule = load_data_instance(
-            self._model_config[DATA_CLS_PATH],
-            self._model_config.get(DATA_CLS_KWARGS, {}),
+            data_cls_path, data_kwargs
         )
-        self.collated_labels = None
+
+        model_cls_path, model_kwargs = parse_config_file(self._model_config_path)
         self._model: ChebaiBaseNet = load_model_for_inference(
-            self._model_config[MODEL_CKPT_PATH],
-            self._model_config[MODEL_CLS_PATH],
-            self._model_config.get(MODEL_LD_KWARGS, {}),
-            **kwargs,
+            self._model_ckpt_path,
+            model_cls_path,
+            model_kwargs,
+            model_name=kwargs["model_name"],
         )
+
+        self.collated_labels = None
 
     @classmethod
     def _validate_model_configs(
@@ -59,7 +54,7 @@ class NNWrapper(BaseWrapper):
             AttributeError: If any model config is missing required keys.
             ValueError: If duplicate paths are found for model checkpoint, class, or labels.
         """
-        required_keys = {MODEL_CKPT_PATH, DATA_CLS_PATH, MODEL_CLS_PATH}
+        required_keys = {MODEL_CKPT_PATH, MODEL_CONFIG_PATH, DATA_CONFIG_PATH}
 
         missing_keys = required_keys - model_config.keys()
         if missing_keys:
@@ -112,7 +107,7 @@ class NNWrapper(BaseWrapper):
         )
         return self._model(processable_data, **processable_data["model_kwargs"])
 
-    def _evaluate_from_data_file(self) -> list:
+    def _evaluate_from_data_file(self, **kwargs) -> list:
         filename = self._data_cls_instance.processed_file_names_dict["data"]
         data_list_of_dict = self._data_cls_instance.load_processed_data_from_file(
             Path(self._data_cls_instance.processed_dir) / filename

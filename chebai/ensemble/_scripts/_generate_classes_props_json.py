@@ -5,8 +5,9 @@ import torch
 from jsonargparse import CLI
 from sklearn.metrics import multilabel_confusion_matrix
 
-from chebai.ensemble._utils import load_data_instance, load_model_for_inference
 from chebai.preprocessing.datasets.base import XYBaseDataModule
+
+from .._utils import load_data_instance, load_model_for_inference, parse_config_file
 
 
 class ClassesPropertiesGenerator:
@@ -69,31 +70,30 @@ class ClassesPropertiesGenerator:
     def generate_props(
         self,
         model_ckpt_path: str,
-        data_cls_path: str,
-        model_class_path: str,
+        model_config_file_path: str,
+        data_config_file_path: str,
         output_path: str | None = None,
-        data_cls_kwargs: dict | None = None,
-        model_load_kwargs: dict | None = None,
     ) -> None:
         """
         Run inference on validation set, compute TPV/NPV per class, and save to JSON.
 
         Args:
             model_ckpt_path: Path to the PyTorch Lightning checkpoint file.
-            data_cls_path: Import path or module path to the data module class.
-            model_class_path: Import path or module path to the model class.
+            model_config_file_path: Path to yaml config file of the model.
+            data_config_file_path: Path to yaml config file of the data.
             output_path: Optional path where to write the JSON metrics file.
                          Defaults to '<processed_dir_main>/classes.json'.
-            data_cls_kwargs: Optional dict of kwargs to initialize the data module.
-            model_load_kwargs: Optional dict of kwargs when loading the model.
         """
         print("Extracting validation data for computation...")
 
+        data_cls_path, data_cls_kwargs = parse_config_file(data_config_file_path)
         data_module: XYBaseDataModule = load_data_instance(
-            data_cls_path, data_cls_kwargs or {}
+            data_cls_path, data_cls_kwargs
         )
+
+        model_class_path, model_kwargs = parse_config_file(model_config_file_path)
         model = load_model_for_inference(
-            model_ckpt_path, model_class_path, model_load_kwargs or {}
+            model_ckpt_path, model_class_path, model_kwargs
         )
 
         val_loader = data_module.val_dataloader()
@@ -134,40 +134,33 @@ class Main:
     def generate(
         self,
         model_ckpt_path: str,
-        data_cls_path: str,
-        model_class_path: str,
+        model_config_file_path: str,
+        data_config_file_path: str,
         output_path: str | None = None,
-        data_cls_kwargs: dict | None = None,
-        model_load_kwargs: dict | None = None,
     ) -> None:
         """
         CLI command to generate TPV/NPV JSON.
 
         Args:
-            model_ckpt_path: Path to the Lightning model checkpoint.
-            data_cls_path: Module path to data module class.
-            model_class_path: Module path to model class.
-            output_path: Output JSON file path (optional).
-            data_cls_kwargs: Kwargs for data module instantiation (optional).
-            model_load_kwargs: Kwargs for model loading (optional).
+            model_ckpt_path: Path to the PyTorch Lightning checkpoint file.
+            model_config_file_path: Path to yaml config file of the model.
+            data_config_file_path: Path to yaml config file of the data.
+            output_path: Optional path where to write the JSON metrics file.
+                         Defaults to '<processed_dir_main>/classes.json'.
         """
         generator = ClassesPropertiesGenerator()
         generator.generate_props(
             model_ckpt_path,
-            data_cls_path,
-            model_class_path,
+            model_config_file_path,
+            data_config_file_path,
             output_path,
-            data_cls_kwargs,
-            model_load_kwargs,
         )
 
 
 if __name__ == "__main__":
     # _generate_classes_props_json.py generate \
     # --model_ckpt_path "model/ckpt/path" \
-    # --data_cls_path "data.class.path" \
-    # --model_class_path "model.class.path" \
+    # --model_config_file_path "model/config/file/path" \
+    # --data_config_file_path "data/config/file/path" \
     # --output_path "output/file/path" # Optional
-    # --data_cls_kwargs "{kwargs1: 1, kwargs2: 2}" # Optional
-    # --model_load_kwargs "{kwargs1: 1, kwargs2: 2}" # Optional
     CLI(Main, as_positional=False)

@@ -1,6 +1,8 @@
 import importlib
 from pathlib import Path
 
+import yaml
+
 from chebai.models.base import ChebaiBaseNet
 from chebai.preprocessing.datasets.base import XYBaseDataModule
 
@@ -61,3 +63,26 @@ def load_model_for_inference(
     model.eval()
     model.freeze()
     return model
+
+
+def parse_config_file(config_path: str) -> tuple[str, dict]:
+    path = Path(config_path)
+
+    # Check file existence
+    if not path.exists():
+        raise FileNotFoundError(f"Config file not found: {config_path}")
+
+    # Check file extension
+    if path.suffix.lower() not in [".yml", ".yaml"]:
+        raise ValueError(
+            f"Unsupported config file type: {path.suffix}. Expected .yaml or .yml"
+        )
+
+    # Load YAML content
+    with open(path, "r") as f:
+        config: dict = yaml.safe_load(f)
+
+    class_path: str = config["class_path"]
+    init_args: dict = config.get("init_args", {})
+    assert isinstance(init_args, dict), "init_args must be a dictionary"
+    return class_path, init_args

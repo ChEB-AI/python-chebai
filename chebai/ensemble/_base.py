@@ -8,13 +8,7 @@ import torch
 
 from chebai.result.classification import print_metrics
 
-from ._constants import (
-    EVAL_OP,
-    MODEL_CLS_PATH,
-    MODEL_LBL_PATH,
-    PRED_OP,
-    WRAPPER_CLS_PATH,
-)
+from ._constants import EVAL_OP, PRED_OP, WRAPPER_CLS_PATH
 
 
 class EnsembleBase(ABC):
@@ -60,7 +54,7 @@ class EnsembleBase(ABC):
 
         self._dm_labels: Dict[str, int] = self._load_data_module_labels()
         self._num_of_labels: int = len(self._dm_labels)
-        print(f"Number of labes for this data is {self._num_of_labels} ")
+        print(f"Number of labels for this data is {self._num_of_labels} ")
 
         self._num_models_per_label: torch.Tensor = torch.zeros(
             1, self._num_of_labels, device=self._device
@@ -87,20 +81,16 @@ class EnsembleBase(ABC):
                 f"Invalid operation '{operation}'. Must be 'evaluate' or 'predict'."
             )
 
-        if operation == "predict" and not kwargs.get("smiles_list_file_path", None):
-            raise ValueError(
-                "For 'predict' operation, 'smiles_list_file_path' must be provided."
-            )
+        if operation == "predict":
+            if kwargs.get("smiles_list_file_path", None):
+                raise ValueError(
+                    "For 'predict' operation, 'smiles_list_file_path' must be provided."
+                )
 
-        if not Path(kwargs.get("smiles_list_file_path")).exists():
-            raise FileNotFoundError(f"{kwargs.get('smiles_list_file_path')}")
+            if not Path(kwargs.get("smiles_list_file_path")).exists():
+                raise FileNotFoundError(f"{kwargs.get('smiles_list_file_path')}")
 
-        class_set, labels_set = set(), set()
-        required_keys = {
-            MODEL_CLS_PATH,
-            MODEL_LBL_PATH,
-            WRAPPER_CLS_PATH,
-        }
+        required_keys = {WRAPPER_CLS_PATH}
 
         for model_name, config in model_configs.items():
             missing_keys = required_keys - config.keys()
@@ -108,21 +98,6 @@ class EnsembleBase(ABC):
                 raise AttributeError(
                     f"Missing keys {missing_keys} in model '{model_name}' configuration."
                 )
-
-            model_class_path, model_labels_path = (
-                config[MODEL_CLS_PATH],
-                config[MODEL_LBL_PATH],
-            )
-
-            if model_class_path in class_set:
-                raise ValueError(
-                    f"Duplicate class path detected: '{model_class_path}'."
-                )
-            if model_labels_path in labels_set:
-                raise ValueError(f"Duplicate labels path: {model_labels_path}.")
-
-            class_set.add(model_class_path)
-            labels_set.add(model_labels_path)
 
     def _process_input_to_ensemble(self, **kwargs: Any) -> list[str] | Path:
         if self._operation_mode == PRED_OP:
