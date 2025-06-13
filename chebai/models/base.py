@@ -1,5 +1,5 @@
 import logging
-from typing import Any, Dict, Optional, Union, Iterable
+from typing import Any, Dict, Iterable, Optional, Union
 
 import torch
 from lightning.pytorch.core.module import LightningModule
@@ -49,6 +49,11 @@ class ChebaiBaseNet(LightningModule):
         if exclude_hyperparameter_logging is None:
             exclude_hyperparameter_logging = tuple()
         self.criterion = criterion
+        assert out_dim is not None, "out_dim must be specified"
+        assert input_dim is not None, "input_dim must be specified"
+        self.out_dim = out_dim
+        self.input_dim = input_dim
+
         self.save_hyperparameters(
             ignore=[
                 "criterion",
@@ -59,10 +64,8 @@ class ChebaiBaseNet(LightningModule):
             ]
         )
 
-        self.out_dim = out_dim
-        self.input_dim = input_dim
-        assert out_dim is not None, "out_dim must be specified"
-        assert input_dim is not None, "input_dim must be specified"
+        self.hparams["out_dim"] = out_dim
+        self.hparams["input_dim"] = input_dim
 
         if optimizer_kwargs:
             self.optimizer_kwargs = optimizer_kwargs
