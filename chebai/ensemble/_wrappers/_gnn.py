@@ -25,8 +25,7 @@ class GNNWrapper(NNWrapper):
                 if isinstance(property.encoder, IndexEncoder):
                     if str(value) in property.encoder.cache:
                         index = (
-                            property.encoder.cache.index(str(value))
-                            + property.encoder.offset
+                            property.encoder.cache[str(value)] + property.encoder.offset
                         )
                     else:
                         index = 0
@@ -60,7 +59,11 @@ class GNNWrapper(NNWrapper):
             if isinstance(property, p.AtomProperty):
                 x = torch.cat([x, encoded_values], dim=1)
             elif isinstance(property, p.BondProperty):
-                edge_attr = torch.cat([edge_attr, encoded_values], dim=1)
+                # Concat/Duplicate properties values for undirected graph as `edge_index` has first src to tgt edges, then tgt to src edges
+                edge_attr = torch.cat(
+                    [edge_attr, torch.cat([encoded_values, encoded_values], dim=0)],
+                    dim=1,
+                )
             else:
                 molecule_attr = torch.cat([molecule_attr, encoded_values[0]], dim=1)
 
@@ -75,4 +78,8 @@ class GNNWrapper(NNWrapper):
     def _evaluate_from_data_file(self, **kwargs) -> list:
         model_logits = super()._evaluate_from_data_file(**kwargs)
         # Currently gnn in forward method, logits are returned instead of dict containing logits
+        return {"logits": model_logits}
+
+    def _predict_from_list_of_smiles(self, smiles_list: list[str]) -> dict:
+        model_logits = super()._predict_from_list_of_smiles(smiles_list)
         return {"logits": model_logits}

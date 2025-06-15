@@ -62,35 +62,33 @@ class NNWrapper(BaseWrapper):
                 f"Missing keys {missing_keys} in model '{model_name}' configuration."
             )
 
-    def _pre_load_hook(self) -> None: ...
-
-    def _predict_from_list_of_smiles(self, smiles_list: list[str]) -> list:
+    def _predict_from_list_of_smiles(self, smiles_list: list[str]) -> dict:
         token_dicts = []
         could_not_parse = []
+
         for i, smiles in enumerate(smiles_list):
             try:
-                # Try to parse the smiles string
                 if not smiles:
-                    raise ValueError()
+                    raise ValueError("Empty SMILES string")
                 d = self._read_smiles(smiles)
-                # This is just for sanity checks
                 rdmol = Chem.MolFromSmiles(smiles, sanitize=False)
-            except Exception as e:
-                # Note if it fails
-                could_not_parse.append(i)
-                print(f"Failing to parse {smiles} due to {e}")
-            else:
                 if rdmol is None:
-                    could_not_parse.append(i)
-                else:
-                    token_dicts.append(d)
-        if token_dicts:
-            model_output = self._forward_pass(token_dicts)
-            if not isinstance(model_output, dict) and not "logits" in model_output:
-                raise ValueError()
-            return model_output
-        else:
-            raise ValueError()
+                    raise ValueError("RDKit failed to parse")
+            except Exception as e:
+                could_not_parse.append(i)
+                print(f"Failing to parse '{smiles}' (index {i}): {e}")
+            else:
+                token_dicts.append(d)
+
+        if not token_dicts:
+            raise ValueError("No valid SMILES could be parsed.")
+
+        model_output = self._forward_pass(token_dicts)
+        # ----- This check is handled in controller
+        # if not isinstance(model_output, dict) or "logits" not in model_output:
+        #     raise ValueError("Model output is malformed; expected dict with 'logits' key.")
+
+        return model_output
 
     def _read_smiles(self, smiles: str) -> dict:
         return self._data_cls_instance.reader.to_data(
