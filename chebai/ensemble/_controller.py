@@ -62,6 +62,9 @@ class _Controller(EnsembleBase, ABC):
             ):
                 self._collated_labels = wrapped_model.collated_labels
 
+        assert (
+            isinstance(model_output, dict) and "logits" in model_output
+        ), "Forward pass should return dict containing logits for consistency across all types of models"
         del wrapped_model  # Model can be huge to keep it in memory, delete asap as no longer needed
 
         pred_conf_dict = self._get_pred_conf_from_model_output(

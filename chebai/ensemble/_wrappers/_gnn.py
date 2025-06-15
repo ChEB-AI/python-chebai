@@ -1,35 +1,12 @@
-from pathlib import Path
-
 import chebai_graph.preprocessing.properties as p
 import torch
 from chebai_graph.preprocessing.property_encoder import IndexEncoder, OneHotEncoder
 from torch_geometric.data.data import Data as GeomData
 
-from .._constants import DATA_CLS_KWARGS
 from ._neural_network import NNWrapper
 
 
-class GNNResGated(NNWrapper):
-
-    def _pre_load_hook(self):
-        self._model_config[DATA_CLS_KWARGS] = self._model_config.get(
-            DATA_CLS_KWARGS,
-            {
-                "properties": [
-                    p.AtomType(),
-                    p.NumAtomBonds(),
-                    p.AtomCharge(),
-                    p.AtomAromaticity(),
-                    p.AtomHybridization(),
-                    p.AtomNumHs(),
-                    p.BondType(),
-                    p.BondInRing(),
-                    p.BondAromaticity(),
-                    p.RDKit2DNormalized(),
-                ]
-            },
-        )
-
+class GNNWrapper(NNWrapper):
     def _read_smiles(self, smiles):
         d = self._data_cls_instance.reader.to_data(dict(features=smiles, labels=None))
         geom_data = d["features"]
@@ -94,3 +71,8 @@ class GNNResGated(NNWrapper):
             molecule_attr=molecule_attr,
         )
         return d
+
+    def _evaluate_from_data_file(self, **kwargs) -> list:
+        model_logits = super()._evaluate_from_data_file(**kwargs)
+        # Currently gnn in forward method, logits are returned instead of dict containing logits
+        return {"logits": model_logits}

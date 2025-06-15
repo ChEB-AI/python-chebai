@@ -1,6 +1,6 @@
 from ._consolidator import WeightedMajorityVoting
 from ._controller import NoActivationCondition
-from ._wrappers import NNWrapper
+from ._wrappers import GNNWrapper, NNWrapper
 
 
 class FullEnsembleWMV(NoActivationCondition, WeightedMajorityVoting):
@@ -9,4 +9,4 @@ class FullEnsembleWMV(NoActivationCondition, WeightedMajorityVoting):
     pass
 
 
-__all__ = ["FullEnsembleWMV", "NNWrapper"]
+__all__ = ["FullEnsembleWMV", "NNWrapper", "GNNWrapper"]

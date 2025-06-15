@@ -29,9 +29,6 @@ def load_model_for_inference(
     """
     Loads a model checkpoint and its label-related properties.
 
-    Args:
-        input_dim (int): Name of the model to load.
-
     Returns:
         Tuple[LightningModule, Dict[str, torch.Tensor]]: The model and its label properties.
     """
@@ -51,9 +48,7 @@ def load_model_for_inference(
         lightning_cls, ChebaiBaseNet
     ), f"{lightning_cls} must inherit from ChebaiBaseNet"
     try:
-        model = lightning_cls.load_from_checkpoint(
-            model_ckpt_path, input_dim=5, **model_load_kwargs
-        )
+        model = lightning_cls.load_from_checkpoint(model_ckpt_path, **model_load_kwargs)
     except Exception as e:
         raise RuntimeError(f"Error loading model {model_name} \n Error: {e}") from e
 
