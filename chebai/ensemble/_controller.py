@@ -55,7 +55,9 @@ class _Controller(EnsembleBase, ABC):
         if self._operation_mode == PRED_OP:
             model_output, model_props = wrapped_model.predict(model_input)
         else:
-            model_output, model_props = wrapped_model.evaluate()
+            model_output, model_props = wrapped_model.evaluate(
+                data_pkl_file_path=model_input
+            )
             if (
                 self._collated_labels is None
                 and wrapped_model.collated_labels is not None

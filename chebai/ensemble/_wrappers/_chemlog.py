@@ -16,17 +16,16 @@ from rdkit import Chem
 from chebai.ensemble._wrappers._base import BaseWrapper
 
 
-class ChemLog(BaseWrapper):
+class ChemLogWrapper(BaseWrapper):
 
     def _predict_from_list_of_smiles(self, smiles_list):
-        return self.get_chemlog_results(smiles_list)
+        return {"logits": self.get_chemlog_results(smiles_list)}
 
-    def _evaluate_from_data_file(
-        self, data_processed_dir_main: Path, data_file_name="data.pkl"
-    ) -> list:
-        data_df = pd.read_pickle(data_processed_dir_main / data_file_name)
+    def _evaluate_from_data_file(self, **kwargs) -> list:
+        data_pkl_file_path = kwargs["data_pkl_file_path"]
+        data_df = pd.read_pickle(data_pkl_file_path)
         smiles_list = data_df["SMILES"].to_list()
-        return self.get_chemlog_results(smiles_list)
+        return {"logits": self.get_chemlog_results(smiles_list)}
 
     def get_chemlog_results(self, smiles_list) -> list:
         all_preds = []

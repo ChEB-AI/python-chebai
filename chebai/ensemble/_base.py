@@ -120,7 +120,7 @@ class EnsembleBase(ABC):
                     f"data.pkl does not exist in the {processed_dir_path} directory"
                 )
             self._total_data_size = len(pd.read_pickle(data_pkl_path))
-            return processed_dir_path
+            return data_pkl_path
         else:
             raise ValueError("Invalid operation")
 
