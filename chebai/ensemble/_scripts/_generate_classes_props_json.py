@@ -67,7 +67,14 @@ class ClassesPropertiesGenerator:
             tn, fp, fn, tp = cm[idx].ravel()
             tpv = tp / (tp + fp) if (tp + fp) > 0 else 0.0
             npv = tn / (tn + fn) if (tn + fn) > 0 else 0.0
-            results[cls_name] = {"PPV": round(tpv, 4), "NPV": round(npv, 4)}
+            results[cls_name] = {
+                "PPV": round(tpv, 4),
+                "NPV": round(npv, 4),
+                "TN": int(tn),
+                "FP": int(fp),
+                "FN": int(fn),
+                "TP": int(tp),
+            }
         return results
 
     def generate_props(
@@ -78,7 +85,7 @@ class ClassesPropertiesGenerator:
         output_path: str | None = None,
     ) -> None:
         """
-        Run inference on validation set, compute TPV/NPV per class, and save to JSON.
+        Run inference on validation set, compute TPV/NPV  per class, and save to JSON.
 
         Args:
             model_ckpt_path: Path to the PyTorch Lightning checkpoint file.
@@ -124,7 +131,7 @@ class ClassesPropertiesGenerator:
             )
             labels = data["labels"]
             outputs = model(data, **data.get("model_kwargs", {}))
-            logits = outputs["logits"]
+            logits = outputs["logits"] if isinstance(outputs, dict) else outputs
             preds = torch.sigmoid(logits) > 0.5
             y_pred.extend(preds)
             y_true.extend(labels)
