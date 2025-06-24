@@ -1,0 +1,64 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "chebai"
+version = "1.0.0"
+description = "ChEBai is a deep learning library designed for the integration of deep learning methods with chemical ontologies, particularly ChEBI."
+authors = [
+    { name = "MGlauer", email = "martin.glauer@ovgu.de" }
+]
+readme = "README.md"
+license = { text = "AGPL-3.0" }
+requires-python = ">=3.9,<3.13"
+dependencies = [
+    "certifi",
+    "idna",
+    "joblib",
+    "networkx",
+    "numpy",
+    "pandas",
+    "python-dateutil",
+    "pytz",
+    "requests",
+    "scikit-learn",
+    "scipy",
+    "six",
+    "threadpoolctl",
+    "torch",
+    "typing-extensions",
+    "urllib3",
+    "transformers",
+    "fastobo",
+    "pysmiles==1.1.2",
+    "scikit-network",
+    "svgutils",
+    "matplotlib",
+    "rdkit",
+    "selfies",
+    "lightning>=2.5",
+    "jsonargparse[signatures]>=4.17",
+    "omegaconf",
+    "seaborn",
+    "deepsmiles",
+    "iterative-stratification",
+    "wandb",
+    "chardet",
+    "pyyaml",
+    "torchmetrics"
+]
+
+[project.optional-dependencies]
+dev = ["black", "isort", "pre-commit"]
+
+[tool.setuptools]
+include-package-data = true
+license-files = ["LICEN[CS]E*"]
+
+[tool.setuptools.packages.find]
+where = ["."]
+exclude = ["tests*"]
+
+[tool.setuptools.package-data]
+"" = ["**/*.txt", "**/*.json"]
