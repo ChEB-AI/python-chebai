@@ -29,7 +29,8 @@ class XYBaseDataModule(LightningDataModule):
 
     Args:
         batch_size (int): The batch size for data loading. Default is 1.
-        train_split (float): The ratio of training data to total data and of test data to (validation + test) data. Default is 0.85.
+        test_split (float): The ratio of test data to total data. Default is 0.1.
+        validation_split (float): The ratio of validation data to total data. Default is 0.05.
         reader_kwargs (dict): Additional keyword arguments to be passed to the data reader. Default is None.
         prediction_kind (str): The kind of prediction to be performed (only relevant for the predict_dataloader). Default is "test".
         data_limit (Optional[int]): The maximum number of data samples to load. If set to None, the complete dataset will be used. Default is None.
@@ -45,7 +46,8 @@ class XYBaseDataModule(LightningDataModule):
     Attributes:
         READER (DataReader): The data reader class to use.
         reader (DataReader): An instance of the data reader class.
-        train_split (float): The ratio of training data to total data.
+        test_split (float): The ratio of test data to total data.
+        validation_split (float): The ratio of validation data to total data.
         batch_size (int): The batch size for data loading.
         prediction_kind (str): The kind of prediction to be performed.
         data_limit (Optional[int]): The maximum number of data samples to load.
@@ -68,7 +70,8 @@ class XYBaseDataModule(LightningDataModule):
     def __init__(
         self,
         batch_size: int = 1,
-        train_split: float = 0.85,
+        test_split: Optional[float] = 0.1,
+        validation_split: Optional[float] = 0.05,
         reader_kwargs: Optional[dict] = None,
         prediction_kind: str = "test",
         data_limit: Optional[int] = None,
@@ -86,7 +89,9 @@ class XYBaseDataModule(LightningDataModule):
         if reader_kwargs is None:
             reader_kwargs = dict()
         self.reader = self.READER(**reader_kwargs)
-        self.train_split = train_split
+        self.test_split = test_split
+        self.validation_split = validation_split
+
         self.batch_size = batch_size
         self.prediction_kind = prediction_kind
         self.data_limit = data_limit
@@ -1083,16 +1088,17 @@ class _DynamicDataset(XYBaseDataModule, ABC):
 
             return folds
 
-        # scale val set size by 1/self.train_split to compensate for (hypothetical) test set size (1-self.train_split)
-        test_size = ((1 - self.train_split) ** 2) / self.train_split
-
         if len(labels_list_trainval[0]) > 1:
             splitter = MultilabelStratifiedShuffleSplit(
-                n_splits=1, test_size=test_size, random_state=seed
+                n_splits=1,
+                test_size=self.validation_split / (1 - self.test_split),
+                random_state=seed,
             )
         else:
             splitter = StratifiedShuffleSplit(
-                n_splits=1, test_size=test_size, random_state=seed
+                n_splits=1,
+                test_size=self.validation_split / (1 - self.test_split),
+                random_state=seed,
             )
 
         train_indices, validation_indices = next(
