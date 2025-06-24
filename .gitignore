@@ -167,6 +167,12 @@ cython_debug/
 /logs
 /results_buffer
 electra_pretrained.ckpt
-/lightning_logs
+
+build
+.virtual_documents
+.jupyter
+chebai.egg-info
+lightning_logs
+logs
 .isort.cfg
 /.vscode
