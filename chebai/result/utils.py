@@ -1,14 +1,16 @@
+import importlib
 import os
 import shutil
-from typing import Optional, Tuple, Union
+from pathlib import Path
+from typing import Optional, Tuple
 
 import torch
 import tqdm
 import wandb
 import wandb.util as wandb_util
+import yaml
 
 from chebai.models.base import ChebaiBaseNet
-from chebai.models.electra import Electra
 from chebai.preprocessing.datasets.base import XYBaseDataModule
 from chebai.preprocessing.datasets.chebi import _ChEBIDataExtractor
 
@@ -121,7 +123,7 @@ def evaluate_model(
     save_batch_size = 128
     n_saved = 1
 
-    print(f"")
+    print("")
     for i in tqdm.tqdm(range(0, len(data_list), batch_size)):
         if not (
             skip_existing_preds
@@ -307,5 +309,5 @@ if __name__ == "__main__":
     )
     os.makedirs(buffer_dir_concat, exist_ok=True)
     preds, labels = load_results_from_buffer(buffer_dir, "cpu")
-    torch.save(preds, os.path.join(buffer_dir_concat, f"preds000.pt"))
-    torch.save(labels, os.path.join(buffer_dir_concat, f"labels000.pt"))
+    torch.save(preds, os.path.join(buffer_dir_concat, "preds000.pt"))
+    torch.save(labels, os.path.join(buffer_dir_concat, "labels000.pt"))
