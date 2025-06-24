@@ -175,3 +175,4 @@ chebai.egg-info
 lightning_logs
 logs
 .isort.cfg
+/.vscode
