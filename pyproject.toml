@@ -61,4 +61,4 @@ where = ["."]
 exclude = ["tests*"]
 
 [tool.setuptools.package-data]
-"" = ["**/*.txt", "**/*.json"]
+"*" = ["**/*.txt", "**/*.json"]
