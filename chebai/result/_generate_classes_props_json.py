@@ -5,12 +5,12 @@ import torch
 from jsonargparse import CLI
 from sklearn.metrics import multilabel_confusion_matrix
 
-from chebai.ensemble._utils import (
+from chebai.preprocessing.datasets.base import XYBaseDataModule
+from chebai.result.utils import (
     load_data_instance,
     load_model_for_inference,
     parse_config_file,
 )
-from chebai.preprocessing.datasets.base import XYBaseDataModule
 
 
 class ClassesPropertiesGenerator:
