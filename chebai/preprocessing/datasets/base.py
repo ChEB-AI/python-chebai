@@ -1027,15 +1027,13 @@ class _DynamicDataset(XYBaseDataModule, ABC):
 
         labels_list = df["labels"].tolist()
 
-        test_size = 1 - self.train_split - (1 - self.train_split) ** 2
-
         if len(labels_list[0]) > 1:
             splitter = MultilabelStratifiedShuffleSplit(
-                n_splits=1, test_size=test_size, random_state=seed
+                n_splits=1, test_size=self.test_split, random_state=seed
             )
         else:
             splitter = StratifiedShuffleSplit(
-                n_splits=1, test_size=test_size, random_state=seed
+                n_splits=1, test_size=self.test_split, random_state=seed
             )
 
         train_indices, test_indices = next(splitter.split(labels_list, labels_list))
