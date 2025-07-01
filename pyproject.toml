@@ -62,3 +62,10 @@ exclude = ["tests*"]
 
 [tool.setuptools.package-data]
 "*" = ["**/*.txt", "**/*.json"]
+
+[tool.ruff]
+# Run Ruff as a linter (formatting rules disabled)
+exclude = [".venv"]
+ignore = ["E501", "W291", "W293", "E302", "E303", "E305"]
+line-length = 88  # Match Black's default
+target-version = "py310"
