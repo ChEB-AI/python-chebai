@@ -47,6 +47,7 @@ class Tox21MolNet(XYBaseDataModule):
     @property
     def raw_file_names(self) -> List[str]:
         """Returns a list of raw file names."""
+        # return ["tox21.csv"]
         return ["tox21_groups_04.csv"]
 
     @property
@@ -143,7 +144,6 @@ class Tox21MolNet(XYBaseDataModule):
         with open(input_file_path, "r") as input_file:
             reader = csv.DictReader(input_file)
             for row in reader:
-                print(row)
                 smiles = row["smiles"]
                 labels = [
                     bool(int(float(l))) if len(l) > 1 else None for l in (row[k] for k in self.HEADERS)

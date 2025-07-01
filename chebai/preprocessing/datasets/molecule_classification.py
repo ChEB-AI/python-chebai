@@ -435,6 +435,7 @@ class Bace(XYBaseDataModule):
     def raw_file_names(self) -> List[str]:
         """Returns a list of raw file names."""
         return ["bace.csv"]
+        # return ["bace_groups4.csv"]
 
     @property
     def processed_file_names(self) -> List[str]:
@@ -487,7 +488,7 @@ class Bace(XYBaseDataModule):
                 )
         test_split, validation_split = train_test_split(
                     test_split, train_size=0.5, shuffle=True
-                )
+            )
         for k, split in [
             ("test", test_split),
             ("train", train_split),
@@ -529,7 +530,7 @@ class Bace(XYBaseDataModule):
                 smiles = row["mol"]
                 labels = [int(row["Class"])]
                 # group = row["group"]
-                yield dict(features=smiles, labels=labels, ident=i)
+                yield dict(features=smiles, labels=labels, ident=i) # , group=group
                 # yield self.reader.to_data(dict(features=smiles, labels=labels, ident=i))
 
 class HIV(XYBaseDataModule):

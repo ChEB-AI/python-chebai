@@ -329,10 +329,9 @@ class Electra(ChebaiBaseNet):
             # for mulitclass here softmax instead of sigmoid
             d = torch.sigmoid(d) # changing this made a difference for the roc-auc but not the f1, why?
             if "missing_labels" in loss_kwargs:
-                #print('bla')
                 missing_labels = loss_kwargs["missing_labels"]
-                d = d * (~missing_labels).int().to(device=d.device)
-                labels = labels * (~missing_labels).int().to(device=d.device)
+                d = d * (~missing_labels).int().to(device=d.device) # we set the prob of missing labels to 0
+                labels = labels * (~missing_labels).int().to(device=d.device) # we set the labels of missing labels to 0
             return d, labels.int() if labels is not None else None
         elif self.model_type == 'regression':
             return d, labels
