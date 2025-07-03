@@ -26,11 +26,7 @@ class ChebaiBaseNet(LightningModule, ABC):
         optimizer_kwargs (Dict[str, Any], optional): Additional keyword arguments for the optimizer. Defaults to None.
         **kwargs: Additional keyword arguments.
 
-    Attributes:
-        NAME (str): The name of the model.
     """
-
-    NAME = None
 
     def __init__(
         self,

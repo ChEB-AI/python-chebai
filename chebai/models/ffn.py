@@ -9,15 +9,13 @@ from chebai.models import ChebaiBaseNet
 class FFN(ChebaiBaseNet):
     # Reference: https://github.com/bio-ontology-research-group/deepgo2/blob/main/deepgo/models.py#L121-L139
 
-    NAME = "FFN"
-
     def __init__(
         self,
         input_size: int,
         hidden_layers: List[int] = [
             1024,
         ],
-        **kwargs
+        **kwargs,
     ):
         super().__init__(**kwargs)
 
