@@ -25,7 +25,7 @@ class CustomTrainer(Trainer):
         """
         self.init_args = args
         self.init_kwargs = kwargs
-        super().__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs, deterministic=True)
         # instantiation custom logger connector
         self._logger_connector.on_trainer_init(self.logger, 1)
         # log additional hyperparameters to wandb
