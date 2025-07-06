@@ -17,7 +17,7 @@ class FFN(ChebaiBaseNet):
         hidden_layers: List[int] = [
             1024,
         ],
-        **kwargs
+        **kwargs,
     ):
         super().__init__(**kwargs)
 
