@@ -80,7 +80,7 @@ class ChebaiPredictionWriter(BasePredictionWriter):
             else:
                 labels = [None for _ in idents]
             output = torch.sigmoid(p["output"]["logits"]).tolist()
-            for i, l, o in zip(idents, labels, output):
+            for i, l, o in zip(idents, labels, output):  # noqa: E741
                 pred_list.append(dict(ident=i, labels=l, predictions=o))
         with open(os.path.join(self.output_dir, self.target_file), "wt") as fout:
             json.dump(pred_list, fout)

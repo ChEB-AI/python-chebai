@@ -28,4 +28,4 @@ repos:
     rev: v0.12.1
     hooks:
     -   id: ruff
-        args: []  # No --fix, disables formatting
+        args: [--fix]

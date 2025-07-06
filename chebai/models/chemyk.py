@@ -1,13 +1,8 @@
 import logging
-import os
-import pickle
-import sys
 
-import networkx as nx
 import torch
 from torch import nn
 from torch.nn import functional as F
-from torch.nn.functional import pad
 
 from chebai.models.base import ChebaiBaseNet
 
@@ -41,20 +36,22 @@ class ChemYK(ChebaiBaseNet):
         h = [m]  # torch.zeros(emb.shape[0], max_width, *emb.shape[1:])
         # h[:, 0] = emb
         for width in range(1, max_width):
-            l = torch.stack(tuple(h[i][:, : (max_width - width)] for i in range(width)))
+            l_ = torch.stack(
+                tuple(h[i][:, : (max_width - width)] for i in range(width))
+            )
             r = torch.stack(
                 tuple(h[i][:, (width - i) :] for i in range(0, width))
             ).flip(0)
-            m = self.merge(l, r)
+            m = self.merge(l_, r)
             h.append(m)
         return self.output(m).squeeze(1)
 
-    def merge(self, l, r):
-        x = torch.stack([self.a_l(l), self.a_r(r)])
+    def merge(self, l_, r):
+        x = torch.stack([self.a_l(l_), self.a_r(r)])
         beta = torch.softmax(x, 0)
         return F.leaky_relu(
             self.attention(
-                torch.sum(beta * torch.stack([self.w_l(l), self.w_r(r)]), dim=0)
+                torch.sum(beta * torch.stack([self.w_l(l_), self.w_r(r)]), dim=0)
             )
         )
 

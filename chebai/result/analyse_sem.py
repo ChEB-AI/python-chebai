@@ -1,20 +1,25 @@
 import gc
+import os
 import sys
 import traceback
 from datetime import datetime
-from typing import List, LiteralString
+from typing import List, LiteralString, Optional, Tuple
 
+import torch
+import wandb
 from torchmetrics.functional.classification import (
     multilabel_auroc,
     multilabel_average_precision,
     multilabel_f1_score,
 )
-from utils import *
+from utils import evaluate_model, get_checkpoint_from_wandb, load_results_from_buffer
 
 from chebai.loss.semantic import DisjointLoss
+from chebai.models import Electra
 from chebai.preprocessing.datasets.base import _DynamicDataset
 from chebai.preprocessing.datasets.chebi import ChEBIOver100
-from chebai.preprocessing.datasets.pubchem import PubChemKMeans
+
+# from chebai.preprocessing.datasets.pubchem import PubChemKMeans
 
 DEVICE = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
@@ -178,7 +183,6 @@ class PredictionSmoother:
         self.disjoint_groups = get_disjoint_groups()
 
     def __call__(self, preds):
-
         preds_sum_orig = torch.sum(preds)
         print(f"Preds sum: {preds_sum_orig}")
         # eliminate implication violations by setting each prediction to maximum of its successors
@@ -200,9 +204,9 @@ class PredictionSmoother:
                 old_preds = preds[:, disj_group]
                 disj_max = torch.max(preds[:, disj_group], dim=1)
                 for i, row in enumerate(preds):
-                    for l in range(len(preds[i])):
-                        if l in disj_group and l != disj_group[disj_max.indices[i]]:
-                            preds[i, l] = preds_bounded[i, l]
+                    for l_ in range(len(preds[i])):
+                        if l_ in disj_group and l_ != disj_group[disj_max.indices[i]]:
+                            preds[i, l_] = preds_bounded[i, l_]
                 samples_changed = 0
                 for i, row in enumerate(preds[:, disj_group]):
                     if any(r != o for r, o in zip(row, old_preds[i])):
@@ -249,7 +253,7 @@ def build_prediction_filter(data_module_labeled=None):
     if data_module_labeled is None:
         data_module_labeled = ChEBIOver100(chebi_version=231)
     # prepare filters
-    print(f"Loading implication / disjointness filters...")
+    print("Loading implication / disjointness filters...")
     dl = DisjointLoss(
         path_to_disjointness=os.path.join("data", "disjoint.csv"),
         data_extractor=data_module_labeled,
@@ -415,18 +419,18 @@ def run_consistency_metrics(
                 else (
                     torch.sum(metric_results["fns"])
                     / (
-                        torch.sum(metric_results[f"tps"])
-                        + torch.sum(metric_results[f"fns"])
+                        torch.sum(metric_results["tps"])
+                        + torch.sum(metric_results["fns"])
                     )
                 ).item()
             )
-            macro_fnr_l = m_l_agg[f"fns"] / (m_l_agg[f"tps"] + m_l_agg[f"fns"])
+            macro_fnr_l = m_l_agg["fns"] / (m_l_agg["tps"] + m_l_agg["fns"])
             results[metric.__name__][f"lmacro-fnr-{filter_type}"] = (
                 0
                 if fns_sum == 0
                 else torch.mean(macro_fnr_l[~macro_fnr_l.isnan()]).item()
             )
-            macro_fnr_r = m_r_agg[f"fns"] / (m_r_agg[f"tps"] + m_r_agg[f"fns"])
+            macro_fnr_r = m_r_agg["fns"] / (m_r_agg["tps"] + m_r_agg["fns"])
             results[metric.__name__][f"rmacro-fnr-{filter_type}"] = (
                 0
                 if fns_sum == 0
@@ -485,7 +489,7 @@ def run_supervised_metrics(preds, labels, save_details_to=None):
             ap_by_label = multilabel_average_precision(
                 preds, labels, num_labels=preds.size(1), average=None
             )
-            with open(os.path.join(save_details_to, f"supervised.csv"), "w+") as f:
+            with open(os.path.join(save_details_to, "supervised.csv"), "w+") as f:
                 f.write("label,f1,roc-auc,ap\n")
                 for right in range(preds.size(1)):
                     f.write(
@@ -506,7 +510,7 @@ def run_semloss_eval():
     api = wandb.Api()
     runs = api.runs("chebai/chebai", filters={"tags": "eval_semloss_paper"})
     print(f"Found {len(runs)} tagged wandb runs")
-    ids_wandb = [run.id for run in runs]
+    # ids_wandb = [run.id for run in runs]
 
     # ids used in the NeSy submission
     prod = ["tk15yznc", "uke62a8m", "w0h3zr5s"]
@@ -551,7 +555,7 @@ def run_all(
     if remove_violations:
         smooth_preds = PredictionSmoother(check_consistency_on)
     else:
-        smooth_preds = lambda x: x
+        smooth_preds = lambda x: x  # noqa: E731
 
     timestamp = datetime.now().strftime("%y%m%d-%H%M%S")
     prediction_filters = build_prediction_filter(check_consistency_on)
@@ -696,7 +700,7 @@ def run_fuzzy_loss(tag="fuzzy_loss", skip_first_n=0):
         ),
     )
     local_ckpts = [][skip_first_n:]
-    pubchem_kmeans = PubChemKMeans()
+    # pubchem_kmeans = PubChemKMeans()
     run_all(
         ids[max(0, skip_first_n - len(local_ckpts)) :],  # ids,
         local_ckpts,

@@ -3,7 +3,7 @@ import logging
 import networkx as nx
 import torch
 import torch.nn.functional as F
-from torch import exp, nn, tensor
+from torch import nn
 
 from chebai.models.base import ChebaiBaseNet
 

@@ -90,7 +90,7 @@ class ResultFactory(abc.ABC):
         for proc in self._processors:
             proc.start()
         try:
-            with mp.Pool() as pool:
+            with mp.Pool():
                 res = map(
                     self.call_procs,
                     enumerate(self._generate_predictions(data_path, **kwargs)),

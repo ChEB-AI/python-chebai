@@ -236,7 +236,7 @@ class _ChEBIDataExtractor(_DynamicDataset, ABC):
             nx.DiGraph: The class hierarchy.
         """
         with open(data_path, encoding="utf-8") as chebi:
-            chebi = "\n".join(l for l in chebi if not l.startswith("xref:"))
+            chebi = "\n".join(line for line in chebi if not line.startswith("xref:"))
 
         elements = []
         for term_doc in fastobo.loads(chebi):
@@ -277,7 +277,7 @@ class _ChEBIDataExtractor(_DynamicDataset, ABC):
         smiles = nx.get_node_attributes(g, "smiles")
         names = nx.get_node_attributes(g, "name")
 
-        print(f"Process graph")
+        print("Process graph")
 
         molecules, smiles_list = zip(
             *(
@@ -406,8 +406,8 @@ class _ChEBIDataExtractor(_DynamicDataset, ABC):
             )
         except FileNotFoundError:
             raise FileNotFoundError(
-                f"File data.pt doesn't exists. "
-                f"Please call 'prepare_data' and/or 'setup' methods to generate the dataset files"
+                "File data.pt doesn't exists. "
+                "Please call 'prepare_data' and/or 'setup' methods to generate the dataset files"
             )
 
         df_chebi_version = pd.DataFrame(data_chebi_version)
@@ -540,7 +540,6 @@ class _ChEBIDataExtractor(_DynamicDataset, ABC):
 
 
 class JCIExtendedBase(_ChEBIDataExtractor):
-
     @property
     def _name(self):
         return "JCI_extended"

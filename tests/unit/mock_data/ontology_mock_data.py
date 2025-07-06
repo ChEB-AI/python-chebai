@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 from collections import OrderedDict
-from typing import Dict, List, Set, Tuple
+from typing import List, Set, Tuple
 
 import networkx as nx
 import pandas as pd

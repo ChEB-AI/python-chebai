@@ -229,7 +229,7 @@ class ImplicationLoss(torch.nn.Module):
         return total_loss.mean(), loss_components
 
     def _calculate_implication_loss(
-        self, l: torch.Tensor, r: torch.Tensor
+        self, l_: torch.Tensor, r: torch.Tensor
     ) -> torch.Tensor:
         """
         Calculate implication loss based on T-norm and other parameters.
@@ -241,17 +241,17 @@ class ImplicationLoss(torch.nn.Module):
         Returns:
             torch.Tensor: Calculated implication loss.
         """
-        assert not l.isnan().any(), (
-            f"l contains NaN values - l.shape: {l.shape}, l.isnan().sum(): {l.isnan().sum()}, "
-            f"l: {l}"
+        assert not l_.isnan().any(), (
+            f"l contains NaN values - l.shape: {l_.shape}, l.isnan().sum(): {l_.isnan().sum()}, "
+            f"l: {l_}"
         )
         assert not r.isnan().any(), (
             f"r contains NaN values - r.shape: {r.shape}, r.isnan().sum(): {r.isnan().sum()}, "
             f"r: {r}"
         )
         if self.pos_scalar != 1:
-            l = (
-                torch.pow(l + self.eps, 1 / self.pos_scalar)
+            l_ = (
+                torch.pow(l_ + self.eps, 1 / self.pos_scalar)
                 - math.pow(self.eps, 1 / self.pos_scalar)
             ) / (
                 math.pow(1 + self.eps, 1 / self.pos_scalar)
@@ -269,21 +269,21 @@ class ImplicationLoss(torch.nn.Module):
         # for each implication I, calculate 1 - I(l, 1-one_min_r)
         # for S-implications, this is equivalent to the t-norm
         if self.fuzzy_implication in ["reichenbach", "rc"]:
-            individual_loss = l * one_min_r
+            individual_loss = l_ * one_min_r
         # xu19 (from Xu et al., 2019: Semantic loss) is not a fuzzy implication, but behaves similar to the Reichenbach
         # implication
         elif self.fuzzy_implication == "xu19":
-            individual_loss = -torch.log(1 - l * one_min_r)
+            individual_loss = -torch.log(1 - l_ * one_min_r)
         elif self.fuzzy_implication in ["lukasiewicz", "lk"]:
-            individual_loss = torch.relu(l + one_min_r - 1)
+            individual_loss = torch.relu(l_ + one_min_r - 1)
         elif self.fuzzy_implication in ["kleene_dienes", "kd"]:
-            individual_loss = torch.min(l, 1 - r)
+            individual_loss = torch.min(l_, 1 - r)
         elif self.fuzzy_implication in ["goedel", "g"]:
-            individual_loss = torch.where(l <= r, 0, one_min_r)
+            individual_loss = torch.where(l_ <= r, 0, one_min_r)
         elif self.fuzzy_implication in ["reverse-goedel", "rg"]:
-            individual_loss = torch.where(l <= r, 0, l)
+            individual_loss = torch.where(l_ <= r, 0, l_)
         elif self.fuzzy_implication in ["binary", "b"]:
-            individual_loss = torch.where(l <= r, 0, 1).to(dtype=l.dtype)
+            individual_loss = torch.where(l_ <= r, 0, 1).to(dtype=l_.dtype)
         else:
             raise NotImplementedError(
                 f"Unknown fuzzy implication {self.fuzzy_implication}"
@@ -453,8 +453,8 @@ def _build_implication_filter(label_names: List, hierarchy: dict) -> torch.Tenso
 
 def _build_dense_filter(sparse_filter: torch.Tensor, n_labels: int) -> torch.Tensor:
     res = torch.zeros((n_labels, n_labels), dtype=torch.bool)
-    for l, r in sparse_filter:
-        res[l, r] = True
+    for l_, r in sparse_filter:
+        res[l_, r] = True
     return res
 
 
@@ -511,8 +511,8 @@ if __name__ == "__main__":
     random_labels = torch.randint(0, 2, (10, 997))
     for agg in ["sum", "max", "mean", "log-mean"]:
         loss.violations_per_cls_aggregator = agg
-        l = loss(random_preds, random_labels)
-        print(f"Loss with {agg} aggregation for random input:", l)
+        l_ = loss(random_preds, random_labels)
+        print(f"Loss with {agg} aggregation for random input:", l_)
 
     # simplified example for ontology with 4 classes, A -> B, B -> C, D -> C, B and D disjoint
     loss.implication_filter_l = torch.tensor(
@@ -528,5 +528,5 @@ if __name__ == "__main__":
     labels = [[0, 1, 1, 0], [0, 0, 1, 1]]
     for agg in ["sum", "max", "mean", "log-mean"]:
         loss.violations_per_cls_aggregator = agg
-        l = loss(preds, torch.tensor(labels))
-        print(f"Loss with {agg} aggregation for simple input:", l)
+        l_ = loss(preds, torch.tensor(labels))
+        print(f"Loss with {agg} aggregation for simple input:", l_)
