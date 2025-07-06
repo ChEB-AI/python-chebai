@@ -13,44 +13,29 @@ readme = "README.md"
 license = { text = "AGPL-3.0" }
 requires-python = ">=3.9,<3.13"
 dependencies = [
-    "certifi",
-    "idna",
-    "joblib",
     "networkx",
     "numpy",
     "pandas",
-    "python-dateutil",
-    "pytz",
     "requests",
     "scikit-learn",
     "scipy",
-    "six",
-    "threadpoolctl",
     "torch",
-    "typing-extensions",
-    "urllib3",
     "transformers",
     "fastobo",
     "pysmiles==1.1.2",
-    "scikit-network",
-    "svgutils",
-    "matplotlib",
     "rdkit",
     "selfies",
     "lightning>=2.5",
     "jsonargparse[signatures]>=4.17",
     "omegaconf",
-    "seaborn",
     "deepsmiles",
     "iterative-stratification",
     "wandb",
-    "chardet",
-    "pyyaml",
     "torchmetrics"
 ]
 
 [project.optional-dependencies]
-dev = ["black", "isort", "pre-commit"]
+dev = ["black", "isort", "pre-commit", "matplotlib", "seaborn"]
 
 [tool.setuptools]
 include-package-data = true
