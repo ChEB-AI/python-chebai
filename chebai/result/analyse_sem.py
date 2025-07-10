@@ -1,9 +1,12 @@
 import gc
+import os
 import traceback
 from datetime import datetime
-from typing import List, LiteralString
+from typing import List, LiteralString, Optional, Tuple
 
 import pandas as pd
+import torch
+import wandb
 from torchmetrics.functional.classification import (
     multilabel_auroc,
     multilabel_average_precision,
@@ -14,8 +17,11 @@ from chebai.loss.semantic import DisjointLoss
 from chebai.models import Electra
 from chebai.preprocessing.datasets.base import _DynamicDataset
 from chebai.preprocessing.datasets.chebi import ChEBIOver100
-from chebai.preprocessing.datasets.pubchem import PubChemKMeans
-from chebai.result.utils import *
+from chebai.result.utils import (
+    evaluate_model,
+    get_checkpoint_from_wandb,
+    load_results_from_buffer,
+)
 
 DEVICE = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
@@ -739,6 +745,8 @@ def run_fuzzy_loss(tag="fuzzy_loss", skip_first_n=0):
 
 
 if __name__ == "__main__":
+    import sys
+
     if len(sys.argv) > 2:
         run_fuzzy_loss(sys.argv[1], int(sys.argv[2]))
     elif len(sys.argv) > 1:
