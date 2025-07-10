@@ -1,25 +1,21 @@
 import gc
-import os
-import sys
 import traceback
 from datetime import datetime
-from typing import List, LiteralString, Optional, Tuple
+from typing import List, LiteralString
 
-import torch
-import wandb
+import pandas as pd
 from torchmetrics.functional.classification import (
     multilabel_auroc,
     multilabel_average_precision,
     multilabel_f1_score,
 )
-from utils import evaluate_model, get_checkpoint_from_wandb, load_results_from_buffer
 
 from chebai.loss.semantic import DisjointLoss
 from chebai.models import Electra
 from chebai.preprocessing.datasets.base import _DynamicDataset
 from chebai.preprocessing.datasets.chebi import ChEBIOver100
-
-# from chebai.preprocessing.datasets.pubchem import PubChemKMeans
+from chebai.preprocessing.datasets.pubchem import PubChemKMeans
+from chebai.result.utils import *
 
 DEVICE = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
@@ -127,7 +123,7 @@ def load_preds_labels(
 def get_label_names(data_module):
     if os.path.exists(os.path.join(data_module.processed_dir_main, "classes.txt")):
         with open(os.path.join(data_module.processed_dir_main, "classes.txt")) as fin:
-            return [int(line.strip()) for line in fin]
+            return [line.strip() for line in fin]
     print(
         f"Failed to retrieve label names, {os.path.join(data_module.processed_dir_main, 'classes.txt')} not found"
     )
@@ -136,69 +132,97 @@ def get_label_names(data_module):
 
 def get_chebi_graph(data_module, label_names):
     if os.path.exists(os.path.join(data_module.raw_dir, "chebi.obo")):
-        chebi_graph = data_module.extract_class_hierarchy(
+        chebi_graph = data_module._extract_class_hierarchy(
             os.path.join(data_module.raw_dir, "chebi.obo")
         )
-        return chebi_graph.subgraph(label_names)
+        return chebi_graph.subgraph([int(n) for n in label_names])
     print(
         f"Failed to retrieve ChEBI graph, {os.path.join(data_module.raw_dir, 'chebi.obo')} not found"
     )
     return None
 
 
-def get_disjoint_groups():
-    disjoints_owl_file = os.path.join("data", "chebi-disjoints.owl")
-    with open(disjoints_owl_file, "r") as f:
-        plaintext = f.read()
-        segments = plaintext.split("<")
-        disjoint_pairs = []
-        left = None
-        for seg in segments:
-            if seg.startswith("rdf:Description ") or seg.startswith("owl:Class"):
-                left = int(seg.split('rdf:about="&obo;CHEBI_')[1].split('"')[0])
-            elif seg.startswith("owl:disjointWith"):
-                right = int(seg.split('rdf:resource="&obo;CHEBI_')[1].split('"')[0])
-                disjoint_pairs.append([left, right])
+def get_disjoint_groups(disjoint_files):
+    if disjoint_files is None:
+        disjoint_files = os.path.join("data", "chebi-disjoints.owl")
+    disjoint_pairs, disjoint_groups = [], []
+    for file in disjoint_files:
+        if file.split(".")[-1] == "csv":
+            disjoint_pairs += pd.read_csv(file, header=None).values.tolist()
+        elif file.split(".")[-1] == "owl":
+            with open(file, "r") as f:
+                plaintext = f.read()
+                segments = plaintext.split("<")
+                disjoint_pairs = []
+                left = None
+                for seg in segments:
+                    if seg.startswith("rdf:Description ") or seg.startswith(
+                        "owl:Class"
+                    ):
+                        left = int(seg.split('rdf:about="&obo;CHEBI_')[1].split('"')[0])
+                    elif seg.startswith("owl:disjointWith"):
+                        right = int(
+                            seg.split('rdf:resource="&obo;CHEBI_')[1].split('"')[0]
+                        )
+                        disjoint_pairs.append([left, right])
 
-        disjoint_groups = []
-        for seg in plaintext.split("<rdf:Description>"):
-            if "owl;AllDisjointClasses" in seg:
-                classes = seg.split('rdf:about="&obo;CHEBI_')[1:]
-                classes = [int(c.split('"')[0]) for c in classes]
-                disjoint_groups.append(classes)
+                disjoint_groups = []
+                for seg in plaintext.split("<rdf:Description>"):
+                    if "owl;AllDisjointClasses" in seg:
+                        classes = seg.split('rdf:about="&obo;CHEBI_')[1:]
+                        classes = [int(c.split('"')[0]) for c in classes]
+                        disjoint_groups.append(classes)
+        else:
+            raise NotImplementedError(
+                "Unsupported disjoint file format: " + file.split(".")[-1]
+            )
+
     disjoint_all = disjoint_pairs + disjoint_groups
     # one disjointness is commented out in the owl-file
     # (the correct way would be to parse the owl file and notice the comment symbols, but for this case, it should work)
-    disjoint_all.remove([22729, 51880])
-    print(f"Found {len(disjoint_all)} disjoint groups")
+    if [22729, 51880] in disjoint_all:
+        disjoint_all.remove([22729, 51880])
+    # print(f"Found {len(disjoint_all)} disjoint groups")
     return disjoint_all
 
 
 class PredictionSmoother:
     """Removes implication and disjointness violations from predictions"""
 
-    def __init__(self, dataset):
-        self.label_names = get_label_names(dataset)
+    def __init__(self, dataset, label_names=None, disjoint_files=None):
+        if label_names:
+            self.label_names = label_names
+        else:
+            self.label_names = get_label_names(dataset)
         self.chebi_graph = get_chebi_graph(dataset, self.label_names)
-        self.disjoint_groups = get_disjoint_groups()
+        self.disjoint_groups = get_disjoint_groups(disjoint_files)
 
     def __call__(self, preds):
         preds_sum_orig = torch.sum(preds)
-        print(f"Preds sum: {preds_sum_orig}")
-        # eliminate implication violations by setting each prediction to maximum of its successors
         for i, label in enumerate(self.label_names):
             succs = [
-                self.label_names.index(p) for p in self.chebi_graph.successors(label)
+                self.label_names.index(str(p))
+                for p in self.chebi_graph.successors(int(label))
             ] + [i]
             if len(succs) > 0:
+                if torch.max(preds[:, succs], dim=1).values > 0.5 and preds[:, i] < 0.5:
+                    print(
+                        f"Correcting prediction for {label} to max of subclasses {list(self.chebi_graph.successors(int(label)))}"
+                    )
+                    print(
+                        f"Original pred: {preds[:, i]}, successors: {preds[:, succs]}"
+                    )
                 preds[:, i] = torch.max(preds[:, succs], dim=1).values
-        print(f"Preds change (step 1): {torch.sum(preds) - preds_sum_orig}")
+        if torch.sum(preds) != preds_sum_orig:
+            print(f"Preds change (step 1): {torch.sum(preds) - preds_sum_orig}")
         preds_sum_orig = torch.sum(preds)
         # step 2: eliminate disjointness violations: for group of disjoint classes, set all except max to 0.49 (if it is not already lower)
         preds_bounded = torch.min(preds, torch.ones_like(preds) * 0.49)
         for disj_group in self.disjoint_groups:
             disj_group = [
-                self.label_names.index(g) for g in disj_group if g in self.label_names
+                self.label_names.index(str(g))
+                for g in disj_group
+                if g in self.label_names
             ]
             if len(disj_group) > 1:
                 old_preds = preds[:, disj_group]
@@ -215,14 +239,12 @@ class PredictionSmoother:
                     print(
                         f"disjointness group {[self.label_names[d] for d in disj_group]} changed {samples_changed} samples"
                     )
-        print(
-            f"Preds change after disjointness (step 2): {torch.sum(preds) - preds_sum_orig}"
-        )
         preds_sum_orig = torch.sum(preds)
         # step 3: disjointness violation removal may have caused new implication inconsistencies -> set each prediction to min of predecessors
         for i, label in enumerate(self.label_names):
             predecessors = [i] + [
-                self.label_names.index(p) for p in self.chebi_graph.predecessors(label)
+                self.label_names.index(str(p))
+                for p in self.chebi_graph.predecessors(int(label))
             ]
             lowest_predecessors = torch.min(preds[:, predecessors], dim=1)
             preds[:, i] = lowest_predecessors.values
