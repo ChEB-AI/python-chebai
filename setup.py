@@ -12,6 +12,8 @@ setup(
     license="",
     author="MGlauer",
     author_email="martin.glauer@ovgu.de",
+    maintainer="sfluegel05",
+    maintainer_email="simon.fluegel@uni-osnabrueck.de",
     description="",
     zip_safe=False,
     python_requires=">=3.9, <3.13",
