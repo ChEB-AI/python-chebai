@@ -15,7 +15,8 @@ from chebai.result.utils import (
 
 class ClassesPropertiesGenerator:
     """
-    Computes PPV (Positive Predictive Value) and NPV (Negative Predictive Value)
+    Computes PPV (Positive Predictive Value) and NPV (Negative Predictive Value) and counts the number of
+    true positives (TP), false positives (FP), true negatives (TN), and false negatives (FN)
     for each class in a multi-label classification problem using a PyTorch Lightning model.
     """
 
@@ -35,13 +36,15 @@ class ClassesPropertiesGenerator:
             return [line.strip() for line in f if line.strip()]
 
     @staticmethod
-    def compute_tpv_npv(
+    def compute_classwise_scores(
         y_true: list[torch.Tensor],
         y_pred: list[torch.Tensor],
+        raw_preds: torch.Tensor,
         class_names: list[str],
     ) -> dict[str, dict[str, float]]:
         """
-        Compute TPV (precision) and NPV for each class in a multi-label setting.
+        Compute PPV (precision, TP/(TP+FP)), NPV (TN/(TN+FN)) and the number of TNs, FPs, FNs and TPs for each class
+        in a multi-label setting.
 
         Args:
             y_true: List of binary ground-truth label tensors, one tensor per sample.
@@ -49,9 +52,9 @@ class ClassesPropertiesGenerator:
             class_names: Ordered list of class names corresponding to class indices.
 
         Returns:
-            Dictionary mapping each class name to its TPV and NPV metrics:
+            Dictionary mapping each class name to its PPV and NPV metrics:
             {
-                "class_name": {"PPV": float, "NPV": float},
+                "class_name": {"PPV": float, "NPV": float, "TN": int, "FP": int, "FN": int, "TP": int},
                 ...
             }
         """
@@ -67,6 +70,8 @@ class ClassesPropertiesGenerator:
             tn, fp, fn, tp = cm[idx].ravel()
             tpv = tp / (tp + fp) if (tp + fp) > 0 else 0.0
             npv = tn / (tn + fn) if (tn + fn) > 0 else 0.0
+            # positive_raw = [p.item() for i, p in enumerate(raw_preds[:, idx]) if true_np[i, idx]]
+            # negative_raw = [p.item() for i, p in enumerate(raw_preds[:, idx]) if not true_np[i, idx]]
             results[cls_name] = {
                 "PPV": round(tpv, 4),
                 "NPV": round(npv, 4),
@@ -74,6 +79,8 @@ class ClassesPropertiesGenerator:
                 "FP": int(fp),
                 "FN": int(fn),
                 "TP": int(tp),
+                # "positive_preds": positive_raw,
+                # "negative_preds": negative_raw,
             }
         return results
 
@@ -125,6 +132,7 @@ class ClassesPropertiesGenerator:
         print("Running inference on validation data...")
 
         y_true, y_pred = [], []
+        raw_preds = []
         for batch_idx, batch in enumerate(val_loader):
             data = model._process_batch(  # pylint: disable=W0212
                 batch, batch_idx=batch_idx
@@ -135,8 +143,9 @@ class ClassesPropertiesGenerator:
             preds = torch.sigmoid(logits) > 0.5
             y_pred.extend(preds)
             y_true.extend(labels)
-
-        print("Computing TPV and NPV metrics...")
+            raw_preds.extend(torch.sigmoid(logits))
+        raw_preds = torch.stack(raw_preds)
+        print("Computing metrics...")
         classes_file = Path(data_module.processed_dir_main) / "classes.txt"
         if output_path is None:
             output_file = Path(data_module.processed_dir_main) / "classes.json"
@@ -144,11 +153,11 @@ class ClassesPropertiesGenerator:
             output_file = Path(output_path)
 
         class_names = self.load_class_labels(classes_file)
-        metrics = self.compute_tpv_npv(y_true, y_pred, class_names)
+        metrics = self.compute_classwise_scores(y_true, y_pred, raw_preds, class_names)
 
         with output_file.open("w") as f:
             json.dump(metrics, f, indent=2)
-        print(f"Saved TPV/NPV metrics to {output_file}")
+        print(f"Saved metrics to {output_file}")
 
 
 class Main:
@@ -164,7 +173,7 @@ class Main:
         output_path: str | None = None,
     ) -> None:
         """
-        CLI command to generate TPV/NPV JSON.
+        CLI command to generate JSON with metrics on validation set.
 
         Args:
             model_ckpt_path: Path to the PyTorch Lightning checkpoint file.
