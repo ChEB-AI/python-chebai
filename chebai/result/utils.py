@@ -1,14 +1,16 @@
+import importlib
 import os
 import shutil
-from typing import Optional, Tuple, Union
+from pathlib import Path
+from typing import Optional, Tuple
 
 import torch
 import tqdm
 import wandb
 import wandb.util as wandb_util
+import yaml
 
 from chebai.models.base import ChebaiBaseNet
-from chebai.models.electra import Electra
 from chebai.preprocessing.datasets.base import XYBaseDataModule
 from chebai.preprocessing.datasets.chebi import _ChEBIDataExtractor
 
@@ -121,7 +123,7 @@ def evaluate_model(
     save_batch_size = 128
     n_saved = 1
 
-    print(f"")
+    print("")
     for i in tqdm.tqdm(range(0, len(data_list), batch_size)):
         if not (
             skip_existing_preds
@@ -222,6 +224,82 @@ def load_results_from_buffer(
     return test_preds, test_labels
 
 
+def load_class(class_path: str) -> type:
+    module_path, class_name = class_path.rsplit(".", 1)
+    module = importlib.import_module(module_path)
+    return getattr(module, class_name)
+
+
+def load_data_instance(data_cls_path: str, data_cls_kwargs: dict):
+    assert isinstance(data_cls_kwargs, dict), "data_cls_kwargs must be a dict"
+    data_cls = load_class(data_cls_path)
+    assert isinstance(data_cls, type), f"{data_cls} is not a class."
+    assert issubclass(
+        data_cls, XYBaseDataModule
+    ), f"{data_cls} must inherit from XYBaseDataModule"
+    return data_cls(**data_cls_kwargs)
+
+
+def load_model_for_inference(
+    model_ckpt_path: str, model_cls_path: str, model_load_kwargs: dict, **kwargs
+) -> ChebaiBaseNet:
+    """
+    Loads a model checkpoint and its label-related properties.
+
+    Returns:
+        Tuple[LightningModule, Dict[str, torch.Tensor]]: The model and its label properties.
+    """
+    assert isinstance(model_load_kwargs, dict), "model_load_kwargs must be a dict"
+
+    model_name = kwargs.get("model_name", model_ckpt_path)
+
+    if not Path(model_ckpt_path).exists():
+        raise FileNotFoundError(
+            f"Model path '{model_ckpt_path}' for '{model_name}' does not exist."
+        )
+
+    lightning_cls = load_class(model_cls_path)
+
+    assert isinstance(lightning_cls, type), f"{lightning_cls} is not a class."
+    assert issubclass(
+        lightning_cls, ChebaiBaseNet
+    ), f"{lightning_cls} must inherit from ChebaiBaseNet"
+    try:
+        model = lightning_cls.load_from_checkpoint(model_ckpt_path, **model_load_kwargs)
+    except Exception as e:
+        raise RuntimeError(f"Error loading model {model_name} \n Error: {e}") from e
+
+    assert isinstance(
+        model, ChebaiBaseNet
+    ), f"Model: {model}(Model Name: {model_name}) is not a ChebaiBaseNet instance."
+    model.eval()
+    model.freeze()
+    return model
+
+
+def parse_config_file(config_path: str) -> tuple[str, dict]:
+    path = Path(config_path)
+
+    # Check file existence
+    if not path.exists():
+        raise FileNotFoundError(f"Config file not found: {config_path}")
+
+    # Check file extension
+    if path.suffix.lower() not in [".yml", ".yaml"]:
+        raise ValueError(
+            f"Unsupported config file type: {path.suffix}. Expected .yaml or .yml"
+        )
+
+    # Load YAML content
+    with open(path, "r") as f:
+        config: dict = yaml.safe_load(f)
+
+    class_path: str = config["class_path"]
+    init_args: dict = config.get("init_args", {})
+    assert isinstance(init_args, dict), "init_args must be a dictionary"
+    return class_path, init_args
+
+
 if __name__ == "__main__":
     import sys
 
@@ -231,5 +309,5 @@ if __name__ == "__main__":
     )
     os.makedirs(buffer_dir_concat, exist_ok=True)
     preds, labels = load_results_from_buffer(buffer_dir, "cpu")
-    torch.save(preds, os.path.join(buffer_dir_concat, f"preds000.pt"))
-    torch.save(labels, os.path.join(buffer_dir_concat, f"labels000.pt"))
+    torch.save(preds, os.path.join(buffer_dir_concat, "preds000.pt"))
+    torch.save(labels, os.path.join(buffer_dir_concat, "labels000.pt"))

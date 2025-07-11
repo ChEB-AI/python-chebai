@@ -4,7 +4,7 @@ packages = find_packages()
 print(packages)
 setup(
     name="chebai",
-    version="1.0.0",
+    version="1.0.1",
     packages=packages,
     package_data={"": ["**/*.txt", "**/*.json"]},
     include_package_data=True,
