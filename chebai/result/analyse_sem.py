@@ -205,13 +205,6 @@ class PredictionSmoother:
                 for p in self.chebi_graph.successors(int(label))
             ] + [i]
             if len(succs) > 0:
-                if torch.max(preds[:, succs], dim=1).values > 0.5 and preds[:, i] < 0.5:
-                    print(
-                        f"Correcting prediction for {label} to max of subclasses {list(self.chebi_graph.successors(int(label)))}"
-                    )
-                    print(
-                        f"Original pred: {preds[:, i]}, successors: {preds[:, succs]}"
-                    )
                 preds[:, i] = torch.max(preds[:, succs], dim=1).values
         if torch.sum(preds) != preds_sum_orig:
             print(f"Preds change (step 1): {torch.sum(preds) - preds_sum_orig}")
