@@ -1,17 +1,9 @@
 import logging
-import random
 from tempfile import TemporaryDirectory
 
 import torch
-from torch import nn
 from torch.nn.functional import one_hot
-from torch.nn.utils.rnn import pack_padded_sequence, pad_packed_sequence
-from transformers import (
-    RobertaConfig,
-    RobertaForMaskedLM,
-    RobertaModel,
-    RobertaTokenizer,
-)
+from transformers import RobertaConfig, RobertaForMaskedLM, RobertaModel
 
 from chebai.models.base import ChebaiBaseNet
 
@@ -63,10 +55,10 @@ class Chemberta(ChebaiBaseNet):
             with TemporaryDirectory() as td:
                 elpre.electra.save_pretrained(td)
                 self.electra = RobertaModel.from_pretrained(td, config=self.config)
-                in_d = elpre.config.hidden_size
+                # in_d = elpre.config.hidden_size
         else:
             self.electra = RobertaModel(config=self.config)
-            in_d = self.config.hidden_size
+            # in_d = self.config.hidden_size
 
     def forward(self, data):
         electra = self.electra(data)

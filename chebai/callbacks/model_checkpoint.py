@@ -68,7 +68,7 @@ class CustomModelCheckpoint(ModelCheckpoint):
         Returns:
             _PATH: The resolved checkpoint directory path.
         """
-        rank_zero_info(f"Resolving checkpoint dir (custom)")
+        rank_zero_info("Resolving checkpoint dir (custom)")
         if self.dirpath is not None:
             # short circuit if dirpath was passed to ModelCheckpoint
             return self.dirpath

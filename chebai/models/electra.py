@@ -190,8 +190,8 @@ class Electra(ChebaiBaseNet):
         if "lens" in batch.additional_fields["model_kwargs"]:
             model_kwargs["attention_mask"] = pad_sequence(
                 [
-                    torch.ones(l + 1, device=self.device)
-                    for l in batch.additional_fields["model_kwargs"]["lens"]
+                    torch.ones(l_ + 1, device=self.device)
+                    for l_ in batch.additional_fields["model_kwargs"]["lens"]
                 ],
                 batch_first=True,
             )
@@ -232,7 +232,7 @@ class Electra(ChebaiBaseNet):
         super().__init__(**kwargs)
         if config is None:
             config = dict()
-        if not "num_labels" in config and self.out_dim is not None:
+        if "num_labels" not in config and self.out_dim is not None:
             config["num_labels"] = self.out_dim
         self.config = ElectraConfig(**config, output_attentions=True)
         self.word_dropout = nn.Dropout(config.get("word_dropout", 0))
@@ -367,7 +367,7 @@ class ElectraLegacy(ChebaiBaseNet):
 class ConeElectra(ChebaiBaseNet):
     def _process_batch(self, batch, batch_idx):
         mask = pad_sequence(
-            [torch.ones(l + 1, device=self.device) for l in batch.lens],
+            [torch.ones(l_ + 1, device=self.device) for l_ in batch.lens],
             batch_first=True,
         )
         cls_tokens = (
@@ -398,7 +398,7 @@ class ConeElectra(ChebaiBaseNet):
         self.cone_dimensions = cone_dimensions
 
         super().__init__(**kwargs)
-        if not "num_labels" in kwargs["config"] and self.out_dim is not None:
+        if "num_labels" not in kwargs["config"] and self.out_dim is not None:
             kwargs["config"]["num_labels"] = self.out_dim
         self.config = ElectraConfig(**kwargs["config"], output_attentions=True)
         self.word_dropout = nn.Dropout(kwargs["config"].get("word_dropout", 0))

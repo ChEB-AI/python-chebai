@@ -182,7 +182,7 @@ class Molecule:
         """
         try:
             return nx.find_cycle(self.graph)
-        except:
+        except Exception:
             return []
 
     def collect_atom_features(self):

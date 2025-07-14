@@ -1,6 +1,6 @@
 repos:
 -   repo: https://github.com/psf/black
-    rev: "24.2.0"
+    rev: "25.1.0"
     hooks:
     -   id: black
     -   id: black-jupyter # for formatting jupyter-notebook
@@ -23,3 +23,9 @@ repos:
     -   id: check-yaml
     -   id: end-of-file-fixer
     -   id: trailing-whitespace
+
+-   repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.12.2
+    hooks:
+    -   id: ruff
+        args: [--fix]

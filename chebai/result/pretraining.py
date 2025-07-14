@@ -16,7 +16,7 @@ def visualise_loss(logs_path):
     df_loss = df.melt(
         id_vars="epoch", value_vars=["val_loss_epoch", "train_loss_epoch"]
     )
-    lineplt = sns.lineplot(df_loss, x="epoch", y="value", hue="variable")
+    lineplt = sns.lineplot(df_loss, x="epoch", y="value", hue="variable")  # noqa: F841
     plt.savefig(os.path.join(logs_path, "f1_plot.png"))
     plt.show()
 

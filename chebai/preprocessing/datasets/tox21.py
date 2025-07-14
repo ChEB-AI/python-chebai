@@ -63,7 +63,7 @@ class Tox21MolNet(XYBaseDataModule):
     def setup_processed(self) -> None:
         """Processes and splits the dataset."""
         print("Create splits")
-        data = self._load_data_from_file(os.path.join(self.raw_dir, f"tox21.csv"))
+        data = self._load_data_from_file(os.path.join(self.raw_dir, "tox21.csv"))
         groups = np.array([d["group"] for d in data])
         if not all(g is None for g in groups):
             split_size = int(len(set(groups)) * self.train_split)
@@ -144,7 +144,8 @@ class Tox21MolNet(XYBaseDataModule):
             for row in reader:
                 smiles = row["smiles"]
                 labels = [
-                    bool(int(l)) if l else None for l in (row[k] for k in self.HEADERS)
+                    bool(int(line)) if line else None
+                    for line in (row[k] for k in self.HEADERS)
                 ]
                 yield dict(features=smiles, labels=labels, ident=row["mol_id"])
 
@@ -273,10 +274,10 @@ class Tox21Challenge(XYBaseDataModule):
             d = self._load_data_from_file(os.path.join(self.raw_dir, f"{k}.sdf"))
             torch.save(d, os.path.join(self.processed_dir, f"{k}.pt"))
 
-        with open(os.path.join(self.raw_dir, f"test.smiles")) as fin:
+        with open(os.path.join(self.raw_dir, "test.smiles")) as fin:
             next(fin)
             test_smiles = dict(reversed(row.strip().split("\t")) for row in fin)
-        with open(os.path.join(self.raw_dir, f"test_results.txt")) as fin:
+        with open(os.path.join(self.raw_dir, "test_results.txt")) as fin:
             headers = next(fin).strip().split("\t")
             test_results = {
                 k["Sample ID"]: [
@@ -292,7 +293,7 @@ class Tox21Challenge(XYBaseDataModule):
             )
             for k in test_smiles
         ]
-        torch.save(test_data, os.path.join(self.processed_dir, f"test.pt"))
+        torch.save(test_data, os.path.join(self.processed_dir, "test.pt"))
 
     def setup(self, **kwargs) -> None:
         """Sets up the dataset by downloading and processing if necessary."""
@@ -327,7 +328,8 @@ class Tox21Challenge(XYBaseDataModule):
             for row in reader:
                 smiles = row["smiles"]
                 labels = [
-                    bool(int(l)) if l else None for l in (row[k] for k in self.HEADERS)
+                    bool(int(line)) if line else None
+                    for line in (row[k] for k in self.HEADERS)
                 ]
                 yield dict(features=smiles, labels=labels, ident=row["mol_id"])
 

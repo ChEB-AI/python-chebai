@@ -1060,7 +1060,7 @@ class _DynamicDataset(XYBaseDataModule, ABC):
                 and validation DataFrames. The keys are the names of the train and validation sets, and the values
                 are the corresponding DataFrames.
         """
-        print(f"Split dataset into train / val with given test set")
+        print("Split dataset into train / val with given test set")
 
         test_ids = test_df["ident"].tolist()
         df_trainval = df[~df["ident"].isin(test_ids)]

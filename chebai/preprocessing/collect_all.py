@@ -13,7 +13,7 @@ from torch import nn
 from torch_geometric import nn as tgnn
 from torch_geometric.data import DataLoader
 
-from data import ClassificationData, JCIClassificationData
+from data import JCIClassificationData
 
 logging.getLogger("pysmiles").setLevel(logging.CRITICAL)
 
@@ -169,11 +169,11 @@ class JCINet(pl.LightningModule):
 
     def forward(self, x):
         a = self.embedding(x.x)
-        l = []
+        l_ = []
         for _ in range(self.loops):
             a = self.left_graph_net(a, x.edge_index.long())
-            l.append(a)
-        at = self.global_attention(self.node_net(torch.cat(l, dim=1)), x.x_batch)
+            l_.append(a)
+        at = self.global_attention(self.node_net(torch.cat(l_, dim=1)), x.x_batch)
         return self.output_net(at)
 
     def configure_optimizers(self):
@@ -201,7 +201,7 @@ def train(train_loader, validation_loader):
         logger=tb_logger,
         callbacks=[checkpoint_callback],
         replace_sampler_ddp=False,
-        **trainer_kwargs
+        **trainer_kwargs,
     )
     trainer.fit(net, train_loader, val_dataloaders=validation_loader)
 

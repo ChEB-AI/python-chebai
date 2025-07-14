@@ -1,8 +1,10 @@
-from typing import List
+import os
+from typing import List, Optional
 
 import matplotlib.pyplot as plt
 import pandas as pd
 import seaborn as sns
+import torch
 from torch import Tensor
 from torchmetrics.classification import (
     MultilabelF1Score,
@@ -11,7 +13,8 @@ from torchmetrics.classification import (
 )
 
 from chebai.callbacks.epoch_metrics import BalancedAccuracy, MacroF1
-from chebai.result.utils import *
+
+# from chebai.result.utils import *
 
 
 def visualise_f1(logs_path: str) -> None:
@@ -31,7 +34,7 @@ def visualise_f1(logs_path: str) -> None:
             "train_ep_macro-f1",
         ],
     )
-    lineplt = sns.lineplot(df_loss, x="epoch", y="value", hue="variable")
+    lineplt = sns.lineplot(df_loss, x="epoch", y="value", hue="variable")  # noqa: F841
     plt.savefig(os.path.join(logs_path, "f1_plot.png"))
     plt.show()
 
@@ -78,9 +81,9 @@ def print_metrics(
     print(f"Micro-Recall: {recall_micro(preds, labels):3f}")
     if markdown_output:
         print(
-            f"| Model | Macro-F1 | Micro-F1 | Macro-Precision | Micro-Precision | Macro-Recall | Micro-Recall | Balanced Accuracy |"
+            "| Model | Macro-F1 | Micro-F1 | Macro-Precision | Micro-Precision | Macro-Recall | Micro-Recall | Balanced Accuracy |"
         )
-        print(f"| --- | --- | --- | --- | --- | --- | --- | --- |")
+        print("| --- | --- | --- | --- | --- | --- | --- | --- |")
         print(
             f"| | {my_f1_macro(preds, labels):3f} | {f1_micro(preds, labels):3f} | {precision_macro(preds, labels):3f} | "
             f"{precision_micro(preds, labels):3f} | {recall_macro(preds, labels):3f} | "
@@ -101,5 +104,5 @@ def print_metrics(
         if f1 == 0.0 and torch.sum(labels[:, i]) != 0:
             zeros.append(f"{classes[i] if classes is not None else i}")
     print(
-        f'Found {len(zeros)} classes with F1-score == 0 (and non-zero labels): {", ".join(zeros)}'
+        f"Found {len(zeros)} classes with F1-score == 0 (and non-zero labels): {', '.join(zeros)}"
     )
