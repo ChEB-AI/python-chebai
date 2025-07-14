@@ -31,15 +31,12 @@ class ElectraPre(ChebaiBaseNet):
         **kwargs: Additional keyword arguments (passed to parent class).
 
     Attributes:
-        NAME (str): Name of the ElectraPre model.
         generator_config (ElectraConfig): Configuration for the generator model.
         generator (ElectraForMaskedLM): Generator model for masked language modeling.
         discriminator_config (ElectraConfig): Configuration for the discriminator model.
         discriminator (ElectraForPreTraining): Discriminator model for pre-training.
         replace_p (float): Probability of replacing tokens during training.
     """
-
-    NAME = "ElectraPre"
 
     def __init__(self, config: Dict[str, Any] = None, **kwargs: Any):
         super().__init__(config=config, **kwargs)
@@ -174,11 +171,7 @@ class Electra(ChebaiBaseNet):
         load_prefix (str, optional): Prefix to filter the state_dict keys from the pretrained checkpoint. Defaults to None.
         **kwargs: Additional keyword arguments.
 
-    Attributes:
-        NAME (str): Name of the Electra model.
     """
-
-    NAME = "Electra"
 
     def _process_batch(self, batch: Dict[str, Any], batch_idx: int) -> Dict[str, Any]:
         """
@@ -328,7 +321,7 @@ class Electra(ChebaiBaseNet):
             inp = self.electra.embeddings.forward(data["features"].int())
         except RuntimeError as e:
             print(f"RuntimeError at forward: {e}")
-            print(f'data[features]: {data["features"]}')
+            print(f"data[features]: {data['features']}")
             raise e
         inp = self.word_dropout(inp)
         electra = self.electra(inputs_embeds=inp, **kwargs)
@@ -340,8 +333,6 @@ class Electra(ChebaiBaseNet):
 
 
 class ElectraLegacy(ChebaiBaseNet):
-    NAME = "ElectraLeg"
-
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.config = ElectraConfig(**kwargs["config"], output_attentions=True)
@@ -374,8 +365,6 @@ class ElectraLegacy(ChebaiBaseNet):
 
 
 class ConeElectra(ChebaiBaseNet):
-    NAME = "ConeElectra"
-
     def _process_batch(self, batch, batch_idx):
         mask = pad_sequence(
             [torch.ones(l + 1, device=self.device) for l in batch.lens],

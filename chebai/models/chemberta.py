@@ -20,8 +20,6 @@ MAX_LEN = 1800
 
 
 class ChembertaPre(ChebaiBaseNet):
-    NAME = "ChembertaPre"
-
     def __init__(self, p=0.2, **kwargs):
         super().__init__(**kwargs)
         self._p = p
@@ -47,8 +45,6 @@ class ChembertaPre(ChebaiBaseNet):
 
 
 class Chemberta(ChebaiBaseNet):
-    NAME = "Chemberta"
-
     def __init__(self, **kwargs):
         # Remove this property in order to prevent it from being stored as a
         # hyper parameter

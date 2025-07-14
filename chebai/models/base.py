@@ -26,11 +26,7 @@ class ChebaiBaseNet(LightningModule, ABC):
         optimizer_kwargs (Dict[str, Any], optional): Additional keyword arguments for the optimizer. Defaults to None.
         **kwargs: Additional keyword arguments.
 
-    Attributes:
-        NAME (str): The name of the model.
     """
-
-    NAME = None
 
     def __init__(
         self,
@@ -88,10 +84,10 @@ class ChebaiBaseNet(LightningModule, ABC):
         Args:
             **kwargs: Additional keyword arguments.
         """
-        if cls.NAME in _MODEL_REGISTRY:
-            raise ValueError(f"Model {cls.NAME} does already exist")
+        if cls.__name__ in _MODEL_REGISTRY:
+            raise ValueError(f"Model {cls.__name__} does already exist")
         else:
-            _MODEL_REGISTRY[cls.NAME] = cls
+            _MODEL_REGISTRY[cls.__name__] = cls
 
     def _get_prediction_and_labels(
         self, data: Dict[str, Any], labels: torch.Tensor, output: torch.Tensor

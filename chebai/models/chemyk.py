@@ -15,8 +15,6 @@ logging.getLogger("pysmiles").setLevel(logging.CRITICAL)
 
 
 class ChemYK(ChebaiBaseNet):
-    NAME = "ChemYK"
-
     def __init__(self, in_d, out_d, num_classes, **kwargs):
         super().__init__(num_classes, **kwargs)
         d_internal = in_d
