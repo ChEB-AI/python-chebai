@@ -5,7 +5,12 @@ The library emphasizes the incorporation of the semantic qualities of the ontolo
 
 ## Installation
 
-To install ChEBai, follow these steps:
+You can install ChEBai via pip:
+```
+pip install chebai
+```
+
+Alternatively, you can get the latest development version directly from GitHub:
 
 1. Clone the repository:
 ```
@@ -16,8 +21,26 @@ git clone https://github.com/ChEB-AI/python-chebai.git
 
 ```
 cd python-chebai
-pip install .
+pip install -e .
 ```
+
+Some packages are not installed by default:
+```
+pip install chebai[dev]
+```
+installs additional packages useful to people who want to contribute to the library.
+```
+pip install chebai[plot]
+```
+installs additional packages useful for plotting and visualisation.
+```
+pip install chebai[wandb]
+```
+installs the [Weights & Biases](https://wandb.ai) integration for automated logging of training runs.
+```
+pip install chebai[all]
+```
+installs all optional dependencies.
 
 ## Usage
 

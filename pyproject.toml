@@ -9,6 +9,9 @@ description = "ChEBai is a deep learning library designed for the integration of
 authors = [
     { name = "MGlauer", email = "martin.glauer@ovgu.de" }
 ]
+maintainers = [
+    { name = "sfluegel05", email = "simon.fluegel@uni-osnabrueck.de"}
+]
 readme = "README.md"
 license = { text = "AGPL-3.0" }
 requires-python = ">=3.9,<3.13"
@@ -30,12 +33,13 @@ dependencies = [
     "omegaconf",
     "deepsmiles",
     "iterative-stratification",
-    "wandb",
     "torchmetrics"
 ]
 
 [project.optional-dependencies]
-dev = ["black", "isort", "pre-commit", "matplotlib", "seaborn"]
+dev = ["black", "isort", "pre-commit"]
+plot = ["matplotlib", "seaborn"]
+wandb = ["wandb"]
 
 [tool.setuptools]
 include-package-data = true
