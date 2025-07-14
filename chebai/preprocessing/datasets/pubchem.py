@@ -68,7 +68,7 @@ class PubChem(XYBaseDataModule):
         Returns:
             str: Name of the dataset.
         """
-        return f"Pubchem"
+        return "Pubchem"
 
     @property
     def identifier(self) -> tuple:
@@ -144,7 +144,7 @@ class PubChem(XYBaseDataModule):
                         )
                     )
                 with open(os.path.join(self.raw_dir, "smiles.txt"), "w") as f_out:
-                    f_out.writelines([l for i, l in selected_lines])
+                    f_out.writelines([line for _, line in selected_lines])
 
     def setup_processed(self):
         """
@@ -157,9 +157,9 @@ class PubChem(XYBaseDataModule):
         train, test = train_test_split(data, train_size=self.train_split)
         del data
         test, val = train_test_split(test, train_size=self.train_split)
-        torch.save(train, os.path.join(self.processed_dir, f"train.pt"))
-        torch.save(test, os.path.join(self.processed_dir, f"test.pt"))
-        torch.save(val, os.path.join(self.processed_dir, f"validation.pt"))
+        torch.save(train, os.path.join(self.processed_dir, "train.pt"))
+        torch.save(test, os.path.join(self.processed_dir, "test.pt"))
+        torch.save(val, os.path.join(self.processed_dir, "validation.pt"))
 
         self.reader.on_finish()
 
@@ -224,7 +224,7 @@ class PubChemDissimilar(PubChem):
         Returns:
             str: Name of the dataset.
         """
-        return f"PubchemDissimilar"
+        return "PubchemDissimilar"
 
     def download(self):
         """
@@ -246,7 +246,7 @@ class PubChemDissimilar(PubChem):
                 ]
                 fpgen = AllChem.GetRDKitFPGenerator()
                 selected_smiles = []
-                print(f"Selecting most dissimilar values from random subsets...")
+                print("Selecting most dissimilar values from random subsets...")
                 for i in tqdm.tqdm(range(self.n_random_subsets)):
                     smiles_i = random_smiles[
                         i
@@ -333,7 +333,7 @@ class PubChemKMeans(PubChem):
         Returns:
             str: Name of the dataset.
         """
-        return f"PubchemKMeans"
+        return "PubchemKMeans"
 
     @property
     def split_label(self) -> str:
@@ -368,7 +368,7 @@ class PubChemKMeans(PubChem):
         if self._fingerprints is None:
             fingerprints_path = os.path.join(self.raw_dir, "fingerprints.pkl")
             if not os.path.exists(fingerprints_path):
-                print(f"No fingerprints found...")
+                print("No fingerprints found...")
                 print(f"Loading random dataset (size: {self._k})...")
                 random_dataset = PubChem(k=self._k)
                 random_dataset.download()
@@ -377,9 +377,9 @@ class PubChemKMeans(PubChem):
                 ) as f_in:
                     random_smiles = [s.split("\t")[1].strip() for s in f_in.readlines()]
                     fpgen = AllChem.GetRDKitFPGenerator()
-                    print(f"Converting SMILES to molecules...")
+                    print("Converting SMILES to molecules...")
                     mols = [Chem.MolFromSmiles(s) for s in tqdm.tqdm(random_smiles)]
-                    print(f"Generating Fingerprints...")
+                    print("Generating Fingerprints...")
                     fps = [
                         fpgen.GetFingerprint(m) if m is not None else m
                         for m in tqdm.tqdm(mols)
@@ -403,8 +403,8 @@ class PubChemKMeans(PubChem):
         fingerprints_clustered_path = os.path.join(
             self.raw_dir, "fingerprints_clustered.pkl"
         )
-        cluster_centers_path = os.path.join(self.raw_dir, f"cluster_centers.pkl")
-        print(f"Starting k-means clustering...")
+        cluster_centers_path = os.path.join(self.raw_dir, "cluster_centers.pkl")
+        print("Starting k-means clustering...")
         start_time = time.perf_counter()
         kmeans = KMeans(n_clusters=self.n_clusters, random_state=0, n_init="auto")
         fps = np.array([list(vec) for vec in self.fingerprints["fps"].tolist()])
@@ -455,7 +455,7 @@ class PubChemKMeans(PubChem):
         )
         if self.exclude_data_from is not None:
             if not os.path.exists(exclusion_data_path):
-                print(f"Loading data for exclusion of clusters...")
+                print("Loading data for exclusion of clusters...")
                 raw_chebi = []
                 for filename in self.exclude_data_from.raw_file_names:
                     raw_chebi.append(
@@ -469,14 +469,14 @@ class PubChemKMeans(PubChem):
                 raw_chebi = pd.concat(raw_chebi)
                 raw_chebi_smiles = np.array(raw_chebi["SMILES"])
                 fpgen = AllChem.GetRDKitFPGenerator()
-                print(f"Converting SMILES to molecules...")
+                print("Converting SMILES to molecules...")
                 mols = [Chem.MolFromSmiles(s) for s in tqdm.tqdm(raw_chebi_smiles)]
-                print(f"Generating Fingerprints...")
+                print("Generating Fingerprints...")
                 chebi_fps = [
                     fpgen.GetFingerprint(m) if m is not None else m
                     for m in tqdm.tqdm(mols)
                 ]
-                print(f"Finding cluster for each instance from exclusion-data")
+                print("Finding cluster for each instance from exclusion-data")
                 chebi_fps = np.array([list(fp) for fp in chebi_fps if fp is not None])
                 tree = spatial.KDTree(cluster_centers_np)
                 chebi_clusters = [tree.query(fp)[1] for fp in chebi_fps]
@@ -488,7 +488,7 @@ class PubChemKMeans(PubChem):
             else:
                 chebi_clusters_df = pd.read_pickle(open(exclusion_data_path, "rb"))
             # filter pubchem clusters and remove all that contain data from the exclusion set
-            print(f"Removing clusters with data from exclusion-set")
+            print("Removing clusters with data from exclusion-set")
             counts = chebi_clusters_df["center_id"].value_counts()
             cluster_centers["n_chebi_instances"] = counts
             cluster_centers["n_chebi_instances"].fillna(0, inplace=True)
@@ -509,7 +509,7 @@ class PubChemKMeans(PubChem):
         Returns:
             pd.DataFrame: DataFrame of cluster centers.
         """
-        cluster_centers_path = os.path.join(self.raw_dir, f"cluster_centers.pkl")
+        cluster_centers_path = os.path.join(self.raw_dir, "cluster_centers.pkl")
         if self._cluster_centers is None:
             if os.path.exists(cluster_centers_path):
                 self._cluster_centers = pd.read_pickle(open(cluster_centers_path, "rb"))
@@ -524,7 +524,7 @@ class PubChemKMeans(PubChem):
         Returns:
             pd.DataFrame: DataFrame of clustered fingerprints.
         """
-        fingerprints_path = os.path.join(self.raw_dir, f"fingerprints_clustered.pkl")
+        fingerprints_path = os.path.join(self.raw_dir, "fingerprints_clustered.pkl")
         if self._fingerprints_clustered is None:
             if os.path.exists(fingerprints_path):
                 self._fingerprints_clustered = pd.read_pickle(
@@ -545,12 +545,12 @@ class PubChemKMeans(PubChem):
             pd.DataFrame: DataFrame of superclustered cluster centers.
         """
         cluster_centers_path = os.path.join(
-            self.raw_dir, f"cluster_centers_superclustered.pkl"
+            self.raw_dir, "cluster_centers_superclustered.pkl"
         )
         if self._cluster_centers_superclustered is None:
             if not os.path.exists(cluster_centers_path):
                 clusters_filtered = self._exclude_clusters(self.cluster_centers)
-                print(f"Superclustering PubChem clusters")
+                print("Superclustering PubChem clusters")
                 kmeans = KMeans(n_clusters=3, random_state=0, n_init="auto")
                 clusters_np = np.array(
                     [[cci for cci in center] for center in clusters_filtered["centers"]]
@@ -570,7 +570,7 @@ class PubChemKMeans(PubChem):
                 self._cluster_centers_superclustered = pd.read_pickle(
                     open(
                         os.path.join(
-                            self.raw_dir, f"cluster_centers_superclustered.pkl"
+                            self.raw_dir, "cluster_centers_superclustered.pkl"
                         ),
                         "rb",
                     )
@@ -595,10 +595,10 @@ class PubChemKMeans(PubChem):
             ):
                 fingerprints = self.fingerprints_clustered
                 fingerprints["big_cluster_assignment"] = fingerprints["label"].apply(
-                    lambda l: (
+                    lambda l_: (
                         -1
-                        if l not in self.cluster_centers_superclustered.index
-                        else self.cluster_centers_superclustered.loc[int(l), "label"]
+                        if l_ not in self.cluster_centers_superclustered.index
+                        else self.cluster_centers_superclustered.loc[int(l_), "label"]
                     )
                 )
                 fp_grouped = fingerprints.groupby("big_cluster_assignment")
@@ -644,7 +644,7 @@ class SWJPreChem(PubChem):
         """
         Returns the name of the dataset.
         """
-        return f"SWJpre"
+        return "SWJpre"
 
     def download(self):
         """
@@ -762,7 +762,7 @@ class Hazardous(SWJChem):
         """
         Returns the name of the dataset.
         """
-        return f"PubChemHazardous"
+        return "PubChemHazardous"
 
     def setup_processed(self):
         """
@@ -771,7 +771,7 @@ class Hazardous(SWJChem):
         filename = os.path.join(self.raw_dir, self.raw_file_names[0])
         print("Load data from file", filename)
         data = self._load_data_from_file(filename)
-        torch.save(data, os.path.join(self.processed_dir, f"all.pt"))
+        torch.save(data, os.path.join(self.processed_dir, "all.pt"))
 
         self.reader.on_finish()
 
@@ -821,7 +821,7 @@ class SWJPreChem(PubChem):
         Returns:
             str: Name of the dataset.
         """
-        return f"SWJpre"
+        return "SWJpre"
 
     def download(self) -> None:
         """

@@ -129,7 +129,7 @@ class XYMolData(XYData):
         Returns:
             A tuple of molecular graphs with node attributes on the specified device.
         """
-        l = []
+        l_ = []
         for g in self.x:
             graph = g.copy()
             nx.set_node_attributes(
@@ -137,5 +137,5 @@ class XYMolData(XYData):
                 {k: v.to(device) for k, v in nx.get_node_attributes(g, "x").items()},
                 "x",
             )
-            l.append(graph)
-        return tuple(l)
+            l_.append(graph)
+        return tuple(l_)

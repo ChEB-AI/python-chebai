@@ -1,22 +1,19 @@
-import abc
 from os import makedirs
 from tempfile import NamedTemporaryFile
 
 import networkx as nx
 import numpy as np
-import pandas as pd
 import torch
-from matplotlib import cm, colors
+from matplotlib import cm
 from matplotlib import pyplot as plt
 from matplotlib import rc
-from matplotlib.image import AxesImage, imread
+from matplotlib.image import imread
 from networkx.algorithms.isomorphism import GraphMatcher
-from pysmiles.read_smiles import *
-from pysmiles.read_smiles import _tokenize
+from pysmiles.read_smiles import LOGGER, TokenType, _tokenize
 from rdkit import Chem
 from rdkit.Chem.Draw import MolToMPL, rdMolDraw2D
 
-from chebai.preprocessing.datasets import JCI_500_COLUMNS, JCI_500_COLUMNS_INT
+from chebai.preprocessing.datasets import JCI_500_COLUMNS_INT
 from chebai.result.base import ResultProcessor
 
 
@@ -153,7 +150,11 @@ class AttentionMolPlot:
         ring_nums = {}
         for token_index, (tokentype, token) in enumerate(_tokenize(smiles)):
             if tokentype == TokenType.ATOM:
-                mol.add_node(idx, token_index=token_index, **parse_atom(token))
+                mol.add_node(
+                    idx,
+                    token_index=token_index,
+                    **parse_atom(token),  # noqa: F821
+                )
                 if anchor is not None:
                     if next_bond is None:
                         next_bond = default_bond
@@ -169,8 +170,9 @@ class AttentionMolPlot:
             elif tokentype == TokenType.BOND_TYPE:
                 if next_bond is not None:
                     raise ValueError(
-                        "Previous bond (order {}) not used. "
-                        'Overwritten by "{}"'.format(next_bond, token)
+                        'Previous bond (order {}) not used. Overwritten by "{}"'.format(
+                            next_bond, token
+                        )
                     )
                 next_bond = bond_to_order[token]
             elif tokentype == TokenType.RING_NUM:
@@ -190,8 +192,7 @@ class AttentionMolPlot:
                     # idx is the index of the *next* atom we're adding. So: -1.
                     if mol.has_edge(idx - 1, jdx):
                         raise ValueError(
-                            "Edge specified by marker {} already "
-                            "exists".format(token)
+                            "Edge specified by marker {} already exists".format(token)
                         )
                     if idx - 1 == jdx:
                         raise ValueError(
@@ -205,7 +206,7 @@ class AttentionMolPlot:
                 else:
                     if idx == 0:
                         raise ValueError(
-                            "Can't have a marker ({}) before an atom" "".format(token)
+                            "Can't have a marker ({}) before an atom".format(token)
                         )
                     # idx is the index of the *next* atom we're adding. So: -1.
                     ring_nums[token] = (idx - 1, next_bond)
@@ -234,11 +235,11 @@ class AttentionMolPlot:
                     " ring. This is impossible"
                 )
 
-        mark_aromatic_edges(mol)
-        fill_valence(mol)
+        mark_aromatic_edges(mol)  # noqa: F405, F821
+        fill_valence(mol)  # noqa: F405, F821
         if reinterpret_aromatic:
-            mark_aromatic_atoms(mol)
-            mark_aromatic_edges(mol)
+            mark_aromatic_atoms(mol)  # noqa: F405, F821
+            mark_aromatic_edges(mol)  # noqa: F405, F821
             for idx, jdx in mol.edges:
                 if (
                     not mol.nodes[idx].get("aromatic", False)
@@ -247,9 +248,9 @@ class AttentionMolPlot:
                     mol.edges[idx, jdx]["order"] = 1
 
         if explicit_hydrogen:
-            add_explicit_hydrogens(mol)
+            add_explicit_hydrogens(mol)  # noqa: F405, F821
         else:
-            remove_explicit_hydrogens(mol)
+            remove_explicit_hydrogens(mol)  # noqa: F405, F821
         return mol
 
 
@@ -265,7 +266,7 @@ class AttentionOnMoleculesProcessor(AttentionMolPlot, ResultProcessor):
     def _identifier(cls):
         return "platt"
 
-    def filter(self, l):
+    def filter(self, l_):
         return
 
     def process_prediction(
@@ -311,7 +312,7 @@ class LastLayerAttentionProcessor(AttentionMolPlot, ResultProcessor):
     def _identifier(cls):
         return "platt_last"
 
-    def filter(self, l):
+    def filter(self, l_):
         return
 
     def process_prediction(self, raw_features, raw_labels, features, labels, pred):
@@ -348,7 +349,7 @@ class SingletonAttentionProcessor(AttentionMolPlot, ResultProcessor):
     def _identifier(cls):
         return "platt_singles"
 
-    def filter(self, l):
+    def filter(self, l_):
         return
 
     def process_prediction(self, raw_features, raw_labels, features, labels, pred):
@@ -417,9 +418,9 @@ class AttentionNetwork(ResultProcessor):
             cmap = cm.ScalarMappable(cmap=cm.Greens)
             assert len(tokens) == attentions.shape[2]
 
-            rows = int((attentions.shape[1] + 2))
+            # rows = int((attentions.shape[1] + 2))
             width = len(tokens)
-            height = 12
+            # height = 12
             rdmol = Chem.MolFromSmiles(raw_features)
             if rdmol is not None:
                 fig0 = MolToMPL(rdmol, fitImage=True)
@@ -428,13 +429,13 @@ class AttentionNetwork(ResultProcessor):
                     0,
                     "annotated:"
                     + ", ".join(
-                        str(l) for (l, is_member) in zip(headers, labels) if is_member
+                        str(l_) for (l_, is_member) in zip(headers, labels) if is_member
                     )
                     + "\n"
                     + "predicted:"
                     + ", ".join(
-                        str(l)
-                        for (l, is_member) in zip(headers, predictions)
+                        str(l_)
+                        for (l_, is_member) in zip(headers, predictions)
                         if is_member
                     ),
                     fontdict=dict(fontsize=10),
@@ -449,7 +450,7 @@ class AttentionNetwork(ResultProcessor):
                 l_tokens = {i: str(t) for i, t in enumerate(tokens)}
                 r_tokens = {(len(tokens) + i): str(t) for i, t in enumerate(tokens)}
                 labels = dict(list(l_tokens.items()) + list(r_tokens.items()))
-                edges = [(l, r) for r in r_tokens.keys() for l in l_tokens.keys()]
+                edges = [(l_, r) for r in r_tokens.keys() for l_ in l_tokens.keys()]
                 g = nx.Graph()
                 g.add_nodes_from(l_tokens, bipartite=0)
                 g.add_nodes_from(r_tokens, bipartite=1)

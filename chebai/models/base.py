@@ -26,11 +26,7 @@ class ChebaiBaseNet(LightningModule, ABC):
         optimizer_kwargs (Dict[str, Any], optional): Additional keyword arguments for the optimizer. Defaults to None.
         **kwargs: Additional keyword arguments.
 
-    Attributes:
-        NAME (str): The name of the model.
     """
-
-    NAME = None
 
     def __init__(
         self,
@@ -49,6 +45,11 @@ class ChebaiBaseNet(LightningModule, ABC):
         if exclude_hyperparameter_logging is None:
             exclude_hyperparameter_logging = tuple()
         self.criterion = criterion
+        assert out_dim is not None, "out_dim must be specified"
+        assert input_dim is not None, "input_dim must be specified"
+        self.out_dim = out_dim
+        self.input_dim = input_dim
+
         self.save_hyperparameters(
             ignore=[
                 "criterion",
@@ -59,10 +60,8 @@ class ChebaiBaseNet(LightningModule, ABC):
             ]
         )
 
-        self.out_dim = out_dim
-        self.input_dim = input_dim
-        assert out_dim is not None, "out_dim must be specified"
-        assert input_dim is not None, "input_dim must be specified"
+        self.hparams["out_dim"] = out_dim
+        self.hparams["input_dim"] = input_dim
 
         if optimizer_kwargs:
             self.optimizer_kwargs = optimizer_kwargs
@@ -88,10 +87,10 @@ class ChebaiBaseNet(LightningModule, ABC):
         Args:
             **kwargs: Additional keyword arguments.
         """
-        if cls.NAME in _MODEL_REGISTRY:
-            raise ValueError(f"Model {cls.NAME} does already exist")
+        if cls.__name__ in _MODEL_REGISTRY:
+            raise ValueError(f"Model {cls.__name__} does already exist")
         else:
-            _MODEL_REGISTRY[cls.NAME] = cls
+            _MODEL_REGISTRY[cls.__name__] = cls
 
     def _get_prediction_and_labels(
         self, data: Dict[str, Any], labels: torch.Tensor, output: torch.Tensor

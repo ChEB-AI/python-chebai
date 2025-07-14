@@ -1,11 +1,8 @@
 import csv
-import multiprocessing as mp
 import os
 import pickle
-import random
 from typing import List, Tuple
 
-import numpy as np
 import pandas as pd
 import pytorch_lightning as pl
 import torch
@@ -303,7 +300,7 @@ def load_data() -> (
     else:
         print("reading data from files!")
         train_infile = open("../data/JCI_graph/raw/train.pkl", "rb")
-        test_infile = open("../data/JCI_graph/raw/test.pkl", "rb")
+        # test_infile = open("../data/JCI_graph/raw/test.pkl", "rb")
         validation_infile = open("../data/JCI_graph/raw/validation.pkl", "rb")
 
         # test_data = prepare_data(test_infile)
@@ -316,10 +313,10 @@ def load_data() -> (
             try:
                 mol = Molecule(row["SMILES"], True)
 
-                DAGs_meta_info = mol.dag_to_node
+                # DAGs_meta_info = mol.dag_to_node
                 train_dataset.append(mol)
                 train_actual_labels.append(torch.tensor(row["LABELS"]).float())
-            except:
+            except Exception:
                 pass
 
         print("prepare validation data!")
@@ -330,11 +327,11 @@ def load_data() -> (
             try:
                 mol = Molecule(row["SMILES"], True)
 
-                DAGs_meta_info = mol.dag_to_node
+                # DAGs_meta_info = mol.dag_to_node
 
                 validation_dataset.append(mol)
                 validation_actual_labels.append(torch.tensor(row["LABELS"]).float())
-            except:
+            except Exception:
                 pass
 
         with open(fpath, "wb") as f:
@@ -388,7 +385,7 @@ if __name__ == "__main__":
         list(
             zip(
                 map(move_molecule, train_dataset),
-                [l.float() for l in train_actual_labels],
+                [label.float() for label in train_actual_labels],
             )
         ),
         batch_size=BATCH_SIZE,
@@ -399,7 +396,7 @@ if __name__ == "__main__":
         list(
             zip(
                 map(move_molecule, validation_dataset),
-                [l.float() for l in validation_actual_labels],
+                [label.float() for label in validation_actual_labels],
             )
         ),
         batch_size=BATCH_SIZE,

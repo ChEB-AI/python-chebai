@@ -91,7 +91,7 @@ def cli():
     """
     Main function to instantiate and run the ChebaiCLI.
     """
-    r = ChebaiCLI(
+    ChebaiCLI(
         save_config_kwargs={"config_filename": "lightning_config.yaml"},
         parser_kwargs={"parser_mode": "omegaconf"},
     )

@@ -139,7 +139,7 @@ class TokenIndexerReader(DataReader, ABC):
 
     def _get_token_index(self, token: str) -> int:
         """Returns a unique number for each token, automatically adds new tokens."""
-        if not str(token) in self.cache:
+        if str(token) not in self.cache:
             self.cache[(str(token))] = len(self.cache)
         return self.cache[str(token)] + EMBEDDING_OFFSET
 
@@ -326,7 +326,7 @@ class SelfiesReader(ChemDataReader):
         try:
             tokenized = sf.split_selfies(sf.encoder(raw_data.strip(), strict=True))
             tokenized = [self._get_token_index(v) for v in tokenized]
-        except Exception as e:
+        except Exception:
             print(f"could not process {raw_data}")
             # print(f'\t{e}')
             self.error_count += 1

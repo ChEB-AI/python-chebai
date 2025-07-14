@@ -70,11 +70,11 @@ def _run_batch(batch, model, collate):
     return preds, labels
 
 
-def _concat_tuple(l):
-    if isinstance(l[0], tuple):
-        print(l[0])
-        return tuple([torch.cat([t[i] for t in l]) for i in range(len(l[0]))])
-    return torch.cat(l)
+def _concat_tuple(l_):
+    if isinstance(l_[0], tuple):
+        print(l_[0])
+        return tuple([torch.cat([t[i] for t in l_]) for i in range(len(l_[0]))])
+    return torch.cat(l_)
 
 
 def evaluate_model(
