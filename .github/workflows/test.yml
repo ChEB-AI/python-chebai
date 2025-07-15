@@ -24,7 +24,8 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install --upgrade pip setuptools wheel
           python -m pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
-          python -m pip install -e .
+          # wandb included to use custom trainer for cli test which needs wandb logger
+          python -m pip install -e .[wandb]
 
       - name: Display Python & Installed Packages
         run: |
