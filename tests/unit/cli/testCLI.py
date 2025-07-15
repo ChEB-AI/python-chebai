@@ -11,8 +11,6 @@ class TestChebaiCLI(unittest.TestCase):
             "--model=configs/model/ffn.yml",
             "--model.init_args.hidden_layers=[10]",
             "--model.train_metrics=configs/metrics/micro-macro-f1.yml",
-            "--model.test_metrics=configs/metrics/micro-macro-f1.yml",
-            "--model.val_metrics=configs/metrics/micro-macro-f1.yml",
             "--data=tests/unit/cli/mock_dm_config.yml",
             "--model.pass_loss_kwargs=false",
             "--trainer.min_epochs=1",
