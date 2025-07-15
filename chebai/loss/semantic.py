@@ -7,7 +7,7 @@ from typing import List, Literal, Union
 import torch
 
 from chebai.loss.bce_weighted import BCEWeighted
-from chebai.preprocessing.datasets import XYBaseDataModule
+from chebai.preprocessing.datasets.base import XYBaseDataModule
 from chebai.preprocessing.datasets.chebi import ChEBIOver100, _ChEBIDataExtractor
 from chebai.preprocessing.datasets.pubchem import LabeledUnlabeledMixed
 
