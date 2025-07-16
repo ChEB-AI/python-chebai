@@ -2,7 +2,7 @@ from typing import Dict, Set, Type
 
 from lightning.pytorch.cli import LightningArgumentParser, LightningCLI
 
-from chebai.preprocessing.datasets import XYBaseDataModule
+from chebai.preprocessing.datasets.base import XYBaseDataModule
 from chebai.trainer.CustomTrainer import CustomTrainer
 
 
