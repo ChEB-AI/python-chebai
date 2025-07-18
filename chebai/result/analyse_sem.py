@@ -217,10 +217,16 @@ class PredictionSmoother:
             self.label_successors = self.label_successors.unsqueeze(0)
 
     def __call__(self, preds):
+        if preds.shape[1] == 0:
+            # no labels predicted
+            return preds
+        # preds shape: (n_samples, n_labels)
         preds_sum_orig = torch.sum(preds)
         # step 1: apply implications: for each class, set prediction to max of itself and all successors
         preds = preds.unsqueeze(1)
         preds_masked_succ = torch.where(self.label_successors, preds, 0)
+        # preds_masked_succ shape: (n_samples, n_labels, n_labels)
+
         preds = preds_masked_succ.max(dim=2).values
         if torch.sum(preds) != preds_sum_orig:
             print(f"Preds change (step 1): {torch.sum(preds) - preds_sum_orig}")
