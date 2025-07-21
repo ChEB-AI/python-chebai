@@ -2,6 +2,7 @@ import gc
 import os
 import traceback
 from datetime import datetime
+from pathlib import Path
 from typing import List, LiteralString, Optional, Tuple
 
 import pandas as pd
@@ -155,9 +156,11 @@ def get_disjoint_groups(disjoint_files):
         disjoint_files = os.path.join("data", "chebi-disjoints.owl")
     disjoint_pairs, disjoint_groups = [], []
     for file in disjoint_files:
-        if file.split(".")[-1] == "csv":
+        if isinstance(file, Path):
+            file = str(file)
+        if file.endswith(".csv"):
             disjoint_pairs += pd.read_csv(file, header=None).values.tolist()
-        elif file.split(".")[-1] == "owl":
+        elif file.endswith(".owl"):
             with open(file, "r") as f:
                 plaintext = f.read()
                 segments = plaintext.split("<")
