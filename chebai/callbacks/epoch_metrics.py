@@ -1,3 +1,5 @@
+from typing import Literal
+
 import torch
 import torchmetrics
 
@@ -32,7 +34,11 @@ class MacroF1(torchmetrics.Metric):
     """
 
     def __init__(
-        self, num_labels: int, dist_sync_on_step: bool = False, threshold: float = 0.5
+        self,
+        num_labels: int,
+        dist_sync_on_step: bool = False,
+        threshold: float = 0.5,
+        average: Literal["mean", "none"] | None = "mean",
     ):
         super().__init__(dist_sync_on_step=dist_sync_on_step)
 
@@ -52,6 +58,7 @@ class MacroF1(torchmetrics.Metric):
             dist_reduce_fx="sum",
         )
         self.threshold = threshold
+        self.average = average
 
     def update(self, preds: torch.Tensor, labels: torch.Tensor) -> None:
         """
@@ -85,7 +92,14 @@ class MacroF1(torchmetrics.Metric):
         classwise_f1 = 2 * precision * recall / (precision + recall)
         # if (precision and recall are 0) or (precision is nan), set f1 to 0
         classwise_f1 = classwise_f1.nan_to_num()
-        return torch.mean(classwise_f1)
+
+        if self.average == "mean":
+            return torch.mean(classwise_f1)
+
+        if self.average is None or self.average == "none":
+            return classwise_f1
+
+        raise ValueError(f"{self.average} not supported")
 
 
 class BalancedAccuracy(torchmetrics.Metric):
