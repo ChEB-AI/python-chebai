@@ -5,7 +5,6 @@ import torchmetrics
 from jsonargparse import CLI
 from torchmetrics.classification import MultilabelConfusionMatrix, MultilabelF1Score
 
-from chebai.callbacks.epoch_metrics import MacroF1
 from chebai.preprocessing.datasets.base import XYBaseDataModule
 from chebai.result.utils import (
     load_data_instance,
@@ -52,14 +51,12 @@ class ClassesPropertiesGenerator:
             - False Positives (FP)
             - True Negatives (TN)
             - False Negatives (FN)
-            - Macro F1 score
-            - Micro F1 score
+            - F1 score
 
         Args:
             metrics_obj_dict: Dictionary containing pre-updated torchmetrics.Metric objects:
                 {
                     "cm": MultilabelConfusionMatrix,
-                    "macro-f1": MacroF1 (average=None),
                     "micro-f1": MultilabelF1Score (average=None)
                 }
             class_names: List of class names in the same order as class indices.
@@ -74,27 +71,18 @@ class ClassesPropertiesGenerator:
                     "FP": int,
                     "FN": int,
                     "TP": int,
-                    "f1-macro": float,
-                    "f1-micro": float
+                    "f1": float,
                 },
                 ...
             }
         """
         cm_tensor = metrics_obj_dict["cm"].compute()  # Shape: (num_classes, 2, 2)
-        # shape: (num_classes,)
-        macro_f1_tensor = metrics_obj_dict["macro-f1"].compute()
-        micro_f1_tensor = metrics_obj_dict["micro-f1"].compute()
+        f1_tensor = metrics_obj_dict["f1"].compute()  # shape: (num_classes,)
 
-        assert (
-            len(class_names)
-            == cm_tensor.shape[0]
-            == micro_f1_tensor.shape[0]
-            == macro_f1_tensor.shape[0]
-        ), (
+        assert len(class_names) == cm_tensor.shape[0] == f1_tensor.shape[0], (
             f"Mismatch between number of class names ({len(class_names)}) and metric tensor sizes: "
             f"confusion matrix has {cm_tensor.shape[0]}, "
-            f"micro F1 has {micro_f1_tensor.shape[0]}, "
-            f"macro F1 has {macro_f1_tensor.shape[0]}"
+            f"F1 has {f1_tensor.shape[0]}, "
         )
 
         results: dict[str, dict[str, float]] = {}
@@ -110,8 +98,7 @@ class ClassesPropertiesGenerator:
             # positive_raw = [p.item() for i, p in enumerate(raw_preds[:, idx]) if true_np[i, idx]]
             # negative_raw = [p.item() for i, p in enumerate(raw_preds[:, idx]) if not true_np[i, idx]]
 
-            macro_f1 = macro_f1_tensor[idx]
-            micro_f1 = micro_f1_tensor[idx]
+            f1 = f1_tensor[idx]
 
             results[cls_name] = {
                 "PPV": round(ppv, 4),
@@ -120,8 +107,7 @@ class ClassesPropertiesGenerator:
                 "FP": int(fp),
                 "FN": int(fn),
                 "TP": int(tp),
-                "f1-macro": round(macro_f1.item(), 4),
-                "f1-micro": round(micro_f1.item(), 4),
+                "f1": round(f1.item(), 4),
                 # "positive_preds": positive_raw,
                 # "negative_preds": negative_raw,
             }
@@ -179,8 +165,7 @@ class ClassesPropertiesGenerator:
         num_classes = len(class_names)
         metrics_obj_dict: dict[str, torchmetrics.Metric] = {
             "cm": MultilabelConfusionMatrix(num_labels=num_classes),
-            "macro-f1": MacroF1(num_labels=num_classes, average=None),
-            "micro-f1": MultilabelF1Score(num_labels=num_classes, average=None),
+            "f1": MultilabelF1Score(num_labels=num_classes, average=None),
         }
 
         for batch_idx, batch in enumerate(val_loader):
@@ -191,7 +176,7 @@ class ClassesPropertiesGenerator:
                 data, labels, model_output
             )
             for metric_obj in metrics_obj_dict.values():
-                metric_obj.update(preds=preds, target=targets)
+                metric_obj.update(preds, targets)
 
         print("Computing metrics...")
         if output_path is None:
