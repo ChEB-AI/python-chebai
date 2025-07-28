@@ -1,10 +1,11 @@
 import json
 from pathlib import Path
 
-import torch
+import torchmetrics
 from jsonargparse import CLI
-from sklearn.metrics import multilabel_confusion_matrix
+from torchmetrics.classification import MultilabelConfusionMatrix, MultilabelF1Score
 
+from chebai.callbacks.epoch_metrics import MacroF1
 from chebai.preprocessing.datasets.base import XYBaseDataModule
 from chebai.result.utils import (
     load_data_instance,
@@ -37,48 +38,90 @@ class ClassesPropertiesGenerator:
 
     @staticmethod
     def compute_classwise_scores(
-        y_true: list[torch.Tensor],
-        y_pred: list[torch.Tensor],
-        raw_preds: torch.Tensor,
+        metrics_obj_dict: dict[str, torchmetrics.Metric],
         class_names: list[str],
     ) -> dict[str, dict[str, float]]:
         """
-        Compute PPV (precision, TP/(TP+FP)), NPV (TN/(TN+FN)) and the number of TNs, FPs, FNs and TPs for each class
-        in a multi-label setting.
+        Compute per-class evaluation metrics for a multi-label classification task.
+
+        This method uses torchmetrics objects (MultilabelConfusionMatrix, F1 scores, etc.)
+        to compute the following metrics for each class:
+            - PPV (Positive Predictive Value or Precision)
+            - NPV (Negative Predictive Value)
+            - True Positives (TP)
+            - False Positives (FP)
+            - True Negatives (TN)
+            - False Negatives (FN)
+            - Macro F1 score
+            - Micro F1 score
 
         Args:
-            y_true: List of binary ground-truth label tensors, one tensor per sample.
-            y_pred: List of binary prediction tensors, one tensor per sample.
-            class_names: Ordered list of class names corresponding to class indices.
+            metrics_obj_dict: Dictionary containing pre-updated torchmetrics.Metric objects:
+                {
+                    "cm": MultilabelConfusionMatrix,
+                    "macro-f1": MacroF1 (average=None),
+                    "micro-f1": MultilabelF1Score (average=None)
+                }
+            class_names: List of class names in the same order as class indices.
 
         Returns:
-            Dictionary mapping each class name to its PPV and NPV metrics:
+            Dictionary mapping each class name to a sub-dictionary of computed metrics:
             {
-                "class_name": {"PPV": float, "NPV": float, "TN": int, "FP": int, "FN": int, "TP": int},
+                "class_name_1": {
+                    "PPV": float,
+                    "NPV": float,
+                    "TN": int,
+                    "FP": int,
+                    "FN": int,
+                    "TP": int,
+                    "f1-macro": float,
+                    "f1-micro": float
+                },
                 ...
             }
         """
-        # Stack per-sample tensors into (n_samples, n_classes) numpy arrays
-        true_np = torch.stack(y_true).cpu().numpy().astype(int)
-        pred_np = torch.stack(y_pred).cpu().numpy().astype(int)
+        cm_tensor = metrics_obj_dict["cm"].compute()  # Shape: (num_classes, 2, 2)
+        # shape: (num_classes,)
+        macro_f1_tensor = metrics_obj_dict["macro-f1"].compute()
+        micro_f1_tensor = metrics_obj_dict["micro-f1"].compute()
 
-        # Compute confusion matrix for each class
-        cm = multilabel_confusion_matrix(true_np, pred_np)
+        assert (
+            len(class_names)
+            == cm_tensor.shape[0]
+            == micro_f1_tensor.shape[0]
+            == macro_f1_tensor.shape[0]
+        ), (
+            f"Mismatch between number of class names ({len(class_names)}) and metric tensor sizes: "
+            f"confusion matrix has {cm_tensor.shape[0]}, "
+            f"micro F1 has {micro_f1_tensor.shape[0]}, "
+            f"macro F1 has {macro_f1_tensor.shape[0]}"
+        )
 
         results: dict[str, dict[str, float]] = {}
         for idx, cls_name in enumerate(class_names):
-            tn, fp, fn, tp = cm[idx].ravel()
-            tpv = tp / (tp + fp) if (tp + fp) > 0 else 0.0
-            npv = tn / (tn + fn) if (tn + fn) > 0 else 0.0
+            tn = cm_tensor[idx][0][0].item()
+            fp = cm_tensor[idx][0][1].item()
+            fn = cm_tensor[idx][1][0].item()
+            tp = cm_tensor[idx][1][1].item()
+
+            ppv = tp / (tp + fp) if (tp + fp) > 0 else 0.0  # Precision
+            npv = tn / (tn + fn) if (tn + fn) > 0 else 0.0  # Negative predictive value
+
             # positive_raw = [p.item() for i, p in enumerate(raw_preds[:, idx]) if true_np[i, idx]]
             # negative_raw = [p.item() for i, p in enumerate(raw_preds[:, idx]) if not true_np[i, idx]]
+
+            macro_f1 = macro_f1_tensor[idx]
+            micro_f1 = micro_f1_tensor[idx]
+
             results[cls_name] = {
-                "PPV": round(tpv, 4),
+                "PPV": round(ppv, 4),
                 "NPV": round(npv, 4),
                 "TN": int(tn),
                 "FP": int(fp),
                 "FN": int(fn),
                 "TP": int(tp),
+                "f1-macro": round(macro_f1.item(), 4),
+                "f1-micro": round(micro_f1.item(), 4),
                 # "positive_preds": positive_raw,
                 # "negative_preds": negative_raw,
             }
@@ -131,29 +174,32 @@ class ClassesPropertiesGenerator:
         val_loader = data_module.val_dataloader()
         print("Running inference on validation data...")
 
-        y_true, y_pred = [], []
-        raw_preds = []
-        for batch_idx, batch in enumerate(val_loader):
-            data = model._process_batch(  # pylint: disable=W0212
-                batch, batch_idx=batch_idx
-            )
-            labels = data["labels"]
-            outputs = model(data, **data.get("model_kwargs", {}))
-            logits = outputs["logits"] if isinstance(outputs, dict) else outputs
-            preds = torch.sigmoid(logits) > 0.5
-            y_pred.extend(preds)
-            y_true.extend(labels)
-            raw_preds.extend(torch.sigmoid(logits))
-        raw_preds = torch.stack(raw_preds)
-        print("Computing metrics...")
         classes_file = Path(data_module.processed_dir_main) / "classes.txt"
+        class_names = self.load_class_labels(classes_file)
+        num_classes = len(class_names)
+        metrics_obj_dict: dict[str, torchmetrics.Metric] = {
+            "cm": MultilabelConfusionMatrix(num_labels=num_classes),
+            "macro-f1": MacroF1(num_labels=num_classes, average=None),
+            "micro-f1": MultilabelF1Score(num_labels=num_classes, average=None),
+        }
+
+        for batch_idx, batch in enumerate(val_loader):
+            data = model._process_batch(batch, batch_idx=batch_idx)
+            labels = data["labels"]
+            model_output = model(data, **data.get("model_kwargs", {}))
+            preds, targets = model._get_prediction_and_labels(
+                data, labels, model_output
+            )
+            for metric_obj in metrics_obj_dict.values():
+                metric_obj.update(preds=preds, target=targets)
+
+        print("Computing metrics...")
         if output_path is None:
             output_file = Path(data_module.processed_dir_main) / "classes.json"
         else:
             output_file = Path(output_path)
 
-        class_names = self.load_class_labels(classes_file)
-        metrics = self.compute_classwise_scores(y_true, y_pred, raw_preds, class_names)
+        metrics = self.compute_classwise_scores(metrics_obj_dict, class_names)
 
         with output_file.open("w") as f:
             json.dump(metrics, f, indent=2)
