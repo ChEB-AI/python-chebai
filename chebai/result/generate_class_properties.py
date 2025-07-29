@@ -1,5 +1,6 @@
 import json
 from pathlib import Path
+from typing import Literal
 
 import torchmetrics
 from jsonargparse import CLI
@@ -115,6 +116,7 @@ class ClassesPropertiesGenerator:
 
     def generate_props(
         self,
+        data_partition: Literal["train", "val", "test"],
         model_ckpt_path: str,
         model_config_file_path: str,
         data_config_file_path: str,
@@ -124,14 +126,13 @@ class ClassesPropertiesGenerator:
         Run inference on validation set, compute TPV/NPV  per class, and save to JSON.
 
         Args:
+            data_partition: Partition of the dataset to use to generate class properties.
             model_ckpt_path: Path to the PyTorch Lightning checkpoint file.
             model_config_file_path: Path to yaml config file of the model.
             data_config_file_path: Path to yaml config file of the data.
             output_path: Optional path where to write the JSON metrics file.
                          Defaults to '<processed_dir_main>/classes.json'.
         """
-        print("Extracting validation data for computation...")
-
         data_cls_path, data_cls_kwargs = parse_config_file(data_config_file_path)
         data_module: XYBaseDataModule = load_data_instance(
             data_cls_path, data_cls_kwargs
@@ -157,8 +158,15 @@ class ClassesPropertiesGenerator:
             model_ckpt_path, model_class_path, model_kwargs
         )
 
-        val_loader = data_module.val_dataloader()
-        print("Running inference on validation data...")
+        if data_partition == "train":
+            data_loader = data_module.train_dataloader()
+        elif data_partition == "val":
+            data_loader = data_module.val_dataloader()
+        elif data_partition == "test":
+            data_loader = data_module.test_dataloader()
+        else:
+            raise ValueError(f"Unknown data partition: {data_partition}")
+        print(f"Running inference on {data_partition} data...")
 
         classes_file = Path(data_module.processed_dir_main) / "classes.txt"
         class_names = self.load_class_labels(classes_file)
@@ -168,7 +176,7 @@ class ClassesPropertiesGenerator:
             "f1": MultilabelF1Score(num_labels=num_classes, average=None),
         }
 
-        for batch_idx, batch in enumerate(val_loader):
+        for batch_idx, batch in enumerate(data_loader):
             data = model._process_batch(batch, batch_idx=batch_idx)
             labels = data["labels"]
             model_output = model(data, **data.get("model_kwargs", {}))
@@ -180,7 +188,9 @@ class ClassesPropertiesGenerator:
 
         print("Computing metrics...")
         if output_path is None:
-            output_file = Path(data_module.processed_dir_main) / "classes.json"
+            output_file = (
+                Path(data_module.processed_dir_main) / f"classes_{data_partition}.json"
+            )
         else:
             output_file = Path(output_path)
 
@@ -198,6 +208,7 @@ class Main:
 
     def generate(
         self,
+        data_partition: Literal["train", "val", "test"],
         model_ckpt_path: str,
         model_config_file_path: str,
         data_config_file_path: str,
@@ -207,14 +218,21 @@ class Main:
         CLI command to generate JSON with metrics on validation set.
 
         Args:
+            data_partition: Partition of dataset to use to generate class properties.
             model_ckpt_path: Path to the PyTorch Lightning checkpoint file.
             model_config_file_path: Path to yaml config file of the model.
             data_config_file_path: Path to yaml config file of the data.
             output_path: Optional path where to write the JSON metrics file.
                          Defaults to '<processed_dir_main>/classes.json'.
         """
+        assert data_partition in [
+            "train",
+            "val",
+            "test",
+        ], f"Given data partition invalid: {data_partition}, Choose one of the value among `train`, `val`, `test` "
         generator = ClassesPropertiesGenerator()
         generator.generate_props(
+            data_partition,
             model_ckpt_path,
             model_config_file_path,
             data_config_file_path,
@@ -224,6 +242,7 @@ class Main:
 
 if __name__ == "__main__":
     # _generate_classes_props_json.py generate \
+    # --data_partition "val" \
     # --model_ckpt_path "model/ckpt/path" \
     # --model_config_file_path "model/config/file/path" \
     # --data_config_file_path "data/config/file/path" \
