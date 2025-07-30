@@ -5,10 +5,7 @@ from abc import ABC
 from itertools import islice
 from typing import Any, Dict, List, Optional
 
-import deepsmiles
-import selfies as sf
 from pysmiles.read_smiles import _tokenize
-from transformers import RobertaTokenizerFast
 
 from chebai.preprocessing.collate import DefaultCollator, RaggedCollator
 
@@ -205,6 +202,8 @@ class DeepChemDataReader(ChemDataReader):
     """
 
     def __init__(self, *args, **kwargs):
+        import deepsmiles
+
         super().__init__(*args, **kwargs)
         self.converter = deepsmiles.Converter(rings=True, branches=True)
         self.error_count = 0
@@ -279,6 +278,8 @@ class ChemBPEReader(DataReader):
         vsize: int = 4000,
         **kwargs,
     ):
+        from transformers import RobertaTokenizerFast
+
         super().__init__(*args, **kwargs)
         self.tokenizer = RobertaTokenizerFast.from_pretrained(
             data_path, max_len=max_len
@@ -312,6 +313,8 @@ class SelfiesReader(ChemDataReader):
         vsize: int = 4000,
         **kwargs,
     ):
+        import selfies as sf
+
         super().__init__(*args, **kwargs)
         self.error_count = 0
         sf.set_semantic_constraints("hypervalent")
@@ -323,6 +326,8 @@ class SelfiesReader(ChemDataReader):
 
     def _read_data(self, raw_data: str) -> Optional[List[int]]:
         """Read and tokenize raw data using SELFIES."""
+        import selfies as sf
+
         try:
             tokenized = sf.split_selfies(sf.encoder(raw_data.strip(), strict=True))
             tokenized = [self._get_token_index(v) for v in tokenized]
