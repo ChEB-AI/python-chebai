@@ -11,15 +11,18 @@ __all__ = [
 
 import os
 import pickle
+import random
 from abc import ABC
 from collections import OrderedDict
-from typing import Any, Dict, Generator, List, Optional, Tuple, Union
+from itertools import cycle
+from typing import Any, Dict, Generator, List, Literal, Optional, Tuple, Union
 
 import fastobo
 import networkx as nx
 import pandas as pd
 import requests
 import torch
+from rdkit import Chem
 
 from chebai.preprocessing import reader as dr
 from chebai.preprocessing.datasets.base import XYBaseDataModule, _DynamicDataset
@@ -134,8 +137,17 @@ class _ChEBIDataExtractor(_DynamicDataset, ABC):
         self,
         chebi_version_train: Optional[int] = None,
         single_class: Optional[int] = None,
+        augment_smiles: bool = False,
+        aug_smiles_variations: Literal["max"] | int | None = None,
         **kwargs,
     ):
+        if augment_smiles:
+            assert aug_smiles_variations is not None, ""
+            assert aug_smiles_variations == "max" or (
+                int(aug_smiles_variations) and int(aug_smiles_variations) >= 1
+            ), ""
+        self.augment_smiles = augment_smiles
+        self.aug_smiles_variations = aug_smiles_variations
         # predict only single class (given as id of one of the classes present in the raw data set)
         self.single_class = single_class
         super(_ChEBIDataExtractor, self).__init__(**kwargs)
@@ -304,7 +316,33 @@ class _ChEBIDataExtractor(_DynamicDataset, ABC):
         # This filters the DataFrame to include only the rows where at least one value in the row from 4th column
         # onwards is True/non-zero.
         data = data[data.iloc[:, self._LABELS_START_IDX :].any(axis=1)]
+        if self.augment_smiles:
+            data = self._perform_smiles_augmentation()
+
         return data
+
+    def _perform_smiles_augmentation(self, data_df: pd.DataFrame) -> pd.DataFrame:
+        data_df["augmented_smiles"] = data_df["SMILES"].apply(self.augment_smiles())
+        # Explode the list of augmented smiles into multiple rows
+        # augmented smiles will have same ident, as of the original, but does it matter ?
+        exploded_df = data_df.explode("augmented_smiles").reset_index(drop=True)
+        exploded_df.rename(columns={"augmented_smile", "SMILES"})
+        return exploded_df
+
+    def augment_smiles(self, smiles: str):
+        mol: Chem.Mol = Chem.MolFromSmiles(smiles)
+        # As chebi smiles might be different than rdkit smiles, for same canonical mol
+        # TODO: if same smiles is generated as mol_smiles remove it
+        # mol_smiles = Chem.MolToSmiles(smiles)
+        atom_ids = [atom.GetIdx() for atom in mol.GetAtoms()]
+        random.shuffle(atom_ids)  # seed set by lightning
+        atom_id_iter = cycle(atom_ids)
+        return list(
+            {
+                Chem.MolToSmiles(mol, rootedAtAtom=next(atom_id_iter), doRandom=True)
+                for _ in range(self.aug_smiles_variations)
+            }
+        ) + [smiles]
 
     # ------------------------------ Phase: Setup data -----------------------------------
     def setup_processed(self) -> None:
