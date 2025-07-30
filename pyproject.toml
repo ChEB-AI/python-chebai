@@ -41,6 +41,16 @@ dev = ["black", "isort", "pre-commit"]
 plot = ["matplotlib", "seaborn"]
 wandb = ["wandb"]
 
+inference =  [
+    "numpy",
+    "pandas",
+    "torch",
+    "transformers",
+    "pysmiles==1.1.2",
+    "rdkit",
+    "lightning>=2.5",
+]
+
 [tool.setuptools]
 include-package-data = true
 license-files = ["LICEN[CS]E*"]
