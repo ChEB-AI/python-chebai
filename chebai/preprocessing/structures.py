@@ -1,7 +1,9 @@
-from typing import Any, Tuple, Union
+from typing import TYPE_CHECKING, Any, Tuple, Union
 
-import networkx as nx
 import torch
+
+if TYPE_CHECKING:
+    import networkx as nx
 
 
 class XYData(torch.utils.data.Dataset):
@@ -129,6 +131,8 @@ class XYMolData(XYData):
         Returns:
             A tuple of molecular graphs with node attributes on the specified device.
         """
+        import networkx as nx
+
         l_ = []
         for g in self.x:
             graph = g.copy()
