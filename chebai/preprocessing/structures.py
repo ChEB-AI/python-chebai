@@ -121,7 +121,7 @@ class XYMolData(XYData):
         kwargs: Additional fields to store in the dataset.
     """
 
-    def to_x(self, device: torch.device) -> Tuple[nx.Graph, ...]:
+    def to_x(self, device: torch.device) -> Tuple["nx.Graph", ...]:
         """
         Moves the node attributes of the molecular graphs to the specified device.
 

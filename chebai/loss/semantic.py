@@ -342,7 +342,7 @@ class DisjointLoss(ImplicationLoss):
     def __init__(
         self,
         path_to_disjointness: str,
-        data_extractor: Union[_ChEBIDataExtractor, LabeledUnlabeledMixed],
+        data_extractor: Union[_ChEBIDataExtractor, "LabeledUnlabeledMixed"],
         base_loss: torch.nn.Module = None,
         disjoint_loss_weight: float = 100,
         **kwargs,
