@@ -183,6 +183,23 @@ class PubChem(XYBaseDataModule):
         """
         return ["test.pt", "train.pt", "validation.pt"]
 
+    def _set_processed_data_props(self):
+        """
+        Load processed data and extract metadata.
+
+        Sets:
+            - self._num_of_labels: Number of target labels in the dataset.
+            - self._feature_vector_size: 0.
+        """
+        with open(self.processed_dir_main, "classes.txt") as f:
+            classes = [f.strip() for f in f.readlines() if f.strip()]
+
+        self._num_of_labels = len(classes)
+        self._feature_vector_size = 0
+
+        print(f"Number of labels for loaded data: {self._num_of_labels}")
+        print(f"Feature vector size: {self._feature_vector_size}")
+
     def _perform_data_preparation(self, *args, **kwargs):
         """
         Checks for raw data and downloads if necessary.
