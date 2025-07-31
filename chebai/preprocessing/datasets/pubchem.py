@@ -154,9 +154,13 @@ class PubChem(XYBaseDataModule):
         print("Load data from file", filename)
         data = self._load_data_from_file(filename)
         print("Create splits")
-        train, test = train_test_split(data, train_size=self.train_split)
+        train, test = train_test_split(
+            data, train_size=1 - (self.validation_split + self.test_split)
+        )
         del data
-        test, val = train_test_split(test, train_size=self.train_split)
+        test, val = train_test_split(
+            test, train_size=self.test_split / (self.validation_split + self.test_split)
+        )
         torch.save(train, os.path.join(self.processed_dir, "train.pt"))
         torch.save(test, os.path.join(self.processed_dir, "test.pt"))
         torch.save(val, os.path.join(self.processed_dir, "validation.pt"))
