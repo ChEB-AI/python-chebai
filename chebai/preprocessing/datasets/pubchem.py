@@ -185,16 +185,14 @@ class PubChem(XYBaseDataModule):
 
     def _set_processed_data_props(self):
         """
-        Load processed data and extract metadata.
+        Self-supervised learning with PubChem does not use this metadata, therefore set them to zero.
 
         Sets:
-            - self._num_of_labels: Number of target labels in the dataset.
+            - self._num_of_labels: 0
             - self._feature_vector_size: 0.
         """
-        with open(os.path.join(self.processed_dir_main, "classes.txt")) as f:
-            classes = [f.strip() for f in f.readlines() if f.strip()]
 
-        self._num_of_labels = len(classes)
+        self._num_of_labels = 0
         self._feature_vector_size = 0
 
         print(f"Number of labels for loaded data: {self._num_of_labels}")
