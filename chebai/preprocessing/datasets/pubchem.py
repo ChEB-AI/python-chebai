@@ -191,7 +191,7 @@ class PubChem(XYBaseDataModule):
             - self._num_of_labels: Number of target labels in the dataset.
             - self._feature_vector_size: 0.
         """
-        with open(self.processed_dir_main, "classes.txt") as f:
+        with open(os.path.join(self.processed_dir_main, "classes.txt")) as f:
             classes = [f.strip() for f in f.readlines() if f.strip()]
 
         self._num_of_labels = len(classes)
