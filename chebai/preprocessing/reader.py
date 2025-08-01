@@ -8,6 +8,7 @@ from typing import Any, Dict, List, Optional
 import deepsmiles
 import selfies as sf
 from pysmiles.read_smiles import _tokenize
+from rdkit import Chem
 from transformers import RobertaTokenizerFast
 
 from chebai.preprocessing.collate import DefaultCollator, RaggedCollator
@@ -176,6 +177,11 @@ class ChemDataReader(TokenIndexerReader):
 
     COLLATOR = RaggedCollator
 
+    def __init__(self, canonicalize_smiles=True, *args, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+        self.canonicalize_smiles = canonicalize_smiles
+        print(f"Using SMILES canonicalization: {self.canonicalize_smiles}")
+
     @classmethod
     def name(cls) -> str:
         """Returns the name of the data reader."""
@@ -183,7 +189,7 @@ class ChemDataReader(TokenIndexerReader):
 
     def _read_data(self, raw_data: str) -> List[int]:
         """
-        Reads and tokenizes raw SMILES data into a list of token indices.
+        Reads and tokenizes raw SMILES data into a list of token indices. Canonicalizes the SMILES string using RDKit.
 
         Args:
             raw_data (str): The raw SMILES string to be tokenized.
@@ -191,6 +197,15 @@ class ChemDataReader(TokenIndexerReader):
         Returns:
             List[int]: A list of integers representing the indices of the SMILES tokens.
         """
+        if self.canonicalize_smiles:
+            try:
+                mol = Chem.MolFromSmiles(raw_data.strip())
+                if mol is not None:
+                    raw_data = Chem.MolToSmiles(mol, canonical=True)
+            except Exception as e:
+                print(f"RDKit failed to process {raw_data}")
+                print(f"\t{e}")
+
         return [self._get_token_index(v[1]) for v in _tokenize(raw_data)]
 
 
