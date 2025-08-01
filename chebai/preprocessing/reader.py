@@ -177,6 +177,11 @@ class ChemDataReader(TokenIndexerReader):
 
     COLLATOR = RaggedCollator
 
+    def __init__(self, canonicalize_smiles=True, *args, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+        self.canonicalize_smiles = canonicalize_smiles
+        print(f"Using SMILES canonicalization: {self.canonicalize_smiles}")
+
     @classmethod
     def name(cls) -> str:
         """Returns the name of the data reader."""
@@ -192,13 +197,14 @@ class ChemDataReader(TokenIndexerReader):
         Returns:
             List[int]: A list of integers representing the indices of the SMILES tokens.
         """
-        try:
-            mol = Chem.MolFromSmiles(raw_data.strip())
-            if mol is not None:
-                raw_data = Chem.MolToSmiles(mol, canonical=True)
-        except Exception as e:
-            print(f"RDKit failed to process {raw_data}")
-            print(f"\t{e}")
+        if self.canonicalize_smiles:
+            try:
+                mol = Chem.MolFromSmiles(raw_data.strip())
+                if mol is not None:
+                    raw_data = Chem.MolToSmiles(mol, canonical=True)
+            except Exception as e:
+                print(f"RDKit failed to process {raw_data}")
+                print(f"\t{e}")
 
         return [self._get_token_index(v[1]) for v in _tokenize(raw_data)]
 
