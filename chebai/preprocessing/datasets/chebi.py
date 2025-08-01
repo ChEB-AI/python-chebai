@@ -301,9 +301,7 @@ class _ChEBIDataExtractor(_DynamicDataset, ABC):
         data = pd.DataFrame(data)
         data = data[~data["SMILES"].isnull()]
         data = data[[name not in CHEBI_BLACKLIST for name, _ in data.iterrows()]]
-        # This filters the DataFrame to include only the rows where at least one value in the row from 4th column
-        # onwards is True/non-zero.
-        data = data[data.iloc[:, self._LABELS_START_IDX :].any(axis=1)]
+
         return data
 
     # ------------------------------ Phase: Setup data -----------------------------------
@@ -892,7 +890,7 @@ def term_callback(doc: fastobo.term.TermFrame) -> Union[Dict, bool]:
 
 
 atom_index = (
-    "\*",
+    r"\*",
     "H",
     "He",
     "Li",
@@ -1525,5 +1523,13 @@ JCI_500_COLUMNS = [
 JCI_500_COLUMNS_INT = [int(n.split(":")[-1]) for n in JCI_500_COLUMNS]
 
 if __name__ == "__main__":
-    # get arguments from command line
-    pass
+    data_module_05 = ChEBIOver50Partial(
+        chebi_version=241,
+        splits_file_path=os.path.join(
+            "data", "chebi_v241", "ChEBI50", "splits_80_10_10.csv"
+        ),
+        top_class_id=22712,
+        external_data_ratio=0.5,
+    )
+    data_module_05.prepare_data()
+    data_module_05.setup()
