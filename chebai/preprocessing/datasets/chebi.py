@@ -17,6 +17,7 @@ from typing import Any, Dict, Generator, List, Optional, Tuple, Union
 
 import fastobo
 import networkx as nx
+import numpy as np
 import pandas as pd
 import requests
 import torch
@@ -465,43 +466,43 @@ class _ChEBIDataExtractor(_DynamicDataset, ABC):
         Returns:
             pd.DataFrame: The pruned test dataset.
         """
-        # TODO: find a more efficient way to do this
-        filename_old = "classes.txt"
-        # filename_new = f"classes_v{self.chebi_version_train}.txt"
-        # dataset = torch.load(os.path.join(self.processed_dir, "test.pt"))
+        classes_file_name = "classes.txt"
 
-        # Load original classes (from the current ChEBI version - chebi_version)
-        with open(os.path.join(self.processed_dir_main, filename_old), "r") as file:
-            orig_classes = file.readlines()
-
-        # Load new classes (from the training ChEBI version - chebi_version_train)
+        # Load original and new classes
+        with open(os.path.join(self.processed_dir_main, classes_file_name), "r") as f:
+            orig_classes = f.readlines()
         with open(
             os.path.join(
-                self._chebi_version_train_obj.processed_dir_main, filename_old
+                self._chebi_version_train_obj.processed_dir_main, classes_file_name
             ),
             "r",
-        ) as file:
-            new_classes = file.readlines()
+        ) as f:
+            new_classes = f.readlines()
 
-        # Create a mapping which give index of a class from chebi_version, if the corresponding
-        # class exists in chebi_version_train, Size = Number of classes in chebi_version
-        mapping = [
-            None if or_class not in new_classes else new_classes.index(or_class)
-            for or_class in orig_classes
-        ]
+        # Mapping array (-1 means no match in new classes)
+        mapping_array = np.array(
+            [
+                -1 if oc not in new_classes else new_classes.index(oc)
+                for oc in orig_classes
+            ],
+            dtype=int,
+        )
 
-        # Iterate over each data instance in the test set which is derived from chebi_version
-        for row in df_test_chebi_version.itertuples(index=False):
-            # Size = Number of classes in chebi_version_train
-            new_labels = [False for _ in new_classes]
-            for ind, label in enumerate(row.labels):
-                # If the chebi_version class exists in the chebi_version_train and has a True label,
-                # set the corresponding label in new_labels to True
-                if mapping[ind] is not None and label:
-                    new_labels[mapping[ind]] = label
-            # Update the labels from test instance from chebi_version to the new labels, which are compatible to both versions
-            row["labels"] = new_labels
+        # Convert labels column to 2D NumPy array
+        labels_matrix = np.array(df_test_chebi_version["labels"].tolist(), dtype=bool)
 
+        # Allocate new labels matrix
+        num_new_classes = len(new_classes)
+        new_labels_matrix = np.zeros(
+            (labels_matrix.shape[0], num_new_classes), dtype=bool
+        )
+
+        # Copy only valid columns
+        valid_mask = mapping_array != -1
+        new_labels_matrix[:, mapping_array[valid_mask]] = labels_matrix[:, valid_mask]
+
+        # Assign back
+        df_test_chebi_version["labels"] = new_labels_matrix.tolist()
         return df_test_chebi_version
 
     # ------------------------------ Phase: Raw Properties -----------------------------------
