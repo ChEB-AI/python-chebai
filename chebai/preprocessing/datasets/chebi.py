@@ -146,6 +146,8 @@ class _ChEBIDataExtractor(_DynamicDataset, ABC):
             assert aug_smiles_variations == "max" or (
                 int(aug_smiles_variations) and int(aug_smiles_variations) >= 1
             ), ""
+            kwargs.setdefault("reader_kwargs", {}).update(canonicalize_smiles=False)
+
         self.augment_smiles = augment_smiles
         self.aug_smiles_variations = aug_smiles_variations
         # predict only single class (given as id of one of the classes present in the raw data set)
@@ -162,6 +164,8 @@ class _ChEBIDataExtractor(_DynamicDataset, ABC):
             _init_kwargs["chebi_version"] = self.chebi_version_train
             self._chebi_version_train_obj = self.__class__(
                 single_class=self.single_class,
+                augment_smiles=self.augment_smiles,
+                aug_smiles_variations=self.aug_smiles_variations,
                 **_init_kwargs,
             )
 
