@@ -359,18 +359,18 @@ class _ChEBIDataExtractor(_DynamicDataset, ABC):
         """
         with open(input_file_path, "rb") as input_file:
             df = pd.read_pickle(input_file)
-            if self.single_class is not None:
-                single_cls_index = list(df.columns).index(int(self.single_class))
-            for row in df.values:
-                if self.single_class is None:
-                    labels = row[self._LABELS_START_IDX :].astype(bool)
-                else:
-                    labels = [bool(row[single_cls_index])]
-                yield dict(
-                    features=row[self._DATA_REPRESENTATION_IDX],
-                    labels=labels,
-                    ident=row[self._ID_IDX],
-                )
+
+            if self.single_class is None:
+                all_labels = df.iloc[:, self._LABELS_START_IDX :].to_numpy(dtype=bool)
+            else:
+                single_cls_index = df.columns.get_loc(int(self.single_class))
+                all_labels = df.iloc[:, [single_cls_index]].to_numpy(dtype=bool)
+
+            features = df.iloc[:, self._DATA_REPRESENTATION_IDX].to_numpy()
+            idents = df.iloc[:, self._ID_IDX].to_numpy()
+
+            for feat, labels, ident in zip(features, all_labels, idents):
+                yield dict(features=feat, labels=labels, ident=ident)
 
     # ------------------------------ Phase: Dynamic Splits -----------------------------------
     def _get_data_splits(self) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
