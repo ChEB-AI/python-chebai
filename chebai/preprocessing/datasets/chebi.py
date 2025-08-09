@@ -15,7 +15,8 @@ import random
 from abc import ABC
 from collections import OrderedDict
 from itertools import cycle
-from typing import Any, Dict, Generator, List, Literal, Optional, Tuple, Union
+from multiprocessing import Pool
+from typing import Any, Dict, Generator, List, Optional, Tuple, Union
 
 import fastobo
 import networkx as nx
@@ -138,14 +139,14 @@ class _ChEBIDataExtractor(_DynamicDataset, ABC):
         chebi_version_train: Optional[int] = None,
         single_class: Optional[int] = None,
         augment_smiles: bool = False,
-        aug_smiles_variations: Literal["max"] | int | None = None,
+        aug_smiles_variations: Optional[int] = None,
         **kwargs,
     ):
         if augment_smiles:
             assert aug_smiles_variations is not None, ""
-            assert aug_smiles_variations == "max" or (
-                int(aug_smiles_variations) and int(aug_smiles_variations) >= 1
-            ), ""
+            assert (
+                aug_smiles_variations > 0
+            ), "Number of variations must be greater than 0"
             kwargs.setdefault("reader_kwargs", {}).update(canonicalize_smiles=False)
 
         self.augment_smiles = augment_smiles
@@ -321,32 +322,33 @@ class _ChEBIDataExtractor(_DynamicDataset, ABC):
         # onwards is True/non-zero.
         data = data[data.iloc[:, self._LABELS_START_IDX :].any(axis=1)]
         if self.augment_smiles:
-            data = self._perform_smiles_augmentation()
-
+            return self._perform_smiles_augmentation(data)
         return data
 
     def _perform_smiles_augmentation(self, data_df: pd.DataFrame) -> pd.DataFrame:
-        data_df["augmented_smiles"] = data_df["SMILES"].apply(self.augment_smiles())
+        AUG_SMILES_VARIATIONS = self.aug_smiles_variations
+
+        def generate_augmented_smiles(smiles: str):
+            mol: Chem.Mol = Chem.MolFromSmiles(smiles)
+            atom_ids = [atom.GetIdx() for atom in mol.GetAtoms()]
+            random.shuffle(atom_ids)  # seed set by lightning
+            atom_id_iter = cycle(atom_ids)
+            augmented = {
+                Chem.MolToSmiles(mol, rootedAtAtom=next(atom_id_iter), doRandom=True)
+                for _ in range(AUG_SMILES_VARIATIONS)
+            }
+            augmented.add(smiles)
+            return list(augmented)
+
+        with Pool() as pool:
+            data_df["augmented_smiles"] = pool.map(
+                generate_augmented_smiles, data_df["SMILES"]
+            )
         # Explode the list of augmented smiles into multiple rows
         # augmented smiles will have same ident, as of the original, but does it matter ?
         exploded_df = data_df.explode("augmented_smiles").reset_index(drop=True)
-        exploded_df.rename(columns={"augmented_smile", "SMILES"})
+        exploded_df.rename(columns={"augmented_smiles": "SMILES"}, inplace=True)
         return exploded_df
-
-    def augment_smiles(self, smiles: str):
-        mol: Chem.Mol = Chem.MolFromSmiles(smiles)
-        # As chebi smiles might be different than rdkit smiles, for same canonical mol
-        # TODO: if same smiles is generated as mol_smiles remove it
-        # mol_smiles = Chem.MolToSmiles(smiles)
-        atom_ids = [atom.GetIdx() for atom in mol.GetAtoms()]
-        random.shuffle(atom_ids)  # seed set by lightning
-        atom_id_iter = cycle(atom_ids)
-        return list(
-            {
-                Chem.MolToSmiles(mol, rootedAtAtom=next(atom_id_iter), doRandom=True)
-                for _ in range(self.aug_smiles_variations)
-            }
-        ) + [smiles]
 
     # ------------------------------ Phase: Setup data -----------------------------------
     def setup_processed(self) -> None:
@@ -579,6 +581,32 @@ class _ChEBIDataExtractor(_DynamicDataset, ABC):
     @property
     def raw_file_names_dict(self) -> dict:
         return {"chebi": "chebi.obo"}
+
+    @property
+    def processed_main_file_names_dict(self) -> dict:
+        """
+        Returns a dictionary mapping processed data file names.
+
+        Returns:
+            dict: A dictionary mapping dataset key to their respective file names.
+                  For example, {"data": "data.pkl"}.
+        """
+        if not self.augment_smiles:
+            return super().processed_main_file_names_dict
+        return {"data": f"aug_data_var{self.aug_smiles_variations}.pkl"}
+
+    @property
+    def processed_file_names_dict(self) -> dict:
+        """
+        Returns a dictionary for the processed and tokenized data files.
+
+        Returns:
+            dict: A dictionary mapping dataset keys to their respective file names.
+                  For example, {"data": "data.pt"}.
+        """
+        if not self.augment_smiles:
+            return super().processed_file_names_dict
+        return {"data": f"aug_data_var{self.aug_smiles_variations}.pt"}
 
 
 class JCIExtendedBase(_ChEBIDataExtractor):
