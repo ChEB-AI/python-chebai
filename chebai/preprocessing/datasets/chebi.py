@@ -300,7 +300,7 @@ class _ChEBIDataExtractor(_DynamicDataset, ABC):
 
         data = pd.DataFrame(data)
         data = data[~data["SMILES"].isnull()]
-        data = data[[name not in CHEBI_BLACKLIST for name, _ in data.iterrows()]]
+        data = data[~data["name"].isin(CHEBI_BLACKLIST)]
 
         return data
 
@@ -491,10 +491,10 @@ class _ChEBIDataExtractor(_DynamicDataset, ABC):
         ]
 
         # Iterate over each data instance in the test set which is derived from chebi_version
-        for _, row in df_test_chebi_version.iterrows():
+        for row in df_test_chebi_version.itertuples(index=False):
             # Size = Number of classes in chebi_version_train
             new_labels = [False for _ in new_classes]
-            for ind, label in enumerate(row["labels"]):
+            for ind, label in enumerate(row.labels):
                 # If the chebi_version class exists in the chebi_version_train and has a True label,
                 # set the corresponding label in new_labels to True
                 if mapping[ind] is not None and label:

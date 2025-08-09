@@ -246,11 +246,11 @@ def prepare_data(infile: pickle.Pickler) -> pd.DataFrame:
         data_frame[col] = data_frame[col].astype(int)
 
     train_data = []
-    for index, row in data_frame.iterrows():
+    for row in data_frame.itertuples(index=False):
         train_data.append(
             [
-                data_frame.iloc[index].values[1],
-                data_frame.iloc[index].values[2:502].tolist(),
+                row.SMILES,
+                row.LABELS,
             ]
         )
 
@@ -309,13 +309,13 @@ def load_data() -> (
         train_dataset = []
         train_actual_labels = []
 
-        for index, row in prepare_data(train_infile).iterrows():
+        for row in prepare_data(train_infile).itertuples(index=False):
             try:
-                mol = Molecule(row["SMILES"], True)
+                mol = Molecule(row.SMILES, True)
 
                 # DAGs_meta_info = mol.dag_to_node
                 train_dataset.append(mol)
-                train_actual_labels.append(torch.tensor(row["LABELS"]).float())
+                train_actual_labels.append(torch.tensor(row.LABELS).float())
             except Exception:
                 pass
 
@@ -323,14 +323,14 @@ def load_data() -> (
         validation_dataset = []
         validation_actual_labels = []
 
-        for index, row in prepare_data(validation_infile).iterrows():
+        for row in prepare_data(validation_infile).itertuples(index=False):
             try:
-                mol = Molecule(row["SMILES"], True)
+                mol = Molecule(row.SMILES, True)
 
                 # DAGs_meta_info = mol.dag_to_node
 
                 validation_dataset.append(mol)
-                validation_actual_labels.append(torch.tensor(row["LABELS"]).float())
+                validation_actual_labels.append(torch.tensor(row.LABELS).float())
             except Exception:
                 pass
 
