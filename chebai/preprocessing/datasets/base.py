@@ -1,6 +1,7 @@
 import os
 import random
 from abc import ABC, abstractmethod
+from pathlib import Path
 from typing import Any, Dict, Generator, List, Optional, Tuple, Union
 
 import lightning as pl
@@ -419,9 +420,16 @@ class XYBaseDataModule(LightningDataModule):
 
         self._prepare_data_flag += 1
         self._perform_data_preparation(*args, **kwargs)
+        self._after_prepare_data(*args, **kwargs)
 
     def _perform_data_preparation(self, *args, **kwargs) -> None:
         raise NotImplementedError
+
+    def _after_prepare_data(self, *args, **kwargs) -> None:
+        """
+        Hook to perform additional pre-processing after pre-processed data is available.
+        """
+        ...
 
     def setup(self, *args, **kwargs) -> None:
         """
@@ -871,6 +879,21 @@ class _DynamicDataset(XYBaseDataModule, ABC):
             filename (str): The filename for the pickle file.
         """
         pd.to_pickle(data, open(os.path.join(self.processed_dir_main, filename), "wb"))
+
+    def get_processed_pickled_df_file(self, filename: str) -> pd.DataFrame | None:
+        """
+        Gets the processed dataset pickle file.
+
+        Args:
+            filename (str): The filename for the pickle file.
+
+        Returns:
+            pd.DataFrame: The processed dataset as a DataFrame.
+        """
+        file_path = Path(self.processed_dir_main) / filename
+        if file_path.exists():
+            return pd.read_pickle(file_path)
+        return None
 
     # ------------------------------ Phase: Setup data -----------------------------------
     def setup_processed(self) -> None:

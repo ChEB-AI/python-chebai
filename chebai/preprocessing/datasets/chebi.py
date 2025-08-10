@@ -15,8 +15,7 @@ import random
 from abc import ABC
 from collections import OrderedDict
 from itertools import cycle
-from multiprocessing import Pool
-from typing import Any, Dict, Generator, List, Optional, Tuple, Union
+from typing import Any, Generator, Optional, Union
 
 import fastobo
 import networkx as nx
@@ -142,15 +141,16 @@ class _ChEBIDataExtractor(_DynamicDataset, ABC):
         aug_smiles_variations: Optional[int] = None,
         **kwargs,
     ):
-        if augment_smiles:
-            assert aug_smiles_variations is not None, ""
+        if bool(augment_smiles):
             assert (
-                aug_smiles_variations > 0
+                int(aug_smiles_variations) > 0
             ), "Number of variations must be greater than 0"
-            kwargs.setdefault("reader_kwargs", {}).update(canonicalize_smiles=False)
+            reader_kwargs = kwargs.get("reader_kwargs", {})
+            reader_kwargs["canonicalize_smiles"] = False
+            kwargs["reader_kwargs"] = reader_kwargs
 
-        self.augment_smiles = augment_smiles
-        self.aug_smiles_variations = aug_smiles_variations
+        self.augment_smiles = bool(augment_smiles)
+        self.aug_smiles_variations = int(aug_smiles_variations)
         # predict only single class (given as id of one of the classes present in the raw data set)
         self.single_class = single_class
         super(_ChEBIDataExtractor, self).__init__(**kwargs)
@@ -321,14 +321,28 @@ class _ChEBIDataExtractor(_DynamicDataset, ABC):
         # This filters the DataFrame to include only the rows where at least one value in the row from 4th column
         # onwards is True/non-zero.
         data = data[data.iloc[:, self._LABELS_START_IDX :].any(axis=1)]
-        if self.augment_smiles:
-            return self._perform_smiles_augmentation(data)
         return data
 
-    def _perform_smiles_augmentation(self, data_df: pd.DataFrame) -> pd.DataFrame:
+    def _after_prepare_data(self, *args, **kwargs) -> None:
+        self._perform_smiles_augmentation()
+
+    def _perform_smiles_augmentation(self) -> None:
+        if not self.augment_smiles:
+            return
+
+        aug_data_df = self.get_processed_pickled_df_file(
+            self.processed_main_file_names_dict["aug_data"]
+        )
+        if aug_data_df is not None:
+            return
+
+        data_df = self.get_processed_pickled_df_file(
+            self.processed_main_file_names_dict["data"]
+        )
+
         AUG_SMILES_VARIATIONS = self.aug_smiles_variations
 
-        def generate_augmented_smiles(smiles: str):
+        def generate_augmented_smiles(smiles: str) -> list[str]:
             mol: Chem.Mol = Chem.MolFromSmiles(smiles)
             atom_ids = [atom.GetIdx() for atom in mol.GetAtoms()]
             random.shuffle(atom_ids)  # seed set by lightning
@@ -340,15 +354,15 @@ class _ChEBIDataExtractor(_DynamicDataset, ABC):
             augmented.add(smiles)
             return list(augmented)
 
-        with Pool() as pool:
-            data_df["augmented_smiles"] = pool.map(
-                generate_augmented_smiles, data_df["SMILES"]
-            )
+        data_df["augmented_smiles"] = data_df["SMILES"].apply(generate_augmented_smiles)
+
         # Explode the list of augmented smiles into multiple rows
         # augmented smiles will have same ident, as of the original, but does it matter ?
         exploded_df = data_df.explode("augmented_smiles").reset_index(drop=True)
         exploded_df.rename(columns={"augmented_smiles": "SMILES"}, inplace=True)
-        return exploded_df
+        self.save_processed(
+            exploded_df, self.processed_main_file_names_dict["aug_data"]
+        )
 
     # ------------------------------ Phase: Setup data -----------------------------------
     def setup_processed(self) -> None:
@@ -377,7 +391,7 @@ class _ChEBIDataExtractor(_DynamicDataset, ABC):
             print("Calling the setup method related to it")
             self._chebi_version_train_obj.setup()
 
-    def _load_dict(self, input_file_path: str) -> Generator[Dict[str, Any], None, None]:
+    def _load_dict(self, input_file_path: str) -> Generator[dict[str, Any], None, None]:
         """
         Loads a dictionary from a pickled file, yielding individual dictionaries for each row.
 
@@ -418,7 +432,7 @@ class _ChEBIDataExtractor(_DynamicDataset, ABC):
                 )
 
     # ------------------------------ Phase: Dynamic Splits -----------------------------------
-    def _get_data_splits(self) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+    def _get_data_splits(self) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
         """
         Loads encoded/transformed data and generates training, validation, and test splits.
 
@@ -591,9 +605,10 @@ class _ChEBIDataExtractor(_DynamicDataset, ABC):
             dict: A dictionary mapping dataset key to their respective file names.
                   For example, {"data": "data.pkl"}.
         """
-        if not self.augment_smiles:
-            return super().processed_main_file_names_dict
-        return {"data": f"aug_data_var{self.aug_smiles_variations}.pkl"}
+        p_dict = super().processed_main_file_names_dict
+        if self.augment_smiles:
+            p_dict["aug_data"] = f"aug_data_var{self.aug_smiles_variations}.pkl"
+        return p_dict
 
     @property
     def processed_file_names_dict(self) -> dict:
@@ -606,6 +621,10 @@ class _ChEBIDataExtractor(_DynamicDataset, ABC):
         """
         if not self.augment_smiles:
             return super().processed_file_names_dict
+        if self.n_token_limit is not None:
+            return {
+                "data": f"aug_data_var{self.aug_smiles_variations}_maxlen{self.n_token_limit}.pt"
+            }
         return {"data": f"aug_data_var{self.aug_smiles_variations}.pt"}
 
 
@@ -644,7 +663,7 @@ class ChEBIOverX(_ChEBIDataExtractor):
         """
         return f"ChEBI{self.THRESHOLD}"
 
-    def select_classes(self, g: nx.DiGraph, *args, **kwargs) -> List:
+    def select_classes(self, g: nx.DiGraph, *args, **kwargs) -> list:
         """
         Selects classes from the ChEBI dataset based on the number of successors meeting a specified threshold.
 
@@ -856,7 +875,7 @@ def chebi_to_int(s: str) -> int:
     return int(s[s.index(":") + 1 :])
 
 
-def term_callback(doc: fastobo.term.TermFrame) -> Union[Dict, bool]:
+def term_callback(doc: fastobo.term.TermFrame) -> Union[dict, bool]:
     """
     Extracts information from a ChEBI term document.
     This function takes a ChEBI term document as input and extracts relevant information such as the term ID, parents,
