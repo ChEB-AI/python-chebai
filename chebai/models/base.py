@@ -106,7 +106,8 @@ class ChebaiBaseNet(LightningModule, ABC):
         Returns:
             Tuple[torch.Tensor, torch.Tensor]: Predictions and labels.
         """
-        return output, labels
+        # cast labels to int
+        return output, labels.to(torch.int) if labels is not None else labels
 
     def _process_labels_in_batch(self, batch: XYData) -> torch.Tensor:
         """

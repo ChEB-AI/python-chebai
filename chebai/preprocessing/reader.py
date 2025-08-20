@@ -372,3 +372,33 @@ class OrdReader(DataReader):
     def _read_data(self, raw_data: str) -> List[int]:
         """Convert characters in raw data to their ordinal values."""
         return [ord(s) for s in raw_data]
+
+
+class FingerprintReader(DataReader):
+    """
+    Data reader for chemical data using RDKit fingerprints.
+
+    Args:
+        collator_kwargs: Optional dictionary of keyword arguments for the collator.
+        kwargs: Additional keyword arguments.
+    """
+
+    COLLATOR = DefaultCollator
+
+    def __init__(self, fingerprint_size=1024, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fingerprint_size = fingerprint_size
+
+    @classmethod
+    def name(cls) -> str:
+        """Returns the name of the data reader."""
+        return "rdkit_fingerprint"
+
+    def _read_data(self, raw_data: str) -> List[int]:
+        """Generate RDKit fingerprint from raw SMILES data."""
+        mol = Chem.MolFromSmiles(raw_data.strip())
+        if mol is None:
+            raise ValueError(f"Invalid SMILES: {raw_data}")
+        return list(
+            Chem.RDKFingerprint(mol, fpSize=self.fingerprint_size).ToBitString()
+        )

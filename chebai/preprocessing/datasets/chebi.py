@@ -809,6 +809,22 @@ class ChEBIOver50Partial(ChEBIOverXPartial, ChEBIOver50):
     pass
 
 
+class ChEBIOverXFingerprints(ChEBIOverX):
+    """A class that uses Fingerprints for the processed data (used for fixed-length ML models)."""
+
+    READER = dr.FingerprintReader
+
+
+class ChEBIOver100Fingerprints(ChEBIOverXFingerprints, ChEBIOver100):
+    """
+    A class for extracting data from the ChEBI dataset with Fingerprints reader and a threshold of 100.
+
+    Inherits from ChEBIOverXFingerprints and ChEBIOver100.
+    """
+
+    pass
+
+
 class JCIExtendedBPEData(JCIExtendedBase):
     READER = dr.ChemBPEReader
 
