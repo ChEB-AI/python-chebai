@@ -212,6 +212,78 @@ class PubChem(XYBaseDataModule):
             print("Done")
 
 
+class PubChemBatched(PubChem):
+    """Store train data as batches of 10m, validation and test should each be 100k max"""
+
+    def __init__(self, *args, **kwargs):
+        super(PubChemBatched, self).__init__(*args, **kwargs)
+        self.train_batch_size = 10_000_000
+        if self.k != self.FULL:
+            self.val_batch_size = (
+                100_000
+                if self.validation_split * self.k > 100_000
+                else int(self.validation_split * self.k)
+            )
+            self.test_batch_size = (
+                100_000
+                if self.test_split * self.k > 100_000
+                else int(self.test_split * self.k)
+            )
+        else:
+            self.val_batch_size = 100_000
+            self.test_batch_size = 100_000
+
+    @property
+    def processed_file_names(self) -> List[str]:
+        """
+        Returns:
+            List[str]: List of processed data file names.
+        """
+        train_samples = (
+            self._k if self._k != self.FULL else 120_000_000
+        )  # estimate size
+        train_samples -= self.val_batch_size + self.test_batch_size
+        train_batches = (
+            ["train.pt"]
+            if train_samples <= self.train_batch_size
+            else [
+                f"train_{i}.pt"
+                for i in range((train_samples // self.train_batch_size) + 1)
+            ]
+        )
+        return train_batches + ["test.pt", "validation.pt"]
+
+    def setup_processed(self):
+        """
+        Prepares processed data and saves them as Torch tensors.
+        """
+        filename = os.path.join(self.raw_dir, self.raw_file_names[0])
+        print("Load data from file", filename)
+        data = self._load_data_from_file(filename)
+        print("Create splits")
+        train, test = train_test_split(
+            data, test_size=self.test_batch_size + self.val_batch_size
+        )
+        del data
+        test, val = train_test_split(test, train_size=self.test_batch_size)
+        torch.save(test, os.path.join(self.processed_dir, "test.pt"))
+        torch.save(val, os.path.join(self.processed_dir, "validation.pt"))
+
+        # batch training if necessary
+        if len(train) > self.train_batch_size:
+            train_batches = [
+                train[i : i + self.train_batch_size]
+                for i in range(0, len(train), self.train_batch_size)
+            ]
+            train = [torch.tensor(batch) for batch in train_batches]
+            for i, batch in enumerate(train):
+                torch.save(batch, os.path.join(self.processed_dir, f"train_{i}.pt"))
+        else:
+            torch.save(train, os.path.join(self.processed_dir, "train.pt"))
+
+        self.reader.on_finish()
+
+
 class PubChemDissimilar(PubChem):
     """
     Subset of PubChem, but choosing the most dissimilar molecules (according to fingerprint)
