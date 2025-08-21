@@ -223,16 +223,16 @@ class PubChemBatched(PubChem):
         super(PubChemBatched, self).__init__(*args, **kwargs)
         self.pc_train_batch_idx = pc_train_batch_idx
         self.train_batch_size = train_batch_size
-        if self.k != self.FULL:
+        if self._k != self.FULL:
             self.val_batch_size = (
                 100_000
-                if self.validation_split * self.k > 100_000
-                else int(self.validation_split * self.k)
+                if self.validation_split * self._k > 100_000
+                else int(self.validation_split * self._k)
             )
             self.test_batch_size = (
                 100_000
-                if self.test_split * self.k > 100_000
-                else int(self.test_split * self.k)
+                if self.test_split * self._k > 100_000
+                else int(self.test_split * self._k)
             )
         else:
             self.val_batch_size = 100_000
