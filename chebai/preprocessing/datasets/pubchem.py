@@ -176,12 +176,16 @@ class PubChem(XYBaseDataModule):
         return ["smiles.txt"]
 
     @property
-    def processed_file_names(self) -> List[str]:
+    def processed_file_names_dict(self) -> List[str]:
         """
         Returns:
             List[str]: List of processed data file names.
         """
-        return ["test.pt", "train.pt", "validation.pt"]
+        return {
+            "train": "train.pt",
+            "test": "test.pt",
+            "validation": "validation.pt"
+        }
 
     def _set_processed_data_props(self):
         """
@@ -215,9 +219,12 @@ class PubChem(XYBaseDataModule):
 class PubChemBatched(PubChem):
     """Store train data as batches of 10m, validation and test should each be 100k max"""
 
-    def __init__(self, *args, **kwargs):
+    READER: Type[dr.ChemDataReader] = dr.ChemDataReader
+
+    def __init__(self, pc_train_batch_idx=0, train_batch_size=10_000_000, *args, **kwargs):
         super(PubChemBatched, self).__init__(*args, **kwargs)
-        self.train_batch_size = 10_000_000
+        self.pc_train_batch_idx = pc_train_batch_idx
+        self.train_batch_size = train_batch_size
         if self.k != self.FULL:
             self.val_batch_size = (
                 100_000
@@ -234,7 +241,7 @@ class PubChemBatched(PubChem):
             self.test_batch_size = 100_000
 
     @property
-    def processed_file_names(self) -> List[str]:
+    def processed_file_names_dict(self) -> List[str]:
         """
         Returns:
             List[str]: List of processed data file names.
@@ -244,14 +251,16 @@ class PubChemBatched(PubChem):
         )  # estimate size
         train_samples -= self.val_batch_size + self.test_batch_size
         train_batches = (
-            ["train.pt"]
+            {"train": "train.pt"}
             if train_samples <= self.train_batch_size
-            else [
-                f"train_{i}.pt"
+            else {
+                f"train" if i == self.pc_train_batch_idx else f"train_{i}": f"train_{i}.pt"
                 for i in range((train_samples // self.train_batch_size) + 1)
-            ]
+            }
         )
-        return train_batches + ["test.pt", "validation.pt"]
+        train_batches["test"] = "test.pt"
+        train_batches["validation"] = "validation.pt"
+        return train_batches
 
     def setup_processed(self):
         """
@@ -266,8 +275,8 @@ class PubChemBatched(PubChem):
         )
         del data
         test, val = train_test_split(test, train_size=self.test_batch_size)
-        torch.save(test, os.path.join(self.processed_dir, "test.pt"))
-        torch.save(val, os.path.join(self.processed_dir, "validation.pt"))
+        torch.save(test, os.path.join(self.processed_dir, self.processed_file_names_dict["test"]))
+        torch.save(val, os.path.join(self.processed_dir, self.processed_file_names_dict["validation"]))
 
         # batch training if necessary
         if len(train) > self.train_batch_size:
