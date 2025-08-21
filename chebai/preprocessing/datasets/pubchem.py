@@ -181,11 +181,7 @@ class PubChem(XYBaseDataModule):
         Returns:
             List[str]: List of processed data file names.
         """
-        return {
-            "train": "train.pt",
-            "test": "test.pt",
-            "validation": "validation.pt"
-        }
+        return {"train": "train.pt", "test": "test.pt", "validation": "validation.pt"}
 
     def _set_processed_data_props(self):
         """
@@ -221,7 +217,9 @@ class PubChemBatched(PubChem):
 
     READER: Type[dr.ChemDataReader] = dr.ChemDataReader
 
-    def __init__(self, pc_train_batch_idx=0, train_batch_size=10_000_000, *args, **kwargs):
+    def __init__(
+        self, pc_train_batch_idx=0, train_batch_size=10_000_000, *args, **kwargs
+    ):
         super(PubChemBatched, self).__init__(*args, **kwargs)
         self.pc_train_batch_idx = pc_train_batch_idx
         self.train_batch_size = train_batch_size
@@ -254,7 +252,9 @@ class PubChemBatched(PubChem):
             {"train": "train.pt"}
             if train_samples <= self.train_batch_size
             else {
-                f"train" if i == self.pc_train_batch_idx else f"train_{i}": f"train_{i}.pt"
+                (
+                    "train" if i == self.pc_train_batch_idx else f"train_{i}"
+                ): f"train_{i}.pt"
                 for i in range((train_samples // self.train_batch_size) + 1)
             }
         )
@@ -275,8 +275,16 @@ class PubChemBatched(PubChem):
         )
         del data
         test, val = train_test_split(test, train_size=self.test_batch_size)
-        torch.save(test, os.path.join(self.processed_dir, self.processed_file_names_dict["test"]))
-        torch.save(val, os.path.join(self.processed_dir, self.processed_file_names_dict["validation"]))
+        torch.save(
+            test,
+            os.path.join(self.processed_dir, self.processed_file_names_dict["test"]),
+        )
+        torch.save(
+            val,
+            os.path.join(
+                self.processed_dir, self.processed_file_names_dict["validation"]
+            ),
+        )
 
         # batch training if necessary
         if len(train) > self.train_batch_size:
