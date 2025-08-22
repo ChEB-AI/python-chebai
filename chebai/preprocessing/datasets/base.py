@@ -472,14 +472,17 @@ class XYBaseDataModule(LightningDataModule):
             - self._num_of_labels: Number of target labels in the dataset.
             - self._feature_vector_size: Maximum feature vector length across all data points.
         """
-        data_pt = torch.load(
-            os.path.join(self.processed_dir, self.processed_file_names_dict["data"]),
-            weights_only=False,
+        pt_file_path = os.path.join(
+            self.processed_dir, self.processed_file_names_dict["data"]
         )
+        data_pt = torch.load(pt_file_path, weights_only=False)
 
         self._num_of_labels = len(data_pt[0]["labels"])
         self._feature_vector_size = max(len(d["features"]) for d in data_pt)
 
+        print(
+            f"Number of samples in encoded data ({pt_file_path}): {len(data_pt)} samples"
+        )
         print(f"Number of labels for loaded data: {self._num_of_labels}")
         print(f"Feature vector size: {self._feature_vector_size}")
 
@@ -934,7 +937,9 @@ class _DynamicDataset(XYBaseDataModule, ABC):
             int: The size of the data.
         """
         with open(input_file_path, "rb") as f:
-            return len(pd.read_pickle(f))
+            df = pd.read_pickle(f)
+            print(f"Processed data size ({input_file_path}): {len(df)} rows")
+            return len(df)
 
     @abstractmethod
     def _load_dict(self, input_file_path: str) -> Generator[Dict[str, Any], None, None]:
