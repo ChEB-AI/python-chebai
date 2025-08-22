@@ -14,7 +14,7 @@ import pickle
 import random
 from abc import ABC
 from collections import OrderedDict
-from itertools import cycle
+from itertools import cycle, permutations, product
 from typing import Any, Generator, Optional, Union
 
 import fastobo
@@ -145,12 +145,13 @@ class _ChEBIDataExtractor(_DynamicDataset, ABC):
             assert (
                 int(aug_smiles_variations) > 0
             ), "Number of variations must be greater than 0"
+            aug_smiles_variations = int(aug_smiles_variations)
             reader_kwargs = kwargs.get("reader_kwargs", {})
             reader_kwargs["canonicalize_smiles"] = False
             kwargs["reader_kwargs"] = reader_kwargs
 
         self.augment_smiles = bool(augment_smiles)
-        self.aug_smiles_variations = int(aug_smiles_variations)
+        self.aug_smiles_variations = aug_smiles_variations
         # predict only single class (given as id of one of the classes present in the raw data set)
         self.single_class = single_class
         super(_ChEBIDataExtractor, self).__init__(**kwargs)
@@ -344,22 +345,44 @@ class _ChEBIDataExtractor(_DynamicDataset, ABC):
 
         def generate_augmented_smiles(smiles: str) -> list[str]:
             mol: Chem.Mol = Chem.MolFromSmiles(smiles)
-            atom_ids = [atom.GetIdx() for atom in mol.GetAtoms()]
-            random.shuffle(atom_ids)  # seed set by lightning
-            atom_id_iter = cycle(atom_ids)
-            augmented = {
-                Chem.MolToSmiles(mol, rootedAtAtom=next(atom_id_iter), doRandom=True)
-                for _ in range(AUG_SMILES_VARIATIONS)
-            }
-            augmented.add(smiles)
-            return list(augmented)
+            frags = Chem.GetMolFrags(mol, asMols=True, sanitizeFrags=False)
+            augmented = set()
 
-        data_df["augmented_smiles"] = data_df["SMILES"].apply(generate_augmented_smiles)
+            frag_smiles: list[set] = []
+            for frag in frags:
+                atom_ids = [atom.GetIdx() for atom in frag.GetAtoms()]
+                random.shuffle(atom_ids)  # seed set by lightning
+                atom_id_iter = cycle(atom_ids)
+                frag_smiles.append(
+                    {
+                        Chem.MolToSmiles(
+                            frag, rootedAtAtom=next(atom_id_iter), doRandom=True
+                        )
+                        for _ in range(AUG_SMILES_VARIATIONS)
+                    }
+                )
+            if len(frags) > 1:
+                # all permutations (ignoring the set order, meaning mixing sets in every order),
+                aug_counter: int = 0
+                for perm in permutations(frag_smiles):
+                    for combo in product(*perm):
+                        augmented.add(".".join(combo))
+                        aug_counter += 1
+                        if aug_counter >= AUG_SMILES_VARIATIONS:
+                            break
+                    if aug_counter >= AUG_SMILES_VARIATIONS:
+                        break
+            else:
+                augmented = frag_smiles[0]
+
+            return [smiles] + list(augmented)
+
+        data_df["SMILES"] = data_df["SMILES"].apply(generate_augmented_smiles)
 
         # Explode the list of augmented smiles into multiple rows
         # augmented smiles will have same ident, as of the original, but does it matter ?
-        exploded_df = data_df.explode("augmented_smiles").reset_index(drop=True)
-        exploded_df.rename(columns={"augmented_smiles": "SMILES"}, inplace=True)
+        # instead its helpful to group augmented smiles generated from the same original SMILES
+        exploded_df = data_df.explode("SMILES").reset_index(drop=True)
         self.save_processed(
             exploded_df, self.processed_main_file_names_dict["aug_data"]
         )
