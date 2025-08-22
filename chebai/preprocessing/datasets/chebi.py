@@ -343,6 +343,11 @@ class _ChEBIDataExtractor(_DynamicDataset, ABC):
 
         def generate_augmented_smiles(smiles: str) -> list[str]:
             mol: Chem.Mol = Chem.MolFromSmiles(smiles)
+            if mol is None:
+                return [smiles]  # if mol is None, return original SMILES
+
+            # sanitization set to False, as it can alter the fragment representation in ways you might not want.
+            # As we don’t want RDKit to "fix" fragments, only need the fragments as-is, to generate SMILES strings.
             frags = Chem.GetMolFrags(mol, asMols=True, sanitizeFrags=False)
             augmented = set()
 
