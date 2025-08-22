@@ -154,9 +154,13 @@ class PubChem(XYBaseDataModule):
         print("Load data from file", filename)
         data = self._load_data_from_file(filename)
         print("Create splits")
-        train, test = train_test_split(data, train_size=self.train_split)
+        train, test = train_test_split(
+            data, train_size=1 - (self.validation_split + self.test_split)
+        )
         del data
-        test, val = train_test_split(test, train_size=self.train_split)
+        test, val = train_test_split(
+            test, train_size=self.test_split / (self.validation_split + self.test_split)
+        )
         torch.save(train, os.path.join(self.processed_dir, "train.pt"))
         torch.save(test, os.path.join(self.processed_dir, "test.pt"))
         torch.save(val, os.path.join(self.processed_dir, "validation.pt"))
@@ -178,6 +182,21 @@ class PubChem(XYBaseDataModule):
             List[str]: List of processed data file names.
         """
         return ["test.pt", "train.pt", "validation.pt"]
+
+    def _set_processed_data_props(self):
+        """
+        Self-supervised learning with PubChem does not use this metadata, therefore set them to zero.
+
+        Sets:
+            - self._num_of_labels: 0
+            - self._feature_vector_size: 0.
+        """
+
+        self._num_of_labels = 0
+        self._feature_vector_size = 0
+
+        print(f"Number of labels for loaded data: {self._num_of_labels}")
+        print(f"Feature vector size: {self._feature_vector_size}")
 
     def _perform_data_preparation(self, *args, **kwargs):
         """
