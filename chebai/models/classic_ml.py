@@ -1,5 +1,6 @@
 from typing import Any, Dict
-
+import pickle as pkl
+import numpy as np
 import torch
 import tqdm
 from sklearn.exceptions import NotFittedError
@@ -15,7 +16,7 @@ class LogisticRegression(ChebaiBaseNet):
 
     def __init__(self, out_dim: int, input_dim: int, **kwargs):
         super().__init__(out_dim=out_dim, input_dim=input_dim, **kwargs)
-        self.models = [SklearnLogisticRegression(solver="liblinear") for _ in range(5)]
+        self.models = [SklearnLogisticRegression(solver="liblinear") for _ in range(out_dim)]
 
     def forward(self, x: Dict[str, Any], **kwargs) -> torch.Tensor:
         print(
@@ -56,7 +57,27 @@ class LogisticRegression(ChebaiBaseNet):
         Fit the underlying sklearn model. X and y should be numpy arrays.
         """
         for i, model in tqdm.tqdm(enumerate(self.models), desc="Fitting models"):
-            model.fit(X, y[:, i])
+            import os
+            if os.path.exists(f"LR_CHEBI100_model_{i}.pkl"):
+                print(f"Loading model {i} from file")
+                self.models[i] = pkl.load(open(f"LR_CHEBI100_model_{i}.pkl", "rb"))
+            else:
+                try:
+                    model.fit(X, y[:, i])
+                except ValueError as e:
+                    self.models[i] = PlaceholderModel()
+                # dump
+                pkl.dump(model, open(f"LR_CHEBI100_model_{i}.pkl", "wb"))
 
     def configure_optimizers(self, **kwargs):
         pass
+
+
+class PlaceholderModel:
+    """Acts like a trained model, but isn't. Use this if training fails and you need a placeholder."""
+
+    def __init__(self, default_prediction=1):
+        self.default_prediction = default_prediction
+
+    def predict(self, preds):
+        return np.ones(preds.shape[0]) * self.default_prediction
