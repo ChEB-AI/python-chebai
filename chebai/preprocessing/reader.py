@@ -205,8 +205,12 @@ class ChemDataReader(TokenIndexerReader):
             except Exception as e:
                 print(f"RDKit failed to process {raw_data}")
                 print(f"\t{e}")
-
-        return [self._get_token_index(v[1]) for v in _tokenize(raw_data)]
+        try:
+            return [self._get_token_index(v[1]) for v in _tokenize(raw_data)]
+        except ValueError as e:
+            print(f"could not process {raw_data}")
+            print(f"\t{e}")
+            return None
 
 
 class DeepChemDataReader(ChemDataReader):
