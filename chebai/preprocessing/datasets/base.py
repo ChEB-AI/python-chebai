@@ -742,6 +742,7 @@ class _DynamicDataset(XYBaseDataModule, ABC):
         self.splits_file_path = self._validate_splits_file_path(
             kwargs.get("splits_file_path", None)
         )
+        self._data_pkl_filename: str = "data.pkl"
 
     @staticmethod
     def _validate_splits_file_path(splits_file_path: Optional[str]) -> Optional[str]:
@@ -1241,7 +1242,7 @@ class _DynamicDataset(XYBaseDataModule, ABC):
             dict: A dictionary mapping dataset key to their respective file names.
                   For example, {"data": "data.pkl"}.
         """
-        return {"data": "data.pkl"}
+        return {"data": self._data_pkl_filename}
 
     @property
     def raw_file_names(self) -> List[str]:

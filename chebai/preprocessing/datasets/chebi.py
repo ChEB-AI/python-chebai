@@ -329,10 +329,10 @@ class _ChEBIDataExtractor(_DynamicDataset, ABC):
         if not self.augment_smiles:
             return
 
-        aug_data_df = self.get_processed_pickled_df_file(
-            self.processed_main_file_names_dict["aug_data"]
-        )
+        aug_pkl_file_name = self.processed_main_file_names_dict["aug_data"]
+        aug_data_df = self.get_processed_pickled_df_file(aug_pkl_file_name)
         if aug_data_df is not None:
+            self._data_pkl_filename = aug_pkl_file_name
             return
 
         data_df = self.get_processed_pickled_df_file(
@@ -389,6 +389,7 @@ class _ChEBIDataExtractor(_DynamicDataset, ABC):
         self.save_processed(
             exploded_df, self.processed_main_file_names_dict["aug_data"]
         )
+        self._data_pkl_filename = aug_pkl_file_name
 
     # ------------------------------ Phase: Setup data -----------------------------------
     def setup_processed(self) -> None:
