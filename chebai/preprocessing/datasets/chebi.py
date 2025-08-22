@@ -897,7 +897,7 @@ class ChEBIOverXPartial(ChEBIOverX):
         )
         return g
 
-    def select_classes(self, g: nx.DiGraph, *args, **kwargs) -> List:
+    def select_classes(self, g: nx.DiGraph, *args, **kwargs) -> list:
         """Only selects classes that meet the threshold AND are subclasses of the top class ID (including itself)."""
         smiles = nx.get_node_attributes(g, "smiles")
         nodes = list(
