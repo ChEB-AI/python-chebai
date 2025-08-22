@@ -18,7 +18,7 @@ class ChemLSTM(ChebaiBaseNet):
             **kwargs,
         )
         self.lstm = nn.LSTM(
-            in_d, out_d, batch_first=True, dropout=0.2, bidirectional=True
+            in_d, out_d, batch_first=True, dropout=0.2
         )
         self.embedding = nn.Embedding(1400, in_d)
         self.output = nn.Sequential(
