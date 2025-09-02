@@ -27,7 +27,6 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-linter = ["black", "isort", "pre-commit"]
 plot = ["matplotlib", "seaborn"]
 wandb = ["wandb"]
 
@@ -49,7 +48,10 @@ dev = [
     "omegaconf",
     "deepsmiles",
     "iterative-stratification",
-    "torchmetrics"
+    "torchmetrics",
+    "black",
+    "isort",
+    "pre-commit",
 ]
 
 
