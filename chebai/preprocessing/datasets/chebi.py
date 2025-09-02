@@ -146,6 +146,12 @@ class _ChEBIDataExtractor(_DynamicDataset, ABC):
                 int(aug_smiles_variations) > 0
             ), "Number of variations must be greater than 0"
             aug_smiles_variations = int(aug_smiles_variations)
+
+            if not kwargs.get("splits_file_path", None):
+                raise ValueError(
+                    "When using SMILES augmentation, a splits_file_path must be provided to ensure consistent splits."
+                )
+
             reader_kwargs = kwargs.get("reader_kwargs", {})
             reader_kwargs["canonicalize_smiles"] = False
             kwargs["reader_kwargs"] = reader_kwargs
