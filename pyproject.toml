@@ -15,7 +15,23 @@ maintainers = [
 readme = "README.md"
 license = { text = "AGPL-3.0" }
 requires-python = ">=3.9,<3.13"
+
 dependencies = [
+    "numpy",
+    "pandas",
+    "torch",
+    "transformers",
+    "pysmiles==1.1.2",
+    "rdkit",
+    "lightning>=2.5",
+]
+
+[project.optional-dependencies]
+linter = ["black", "isort", "pre-commit"]
+plot = ["matplotlib", "seaborn"]
+wandb = ["wandb"]
+
+dev = [
     "networkx",
     "numpy",
     "pandas",
@@ -36,20 +52,6 @@ dependencies = [
     "torchmetrics"
 ]
 
-[project.optional-dependencies]
-dev = ["black", "isort", "pre-commit"]
-plot = ["matplotlib", "seaborn"]
-wandb = ["wandb"]
-
-inference =  [
-    "numpy",
-    "pandas",
-    "torch",
-    "transformers",
-    "pysmiles==1.1.2",
-    "rdkit",
-    "lightning>=2.5",
-]
 
 [tool.setuptools]
 include-package-data = true
