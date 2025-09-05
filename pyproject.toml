@@ -28,7 +28,7 @@ dependencies = [
     "pysmiles==1.1.2",
     "rdkit",
     "selfies",
-    "lightning>=2.5",
+    "lightning<=2.5.1",
     "jsonargparse[signatures]>=4.17",
     "omegaconf",
     "deepsmiles",
