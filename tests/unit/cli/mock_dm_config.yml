@@ -1,1 +1,1 @@
-class_path: mock_dm.MyLightningDataModule
+class_path: tests.unit.cli.mock_dm.MyLightningDataModule
