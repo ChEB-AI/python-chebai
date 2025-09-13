@@ -49,6 +49,9 @@ dev = [
     "deepsmiles",
     "iterative-stratification",
     "torchmetrics",
+]
+
+linters = [
     "black",
     "isort",
     "pre-commit",
