@@ -11,7 +11,6 @@ class FFN(ChebaiBaseNet):
 
     def __init__(
         self,
-        input_size: int,
         hidden_layers: List[int] = [
             1024,
         ],
@@ -20,7 +19,7 @@ class FFN(ChebaiBaseNet):
         super().__init__(**kwargs)
 
         layers = []
-        current_layer_input_size = input_size
+        current_layer_input_size = self.input_dim
         for hidden_dim in hidden_layers:
             layers.append(MLPBlock(current_layer_input_size, hidden_dim))
             layers.append(Residual(MLPBlock(hidden_dim, hidden_dim)))
