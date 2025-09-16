@@ -62,9 +62,7 @@ class MacroF1(torchmetrics.Metric):
             labels (torch.Tensor): Ground truth labels.
         """
         tps = torch.sum(
-            torch.logical_and(
-                preds > self.threshold, labels.to(torch.bool)
-            ),
+            torch.logical_and(preds > self.threshold, labels.to(torch.bool)),
             dim=0,
         )
         self.true_positives += tps

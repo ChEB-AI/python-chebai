@@ -1,5 +1,6 @@
-from typing import Any, Dict
 import pickle as pkl
+from typing import Any, Dict
+
 import numpy as np
 import torch
 import tqdm
@@ -16,7 +17,9 @@ class LogisticRegression(ChebaiBaseNet):
 
     def __init__(self, out_dim: int, input_dim: int, **kwargs):
         super().__init__(out_dim=out_dim, input_dim=input_dim, **kwargs)
-        self.models = [SklearnLogisticRegression(solver="liblinear") for _ in range(out_dim)]
+        self.models = [
+            SklearnLogisticRegression(solver="liblinear") for _ in range(300)
+        ]
 
     def forward(self, x: Dict[str, Any], **kwargs) -> torch.Tensor:
         print(
@@ -24,33 +27,19 @@ class LogisticRegression(ChebaiBaseNet):
         )
         if self.training:
             self.fit_sklearn(x["features"], x["labels"])
-        try:
-            preds = [
-                torch.from_numpy(model.predict(x["features"]))
-                .to(
-                    x["features"].device
-                    if isinstance(x["features"], torch.Tensor)
-                    else "cpu"
-                )
-                .float()
-                for model in self.models
-            ]
-        except NotFittedError:
-            # Not fitted yet, return zeros
-            print(
-                f"returning default 0s with shape {(x['features'].shape[0], self.out_dim)}"
-            )
-            return torch.zeros(
-                (x["features"].shape[0], self.out_dim),
-                device=(
-                    x["features"].device
-                    if isinstance(x["features"], torch.Tensor)
-                    else "cpu"
-                ),
-            )
+        preds = []
+        for model in self.models:
+            try:
+                p = torch.from_numpy(model.predict(x["features"])).float()
+                p = p.to(x["features"].device)
+                preds.append(p)
+            except NotFittedError:
+                preds.append(torch.zeros((x["features"].shape[0], 1), device=(x["features"].device)))
+            except AttributeError:
+                preds.append(torch.zeros((x["features"].shape[0], 1), device=(x["features"].device)))
         preds = torch.stack(preds, dim=1)
         print(f"preds shape {preds.shape}")
-        return preds
+        return preds.squeeze(-1)
 
     def fit_sklearn(self, X, y):
         """
@@ -58,13 +47,14 @@ class LogisticRegression(ChebaiBaseNet):
         """
         for i, model in tqdm.tqdm(enumerate(self.models), desc="Fitting models"):
             import os
+
             if os.path.exists(f"LR_CHEBI100_model_{i}.pkl"):
                 print(f"Loading model {i} from file")
                 self.models[i] = pkl.load(open(f"LR_CHEBI100_model_{i}.pkl", "rb"))
             else:
                 try:
                     model.fit(X, y[:, i])
-                except ValueError as e:
+                except ValueError:
                     self.models[i] = PlaceholderModel()
                 # dump
                 pkl.dump(model, open(f"LR_CHEBI100_model_{i}.pkl", "wb"))
