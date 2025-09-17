@@ -313,12 +313,14 @@ class PubChemBatched(PubChem):
         )
         del data_not_tokenized
         test, val = train_test_split(test, train_size=self.test_batch_size)
+        # Save first (and only) test batch
         torch.save(
-            self._tokenize_batched(test),
+            next(self._tokenize_batched(test)),
             os.path.join(self.processed_dir, self.processed_file_names_dict["test"]),
         )
+        # save first (and only) validation batch
         torch.save(
-            self._tokenize_batched(val),
+            next(self._tokenize_batched(val)),
             os.path.join(
                 self.processed_dir, self.processed_file_names_dict["validation"]
             ),
@@ -330,7 +332,7 @@ class PubChemBatched(PubChem):
                 torch.save(batch, os.path.join(self.processed_dir, f"train_{i}.pt"))
         else:
             torch.save(
-                self._tokenize_batched(train),
+                next(self._tokenize_batched(train)),
                 os.path.join(self.processed_dir, "train.pt"),
             )
 
