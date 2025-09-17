@@ -285,9 +285,9 @@ class PubChemBatched(PubChem):
                     b
                     for b in batch
                     if b["features"] is not None
-                    and (self.n_token_limit is None
-                    or len(b["features"]) <= self.n_token_limit)
                 ]
+                if self.n_token_limit is not None:
+                    batch = [b for b in batch if len(b["features"]) <= self.n_token_limit]
                 yield batch
                 batch = []
         print("Saving final batch")
@@ -295,8 +295,9 @@ class PubChemBatched(PubChem):
             b
             for b in batch
             if b["features"] is not None
-            and (self.n_token_limit is None or len(b["features"]) <= self.n_token_limit)
         ]
+        if self.n_token_limit is not None:
+            batch = [b for b in batch if len(b["features"]) <= self.n_token_limit]
         yield batch
 
     def setup_processed(self):
