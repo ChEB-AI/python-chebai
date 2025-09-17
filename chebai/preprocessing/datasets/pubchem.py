@@ -262,25 +262,63 @@ class PubChemBatched(PubChem):
         train_batches["validation"] = "validation.pt"
         return train_batches
 
+    def _tokenize_batched(self, data):
+        """
+        Load data from a file and return a list of dictionaries, batched in 1,000,000 entries.
+
+        Args:
+            path (str): The path to the input file.
+            batch_size (int): The size of each batch.
+            batch_idx (int): The index of the batch to load.
+
+        Returns:
+            List: A list of dictionaries containing the features and labels.
+        """
+        print(f"Processing {len(data)} lines...")
+        batch = []
+        for i, d in enumerate(tqdm.tqdm(data, total=len(data))):
+            if d["features"] is not None:
+                batch.append(self.reader.to_data(d))
+            if i % 1_000_000 == 0 and i > 0:
+                print(f"Saving batch {i // 1_000_000}")
+                batch = [
+                    b
+                    for b in batch
+                    if b["features"] is not None
+                    and self.n_token_limit is None
+                    or len(b["features"]) <= self.n_token_limit
+                ]
+                yield batch
+                batch = []
+        print("Saving final batch")
+        batch = [
+            b
+            for b in batch
+            if b["features"] is not None
+            and self.n_token_limit is None
+            or len(b["features"]) <= self.n_token_limit
+        ]
+        yield batch
+
     def setup_processed(self):
         """
         Prepares processed data and saves them as Torch tensors.
         """
         filename = os.path.join(self.raw_dir, self.raw_file_names[0])
         print("Load data from file", filename)
-        data = self._load_data_from_file(filename)
+        data_not_tokenized = [entry for entry in self._load_dict(filename)]
         print("Create splits")
         train, test = train_test_split(
-            data, test_size=self.test_batch_size + self.val_batch_size
+            data_not_tokenized, test_size=self.test_batch_size + self.val_batch_size
         )
-        del data
+        del data_not_tokenized
         test, val = train_test_split(test, train_size=self.test_batch_size)
         torch.save(
-            test,
+            self._tokenize_batched(test),
             os.path.join(self.processed_dir, self.processed_file_names_dict["test"]),
         )
         torch.save(
-            val,
+            self._tokenize_batched(val),
             os.path.join(
                 self.processed_dir, self.processed_file_names_dict["validation"]
             ),
@@ -288,15 +326,13 @@ class PubChemBatched(PubChem):
 
         # batch training if necessary
         if len(train) > self.train_batch_size:
-            train_batches = [
-                train[i : i + self.train_batch_size]
-                for i in range(0, len(train), self.train_batch_size)
-            ]
-            train = [torch.tensor(batch) for batch in train_batches]
-            for i, batch in enumerate(train):
+            for i, batch in enumerate(self._tokenize_batched(train)):
                 torch.save(batch, os.path.join(self.processed_dir, f"train_{i}.pt"))
         else:
-            torch.save(train, os.path.join(self.processed_dir, "train.pt"))
+            torch.save(
+                self._tokenize_batched(train),
+                os.path.join(self.processed_dir, "train.pt"),
+            )
 
         self.reader.on_finish()
 
