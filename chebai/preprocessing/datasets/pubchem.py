@@ -285,8 +285,8 @@ class PubChemBatched(PubChem):
                     b
                     for b in batch
                     if b["features"] is not None
-                    and self.n_token_limit is None
-                    or len(b["features"]) <= self.n_token_limit
+                    and (self.n_token_limit is None
+                    or len(b["features"]) <= self.n_token_limit)
                 ]
                 yield batch
                 batch = []
@@ -295,8 +295,7 @@ class PubChemBatched(PubChem):
             b
             for b in batch
             if b["features"] is not None
-            and (self.n_token_limit is None
-            or len(b["features"]) <= self.n_token_limit)
+            and (self.n_token_limit is None or len(b["features"]) <= self.n_token_limit)
         ]
         yield batch
 
