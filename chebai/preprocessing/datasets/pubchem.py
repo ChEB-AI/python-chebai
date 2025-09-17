@@ -14,7 +14,7 @@ import shutil
 import tempfile
 import time
 from datetime import datetime
-from typing import Generator, List, Optional, Tuple, Type
+from typing import Generator, List, Optional, Tuple, Type, Union
 
 import numpy as np
 import pandas as pd
@@ -218,10 +218,10 @@ class PubChemBatched(PubChem):
     READER: Type[dr.ChemDataReader] = dr.ChemDataReader
 
     def __init__(
-        self, pc_train_batch_idx=0, train_batch_size=10_000_000, *args, **kwargs
+        self, train_batch_size=10_000_000, *args, **kwargs
     ):
         super(PubChemBatched, self).__init__(*args, **kwargs)
-        self.pc_train_batch_idx = pc_train_batch_idx
+        self.curr_epoch = 0
         self.train_batch_size = train_batch_size
         if self._k != self.FULL:
             self.val_batch_size = (
@@ -252,9 +252,7 @@ class PubChemBatched(PubChem):
             {"train": "train.pt"}
             if train_samples <= self.train_batch_size
             else {
-                (
-                    "train" if i == self.pc_train_batch_idx else f"train_{i}"
-                ): f"train_{i}.pt"
+                f"train_{i}": f"train_{i}.pt"
                 for i in range((train_samples // self.train_batch_size) + 1)
             }
         )
@@ -338,6 +336,24 @@ class PubChemBatched(PubChem):
 
         self.reader.on_finish()
 
+    def train_dataloader(self, *args, **kwargs) -> Union[DataLoader, List[DataLoader]]:
+        """
+        Returns the train DataLoader. This swaps the training batch for each epoch.
+
+        Args:
+            *args: Additional positional arguments.
+            **kwargs: Additional keyword arguments.
+
+        Returns:
+            DataLoader: A DataLoader object for training data.
+        """
+        return self.dataloader(
+            "train" if "train" in self.processed_file_names_dict else f"train_{self.curr_epoch}",
+            shuffle=True,
+            num_workers=self.num_workers,
+            persistent_workers=True,
+            **kwargs,
+        )
 
 class PubChemDissimilar(PubChem):
     """

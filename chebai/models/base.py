@@ -158,6 +158,11 @@ class ChebaiBaseNet(LightningModule, ABC):
             Tuple[torch.Tensor, torch.Tensor, Dict[str, Any]]: Model output, labels, and loss kwargs.
         """
         return model_output, labels, loss_kwargs
+    
+    def on_train_epoch_start(self) -> None:
+        # pass current epoch to datamodule if it has the attribute curr_epoch (for PubChemBatched dataset)
+        if hasattr(self.trainer.datamodule, "curr_epoch"):
+            self.trainer.datamodule.curr_epoch = self.current_epoch
 
     def training_step(
         self, batch: XYData, batch_idx: int
