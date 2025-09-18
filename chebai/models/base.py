@@ -316,6 +316,8 @@ class ChebaiBaseNet(LightningModule, ABC):
                 for metric_name, metric in metrics.items():
                     metric.update(pr, tar)
                 self._log_metrics(prefix, metrics, len(batch))
+        if isinstance(d, dict) and not "loss" in d:
+            print(f"d has keys {d.keys()}, log={log}, criterion={self.criterion}")
         return d
 
     def _log_metrics(self, prefix: str, metrics: torch.nn.Module, batch_size: int):
