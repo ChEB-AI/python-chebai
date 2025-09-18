@@ -256,6 +256,7 @@ class XYBaseDataModule(LightningDataModule):
         Returns:
             DataLoader: A DataLoader object.
         """
+        rank_zero_info(f"Loading {kind} data...")
         dataset = self.load_processed_data(kind)
         if "ids" in kwargs:
             ids = kwargs.pop("ids")
@@ -439,6 +440,7 @@ class XYBaseDataModule(LightningDataModule):
 
         rank_zero_info(f"Check for processed data in {self.processed_dir}")
         rank_zero_info(f"Cross-validation enabled: {self.use_inner_cross_validation}")
+        rank_zero_info(f"Looking for files: {self.processed_file_names}")
         if any(
             not os.path.isfile(os.path.join(self.processed_dir, f))
             for f in self.processed_file_names
