@@ -256,7 +256,9 @@ class XYBaseDataModule(LightningDataModule):
         Returns:
             DataLoader: A DataLoader object.
         """
-        rank_zero_info(f"Loading {kind} data... (datamodule.current_epoch={self.current_epoch})")
+        rank_zero_info(
+            f"Loading {kind} data... (datamodule.current_epoch={self.curr_epoch if hasattr(self, 'curr_epoch') else 'N/A'})"
+        )
         dataset = self.load_processed_data(kind)
         if "ids" in kwargs:
             ids = kwargs.pop("ids")
