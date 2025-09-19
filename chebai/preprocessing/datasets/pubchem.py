@@ -217,9 +217,7 @@ class PubChemBatched(PubChem):
 
     READER: Type[dr.ChemDataReader] = dr.ChemDataReader
 
-    def __init__(
-        self, train_batch_size=10_000_000, *args, **kwargs
-    ):
+    def __init__(self, train_batch_size=10_000_000, *args, **kwargs):
         super(PubChemBatched, self).__init__(*args, **kwargs)
         self.curr_epoch = 0
         self.train_batch_size = train_batch_size
@@ -245,7 +243,7 @@ class PubChemBatched(PubChem):
             List[str]: List of processed data file names.
         """
         train_samples = (
-            self._k if self._k != self.FULL else 120_000_000 # estimated PubChem size
+            self._k if self._k != self.FULL else 120_000_000  # estimated PubChem size
         )  # estimate size
         train_samples -= self.val_batch_size + self.test_batch_size
         train_batches = (
@@ -279,21 +277,15 @@ class PubChemBatched(PubChem):
                 batch.append(self.reader.to_data(d))
             if i % 1_000_000 == 0 and i > 0:
                 print(f"Saving batch {i // 1_000_000}")
-                batch = [
-                    b
-                    for b in batch
-                    if b["features"] is not None
-                ]
+                batch = [b for b in batch if b["features"] is not None]
                 if self.n_token_limit is not None:
-                    batch = [b for b in batch if len(b["features"]) <= self.n_token_limit]
+                    batch = [
+                        b for b in batch if len(b["features"]) <= self.n_token_limit
+                    ]
                 yield batch
                 batch = []
         print("Saving final batch")
-        batch = [
-            b
-            for b in batch
-            if b["features"] is not None
-        ]
+        batch = [b for b in batch if b["features"] is not None]
         if self.n_token_limit is not None:
             batch = [b for b in batch if len(b["features"]) <= self.n_token_limit]
         yield batch
@@ -348,12 +340,17 @@ class PubChemBatched(PubChem):
             DataLoader: A DataLoader object for training data.
         """
         return self.dataloader(
-            "train" if "train" in self.processed_file_names_dict else f"train_{self.curr_epoch}",
+            (
+                "train"
+                if "train" in self.processed_file_names_dict
+                else f"train_{self.curr_epoch}"
+            ),
             shuffle=True,
             num_workers=self.num_workers,
             persistent_workers=True,
             **kwargs,
         )
+
 
 class PubChemDissimilar(PubChem):
     """
