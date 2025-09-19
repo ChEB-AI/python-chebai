@@ -34,9 +34,17 @@ class LogisticRegression(ChebaiBaseNet):
                 p = p.to(x["features"].device)
                 preds.append(p)
             except NotFittedError:
-                preds.append(torch.zeros((x["features"].shape[0], 1), device=(x["features"].device)))
+                preds.append(
+                    torch.zeros(
+                        (x["features"].shape[0], 1), device=(x["features"].device)
+                    )
+                )
             except AttributeError:
-                preds.append(torch.zeros((x["features"].shape[0], 1), device=(x["features"].device)))
+                preds.append(
+                    torch.zeros(
+                        (x["features"].shape[0], 1), device=(x["features"].device)
+                    )
+                )
         preds = torch.stack(preds, dim=1)
         print(f"preds shape {preds.shape}")
         return preds.squeeze(-1)

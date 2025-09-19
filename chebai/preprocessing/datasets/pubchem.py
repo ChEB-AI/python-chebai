@@ -245,7 +245,7 @@ class PubChemBatched(PubChem):
             List[str]: List of processed data file names.
         """
         train_samples = (
-            self._k if self._k != self.FULL else 120_000_000
+            self._k if self._k != self.FULL else 120_000_000 # estimated PubChem size
         )  # estimate size
         train_samples -= self.val_batch_size + self.test_batch_size
         train_batches = (

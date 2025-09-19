@@ -1,10 +1,10 @@
 import logging
 from abc import ABC, abstractmethod
 from typing import Any, Dict, Iterable, Optional, Union
-from lightning.pytorch.utilities.rank_zero import rank_zero_info
 
 import torch
 from lightning.pytorch.core.module import LightningModule
+from lightning.pytorch.utilities.rank_zero import rank_zero_info
 
 from chebai.preprocessing.structures import XYData
 
