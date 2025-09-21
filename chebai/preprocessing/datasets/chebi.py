@@ -660,18 +660,6 @@ class _ChEBIDataExtractor(_DynamicDataset, ABC):
             }
         return {"data": f"aug_data_var{self.aug_smiles_variations}.pt"}
 
-    @property
-    def splits_file_name(self) -> str:
-        """
-        Returns the name of the splits file.
-
-        Returns:
-            str: The name of the splits file.
-        """
-        if self.augment_smiles:
-            return f"aug_splits_var{self.aug_smiles_variations}.csv"
-        return super().splits_file_name
-
 
 class JCIExtendedBase(_ChEBIDataExtractor):
     @property

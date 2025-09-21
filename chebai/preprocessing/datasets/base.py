@@ -1010,8 +1010,7 @@ class _DynamicDataset(XYBaseDataModule, ABC):
 
         combined_split_assignment = pd.concat(split_assignment_list, ignore_index=True)
         combined_split_assignment.to_csv(
-            os.path.join(self.processed_dir_main, self.splits_file_name),
-            index=False,
+            os.path.join(self.processed_dir_main, "splits.csv"), index=False
         )
 
         # Store the splits in class variables
@@ -1271,13 +1270,3 @@ class _DynamicDataset(XYBaseDataModule, ABC):
         if self.n_token_limit is not None:
             return {"data": f"data_maxlen{self.n_token_limit}.pt"}
         return {"data": "data.pt"}
-
-    @property
-    def splits_file_name(self) -> str:
-        """
-        Returns the name of the splits file.
-
-        Returns:
-            str: The name of the splits file.
-        """
-        return "splits.csv"
