@@ -2,14 +2,16 @@ import csv
 import math
 import os
 import pickle
-from typing import List, Literal, Union
+from typing import TYPE_CHECKING, List, Literal, Union
 
 import torch
 
 from chebai.loss.bce_weighted import BCEWeighted
 from chebai.preprocessing.datasets.base import XYBaseDataModule
 from chebai.preprocessing.datasets.chebi import ChEBIOver100, _ChEBIDataExtractor
-from chebai.preprocessing.datasets.pubchem import LabeledUnlabeledMixed
+
+if TYPE_CHECKING:
+    from chebai.preprocessing.datasets.pubchem import LabeledUnlabeledMixed
 
 
 class ImplicationLoss(torch.nn.Module):
@@ -68,6 +70,8 @@ class ImplicationLoss(torch.nn.Module):
         multiply_with_base_loss: bool = True,
         no_grads: bool = False,
     ):
+        from chebai.preprocessing.datasets.pubchem import LabeledUnlabeledMixed
+
         super().__init__()
         # automatically choose labeled subset for implication filter in case of mixed dataset
         if isinstance(data_extractor, LabeledUnlabeledMixed):
@@ -338,7 +342,7 @@ class DisjointLoss(ImplicationLoss):
     def __init__(
         self,
         path_to_disjointness: str,
-        data_extractor: Union[_ChEBIDataExtractor, LabeledUnlabeledMixed],
+        data_extractor: Union[_ChEBIDataExtractor, "LabeledUnlabeledMixed"],
         base_loss: torch.nn.Module = None,
         disjoint_loss_weight: float = 100,
         **kwargs,

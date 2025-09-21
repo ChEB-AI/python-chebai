@@ -15,17 +15,18 @@ import random
 from abc import ABC
 from collections import OrderedDict
 from itertools import cycle, permutations, product
-from typing import Any, Generator, Optional, Union
+from typing import TYPE_CHECKING, Any, Dict, Generator, List, Optional, Union
 
-import fastobo
-import networkx as nx
 import pandas as pd
-import requests
 import torch
 from rdkit import Chem
 
 from chebai.preprocessing import reader as dr
 from chebai.preprocessing.datasets.base import XYBaseDataModule, _DynamicDataset
+
+if TYPE_CHECKING:
+    import fastobo
+    import networkx as nx
 
 # exclude some entities from the dataset because the violate disjointness axioms
 CHEBI_BLACKLIST = [
@@ -236,6 +237,8 @@ class _ChEBIDataExtractor(_DynamicDataset, ABC):
         Returns:
             str: The file path of the loaded ChEBI ontology.
         """
+        import requests
+
         chebi_name = self.raw_file_names_dict["chebi"]
         chebi_path = os.path.join(self.raw_dir, chebi_name)
         if not os.path.isfile(chebi_path):
@@ -247,7 +250,7 @@ class _ChEBIDataExtractor(_DynamicDataset, ABC):
             open(chebi_path, "wb").write(r.content)
         return chebi_path
 
-    def _extract_class_hierarchy(self, data_path: str) -> nx.DiGraph:
+    def _extract_class_hierarchy(self, data_path: str) -> "nx.DiGraph":
         """
         Extracts the class hierarchy from the ChEBI ontology.
         Constructs a directed graph (DiGraph) using NetworkX, where nodes are annotated with fields/terms from
@@ -259,6 +262,9 @@ class _ChEBIDataExtractor(_DynamicDataset, ABC):
         Returns:
             nx.DiGraph: The class hierarchy.
         """
+        import fastobo
+        import networkx as nx
+
         with open(data_path, encoding="utf-8") as chebi:
             chebi = "\n".join(line for line in chebi if not line.startswith("xref:"))
 
@@ -286,7 +292,7 @@ class _ChEBIDataExtractor(_DynamicDataset, ABC):
         print("Compute transitive closure")
         return nx.transitive_closure_dag(g)
 
-    def _graph_to_raw_dataset(self, g: nx.DiGraph) -> pd.DataFrame:
+    def _graph_to_raw_dataset(self, g: "nx.DiGraph") -> pd.DataFrame:
         """
         Converts the graph to a raw dataset.
         Uses the graph created by `_extract_class_hierarchy` method to extract the
@@ -298,6 +304,8 @@ class _ChEBIDataExtractor(_DynamicDataset, ABC):
         Returns:
             pd.DataFrame: The raw dataset created from the graph.
         """
+        import networkx as nx
+
         smiles = nx.get_node_attributes(g, "smiles")
         names = nx.get_node_attributes(g, "name")
 
@@ -696,7 +704,7 @@ class ChEBIOverX(_ChEBIDataExtractor):
         """
         return f"ChEBI{self.THRESHOLD}"
 
-    def select_classes(self, g: nx.DiGraph, *args, **kwargs) -> list:
+    def select_classes(self, g: "nx.DiGraph", *args, **kwargs) -> List:
         """
         Selects classes from the ChEBI dataset based on the number of successors meeting a specified threshold.
 
@@ -721,6 +729,8 @@ class ChEBIOverX(_ChEBIDataExtractor):
             - The `THRESHOLD` attribute should be defined in the subclass of this class.
             - Nodes without a 'smiles' attribute are ignored in the successor count.
         """
+        import networkx as nx
+
         smiles = nx.get_node_attributes(g, "smiles")
         nodes = list(
             sorted(
@@ -859,7 +869,7 @@ class ChEBIOverXPartial(ChEBIOverX):
             "processed",
         )
 
-    def _extract_class_hierarchy(self, chebi_path: str) -> nx.DiGraph:
+    def _extract_class_hierarchy(self, chebi_path: str) -> "nx.DiGraph":
         """
         Extracts a subset of ChEBI based on subclasses of the top class ID.
 
@@ -897,8 +907,10 @@ class ChEBIOverXPartial(ChEBIOverX):
         )
         return g
 
-    def select_classes(self, g: nx.DiGraph, *args, **kwargs) -> list:
+    def select_classes(self, g: "nx.DiGraph", *args, **kwargs) -> List:
         """Only selects classes that meet the threshold AND are subclasses of the top class ID (including itself)."""
+        import networkx as nx
+
         smiles = nx.get_node_attributes(g, "smiles")
         nodes = list(
             sorted(
@@ -958,7 +970,7 @@ def chebi_to_int(s: str) -> int:
     return int(s[s.index(":") + 1 :])
 
 
-def term_callback(doc: fastobo.term.TermFrame) -> Union[dict, bool]:
+def term_callback(doc: "fastobo.term.TermFrame") -> Union[Dict, bool]:
     """
     Extracts information from a ChEBI term document.
     This function takes a ChEBI term document as input and extracts relevant information such as the term ID, parents,
@@ -975,6 +987,8 @@ def term_callback(doc: fastobo.term.TermFrame) -> Union[dict, bool]:
     - "name": The name of the ChEBI term.
     - "smiles": The SMILES string associated with the ChEBI term, if available.
     """
+    import fastobo
+
     parts = set()
     parents = []
     name = None

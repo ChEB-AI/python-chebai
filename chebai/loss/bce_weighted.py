@@ -5,7 +5,6 @@ import torch
 
 from chebai.preprocessing.datasets.base import XYBaseDataModule
 from chebai.preprocessing.datasets.chebi import _ChEBIDataExtractor
-from chebai.preprocessing.datasets.pubchem import LabeledUnlabeledMixed
 
 
 class BCEWeighted(torch.nn.BCEWithLogitsLoss):
@@ -27,6 +26,8 @@ class BCEWeighted(torch.nn.BCEWithLogitsLoss):
         data_extractor: Optional[XYBaseDataModule] = None,
         **kwargs,
     ):
+        from chebai.preprocessing.datasets.pubchem import LabeledUnlabeledMixed
+
         self.beta = beta
         if isinstance(data_extractor, LabeledUnlabeledMixed):
             data_extractor = data_extractor.labeled

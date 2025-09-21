@@ -2,23 +2,20 @@ import os
 import random
 from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import Any, Dict, Generator, List, Optional, Tuple, Union
+from typing import TYPE_CHECKING, Any, Dict, Generator, List, Optional, Tuple, Union
 
 import lightning as pl
-import networkx as nx
 import pandas as pd
 import torch
 import tqdm
-from iterstrat.ml_stratifiers import (
-    MultilabelStratifiedKFold,
-    MultilabelStratifiedShuffleSplit,
-)
 from lightning.pytorch.core.datamodule import LightningDataModule
 from lightning_utilities.core.rank_zero import rank_zero_info
-from sklearn.model_selection import StratifiedShuffleSplit
 from torch.utils.data import DataLoader
 
 from chebai.preprocessing import reader as dr
+
+if TYPE_CHECKING:
+    import networkx as nx
 
 
 class XYBaseDataModule(LightningDataModule):
@@ -830,7 +827,7 @@ class _DynamicDataset(XYBaseDataModule, ABC):
         pass
 
     @abstractmethod
-    def _extract_class_hierarchy(self, data_path: str) -> nx.DiGraph:
+    def _extract_class_hierarchy(self, data_path: str) -> "nx.DiGraph":
         """
         Extracts the class hierarchy from the data.
         Constructs a directed graph (DiGraph) using NetworkX, where nodes are annotated with fields/terms from
@@ -845,7 +842,7 @@ class _DynamicDataset(XYBaseDataModule, ABC):
         pass
 
     @abstractmethod
-    def _graph_to_raw_dataset(self, graph: nx.DiGraph) -> pd.DataFrame:
+    def _graph_to_raw_dataset(self, graph: "nx.DiGraph") -> pd.DataFrame:
         """
         Converts the graph to a raw dataset.
         Uses the graph created by `_extract_class_hierarchy` method to extract the
@@ -860,7 +857,7 @@ class _DynamicDataset(XYBaseDataModule, ABC):
         pass
 
     @abstractmethod
-    def select_classes(self, g: nx.DiGraph, *args, **kwargs) -> list:
+    def select_classes(self, g: "nx.DiGraph", *args, **kwargs) -> List:
         """
         Selects classes from the dataset based on a specified criteria.
 
@@ -1052,6 +1049,9 @@ class _DynamicDataset(XYBaseDataModule, ABC):
         Raises:
             ValueError: If the DataFrame does not contain a column named "labels".
         """
+        from iterstrat.ml_stratifiers import MultilabelStratifiedShuffleSplit
+        from sklearn.model_selection import StratifiedShuffleSplit
+
         print("Get test data split")
 
         labels_list = df["labels"].tolist()
@@ -1089,6 +1089,12 @@ class _DynamicDataset(XYBaseDataModule, ABC):
                 and validation DataFrames. The keys are the names of the train and validation sets, and the values
                 are the corresponding DataFrames.
         """
+        from iterstrat.ml_stratifiers import (
+            MultilabelStratifiedKFold,
+            MultilabelStratifiedShuffleSplit,
+        )
+        from sklearn.model_selection import StratifiedShuffleSplit
+
         print("Split dataset into train / val with given test set")
 
         test_ids = test_df["ident"].tolist()
