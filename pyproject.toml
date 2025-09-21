@@ -14,7 +14,7 @@ maintainers = [
 ]
 readme = "README.md"
 license = { text = "AGPL-3.0" }
-requires-python = ">=3.9,<3.13"
+requires-python = ">=3.10,<3.13"
 dependencies = [
     "networkx",
     "numpy",
@@ -28,7 +28,7 @@ dependencies = [
     "pysmiles==1.1.2",
     "rdkit",
     "selfies",
-    "lightning>=2.5",
+    "lightning<=2.5.1",
     "jsonargparse[signatures]>=4.17",
     "omegaconf",
     "deepsmiles",
