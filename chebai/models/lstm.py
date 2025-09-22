@@ -9,7 +9,7 @@ logging.getLogger("pysmiles").setLevel(logging.CRITICAL)
 
 
 class ChemLSTM(ChebaiBaseNet):
-    def __init__(self, out_d, in_d, num_classes, criterion: nn.Module = None, **kwargs):
+    def __init__(self, out_d, in_d, num_classes, criterion: nn.Module = None, num_layers=6, dropout=0.2, **kwargs):
         super().__init__(
             out_dim=out_d,
             input_dim=in_d,
@@ -17,7 +17,7 @@ class ChemLSTM(ChebaiBaseNet):
             num_classes=num_classes,
             **kwargs,
         )
-        self.lstm = nn.LSTM(in_d, out_d, batch_first=True, dropout=0.2)
+        self.lstm = nn.LSTM(in_d, out_d, batch_first=True, dropout=dropout, bidirectional=True, num_layers=num_layers)
         self.embedding = nn.Embedding(1400, in_d)
         self.output = nn.Sequential(
             nn.Linear(out_d, out_d),
