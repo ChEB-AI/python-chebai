@@ -217,7 +217,7 @@ class PubChemBatched(PubChem):
 
     READER: Type[dr.ChemDataReader] = dr.ChemDataReader
 
-    def __init__(self, train_batch_size=10_000_000, *args, **kwargs):
+    def __init__(self, train_batch_size=1_000_000, *args, **kwargs):
         super(PubChemBatched, self).__init__(*args, **kwargs)
         self.curr_epoch = 0
         self.train_batch_size = train_batch_size
@@ -275,8 +275,8 @@ class PubChemBatched(PubChem):
         for i, d in enumerate(tqdm.tqdm(data, total=len(data))):
             if d["features"] is not None:
                 batch.append(self.reader.to_data(d))
-            if i % 1_000_000 == 0 and i > 0:
-                print(f"Saving batch {i // 1_000_000}")
+            if i % self.train_batch_size == 0 and i > 0:
+                print(f"Saving batch {i // self.train_batch_size}")
                 batch = [b for b in batch if b["features"] is not None]
                 if self.n_token_limit is not None:
                     batch = [
