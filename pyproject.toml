@@ -14,32 +14,41 @@ maintainers = [
 ]
 readme = "README.md"
 license = { text = "AGPL-3.0" }
-requires-python = ">=3.9,<3.13"
+requires-python = ">=3.10,<3.13"
 dependencies = [
-    "networkx",
     "numpy",
     "pandas",
+    "torch",
+    "transformers",
+    "pysmiles==1.1.2",
+    "rdkit",
+    "lightning==2.5.1",
+]
+
+[project.optional-dependencies]
+plot = ["matplotlib", "seaborn"]
+wandb = ["wandb"]
+
+dev = [
+    "networkx",
     "requests",
     "scikit-learn",
     "scipy",
-    "torch",
-    "transformers",
     "fastobo",
-    "pysmiles==1.1.2",
-    "rdkit",
     "selfies",
-    "lightning>=2.5",
     "jsonargparse[signatures]>=4.17",
     "omegaconf",
     "deepsmiles",
     "iterative-stratification",
-    "torchmetrics"
+    "torchmetrics",
 ]
 
-[project.optional-dependencies]
-dev = ["black", "isort", "pre-commit"]
-plot = ["matplotlib", "seaborn"]
-wandb = ["wandb"]
+linters = [
+    "black",
+    "isort",
+    "pre-commit",
+]
+
 
 [tool.setuptools]
 include-package-data = true
@@ -47,7 +56,13 @@ license-files = ["LICEN[CS]E*"]
 
 [tool.setuptools.packages.find]
 where = ["."]
-exclude = ["tests*"]
+include = ["chebai*"]
 
 [tool.setuptools.package-data]
-"*" = ["**/*.txt", "**/*.json"]
+# Include essential config files and preprocessing tokens
+"chebai" = [
+    "preprocessing/bin/**/*.txt",
+    "preprocessing/bin/**/*.json",
+    "configs/**/*.yml",
+    "configs/**/*.yaml",
+]

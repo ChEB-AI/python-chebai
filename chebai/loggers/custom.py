@@ -2,7 +2,6 @@ import os
 from datetime import datetime
 from typing import List, Literal, Optional, Union
 
-import wandb
 from lightning.fabric.utilities.types import _PATH
 from lightning.pytorch.callbacks import ModelCheckpoint
 from lightning.pytorch.loggers import WandbLogger
@@ -105,6 +104,8 @@ class CustomLogger(WandbLogger):
         Args:
             fold (int): Cross-validation fold number.
         """
+        import wandb
+
         if fold != self._fold:
             self._fold = fold
             # Start new experiment
