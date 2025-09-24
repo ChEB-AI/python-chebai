@@ -4,8 +4,11 @@ from typing import Any, List, Optional, Tuple
 import pandas as pd
 import torch
 from lightning import LightningModule, Trainer
+from lightning.fabric.utilities.data import _set_sampler_epoch
 from lightning.fabric.utilities.types import _PATH
 from lightning.pytorch.loggers import WandbLogger
+from lightning.pytorch.loops.fit_loop import _FitLoop
+from lightning.pytorch.trainer import call
 from torch.nn.utils.rnn import pad_sequence
 
 from chebai.loggers.custom import CustomLogger
@@ -38,6 +41,9 @@ class CustomTrainer(Trainer):
                     log_key, log_value = self._resolve_logging_argument(key, value)
                     log_kwargs[log_key] = log_value
                 self.logger.log_hyperparams(log_kwargs)
+
+        # use custom fit loop (https://lightning.ai/docs/pytorch/LTS/extensions/loops.html#overriding-the-default-loops)
+        self.fit_loop = LoadDataLaterFitLoop(self, self.min_epochs, self.max_epochs)
 
     def _resolve_logging_argument(self, key: str, value: Any) -> Tuple[str, Any]:
         """
@@ -147,3 +153,35 @@ class CustomTrainer(Trainer):
 
         dirpath = self.strategy.broadcast(dirpath)
         return dirpath
+
+
+class LoadDataLaterFitLoop(_FitLoop):
+
+    def on_advance_start(self) -> None:
+        """Calls the hook ``on_train_epoch_start`` **before** the dataloaders are setup. This is necessary
+         so that the dataloaders can get information from the model. For example: The on_train_epoch_start
+        hook sets the curr_epoch attribute of the PubChemBatched dataset. With the Lightning configuration,
+        the dataloaders would always load batch 0 first, run an epoch, then get the epoch number (usually 0,
+        unless resuming from a checkpoint), then load batch 0 again (or some other batch). With this
+        implementation, the dataloaders are setup after the epoch number is set, so that the correct
+        batch is loaded."""
+        trainer = self.trainer
+
+        # update the epoch value for all samplers
+        assert self._combined_loader is not None
+        for i, dl in enumerate(self._combined_loader.flattened):
+            _set_sampler_epoch(dl, self.epoch_progress.current.processed)
+
+        self.restarted
+        if not self.restarted_mid_epoch and not self.restarted_on_epoch_end:
+            if not self.restarted_on_epoch_start:
+                self.epoch_progress.increment_ready()
+
+            call._call_callback_hooks(trainer, "on_train_epoch_start")
+            call._call_lightning_module_hook(trainer, "on_train_epoch_start")
+
+            self.epoch_progress.increment_started()
+
+        # this is usually at the front of advance_start, but here we need it at the end
+        # might need to setup data again depending on `trainer.reload_dataloaders_every_n_epochs`
+        self.setup_data()
