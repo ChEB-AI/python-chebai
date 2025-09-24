@@ -1,3 +1,4 @@
+import os
 import pickle as pkl
 from typing import Any, Dict, List, Optional
 
@@ -8,16 +9,23 @@ from sklearn.exceptions import NotFittedError
 from sklearn.linear_model import LogisticRegression as SklearnLogisticRegression
 
 from chebai.models.base import ChebaiBaseNet
-import os
 
 LR_MODEL_PATH = os.path.join("models", "LR")
+
 
 class LogisticRegression(ChebaiBaseNet):
     """
     Logistic Regression model using scikit-learn, wrapped to fit the ChebaiBaseNet interface.
     """
 
-    def __init__(self, out_dim: int, input_dim: int, only_predict_classes: Optional[List] = None, n_classes=1528, **kwargs):
+    def __init__(
+        self,
+        out_dim: int,
+        input_dim: int,
+        only_predict_classes: Optional[List] = None,
+        n_classes=1528,
+        **kwargs,
+    ):
         super().__init__(out_dim=out_dim, input_dim=input_dim, **kwargs)
         self.models = [
             SklearnLogisticRegression(solver="liblinear") for _ in range(n_classes)
@@ -39,15 +47,11 @@ class LogisticRegression(ChebaiBaseNet):
                 preds.append(p)
             except NotFittedError:
                 preds.append(
-                    torch.zeros(
-                        (x["features"].shape[0]), device=(x["features"].device)
-                    )
+                    torch.zeros((x["features"].shape[0]), device=(x["features"].device))
                 )
             except AttributeError:
                 preds.append(
-                    torch.zeros(
-                        (x["features"].shape[0]), device=(x["features"].device)
-                    )
+                    torch.zeros((x["features"].shape[0]), device=(x["features"].device))
                 )
         preds = torch.stack(preds, dim=1)
         print(f"preds shape {preds.shape}")
@@ -62,16 +66,22 @@ class LogisticRegression(ChebaiBaseNet):
 
             if os.path.exists(os.path.join(LR_MODEL_PATH, f"LR_model_{i}.pkl")):
                 print(f"Loading model {i} from file")
-                self.models[i] = pkl.load(open(os.path.join(LR_MODEL_PATH, f"LR_model_{i}.pkl"), "rb"))
+                self.models[i] = pkl.load(
+                    open(os.path.join(LR_MODEL_PATH, f"LR_model_{i}.pkl"), "rb")
+                )
             else:
-                if self.only_predict_classes and i not in self.only_predict_classes: # only try these classes
+                if (
+                    self.only_predict_classes and i not in self.only_predict_classes
+                ):  # only try these classes
                     continue
                 try:
                     model.fit(X, y[:, i])
                 except ValueError:
                     self.models[i] = PlaceholderModel()
                 # dump
-                pkl.dump(model, open(os.path.join(LR_MODEL_PATH, f"LR_model_{i}.pkl"), "wb"))
+                pkl.dump(
+                    model, open(os.path.join(LR_MODEL_PATH, f"LR_model_{i}.pkl"), "wb")
+                )
 
     def configure_optimizers(self, **kwargs):
         pass
