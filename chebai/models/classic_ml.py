@@ -1,5 +1,5 @@
 import pickle as pkl
-from typing import Any, Dict
+from typing import Any, Dict, List, Optional
 
 import numpy as np
 import torch
@@ -8,18 +8,22 @@ from sklearn.exceptions import NotFittedError
 from sklearn.linear_model import LogisticRegression as SklearnLogisticRegression
 
 from chebai.models.base import ChebaiBaseNet
+import os
 
+LR_MODEL_PATH = os.path.join("models", "LR")
 
 class LogisticRegression(ChebaiBaseNet):
     """
     Logistic Regression model using scikit-learn, wrapped to fit the ChebaiBaseNet interface.
     """
 
-    def __init__(self, out_dim: int, input_dim: int, **kwargs):
+    def __init__(self, out_dim: int, input_dim: int, only_predict_classes: Optional[List] = None, n_classes=1528, **kwargs):
         super().__init__(out_dim=out_dim, input_dim=input_dim, **kwargs)
         self.models = [
-            SklearnLogisticRegression(solver="liblinear") for _ in range(300)
+            SklearnLogisticRegression(solver="liblinear") for _ in range(n_classes)
         ]
+        # indices of classes (in the dataset used for training) where a model should be trained
+        self.only_predict_classes = only_predict_classes
 
     def forward(self, x: Dict[str, Any], **kwargs) -> torch.Tensor:
         print(
@@ -36,13 +40,13 @@ class LogisticRegression(ChebaiBaseNet):
             except NotFittedError:
                 preds.append(
                     torch.zeros(
-                        (x["features"].shape[0], 1), device=(x["features"].device)
+                        (x["features"].shape[0]), device=(x["features"].device)
                     )
                 )
             except AttributeError:
                 preds.append(
                     torch.zeros(
-                        (x["features"].shape[0], 1), device=(x["features"].device)
+                        (x["features"].shape[0]), device=(x["features"].device)
                     )
                 )
         preds = torch.stack(preds, dim=1)
@@ -56,16 +60,18 @@ class LogisticRegression(ChebaiBaseNet):
         for i, model in tqdm.tqdm(enumerate(self.models), desc="Fitting models"):
             import os
 
-            if os.path.exists(f"LR_CHEBI100_model_{i}.pkl"):
+            if os.path.exists(os.path.join(LR_MODEL_PATH, f"LR_model_{i}.pkl")):
                 print(f"Loading model {i} from file")
-                self.models[i] = pkl.load(open(f"LR_CHEBI100_model_{i}.pkl", "rb"))
+                self.models[i] = pkl.load(open(os.path.join(LR_MODEL_PATH, f"LR_model_{i}.pkl"), "rb"))
             else:
+                if self.only_predict_classes and i not in self.only_predict_classes: # only try these classes
+                    continue
                 try:
                     model.fit(X, y[:, i])
                 except ValueError:
                     self.models[i] = PlaceholderModel()
                 # dump
-                pkl.dump(model, open(f"LR_CHEBI100_model_{i}.pkl", "wb"))
+                pkl.dump(model, open(os.path.join(LR_MODEL_PATH, f"LR_model_{i}.pkl"), "wb"))
 
     def configure_optimizers(self, **kwargs):
         pass
