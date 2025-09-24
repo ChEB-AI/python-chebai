@@ -251,7 +251,7 @@ class PubChemBatched(PubChem):
             if train_samples <= self.train_batch_size
             else {
                 f"train_{i}": f"train_{i}.pt"
-                for i in range((train_samples // self.train_batch_size) + 1)
+                for i in range(train_samples // self.train_batch_size)
             }
         )
         train_batches["test"] = "test.pt"
@@ -276,7 +276,7 @@ class PubChemBatched(PubChem):
             if d["features"] is not None:
                 batch.append(self.reader.to_data(d))
             if i % self.train_batch_size == 0 and i > 0:
-                print(f"Saving batch {i // self.train_batch_size}")
+                print(f"Generating batch {i // self.train_batch_size - 1}")
                 batch = [b for b in batch if b["features"] is not None]
                 if self.n_token_limit is not None:
                     batch = [
@@ -284,7 +284,7 @@ class PubChemBatched(PubChem):
                     ]
                 yield batch
                 batch = []
-        print("Saving final batch")
+        print("Generating final batch")
         batch = [b for b in batch if b["features"] is not None]
         if self.n_token_limit is not None:
             batch = [b for b in batch if len(b["features"]) <= self.n_token_limit]
