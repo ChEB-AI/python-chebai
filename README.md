@@ -78,8 +78,21 @@ The `classes_path` is the path to the dataset's `raw/classes.txt` file that cont
 
 ## Evaluation
 
-An example for evaluating a model trained on the ontology extension task is given in `tutorials/eval_model_basic.ipynb`.
-It takes in the finetuned model as input for performing the evaluation.
+You can evaluate a model trained on the ontology extension task in one of two ways:
+
+### 1. Using the Jupyter Notebook
+An example notebook is provided at `tutorials/eval_model_basic.ipynb`.  
+- Load your finetuned model and run the evaluation cells to compute metrics on the test set.
+
+### 2. Using the Lightning CLI
+Alternatively, you can evaluate the model via the CLI:
+
+```bash
+python -m chebai test --trainer=configs/training/default_trainer.yml --trainer.devices=1 --trainer.num_nodes=1 --ckpt_path=[path-to-finetuned-model] --model=configs/model/electra.yml --model.test_metrics=configs/metrics/micro-macro-f1.yml --data=configs/data/chebi/chebi50.yml --data.init_args.batch_size=32 --data.init_args.num_workers=10 --data.init_args.chebi_version=[chebi-version] --model.pass_loss_kwargs=false --model.criterion=configs/loss/bce.yml --model.criterion.init_args.beta=0.99 --data.init_args.splits_file_path=[path-to-splits-file]
+```
+
+> **Note**: It is recommended to use `devices=1` and `num_nodes=1` during testing; multi-device settings use a `DistributedSampler`, which may replicate some samples to maintain equal batch sizes, so using a single device ensures that each sample or batch is evaluated exactly once.
+
 
 ## Cross-validation
 You can do inner k-fold cross-validation, i.e., train models on k train-validation splits that all use the same test
