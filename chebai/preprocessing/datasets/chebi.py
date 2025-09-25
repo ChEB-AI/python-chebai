@@ -149,6 +149,8 @@ class _ChEBIDataExtractor(_DynamicDataset, ABC):
     ):
         # predict only single class (given as id of one of the classes present in the raw data set)
         self.single_class = single_class
+        self.subset = subset
+
         super(_ChEBIDataExtractor, self).__init__(**kwargs)
         # use different version of chebi for training and validation (if not None)
         # (still uses self.chebi_version for test set)
@@ -163,8 +165,6 @@ class _ChEBIDataExtractor(_DynamicDataset, ABC):
                 single_class=self.single_class,
                 **_init_kwargs,
             )
-
-        self.subset = subset
 
     # ------------------------------ Phase: Prepare data -----------------------------------
     def _perform_data_preparation(self, *args: Any, **kwargs: Any) -> None:
