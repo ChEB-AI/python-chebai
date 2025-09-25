@@ -172,7 +172,6 @@ class LoadDataLaterFitLoop(_FitLoop):
         for i, dl in enumerate(self._combined_loader.flattened):
             _set_sampler_epoch(dl, self.epoch_progress.current.processed)
 
-        self.restarted
         if not self.restarted_mid_epoch and not self.restarted_on_epoch_end:
             if not self.restarted_on_epoch_start:
                 self.epoch_progress.increment_ready()
