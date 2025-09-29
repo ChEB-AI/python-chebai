@@ -1,6 +1,0 @@
-class_path: chebai.loggers.custom.CustomLogger # Extension of Wandb logger
-init_args:
-  save_dir: /Users/ctumes/Cheb-AI/muv/runs_no_onto/
-  project: 'chebai-muv'
-  entity: 'ch-tumescheit-university-of-zurich'
-  log_model: 'all'

@@ -1,6 +1,0 @@
-class_path: chebai.loggers.custom.CustomLogger # Extension of Wandb logger
-init_args:
-  save_dir: /Users/ctumes/Cheb-AI/freesolv/runs_onto/
-  project: 'chebai-freesolv'
-  entity: 'ch-tumescheit-university-of-zurich'
-  log_model: 'all'
