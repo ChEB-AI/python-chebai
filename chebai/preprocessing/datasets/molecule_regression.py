@@ -13,12 +13,13 @@ from sklearn.model_selection import GroupShuffleSplit, train_test_split
 import numpy as np
 import pysmiles
 import torch
-from sklearn.preprocessing import LabelBinarizer 
+from sklearn.preprocessing import LabelBinarizer
 
 from chebai.preprocessing import reader as dr
 from chebai.preprocessing.datasets.base import MergedDataset, XYBaseDataModule
 from chebai.preprocessing.datasets.chebi import JCIExtendedTokenData
 from chebai.preprocessing.datasets.pubchem import Hazardous
+
 
 class Lipo(XYBaseDataModule):
     HEADERS = [
@@ -42,11 +43,12 @@ class Lipo(XYBaseDataModule):
         return ["test.pt", "train.pt", "validation.pt"]
 
     def download(self):
-        # download 
+        # download
         with open(os.path.join(self.raw_dir, "Lipo.csv"), "ab") as dst:
-            with request.urlopen(f"https://deepchemdata.s3-us-west-1.amazonaws.com/datasets/Lipophilicity.csv",) as src:
+            with request.urlopen(
+                f"https://deepchemdata.s3-us-west-1.amazonaws.com/datasets/Lipophilicity.csv",
+            ) as src:
                 shutil.copyfileobj(src, dst)
-             
 
     def setup_processed(self):
         print("Create splits")
@@ -76,10 +78,12 @@ class Lipo(XYBaseDataModule):
             for f in self.raw_file_names
         ):
             self.download()
-        print([
-            not os.path.isfile(os.path.join(self.processed_dir, f))
-            for f in self.processed_file_names
-        ])
+        print(
+            [
+                not os.path.isfile(os.path.join(self.processed_dir, f))
+                for f in self.processed_file_names
+            ]
+        )
         if any(
             not os.path.isfile(os.path.join(self.processed_dir, f))
             for f in self.processed_file_names
@@ -104,7 +108,7 @@ class Lipo(XYBaseDataModule):
                 smiles_l.append(row["smiles"])
                 labels_l.append(float(row["exp"]))
 
-        for i in range(0,len(smiles_l)):
+        for i in range(0, len(smiles_l)):
             yield dict(features=smiles_l[i], labels=[labels_l[i]], ident=i)
             # yield self.reader.to_data(dict(features=smiles_l[i], labels=[labels_l[i]], ident=i))
 
@@ -131,15 +135,18 @@ class FreeSolv(XYBaseDataModule):
         return ["test.pt", "train.pt", "validation.pt"]
 
     def download(self):
-        # download 
+        # download
         with open(os.path.join(self.raw_dir, "FreeSolv.csv"), "ab") as dst:
-            with request.urlopen(f"https://deepchemdata.s3-us-west-1.amazonaws.com/datasets/SAMPL.csv",) as src:
+            with request.urlopen(
+                f"https://deepchemdata.s3-us-west-1.amazonaws.com/datasets/SAMPL.csv",
+            ) as src:
                 shutil.copyfileobj(src, dst)
-             
 
     def setup_processed(self):
         print("Create splits")
-        data = list(self._load_data_from_file(os.path.join(self.raw_dir, f"FreeSolv.csv")))
+        data = list(
+            self._load_data_from_file(os.path.join(self.raw_dir, f"FreeSolv.csv"))
+        )
         print(len(data))
         if 0 == 0:
             train_split, test_split = train_test_split(
@@ -165,10 +172,12 @@ class FreeSolv(XYBaseDataModule):
             for f in self.raw_file_names
         ):
             self.download()
-        print([
-            not os.path.isfile(os.path.join(self.processed_dir, f))
-            for f in self.processed_file_names
-        ])
+        print(
+            [
+                not os.path.isfile(os.path.join(self.processed_dir, f))
+                for f in self.processed_file_names
+            ]
+        )
         if any(
             not os.path.isfile(os.path.join(self.processed_dir, f))
             for f in self.processed_file_names
@@ -193,7 +202,7 @@ class FreeSolv(XYBaseDataModule):
                 smiles_l.append(row["smiles"])
                 labels_l.append(float(row["expt"]))
 
-        for i in range(0,len(smiles_l)):
+        for i in range(0, len(smiles_l)):
             yield dict(features=smiles_l[i], labels=[labels_l[i]], ident=i)
             # yield self.reader.to_data(dict(features=smiles_l[i], labels=[labels_l[i]], ident=i))
 
@@ -202,6 +211,7 @@ class LipoChem(Lipo):
     """Chemical data reader for the solubility dataset."""
 
     READER = dr.ChemDataReader
+
 
 class FreeSolvChem(FreeSolv):
     """Chemical data reader for the solubility dataset."""

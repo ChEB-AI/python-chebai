@@ -79,7 +79,6 @@ class ChebaiPredictionWriter(BasePredictionWriter):
                 labels = labels.tolist()
             else:
                 labels = [None for _ in idents]
-            # todo: here adjust for regression !!!
             output = torch.sigmoid(p["output"]["logits"]).tolist()
             for i, l, o in zip(idents, labels, output):
                 pred_list.append(dict(ident=i, labels=l, predictions=o))

@@ -12,7 +12,7 @@ from torchmetrics.classification import (
     BinaryF1Score,
     BinaryAUROC,
     BinaryAveragePrecision,
-    MultilabelAveragePrecision
+    MultilabelAveragePrecision,
 )
 
 from chebai.callbacks.epoch_metrics import BalancedAccuracy, MacroF1
@@ -111,16 +111,18 @@ def print_metrics(
         f'Found {len(zeros)} classes with F1-score == 0 (and non-zero labels): {", ".join(zeros)}'
     )
 
+
 def metrics_classification_multilabel(
     preds: Tensor,
     labels: Tensor,
-    device: torch.device,):
+    device: torch.device,
+):
 
     if device != labels.device:
         device = labels.device
 
     my_bal_acc = BalancedAccuracy(preds.shape[1]).to(device=device)
- 
+
     bal_acc = my_bal_acc(preds, labels).cpu().numpy()
     my_f1_macro = MultilabelF1Score(preds.shape[1], average="micro").to(device=device)
     f1_micro = MacroF1(preds.shape[1]).to(device=device)
@@ -134,10 +136,12 @@ def metrics_classification_multilabel(
 
     return auc_roc, macro_f1, micro_f1, bal_acc, prc_auc
 
+
 def metrics_classification_binary(
     preds: Tensor,
     labels: Tensor,
-    device: torch.device,):
+    device: torch.device,
+):
 
     if device != labels.device:
         device = labels.device
@@ -146,7 +150,7 @@ def metrics_classification_binary(
     my_f1 = BinaryF1Score().to(device=device)
     my_av_prec = BinaryAveragePrecision().to(device=device)
     my_bal_acc = BalancedAccuracy(preds.shape[1]).to(device=device)
- 
+
     bal_acc = my_bal_acc(preds, labels).cpu().numpy()
     auc_roc = my_auc_roc(preds, labels).cpu().numpy()
     # my_auc_roc.update(preds.cpu()[:, 0], labels.cpu()[:, 0])

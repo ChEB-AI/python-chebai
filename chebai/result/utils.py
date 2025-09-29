@@ -168,6 +168,7 @@ def evaluate_model(
                 os.path.join(buffer_dir, f"labels{save_ind:03d}.pt"),
             )
 
+
 def evaluate_model_regression(
     model: ChebaiBaseNet,
     data_module: XYBaseDataModule,

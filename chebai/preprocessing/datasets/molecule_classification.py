@@ -9,16 +9,21 @@ import zipfile
 from typing import Dict, Generator, List, Optional
 
 from rdkit import Chem
-from sklearn.model_selection import GroupShuffleSplit, train_test_split, StratifiedShuffleSplit
+from sklearn.model_selection import (
+    GroupShuffleSplit,
+    train_test_split,
+    StratifiedShuffleSplit,
+)
 import numpy as np
 import pysmiles
 import torch
-from sklearn.preprocessing import LabelBinarizer 
+from sklearn.preprocessing import LabelBinarizer
 
 from chebai.preprocessing import reader as dr
 from chebai.preprocessing.datasets.base import MergedDataset, XYBaseDataModule
 from chebai.preprocessing.datasets.chebi import JCIExtendedTokenData
 from chebai.preprocessing.datasets.pubchem import Hazardous
+
 
 class ClinTox(XYBaseDataModule):
     """Data module for ClinTox MoleculeNet dataset."""
@@ -56,13 +61,19 @@ class ClinTox(XYBaseDataModule):
                 gout.name,
             )
             with gzip.open(gout.name) as gfile:
-                with open(os.path.join(self.raw_dir, "clintox_groups4.csv"), "wt") as fout:
+                with open(
+                    os.path.join(self.raw_dir, "clintox_groups4.csv"), "wt"
+                ) as fout:
                     fout.write(gfile.read().decode())
 
     def setup_processed(self) -> None:
         """Processes and splits the dataset."""
         print("Create splits")
-        data = list(self._load_data_from_file(os.path.join(self.raw_dir, f"clintox_groups4.csv")))
+        data = list(
+            self._load_data_from_file(
+                os.path.join(self.raw_dir, f"clintox_groups4.csv")
+            )
+        )
         groups = np.array([d["group"] for d in data])
         if not all(g is None for g in groups):
             split_size = int(len(set(groups)) * self.train_split)
@@ -83,12 +94,10 @@ class ClinTox(XYBaseDataModule):
             )
             train_split = [data[i] for i in train_split_index]
             test_split = [
-                d
-                for d in (data[temp_split_index[i]] for i in test_split_index)
+                d for d in (data[temp_split_index[i]] for i in test_split_index)
             ]
             validation_split = [
-                d
-                for d in (data[temp_split_index[i]] for i in validation_split_index)
+                d for d in (data[temp_split_index[i]] for i in validation_split_index)
             ]
         else:
             # print(self.train_split)
@@ -188,20 +197,22 @@ class BBBP(XYBaseDataModule):
         return ["test.pt", "train.pt", "validation.pt"]
 
     def download(self) -> None:
-        
         """Downloads and extracts the dataset."""
         with open(os.path.join(self.raw_dir, "bbbp.csv"), "ab") as dst:
-            with request.urlopen(f"https://deepchemdata.s3-us-west-1.amazonaws.com/datasets/BBBP.csv",) as src:
+            with request.urlopen(
+                f"https://deepchemdata.s3-us-west-1.amazonaws.com/datasets/BBBP.csv",
+            ) as src:
                 shutil.copyfileobj(src, dst)
-
 
     def setup_processed(self) -> None:
         """Processes and splits the dataset."""
         print("Create splits")
-        data = list(self._load_data_from_file(os.path.join(self.raw_dir, f"bbbp_groups4.csv")))
+        data = list(
+            self._load_data_from_file(os.path.join(self.raw_dir, f"bbbp_groups4.csv"))
+        )
         groups = np.array([d["group"] for d in data])
         if not all(g is None for g in groups):
-            print('Group shuffled')
+            print("Group shuffled")
             split_size = int(len(set(groups)) * self.train_split)
             os.makedirs(self.processed_dir, exist_ok=True)
             splitter = GroupShuffleSplit(train_size=split_size, n_splits=1)
@@ -231,11 +242,11 @@ class BBBP(XYBaseDataModule):
             ]
         else:
             train_split, test_split = train_test_split(
-                    data, train_size=self.train_split, shuffle=True
-                )
+                data, train_size=self.train_split, shuffle=True
+            )
             test_split, validation_split = train_test_split(
-                    test_split, train_size=0.5, shuffle=True
-                )
+                test_split, train_size=0.5, shuffle=True
+            )
         for k, split in [
             ("test", test_split),
             ("train", train_split),
@@ -280,21 +291,38 @@ class BBBP(XYBaseDataModule):
                 yield dict(features=smiles, labels=labels, ident=i, group=group)
                 # yield self.reader.to_data(dict(features=smiles, labels=labels, ident=i))
 
+
 class Sider(XYBaseDataModule):
     """Data module for ClinTox MoleculeNet dataset."""
 
     HEADERS = [
-	    "Hepatobiliary disorders", "Metabolism and nutrition disorders",	"Product issues", "Eye disorders","Investigations",
-        "Musculoskeletal and connective tissue disorders", "Gastrointestinal disorders", "Social circumstances",
-        "Immune system disorders", "Reproductive system and breast disorders",
-        "Neoplasms benign, malignant and unspecified (incl cysts and polyps)", 
+        "Hepatobiliary disorders",
+        "Metabolism and nutrition disorders",
+        "Product issues",
+        "Eye disorders",
+        "Investigations",
+        "Musculoskeletal and connective tissue disorders",
+        "Gastrointestinal disorders",
+        "Social circumstances",
+        "Immune system disorders",
+        "Reproductive system and breast disorders",
+        "Neoplasms benign, malignant and unspecified (incl cysts and polyps)",
         "General disorders and administration site conditions",
-        "Endocrine disorders",	"Surgical and medical procedures",	"Vascular disorders", "Blood and lymphatic system disorders", 
-        "Skin and subcutaneous tissue disorders",	"Congenital, familial and genetic disorders",
-        "Infections and infestations",	"Respiratory, thoracic and mediastinal disorders",	"Psychiatric disorders", 
-        "Renal and urinary disorders",	"Pregnancy, puerperium and perinatal conditions",
-        "Ear and labyrinth disorders", "Cardiac disorders",	"Nervous system disorders",	
-        "Injury, poisoning and procedural complications"
+        "Endocrine disorders",
+        "Surgical and medical procedures",
+        "Vascular disorders",
+        "Blood and lymphatic system disorders",
+        "Skin and subcutaneous tissue disorders",
+        "Congenital, familial and genetic disorders",
+        "Infections and infestations",
+        "Respiratory, thoracic and mediastinal disorders",
+        "Psychiatric disorders",
+        "Renal and urinary disorders",
+        "Pregnancy, puerperium and perinatal conditions",
+        "Ear and labyrinth disorders",
+        "Cardiac disorders",
+        "Nervous system disorders",
+        "Injury, poisoning and procedural complications",
     ]
 
     @property
@@ -331,7 +359,9 @@ class Sider(XYBaseDataModule):
     def setup_processed(self) -> None:
         """Processes and splits the dataset."""
         print("Create splits")
-        data = list(self._load_data_from_file(os.path.join(self.raw_dir, f"sider_groups4.csv")))
+        data = list(
+            self._load_data_from_file(os.path.join(self.raw_dir, f"sider_groups4.csv"))
+        )
         groups = np.array([d["group"] for d in data])
         if not all(g is None for g in groups):
             split_size = int(len(set(groups)) * self.train_split)
@@ -414,6 +444,7 @@ class Sider(XYBaseDataModule):
                 yield dict(features=smiles, labels=labels, ident=i, group=group)
                 # yield self.reader.to_data(dict(features=smiles, labels=labels, ident=i))
 
+
 class Bace(XYBaseDataModule):
     """Data module for ClinTox MoleculeNet dataset."""
 
@@ -443,12 +474,12 @@ class Bace(XYBaseDataModule):
         return ["test.pt", "train.pt", "validation.pt"]
 
     def download(self) -> None:
-        
         """Downloads and extracts the dataset."""
         with open(os.path.join(self.raw_dir, "bace.csv"), "ab") as dst:
-            with request.urlopen(f"https://deepchemdata.s3-us-west-1.amazonaws.com/datasets/bace.csv",) as src:
+            with request.urlopen(
+                f"https://deepchemdata.s3-us-west-1.amazonaws.com/datasets/bace.csv",
+            ) as src:
                 shutil.copyfileobj(src, dst)
-
 
     def setup_processed(self) -> None:
         """Processes and splits the dataset."""
@@ -484,11 +515,11 @@ class Bace(XYBaseDataModule):
         #     ]
         # else:
         train_split, test_split = train_test_split(
-                    data, train_size=self.train_split, shuffle=True
-                )
+            data, train_size=self.train_split, shuffle=True
+        )
         test_split, validation_split = train_test_split(
-                    test_split, train_size=0.5, shuffle=True
-            )
+            test_split, train_size=0.5, shuffle=True
+        )
         for k, split in [
             ("test", test_split),
             ("train", train_split),
@@ -530,8 +561,9 @@ class Bace(XYBaseDataModule):
                 smiles = row["mol"]
                 labels = [int(row["Class"])]
                 # group = row["group"]
-                yield dict(features=smiles, labels=labels, ident=i) # , group=group
+                yield dict(features=smiles, labels=labels, ident=i)  # , group=group
                 # yield self.reader.to_data(dict(features=smiles, labels=labels, ident=i))
+
 
 class HIV(XYBaseDataModule):
     """Data module for ClinTox MoleculeNet dataset."""
@@ -561,20 +593,22 @@ class HIV(XYBaseDataModule):
         return ["test.pt", "train.pt", "validation.pt"]
 
     def download(self) -> None:
-        
         """Downloads and extracts the dataset."""
         with open(os.path.join(self.raw_dir, "hiv_groups4"), "ab") as dst:
-            with request.urlopen(f"https://deepchemdata.s3-us-west-1.amazonaws.com/datasets/HIV.csv",) as src:
+            with request.urlopen(
+                f"https://deepchemdata.s3-us-west-1.amazonaws.com/datasets/HIV.csv",
+            ) as src:
                 shutil.copyfileobj(src, dst)
-
 
     def setup_processed(self) -> None:
         """Processes and splits the dataset."""
         print("Create splits")
-        data = list(self._load_data_from_file(os.path.join(self.raw_dir, f"hiv_groups4.csv")))
+        data = list(
+            self._load_data_from_file(os.path.join(self.raw_dir, f"hiv_groups4.csv"))
+        )
         groups = np.array([d["group"] for d in data])
         if not all(g is None for g in groups):
-            print('Group shuffled')
+            print("Group shuffled")
             split_size = int(len(set(groups)) * self.train_split)
             os.makedirs(self.processed_dir, exist_ok=True)
             splitter = GroupShuffleSplit(train_size=split_size, n_splits=1)
@@ -593,20 +627,18 @@ class HIV(XYBaseDataModule):
             )
             train_split = [data[i] for i in train_split_index]
             test_split = [
-                d
-                for d in (data[temp_split_index[i]] for i in test_split_index)
+                d for d in (data[temp_split_index[i]] for i in test_split_index)
             ]
             validation_split = [
-                d
-                for d in (data[temp_split_index[i]] for i in validation_split_index)
+                d for d in (data[temp_split_index[i]] for i in validation_split_index)
             ]
         else:
             train_split, test_split = train_test_split(
-                    data, train_size=self.train_split, shuffle=True
-                )
+                data, train_size=self.train_split, shuffle=True
+            )
             test_split, validation_split = train_test_split(
-                    test_split, train_size=0.5, shuffle=True
-                )
+                test_split, train_size=0.5, shuffle=True
+            )
         for k, split in [
             ("test", test_split),
             ("train", train_split),
@@ -657,9 +689,23 @@ class MUV(XYBaseDataModule):
     """Data module for ClinTox MoleculeNet dataset."""
 
     HEADERS = [
-        "MUV-466","MUV-548","MUV-600","MUV-644","MUV-652","MUV-689",
-        "MUV-692","MUV-712","MUV-713","MUV-733","MUV-737","MUV-810",
-        "MUV-832","MUV-846","MUV-852","MUV-858","MUV-859"
+        "MUV-466",
+        "MUV-548",
+        "MUV-600",
+        "MUV-644",
+        "MUV-652",
+        "MUV-689",
+        "MUV-692",
+        "MUV-712",
+        "MUV-713",
+        "MUV-733",
+        "MUV-737",
+        "MUV-810",
+        "MUV-832",
+        "MUV-846",
+        "MUV-852",
+        "MUV-858",
+        "MUV-859",
     ]
 
     @property
@@ -776,14 +822,15 @@ class MUV(XYBaseDataModule):
                     bool(int(l)) if l else None for l in (row[k] for k in self.HEADERS)
                 ]
                 # group = row["group"]
-                yield dict(features=smiles, labels=labels, ident=i)# , group=group)
+                yield dict(features=smiles, labels=labels, ident=i)  # , group=group)
                 # yield self.reader.to_data(dict(features=smiles, labels=labels, ident=i))
 
 
 class BaceChem(Bace):
     """Chemical data reader for Tox21MolNet dataset."""
 
-    READER = dr.ChemDataReader        
+    READER = dr.ChemDataReader
+
 
 class SiderChem(Sider):
     """Chemical data reader for Tox21MolNet dataset."""
@@ -807,6 +854,7 @@ class HIVChem(HIV):
     """Chemical data reader for Tox21MolNet dataset."""
 
     READER = dr.ChemDataReader
+
 
 class MUVChem(MUV):
     """Chemical data reader for Tox21MolNet dataset."""

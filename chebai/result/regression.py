@@ -54,15 +54,15 @@ def metrics_regression(
     """
     mse = MeanSquaredError()
     mse = mse.to(labels.device)
-    
-    rmse = MeanSquaredError(squared = False)
+
+    rmse = MeanSquaredError(squared=False)
     rmse = rmse.to(labels.device)
 
-    return(mse(preds, labels), rmse(preds, labels))
+    return (mse(preds, labels), rmse(preds, labels))
 
     # print(f"Micro-F1: {f1_micro(preds, labels):3f}")
     # print(f"Balanced Accuracy: {my_bal_acc(preds, labels):3f}")
-  
+
     # if markdown_output:
     #     print(
     #         f"| Model | MSE | RMSE | Macro-Precision | Micro-Precision | Macro-Recall | Micro-Recall | Balanced Accuracy"

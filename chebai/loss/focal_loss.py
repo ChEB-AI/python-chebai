@@ -5,13 +5,14 @@ import torch.nn.functional as F
 
 # from https://github.com/itakurah/Focal-loss-PyTorch
 
+
 class FocalLoss(nn.Module):
     def __init__(
-        self, 
-        gamma=2, 
-        alpha=None, 
-        reduction='mean', 
-        task_type='binary', 
+        self,
+        gamma=2,
+        alpha=None,
+        reduction="mean",
+        task_type="binary",
         num_classes=None,
     ):
         """
@@ -31,8 +32,8 @@ class FocalLoss(nn.Module):
 
         # Handle alpha for class balancing in multi-class tasks
         if (
-            task_type == "multi-class" 
-            and alpha is not None 
+            task_type == "multi-class"
+            and alpha is not None
             and isinstance(alpha, (list, torch.Tensor))
         ):
             assert (
@@ -149,4 +150,3 @@ class FocalLoss(nn.Module):
         elif self.reduction == "sum":
             return loss.sum()
         return loss
-    

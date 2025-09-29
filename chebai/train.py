@@ -46,8 +46,6 @@ def eval_model(
         for batch in dataset:
             for molecule, label in batch:
                 model_outputs = model(molecule)
-                # todo: this is also just for classification, adjust to regression
-                print("THESE SHOULD BE PROBAS (in train.py):", model_outputs)
                 prediction = [1.0 if i > 0.5 else 0.0 for i in model_outputs]
                 predictions.append(prediction)
                 raw_values.append(model_outputs)
@@ -95,7 +93,7 @@ def crawl_info(
 
 
 def collate(
-    batch: List[Tuple[Molecule, torch.Tensor]]
+    batch: List[Tuple[Molecule, torch.Tensor]],
 ) -> Tuple[List[Molecule], torch.Tensor]:
     """
     Collate function for DataLoader.
@@ -148,8 +146,6 @@ def _execute(
         prediction = model(molecules)
         loss = loss_fn(prediction, labels)
         data_size += 1
-        # todo: this is also just for classification, adjust to regression
-        print("THESE SHOULD BE PROBAS (in train.py):", prediction)
         f1 += f1_score(prediction > 0.5, labels > 0.5, average="micro")
         train_running_loss += loss.item()
 

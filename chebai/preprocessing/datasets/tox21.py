@@ -10,7 +10,11 @@ from urllib import request
 import numpy as np
 import torch
 from rdkit import Chem
-from sklearn.model_selection import GroupShuffleSplit, train_test_split, StratifiedShuffleSplit
+from sklearn.model_selection import (
+    GroupShuffleSplit,
+    train_test_split,
+    StratifiedShuffleSplit,
+)
 
 from chebai.preprocessing import reader as dr
 from chebai.preprocessing.datasets.base import XYBaseDataModule
@@ -69,7 +73,11 @@ class Tox21MolNet(XYBaseDataModule):
     def setup_processed(self) -> None:
         """Processes and splits the dataset."""
         print("Create splits")
-        data = list(self._load_data_from_file(os.path.join(self.raw_dir, f"tox21_groups_04.csv")))
+        data = list(
+            self._load_data_from_file(
+                os.path.join(self.raw_dir, f"tox21_groups_04.csv")
+            )
+        )
         groups = np.array([d.get("group") for d in data])
 
         if not all(g is None for g in groups):
@@ -146,10 +154,13 @@ class Tox21MolNet(XYBaseDataModule):
             for row in reader:
                 smiles = row["smiles"]
                 labels = [
-                    bool(int(float(l))) if len(l) > 1 else None for l in (row[k] for k in self.HEADERS)
+                    bool(int(float(l))) if len(l) > 1 else None
+                    for l in (row[k] for k in self.HEADERS)
                 ]
                 group = int(row["group"])
-                yield dict(features=smiles, labels=labels, ident=row["mol_id"], group=group)
+                yield dict(
+                    features=smiles, labels=labels, ident=row["mol_id"], group=group
+                )
                 # yield self.reader.to_data(dict(features=smiles, labels=labels, ident=row["mol_id"]))
 
 

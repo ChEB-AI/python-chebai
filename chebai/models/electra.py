@@ -327,17 +327,22 @@ class Electra(ChebaiBaseNet):
         if self.model_type == "classification":
             # print(self.model_type, ' in electra 324')
             # for mulitclass here softmax instead of sigmoid
-            d = torch.sigmoid(d) # changing this made a difference for the roc-auc but not the f1, why?
+            d = torch.sigmoid(
+                d
+            )  # changing this made a difference for the roc-auc but not the f1, why?
             if "missing_labels" in loss_kwargs:
                 missing_labels = loss_kwargs["missing_labels"]
-                d = d * (~missing_labels).int().to(device=d.device) # we set the prob of missing labels to 0
-                labels = labels * (~missing_labels).int().to(device=d.device) # we set the labels of missing labels to 0
+                d = d * (~missing_labels).int().to(
+                    device=d.device
+                )  # we set the prob of missing labels to 0
+                labels = labels * (~missing_labels).int().to(
+                    device=d.device
+                )  # we set the labels of missing labels to 0
             return d, labels.int() if labels is not None else None
-        elif self.model_type == 'regression':
+        elif self.model_type == "regression":
             return d, labels
         else:
-            raise ValueError('Please specify a valid model type in your model config.')
-
+            raise ValueError("Please specify a valid model type in your model config.")
 
     def forward(self, data: Dict[str, Tensor], **kwargs: Any) -> Dict[str, Any]:
         """
