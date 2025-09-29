@@ -231,7 +231,7 @@ class Electra(ChebaiBaseNet):
         config: Optional[Dict[str, Any]] = None,
         pretrained_checkpoint: Optional[str] = None,
         load_prefix: Optional[str] = None,
-        model_type='classification',
+        model_type="classification",
         **kwargs: Any,
     ):
         # Remove this property in order to prevent it from being stored as a
@@ -324,7 +324,7 @@ class Electra(ChebaiBaseNet):
         if "non_null_labels" in loss_kwargs:
             n = loss_kwargs["non_null_labels"]
             d = d[n]
-        if self.model_type == 'classification':
+        if self.model_type == "classification":
             # print(self.model_type, ' in electra 324')
             # for mulitclass here softmax instead of sigmoid
             d = torch.sigmoid(d) # changing this made a difference for the roc-auc but not the f1, why?

@@ -88,7 +88,7 @@ class RaggedCollator(Collator):
             )
             missing_labels = [
                 d.get("missing_labels", [False for _ in y[0]]) for d in data
-                ]
+            ]
 
         if any(x is not None for x in y):
             # If any label is not None: (None, None, `1`, None)

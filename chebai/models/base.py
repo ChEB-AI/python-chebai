@@ -246,7 +246,9 @@ class ChebaiBaseNet(LightningModule):
             predictions, and loss (if applicable).
         """
         assert isinstance(batch, XYData)
-        batch = batch.to(self.device) # if this is in lightning why do we need to do .to(device)? see https://lightning.ai/docs/pytorch/stable/common/lightning_module.html
+        batch = batch.to(
+            self.device
+        )
         data = self._process_batch(batch, batch_idx)
         labels = data["labels"]
         model_output = self(data, **data.get("model_kwargs", dict()))
@@ -260,7 +262,6 @@ class ChebaiBaseNet(LightningModule):
                 loss_kwargs = dict()
                 if self.pass_loss_kwargs:
                     loss_kwargs = loss_kwargs_candidates
-                # todo: fix this and make it conditional 
                 # loss_kwargs["current_epoch"] = self.trainer.current_epoch
                 loss = self.criterion(loss_data, loss_labels, **loss_kwargs)
                 if isinstance(loss, tuple):
