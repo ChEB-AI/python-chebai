@@ -60,7 +60,8 @@ def find_weight(path:str,ident:int)-> float:
                 
     print(f"{ident} is not in file ")
 
-
+#to do 
+# return should be a tuple of weigths matching the sequenece of the target and label tensor
 def create_data_weights(batchsize:int,dim:int,weights:dict[str,float],idents:tuple[int,...])-> torch.tensor:
     weight = torch.empty(batchsize,dim)
     index = 0
@@ -76,6 +77,9 @@ def create_data_weights(batchsize:int,dim:int,weights:dict[str,float],idents:tup
 def testing():
     print("hello world")
 
+#create a tensor that is size (1,n) where n is the amout of classes being predicted
+def create_weight_tensor(weight:float)-> torch.tensor:
+    pass
 
 
 
