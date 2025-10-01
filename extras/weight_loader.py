@@ -6,6 +6,7 @@ import os
 #inint weights in a csv file
 def init_weights(path="../weights/first_it.csv",path_to_split="../split/splits.csv"):
     if not os.path.exists("../weights/first_it.csv"):
+        print("init weights ....")
         with open(path_to_split, 'r') as csvfile:
             with open(path, 'w') as to_file:
                 fieldnames = ['idents','label','weights']
