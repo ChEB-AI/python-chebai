@@ -5,13 +5,13 @@ sys.path.insert(1,'/home/programmer/Bachelorarbeit/python-chebai')
 import extras.weight_loader as f
 
 
-class BCE_Point_boosting(torch.nn.BCEWithLogitsLoss):
+class BCE_Boosting(torch.nn.BCEWithLogitsLoss):
     
     def __init__(
         self,
         **kwargs
     ):
-        super().__init__(reduction=None,**kwargs)
+        super().__init__(reduction='none',**kwargs)
 
     def forward(
             self,
@@ -22,11 +22,5 @@ class BCE_Point_boosting(torch.nn.BCEWithLogitsLoss):
     )-> torch.Tensor:
         weights = kwargs['weights']
         loss = super().forward(input=input,target=target)
-        weights_tensor = f.create_weight_tensor(weights)
-        loss_scaled = torch.matmul(weights_tensor,loss)
+        loss_scaled = loss * weights
         return torch.mean(loss_scaled)
-
-        
-        
-        
-        

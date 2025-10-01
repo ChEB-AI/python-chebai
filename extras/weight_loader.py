@@ -31,7 +31,7 @@ def mock_init_weights(path="/home/programmer/Bachelorarbeit/weights/first_it.csv
 
 #check the size of a csv file given a filter for the second object
 # assumes csv file has a header      
-def get_size(path="/home/programmer/Bachelorarbeit/split/splits.csv",filter=["train","validation"]) -> int:
+def get_size(path="/home/programmer/Bachelorarbeit/split/splits.csv",filter=["train"]) -> int:
     with open(path,'r') as file:
         reader = csv.reader(file)
         size = -1
@@ -57,18 +57,27 @@ def find_weight(path:str,ident:int)-> float:
             if row[0] == str(ident):
                 return float(row[2])
             
-                
-    print(f"{ident} is not in file ")
+    label = find_label(id=ident)
+    print(f"{ident} is not in file with {label} ")
+
+def find_label(id:int,path="/home/programmer/Bachelorarbeit/split/splits.csv")-> str:
+    with open(path,'r') as file:
+        reader = csv.reader(file)
+        for row in reader:
+            if row[0] == str(id):
+                return row[1]
+
 
 #to do 
 # return should be a tuple of weigths matching the sequenece of the target and label tensor
 def create_data_weights(batchsize:int,dim:int,weights:dict[str,float],idents:tuple[int,...])-> torch.tensor:
-    weight = torch.empty(batchsize,dim)
+    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+    weight = torch.empty(batchsize,dim,device=device)
     index = 0
     for i in idents:
         w = weights[str(i)]
         for j in range(0,dim):
-            weight[index][j] = w
+            weight[index][j] = float(w)
         index = index + 1
     return weight
 
@@ -90,6 +99,6 @@ def create_weight_tensor(weight:float)-> torch.tensor:
 def create_class_weights()-> torch.tensor:
     pass
 
-# mock_init_weights()
+mock_init_weights()
 # print(get_weights((233713,51990)))
 

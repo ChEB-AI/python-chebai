@@ -7,6 +7,11 @@ from lightning.pytorch.core.module import LightningModule
 
 from chebai.preprocessing.structures import XYData
 
+import sys
+sys.path.insert(1,'/home/programmer/Bachelorarbeit/python-chebai')
+
+import extras.weight_loader as f
+
 logging.getLogger("pysmiles").setLevel(logging.CRITICAL)
 
 _MODEL_REGISTRY = dict()
@@ -264,6 +269,8 @@ class ChebaiBaseNet(LightningModule, ABC):
                 loss_kwargs = dict()
                 if self.pass_loss_kwargs:
                     loss_kwargs = loss_kwargs_candidates
+                dict_weights = f.get_weights(data['idents'])
+                loss_kwargs['weights'] = f.create_data_weights(len(data['idents']),data['labels'].size(dim=1),dict_weights,data['idents'])
                 loss_kwargs["current_epoch"] = self.trainer.current_epoch
                 loss = self.criterion(loss_data, loss_labels, **loss_kwargs)
                 if isinstance(loss, tuple):
