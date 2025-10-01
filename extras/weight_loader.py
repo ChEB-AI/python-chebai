@@ -1,22 +1,24 @@
 import csv
 import torch
+import os
 
 
 #inint weights in a csv file
-def init_weights(path="/home/programmer/Bachelorarbeit/weights/first_it.csv",path_to_split="/home/programmer/Bachelorarbeit/split/splits.csv"):
-    with open(path_to_split, 'r') as csvfile:
-        with open(path, 'w') as to_file:
-            fieldnames = ['idents','label','weights']
-            writer = csv.writer(to_file)
-            writer.writerow(fieldnames)
-            reader = csv.reader(csvfile)
-            weight = 1 / get_size(path_to_split)
-            for row in reader:
-                if row[1] == "train" or row[1] == "validation":
-                    #print(type(row[0]))
-                    writer.writerow([int(row[0]),row[1],weight])
+def init_weights(path="../weights/first_it.csv",path_to_split="../split/splits.csv"):
+    if not os.path.exists("../weights/first_it.csv"):
+        with open(path_to_split, 'r') as csvfile:
+            with open(path, 'w') as to_file:
+                fieldnames = ['idents','label','weights']
+                writer = csv.writer(to_file)
+                writer.writerow(fieldnames)
+                reader = csv.reader(csvfile)
+                weight = 1 / get_size(path_to_split)
+                for row in reader:
+                    if row[1] == "train" or row[1] == "validation":
+                        #print(type(row[0]))
+                        writer.writerow([int(row[0]),row[1],weight])
 
-def mock_init_weights(path="/home/programmer/Bachelorarbeit/weights/first_it.csv",path_to_split="/home/programmer/Bachelorarbeit/split/splits.csv"):
+def mock_init_weights(path="../weights/first_it.csv",path_to_split="../split/splits.csv"):
     with open(path_to_split, 'r') as csvfile:
         with open(path, 'w') as to_file:
             fieldnames = ['idents','label','weights']
@@ -31,7 +33,7 @@ def mock_init_weights(path="/home/programmer/Bachelorarbeit/weights/first_it.csv
 
 #check the size of a csv file given a filter for the second object
 # assumes csv file has a header      
-def get_size(path="/home/programmer/Bachelorarbeit/split/splits.csv",filter=["train"]) -> int:
+def get_size(path="../split/splits.csv",filter=["train"]) -> int:
     with open(path,'r') as file:
         reader = csv.reader(file)
         size = -1
@@ -40,14 +42,12 @@ def get_size(path="/home/programmer/Bachelorarbeit/split/splits.csv",filter=["tr
                 size = size + 1
         return size
 #get a dictory with the ids and weights of the data points  
-def get_weights(idents:tuple[int,...],path="/home/programmer/Bachelorarbeit/weights/first_it.csv")-> dict[str,float]:
+def get_weights(idents:tuple[int,...],path="../weights/first_it.csv")-> dict[str,float]:
     value = dict()
     for i in idents:
         weight = find_weight(path,i)
         value.update({str(i):weight})
     return value
-
-
 
 #finds the weight for a specific datapoint  
 def find_weight(path:str,ident:int)-> float:
@@ -60,7 +60,7 @@ def find_weight(path:str,ident:int)-> float:
     label = find_label(id=ident)
     print(f"{ident} is not in file with {label} ")
 
-def find_label(id:int,path="/home/programmer/Bachelorarbeit/split/splits.csv")-> str:
+def find_label(id:int,path="../split/splits.csv")-> str:
     with open(path,'r') as file:
         reader = csv.reader(file)
         for row in reader:
@@ -81,8 +81,6 @@ def create_data_weights(batchsize:int,dim:int,weights:dict[str,float],idents:tup
         index = index + 1
     return weight
 
-
-
 def testing():
     print("hello world")
 
@@ -99,6 +97,6 @@ def create_weight_tensor(weight:float)-> torch.tensor:
 def create_class_weights()-> torch.tensor:
     pass
 
-mock_init_weights()
+#mock_init_weights()
 # print(get_weights((233713,51990)))
 

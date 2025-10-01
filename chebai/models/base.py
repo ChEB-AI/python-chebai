@@ -263,6 +263,7 @@ class ChebaiBaseNet(LightningModule, ABC):
         d = dict(data=data, labels=labels, output=model_output, preds=pr)
         if log:
             if self.criterion is not None:
+                f.init_weights()
                 loss_data, loss_labels, loss_kwargs_candidates = self._process_for_loss(
                     model_output, labels, data.get("loss_kwargs", dict())
                 )
