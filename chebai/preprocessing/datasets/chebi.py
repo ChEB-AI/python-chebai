@@ -11,19 +11,23 @@ __all__ = [
 
 import os
 import pickle
+import random
 from abc import ABC
 from collections import OrderedDict
-from typing import Any, Dict, Generator, List, Optional, Tuple, Union
+from itertools import cycle, permutations, product
+from typing import TYPE_CHECKING, Any, Dict, Generator, List, Optional, Union
 
-import fastobo
-import networkx as nx
 import numpy as np
 import pandas as pd
-import requests
 import torch
+from rdkit import Chem
 
 from chebai.preprocessing import reader as dr
 from chebai.preprocessing.datasets.base import XYBaseDataModule, _DynamicDataset
+
+if TYPE_CHECKING:
+    import fastobo
+    import networkx as nx
 
 # exclude some entities from the dataset because the violate disjointness axioms
 CHEBI_BLACKLIST = [
@@ -135,8 +139,27 @@ class _ChEBIDataExtractor(_DynamicDataset, ABC):
         self,
         chebi_version_train: Optional[int] = None,
         single_class: Optional[int] = None,
+        augment_smiles: bool = False,
+        aug_smiles_variations: Optional[int] = None,
         **kwargs,
     ):
+        if bool(augment_smiles):
+            assert (
+                int(aug_smiles_variations) > 0
+            ), "Number of variations must be greater than 0"
+            aug_smiles_variations = int(aug_smiles_variations)
+
+            if not kwargs.get("splits_file_path", None):
+                raise ValueError(
+                    "When using SMILES augmentation, a splits_file_path must be provided to ensure consistent splits."
+                )
+
+            reader_kwargs = kwargs.get("reader_kwargs", {})
+            reader_kwargs["canonicalize_smiles"] = False
+            kwargs["reader_kwargs"] = reader_kwargs
+
+        self.augment_smiles = bool(augment_smiles)
+        self.aug_smiles_variations = aug_smiles_variations
         # predict only single class (given as id of one of the classes present in the raw data set)
         self.single_class = single_class
         super(_ChEBIDataExtractor, self).__init__(**kwargs)
@@ -151,6 +174,8 @@ class _ChEBIDataExtractor(_DynamicDataset, ABC):
             _init_kwargs["chebi_version"] = self.chebi_version_train
             self._chebi_version_train_obj = self.__class__(
                 single_class=self.single_class,
+                augment_smiles=self.augment_smiles,
+                aug_smiles_variations=self.aug_smiles_variations,
                 **_init_kwargs,
             )
 
@@ -213,6 +238,8 @@ class _ChEBIDataExtractor(_DynamicDataset, ABC):
         Returns:
             str: The file path of the loaded ChEBI ontology.
         """
+        import requests
+
         chebi_name = self.raw_file_names_dict["chebi"]
         chebi_path = os.path.join(self.raw_dir, chebi_name)
         if not os.path.isfile(chebi_path):
@@ -224,7 +251,7 @@ class _ChEBIDataExtractor(_DynamicDataset, ABC):
             open(chebi_path, "wb").write(r.content)
         return chebi_path
 
-    def _extract_class_hierarchy(self, data_path: str) -> nx.DiGraph:
+    def _extract_class_hierarchy(self, data_path: str) -> "nx.DiGraph":
         """
         Extracts the class hierarchy from the ChEBI ontology.
         Constructs a directed graph (DiGraph) using NetworkX, where nodes are annotated with fields/terms from
@@ -236,6 +263,9 @@ class _ChEBIDataExtractor(_DynamicDataset, ABC):
         Returns:
             nx.DiGraph: The class hierarchy.
         """
+        import fastobo
+        import networkx as nx
+
         with open(data_path, encoding="utf-8") as chebi:
             chebi = "\n".join(line for line in chebi if not line.startswith("xref:"))
 
@@ -263,7 +293,7 @@ class _ChEBIDataExtractor(_DynamicDataset, ABC):
         print("Compute transitive closure")
         return nx.transitive_closure_dag(g)
 
-    def _graph_to_raw_dataset(self, g: nx.DiGraph) -> pd.DataFrame:
+    def _graph_to_raw_dataset(self, g: "nx.DiGraph") -> pd.DataFrame:
         """
         Converts the graph to a raw dataset.
         Uses the graph created by `_extract_class_hierarchy` method to extract the
@@ -275,6 +305,8 @@ class _ChEBIDataExtractor(_DynamicDataset, ABC):
         Returns:
             pd.DataFrame: The raw dataset created from the graph.
         """
+        import networkx as nx
+
         smiles = nx.get_node_attributes(g, "smiles")
         names = nx.get_node_attributes(g, "name")
 
@@ -305,6 +337,75 @@ class _ChEBIDataExtractor(_DynamicDataset, ABC):
 
         return data
 
+    def _after_prepare_data(self, *args, **kwargs) -> None:
+        self._perform_smiles_augmentation()
+
+    def _perform_smiles_augmentation(self) -> None:
+        if not self.augment_smiles:
+            return
+
+        aug_pkl_file_name = self.processed_main_file_names_dict["aug_data"]
+        aug_data_df = self.get_processed_pickled_df_file(aug_pkl_file_name)
+        if aug_data_df is not None:
+            self._data_pkl_filename = aug_pkl_file_name
+            return
+
+        data_df = self.get_processed_pickled_df_file(
+            self.processed_main_file_names_dict["data"]
+        )
+
+        AUG_SMILES_VARIATIONS = self.aug_smiles_variations
+
+        def generate_augmented_smiles(smiles: str) -> list[str]:
+            mol: Chem.Mol = Chem.MolFromSmiles(smiles)
+            if mol is None:
+                return [smiles]  # if mol is None, return original SMILES
+
+            # sanitization set to False, as it can alter the fragment representation in ways you might not want.
+            # As we don’t want RDKit to "fix" fragments, only need the fragments as-is, to generate SMILES strings.
+            frags = Chem.GetMolFrags(mol, asMols=True, sanitizeFrags=False)
+            augmented = set()
+
+            frag_smiles: list[set] = []
+            for frag in frags:
+                atom_ids = [atom.GetIdx() for atom in frag.GetAtoms()]
+                random.shuffle(atom_ids)  # seed set by lightning
+                atom_id_iter = cycle(atom_ids)
+                frag_smiles.append(
+                    {
+                        Chem.MolToSmiles(
+                            frag, rootedAtAtom=next(atom_id_iter), doRandom=True
+                        )
+                        for _ in range(AUG_SMILES_VARIATIONS)
+                    }
+                )
+            if len(frags) > 1:
+                # all permutations (ignoring the set order, meaning mixing sets in every order),
+                aug_counter: int = 0
+                for perm in permutations(frag_smiles):
+                    for combo in product(*perm):
+                        augmented.add(".".join(combo))
+                        aug_counter += 1
+                        if aug_counter >= AUG_SMILES_VARIATIONS:
+                            break
+                    if aug_counter >= AUG_SMILES_VARIATIONS:
+                        break
+            else:
+                augmented = frag_smiles[0]
+
+            return [smiles] + list(augmented)
+
+        data_df["SMILES"] = data_df["SMILES"].apply(generate_augmented_smiles)
+
+        # Explode the list of augmented smiles into multiple rows
+        # augmented smiles will have same ident, as of the original, but does it matter ?
+        # instead its helpful to group augmented smiles generated from the same original SMILES
+        exploded_df = data_df.explode("SMILES").reset_index(drop=True)
+        self.save_processed(
+            exploded_df, self.processed_main_file_names_dict["aug_data"]
+        )
+        self._data_pkl_filename = aug_pkl_file_name
+
     # ------------------------------ Phase: Setup data -----------------------------------
     def setup_processed(self) -> None:
         """
@@ -332,7 +433,7 @@ class _ChEBIDataExtractor(_DynamicDataset, ABC):
             print("Calling the setup method related to it")
             self._chebi_version_train_obj.setup()
 
-    def _load_dict(self, input_file_path: str) -> Generator[Dict[str, Any], None, None]:
+    def _load_dict(self, input_file_path: str) -> Generator[dict[str, Any], None, None]:
         """
         Loads a dictionary from a pickled file, yielding individual dictionaries for each row.
 
@@ -373,7 +474,7 @@ class _ChEBIDataExtractor(_DynamicDataset, ABC):
                 yield dict(features=feat, labels=labels, ident=ident)
 
     # ------------------------------ Phase: Dynamic Splits -----------------------------------
-    def _get_data_splits(self) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+    def _get_data_splits(self) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
         """
         Loads encoded/transformed data and generates training, validation, and test splits.
 
@@ -537,6 +638,37 @@ class _ChEBIDataExtractor(_DynamicDataset, ABC):
     def raw_file_names_dict(self) -> dict:
         return {"chebi": "chebi.obo"}
 
+    @property
+    def processed_main_file_names_dict(self) -> dict:
+        """
+        Returns a dictionary mapping processed data file names.
+
+        Returns:
+            dict: A dictionary mapping dataset key to their respective file names.
+                  For example, {"data": "data.pkl"}.
+        """
+        p_dict = super().processed_main_file_names_dict
+        if self.augment_smiles:
+            p_dict["aug_data"] = f"aug_data_var{self.aug_smiles_variations}.pkl"
+        return p_dict
+
+    @property
+    def processed_file_names_dict(self) -> dict:
+        """
+        Returns a dictionary for the processed and tokenized data files.
+
+        Returns:
+            dict: A dictionary mapping dataset keys to their respective file names.
+                  For example, {"data": "data.pt"}.
+        """
+        if not self.augment_smiles:
+            return super().processed_file_names_dict
+        if self.n_token_limit is not None:
+            return {
+                "data": f"aug_data_var{self.aug_smiles_variations}_maxlen{self.n_token_limit}.pt"
+            }
+        return {"data": f"aug_data_var{self.aug_smiles_variations}.pt"}
+
 
 class JCIExtendedBase(_ChEBIDataExtractor):
     @property
@@ -573,7 +705,7 @@ class ChEBIOverX(_ChEBIDataExtractor):
         """
         return f"ChEBI{self.THRESHOLD}"
 
-    def select_classes(self, g: nx.DiGraph, *args, **kwargs) -> List:
+    def select_classes(self, g: "nx.DiGraph", *args, **kwargs) -> List:
         """
         Selects classes from the ChEBI dataset based on the number of successors meeting a specified threshold.
 
@@ -598,6 +730,8 @@ class ChEBIOverX(_ChEBIDataExtractor):
             - The `THRESHOLD` attribute should be defined in the subclass of this class.
             - Nodes without a 'smiles' attribute are ignored in the successor count.
         """
+        import networkx as nx
+
         smiles = nx.get_node_attributes(g, "smiles")
         nodes = list(
             sorted(
@@ -736,7 +870,7 @@ class ChEBIOverXPartial(ChEBIOverX):
             "processed",
         )
 
-    def _extract_class_hierarchy(self, chebi_path: str) -> nx.DiGraph:
+    def _extract_class_hierarchy(self, chebi_path: str) -> "nx.DiGraph":
         """
         Extracts a subset of ChEBI based on subclasses of the top class ID.
 
@@ -774,8 +908,10 @@ class ChEBIOverXPartial(ChEBIOverX):
         )
         return g
 
-    def select_classes(self, g: nx.DiGraph, *args, **kwargs) -> List:
+    def select_classes(self, g: "nx.DiGraph", *args, **kwargs) -> List:
         """Only selects classes that meet the threshold AND are subclasses of the top class ID (including itself)."""
+        import networkx as nx
+
         smiles = nx.get_node_attributes(g, "smiles")
         nodes = list(
             sorted(
@@ -835,7 +971,7 @@ def chebi_to_int(s: str) -> int:
     return int(s[s.index(":") + 1 :])
 
 
-def term_callback(doc: fastobo.term.TermFrame) -> Union[Dict, bool]:
+def term_callback(doc: "fastobo.term.TermFrame") -> Union[Dict, bool]:
     """
     Extracts information from a ChEBI term document.
     This function takes a ChEBI term document as input and extracts relevant information such as the term ID, parents,
@@ -852,6 +988,8 @@ def term_callback(doc: fastobo.term.TermFrame) -> Union[Dict, bool]:
     - "name": The name of the ChEBI term.
     - "smiles": The SMILES string associated with the ChEBI term, if available.
     """
+    import fastobo
+
     parts = set()
     parents = []
     name = None
