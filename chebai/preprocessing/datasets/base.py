@@ -76,6 +76,7 @@ class XYBaseDataModule(LightningDataModule):
         label_filter: Optional[int] = None,
         balance_after_filter: Optional[float] = None,
         num_workers: int = 1,
+        persistent_workers=True,
         chebi_version: int = 200,
         inner_k_folds: int = -1,  # use inner cross-validation if > 1
         fold_index: Optional[int] = None,
@@ -99,6 +100,7 @@ class XYBaseDataModule(LightningDataModule):
         ), "Filter balancing requires a filter"
         self.balance_after_filter = balance_after_filter
         self.num_workers = num_workers
+        self.persistent_workers: bool = bool(persistent_workers)
         self.chebi_version = chebi_version
         assert type(inner_k_folds) is int
         self.inner_k_folds = inner_k_folds
@@ -360,7 +362,7 @@ class XYBaseDataModule(LightningDataModule):
             "train",
             shuffle=True,
             num_workers=self.num_workers,
-            persistent_workers=True,
+            persistent_workers=self.persistent_workers,
             **kwargs,
         )
 
@@ -379,7 +381,7 @@ class XYBaseDataModule(LightningDataModule):
             "validation",
             shuffle=False,
             num_workers=self.num_workers,
-            persistent_workers=True,
+            persistent_workers=self.persistent_workers,
             **kwargs,
         )
 
