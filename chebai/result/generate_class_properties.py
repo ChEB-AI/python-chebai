@@ -172,13 +172,18 @@ class ClassesPropertiesGenerator:
         class_names = self.load_class_labels(classes_file)
         num_classes = len(class_names)
         metrics_obj_dict: dict[str, torchmetrics.Metric] = {
-            "cm": MultilabelConfusionMatrix(num_labels=num_classes),
-            "f1": MultilabelF1Score(num_labels=num_classes, average=None),
+            "cm": MultilabelConfusionMatrix(num_labels=num_classes).to(
+                device=model.device
+            ),
+            "f1": MultilabelF1Score(num_labels=num_classes, average=None).to(
+                device=model.device
+            ),
         }
 
         for batch_idx, batch in enumerate(data_loader):
             data = model._process_batch(batch, batch_idx=batch_idx)
-            labels = data["labels"]
+            labels = data["labels"].to(device=model.device)
+            data["features"][0].to(device=model.device)
             model_output = model(data, **data.get("model_kwargs", {}))
             preds, targets = model._get_prediction_and_labels(
                 data, labels, model_output
@@ -241,7 +246,8 @@ class Main:
 
 
 if __name__ == "__main__":
-    # _generate_classes_props_json.py generate \
+    # Usage:
+    # generate_classes_properties.py generate \
     # --data_partition "val" \
     # --model_ckpt_path "model/ckpt/path" \
     # --model_config_file_path "model/config/file/path" \
