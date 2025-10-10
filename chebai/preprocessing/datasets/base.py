@@ -76,7 +76,7 @@ class XYBaseDataModule(LightningDataModule):
         label_filter: Optional[int] = None,
         balance_after_filter: Optional[float] = None,
         num_workers: int = 1,
-        persistent_workers=True,
+        persistent_workers: bool = True,
         chebi_version: int = 200,
         inner_k_folds: int = -1,  # use inner cross-validation if > 1
         fold_index: Optional[int] = None,
