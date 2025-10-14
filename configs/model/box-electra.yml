@@ -1,0 +1,13 @@
+class_path: chebai.models.electra_box.ElectraBox
+init_args:
+  optimizer_kwargs:
+    lr: 1e-3
+  config:
+    vocab_size: 4400
+    max_position_embeddings: 1800
+    num_attention_heads: 8
+    num_hidden_layers: 6
+    type_vocab_size: 1
+    hidden_size: 256
+    embeddings_to_points_hidden_size: 1200
+    embeddings_dimensions: 16

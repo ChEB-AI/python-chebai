@@ -161,17 +161,18 @@ def filter_dict(d: Dict[str, Any], filter_key: str) -> Dict[str, Any]:
     }
 
 
-class Electra(ChebaiBaseNet):
-    """
-    Electra model implementation inherited from ChebaiBaseNet.
+class ElectraProcessingMixIn:
+    """Mixin class for processing batches and outputs for Electra models."""
 
-    Args:
-        config (Dict[str, Any], optional): Configuration parameters for the Electra model. Defaults to None.
-        pretrained_checkpoint (str, optional): Path to the pretrained checkpoint file. Defaults to None.
-        load_prefix (str, optional): Prefix to filter the state_dict keys from the pretrained checkpoint. Defaults to None.
-        **kwargs: Additional keyword arguments.
+    @property
+    def as_pretrained(self) -> ElectraModel:
+        """
+        Get the pretrained Electra model.
 
-    """
+        Returns:
+            ElectraModel: The pretrained Electra model.
+        """
+        return self.electra.electra
 
     def _process_batch(self, batch: Dict[str, Any], batch_idx: int) -> Dict[str, Any]:
         """
@@ -208,59 +209,6 @@ class Electra(ChebaiBaseNet):
             loss_kwargs=loss_kwargs,
             idents=batch.additional_fields["idents"],
         )
-
-    @property
-    def as_pretrained(self) -> ElectraModel:
-        """
-        Get the pretrained Electra model.
-
-        Returns:
-            ElectraModel: The pretrained Electra model.
-        """
-        return self.electra.electra
-
-    def __init__(
-        self,
-        config: Optional[Dict[str, Any]] = None,
-        pretrained_checkpoint: Optional[str] = None,
-        load_prefix: Optional[str] = None,
-        **kwargs: Any,
-    ):
-        # Remove this property in order to prevent it from being stored as a
-        # hyper parameter
-
-        super().__init__(**kwargs)
-        if config is None:
-            config = dict()
-        if "num_labels" not in config and self.out_dim is not None:
-            config["num_labels"] = self.out_dim
-        self.config = ElectraConfig(**config, output_attentions=True)
-        self.word_dropout = nn.Dropout(config.get("word_dropout", 0))
-
-        in_d = self.config.hidden_size
-        self.output = nn.Sequential(
-            nn.Dropout(self.config.hidden_dropout_prob),
-            nn.Linear(in_d, in_d),
-            nn.GELU(),
-            nn.Dropout(self.config.hidden_dropout_prob),
-            nn.Linear(in_d, self.config.num_labels),
-        )
-
-        # Load pretrained checkpoint if provided
-        if pretrained_checkpoint:
-            with open(pretrained_checkpoint, "rb") as fin:
-                model_dict = torch.load(
-                    fin, map_location=self.device, weights_only=False
-                )
-                if load_prefix:
-                    state_dict = filter_dict(model_dict["state_dict"], load_prefix)
-                else:
-                    state_dict = model_dict["state_dict"]
-                self.electra = ElectraModel.from_pretrained(
-                    None, state_dict=state_dict, config=self.config
-                )
-        else:
-            self.electra = ElectraModel(config=self.config)
 
     def _process_for_loss(
         self,
@@ -304,6 +252,62 @@ class Electra(ChebaiBaseNet):
             n = loss_kwargs["non_null_labels"]
             d = d[n]
         return torch.sigmoid(d), labels.int() if labels is not None else None
+
+
+class Electra(ElectraProcessingMixIn, ChebaiBaseNet):
+    """
+    Electra model implementation inherited from ChebaiBaseNet.
+
+    Args:
+        config (Dict[str, Any], optional): Configuration parameters for the Electra model. Defaults to None.
+        pretrained_checkpoint (str, optional): Path to the pretrained checkpoint file. Defaults to None.
+        load_prefix (str, optional): Prefix to filter the state_dict keys from the pretrained checkpoint. Defaults to None.
+        **kwargs: Additional keyword arguments.
+
+    """
+
+    def __init__(
+        self,
+        config: Optional[Dict[str, Any]] = None,
+        pretrained_checkpoint: Optional[str] = None,
+        load_prefix: Optional[str] = None,
+        **kwargs: Any,
+    ):
+        # Remove this property in order to prevent it from being stored as a
+        # hyper parameter
+
+        super().__init__(**kwargs)
+        if config is None:
+            config = dict()
+        if "num_labels" not in config and self.out_dim is not None:
+            config["num_labels"] = self.out_dim
+        self.config = ElectraConfig(**config, output_attentions=True)
+        self.word_dropout = nn.Dropout(config.get("word_dropout", 0))
+
+        in_d = self.config.hidden_size
+        self.output = nn.Sequential(
+            nn.Dropout(self.config.hidden_dropout_prob),
+            nn.Linear(in_d, in_d),
+            nn.GELU(),
+            nn.Dropout(self.config.hidden_dropout_prob),
+            nn.Linear(in_d, self.config.num_labels),
+        )
+
+        # Load pretrained checkpoint if provided
+        if pretrained_checkpoint:
+            with open(pretrained_checkpoint, "rb") as fin:
+                model_dict = torch.load(
+                    fin, map_location=self.device, weights_only=False
+                )
+                if load_prefix:
+                    state_dict = filter_dict(model_dict["state_dict"], load_prefix)
+                else:
+                    state_dict = model_dict["state_dict"]
+                self.electra = ElectraModel.from_pretrained(
+                    None, state_dict=state_dict, config=self.config
+                )
+        else:
+            self.electra = ElectraModel(config=self.config)
 
     def forward(self, data: Dict[str, Tensor], **kwargs: Any) -> Dict[str, Any]:
         """
