@@ -4,6 +4,7 @@ from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING, Any, Dict, Generator, List, Optional, Tuple, Union
 
 import lightning as pl
+import numpy as np
 import pandas as pd
 import torch
 import tqdm
@@ -708,11 +709,14 @@ class _DynamicDataset(XYBaseDataModule, ABC):
     Args:
         dynamic_data_split_seed (int, optional): The seed for random data splitting. Defaults to 42.
         splits_file_path (str, optional): Path to the splits CSV file. Defaults to None.
+        apply_label_filter (Optional[str]): Path to a classes.txt file - only labels that are in the labels filter
+        file will be used (in that order). All labels in the label filter have to be present in the dataset.
         **kwargs: Additional keyword arguments passed to XYBaseDataModule.
 
     Attributes:
         dynamic_data_split_seed (int): The seed for random data splitting, default is 42.
         splits_file_path (Optional[str]): Path to the CSV file containing split assignments.
+        apply_label_filter (Optional[str]): Path to a classes.txt file for label filtering.
     """
 
     # ---- Index for columns of processed `data.pkl` (should be derived from `_graph_to_raw_dataset` method) ------
@@ -722,6 +726,7 @@ class _DynamicDataset(XYBaseDataModule, ABC):
 
     def __init__(
         self,
+        apply_label_filter: Optional[str] = None,
         **kwargs,
     ):
         super(_DynamicDataset, self).__init__(**kwargs)
@@ -735,6 +740,7 @@ class _DynamicDataset(XYBaseDataModule, ABC):
         self.splits_file_path = self._validate_splits_file_path(
             kwargs.get("splits_file_path", None)
         )
+        self.apply_label_filter = apply_label_filter
 
     @staticmethod
     def _validate_splits_file_path(splits_file_path: Optional[str]) -> Optional[str]:
@@ -1133,6 +1139,18 @@ class _DynamicDataset(XYBaseDataModule, ABC):
             os.path.join(self.processed_dir, filename)
         )
         df_data = pd.DataFrame(data)
+
+        if self.apply_label_filter:
+            print(f"Applying label filter from {self.apply_label_filter}...")
+            with open(self.apply_label_filter, "r") as f:
+                label_filter = [line.strip() for line in f]
+            with open(os.path.join(self.processed_dir_main, "classes.txt"), "r") as cf:
+                classes = [line.strip() for line in cf]
+            # reorder labels
+            old_labels = np.stack(df_data["labels"])
+            label_mapping = [classes.index(lbl) for lbl in label_filter]
+            new_labels = old_labels[:, label_mapping]
+            df_data["labels"] = list(new_labels)
 
         train_ids = splits_df[splits_df["split"] == "train"]["id"]
         validation_ids = splits_df[splits_df["split"] == "validation"]["id"]
