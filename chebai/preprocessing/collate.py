@@ -108,7 +108,7 @@ class RaggedCollator(Collator):
         for d in data:
             id = d["ident"]
             weight = d["weight"]
-            loss_kwargs["ident"] = weight
+            loss_kwargs[str(id)] = weight
 
 
         return XYData(

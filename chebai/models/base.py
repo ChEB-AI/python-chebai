@@ -261,13 +261,15 @@ class ChebaiBaseNet(LightningModule, ABC):
         model_output = self(data, **data.get("model_kwargs", dict()))
         pr, tar = self._get_prediction_and_labels(data, labels, model_output)
         d = dict(data=data, labels=labels, output=model_output, preds=pr)
-        torch.save(d,"d.pt")
+        # torch.save(data["loss_kwargs"],"kloss.pt")
+        # torch.save(data["idents"],"id.pt")
         if log:
             if self.criterion is not None:
                 loss_data, loss_labels, loss_kwargs_candidates = self._process_for_loss(
                     model_output, labels, data.get("loss_kwargs", dict())
                 )
                 loss_kwargs = dict()
+                loss_kwargs['weights'] = f.create_data_weights(batchsize=len(data['idents']),dim=data['labels'].size(dim=1),weights=data["loss_kwargs"],idents=data["idents"])
                 if self.pass_loss_kwargs:
                     loss_kwargs = loss_kwargs_candidates
                 torch.save(loss_data,"loss_data.pt")
