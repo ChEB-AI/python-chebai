@@ -77,7 +77,6 @@ class RaggedCollator(Collator):
         model_kwargs: Dict = dict()
         # Indices of non-null labels are stored in key `non_null_labels` of loss_kwargs.
         loss_kwargs: Dict = dict()
-
         if isinstance(data[0], tuple):
             # For legacy data
             x, y, idents = zip(*data)
@@ -106,6 +105,11 @@ class RaggedCollator(Collator):
         lens = torch.tensor(list(map(len, x)))
         model_kwargs["mask"] = torch.arange(max(lens))[None, :] < lens[:, None]
         model_kwargs["lens"] = lens
+        for d in data:
+            id = d["ident"]
+            weight = d["weight"]
+            loss_kwargs["ident"] = weight
+
 
         return XYData(
             pad_sequence([torch.tensor(a) for a in x], batch_first=True),

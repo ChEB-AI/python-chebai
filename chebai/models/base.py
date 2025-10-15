@@ -261,17 +261,16 @@ class ChebaiBaseNet(LightningModule, ABC):
         model_output = self(data, **data.get("model_kwargs", dict()))
         pr, tar = self._get_prediction_and_labels(data, labels, model_output)
         d = dict(data=data, labels=labels, output=model_output, preds=pr)
+        torch.save(d,"d.pt")
         if log:
             if self.criterion is not None:
-                f.init_weights()
                 loss_data, loss_labels, loss_kwargs_candidates = self._process_for_loss(
                     model_output, labels, data.get("loss_kwargs", dict())
                 )
                 loss_kwargs = dict()
                 if self.pass_loss_kwargs:
                     loss_kwargs = loss_kwargs_candidates
-                dict_weights = f.get_weights(data['idents'])
-                loss_kwargs['weights'] = f.create_data_weights(len(data['idents']),data['labels'].size(dim=1),dict_weights,data['idents'])
+                torch.save(loss_data,"loss_data.pt")
                 loss_kwargs["current_epoch"] = self.trainer.current_epoch
                 loss = self.criterion(loss_data, loss_labels, **loss_kwargs)
                 if isinstance(loss, tuple):

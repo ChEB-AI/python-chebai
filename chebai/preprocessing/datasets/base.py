@@ -18,6 +18,10 @@ from sklearn.model_selection import StratifiedShuffleSplit
 from torch.utils.data import DataLoader
 
 from chebai.preprocessing import reader as dr
+import sys
+sys.path.insert(1,'/home/programmer/Bachelorarbeit/python-chebai')
+
+import extras.weight_loader as f
 
 
 class XYBaseDataModule(LightningDataModule):
@@ -1123,6 +1127,7 @@ class _DynamicDataset(XYBaseDataModule, ABC):
             os.path.join(self.processed_dir, filename)
         )
         df_data = pd.DataFrame(data)
+        
 
         train_ids = splits_df[splits_df["split"] == "train"]["id"]
         validation_ids = splits_df[splits_df["split"] == "validation"]["id"]
@@ -1165,6 +1170,9 @@ class _DynamicDataset(XYBaseDataModule, ABC):
             raise ValueError(
                 "Either kind or filename is required to load the correct dataset, both are None"
             )
+        if kind == "train":
+            print("loading train data")
+
 
         # If both kind and filename are given, use filename
         if kind is not None and filename is None:
@@ -1174,10 +1182,19 @@ class _DynamicDataset(XYBaseDataModule, ABC):
                 ]
             else:
                 data_df = self.dynamic_split_dfs[kind]
-                return data_df.to_dict(orient="records")
+                data = data_df.to_dict(orient="records")
+                if kind == "train":
+                    data = f.add_train_weights(data)
+                if kind == "validation":
+                    print(kind)
+                    data = f.add_val_weights(data)
+                torch.save(data,"gewicht.pt")
+
+                return data
 
         # If filename is provided
-        return self.load_processed_data_from_file(filename)
+        data = self.load_processed_data_from_file(filename)
+        return data
 
     def load_processed_data_from_file(self, filename):
         return torch.load(os.path.join(filename), weights_only=False)

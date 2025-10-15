@@ -15,7 +15,7 @@ def init_weights(path="../weights/first_it.csv",path_to_split="../split/splits.c
                 reader = csv.reader(csvfile)
                 weight = 1 / get_size(path_to_split)
                 for row in reader:
-                    if row[1] == "train" or row[1] == "validation":
+                    if row[1] == "train":
                         #print(type(row[0]))
                         writer.writerow([int(row[0]),row[1],weight])
 
@@ -28,7 +28,7 @@ def mock_init_weights(path="../weights/first_it.csv",path_to_split="../split/spl
             reader = csv.reader(csvfile)
             weight = 1
             for row in reader:
-                if row[1] == "train" or row[1] == "validation":
+                if row[1] == "train":
                     writer.writerow([int(row[0]),row[1],weight])
                     weight = weight + 1
 
@@ -71,16 +71,16 @@ def find_label(id:int,path="../split/splits.csv")-> str:
 
 #to do 
 # return should be a tuple of weigths matching the sequenece of the target and label tensor
-def create_data_weights(batchsize:int,dim:int,weights:dict[str,float],idents:tuple[int,...])-> torch.tensor:
-    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-    weight = torch.empty(batchsize,dim,device=device)
-    index = 0
-    for i in idents:
-        w = weights[str(i)]
-        for j in range(0,dim):
-            weight[index][j] = float(w)
-        index = index + 1
-    return weight
+# def create_data_weights(batchsize:int,dim:int,weights:dict[str,float],idents:tuple[int,...])-> torch.tensor:
+#     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+#     weight = torch.empty(batchsize,dim,device=device)
+#     index = 0
+#     for i in idents:
+#         w = weights[str(i)]
+#         for j in range(0,dim):
+#             weight[index][j] = float(w)
+#         index = index + 1
+#     return weight
 
 def testing():
     print("hello world")
@@ -89,14 +89,24 @@ def testing():
 def create_weight_tensor(weight:float)-> torch.tensor:
     pass
 
+def add_val_weights(ids):
+    for i in ids:
+        weight = 1
+        i["weight"] = weight
+    return ids
 
 
+def add_train_weights(ids):
+    for i in ids:
+        ident = i["ident"]
+        weight = find_weight("/home/programmer/Bachelorarbeit/weights/first_it.csv",ident=ident)
+        i["weight"] = weight
+    return ids
 
+def check_weights(data):
+    for i in data:
+        print(f"({i["ident"]} , {i["weight"]}")
 
-
-
-def create_class_weights()-> torch.tensor:
-    pass
 
 #mock_init_weights()
 # print(get_weights((233713,51990)))
