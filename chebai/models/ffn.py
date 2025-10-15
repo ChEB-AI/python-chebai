@@ -26,7 +26,6 @@ class FFN(ChebaiBaseNet):
             current_layer_input_size = hidden_dim
 
         layers.append(torch.nn.Linear(current_layer_input_size, self.out_dim))
-        layers.append(nn.Sigmoid())
         self.model = nn.Sequential(*layers)
 
     def _get_prediction_and_labels(self, data, labels, model_output):
