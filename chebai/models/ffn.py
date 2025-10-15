@@ -14,9 +14,13 @@ class FFN(ChebaiBaseNet):
         hidden_layers: List[int] = [
             1024,
         ],
+        use_adam_optimizer: bool = False,
         **kwargs,
     ):
         super().__init__(**kwargs)
+
+        self.use_adam_optimizer: bool = bool(use_adam_optimizer)
+        print(f"Using Adam optimizer: {self.use_adam_optimizer}")
 
         layers = []
         current_layer_input_size = self.input_dim
@@ -61,6 +65,21 @@ class FFN(ChebaiBaseNet):
     def forward(self, data, **kwargs):
         x = data["features"]
         return {"logits": self.model(x)}
+
+    def configure_optimizers(self, **kwargs) -> torch.optim.Optimizer:
+        """
+        Configures the optimizers.
+
+        Args:
+            **kwargs: Additional keyword arguments.
+
+        Returns:
+            torch.optim.Optimizer: The optimizer.
+        """
+        if self.use_adam_optimizer:
+            return torch.optim.Adam(self.parameters(), **self.optimizer_kwargs)
+
+        return torch.optim.Adamax(self.parameters(), **self.optimizer_kwargs)
 
 
 class Residual(nn.Module):
