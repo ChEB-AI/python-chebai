@@ -73,12 +73,14 @@ def find_label(id:int,path="../split/splits.csv")-> str:
 # return should be a tuple of weigths matching the sequenece of the target and label tensor
 def create_data_weights(batchsize:int,dim:int,weights:dict[str,float],idents:tuple[int,...])-> torch.tensor:
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-    weight = torch.empty(batchsize,dim,device=device)
+    weight = None
     index = 0
     for i in idents:
-        w = weights[str(i)]
-        for j in range(0,dim):
-            weight[index][j] = float(w)
+        w = torch.full((1,dim),float(weights[str(i)]),device=device)
+        if weight == None:
+            weight = w
+        else:
+            weight = torch.cat((weight,w),0)
         index = index + 1
     return weight
 
