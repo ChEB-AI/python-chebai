@@ -17,6 +17,7 @@ from collections import OrderedDict
 from itertools import cycle, permutations, product
 from typing import TYPE_CHECKING, Any, Dict, Generator, List, Optional, Union
 
+import numpy as np
 import pandas as pd
 import torch
 from rdkit import Chem
@@ -332,7 +333,7 @@ class _ChEBIDataExtractor(_DynamicDataset, ABC):
 
         data = pd.DataFrame(data)
         data = data[~data["SMILES"].isnull()]
-        data = data[[name not in CHEBI_BLACKLIST for name, _ in data.iterrows()]]
+        data = data[~data["name"].isin(CHEBI_BLACKLIST)]
 
         return data
 
@@ -459,18 +460,18 @@ class _ChEBIDataExtractor(_DynamicDataset, ABC):
         """
         with open(input_file_path, "rb") as input_file:
             df = pd.read_pickle(input_file)
-            if self.single_class is not None:
-                single_cls_index = list(df.columns).index(int(self.single_class))
-            for row in df.values:
-                if self.single_class is None:
-                    labels = row[self._LABELS_START_IDX :].astype(bool)
-                else:
-                    labels = [bool(row[single_cls_index])]
-                yield dict(
-                    features=row[self._DATA_REPRESENTATION_IDX],
-                    labels=labels,
-                    ident=row[self._ID_IDX],
-                )
+
+            if self.single_class is None:
+                all_labels = df.iloc[:, self._LABELS_START_IDX :].to_numpy(dtype=bool)
+            else:
+                single_cls_index = df.columns.get_loc(int(self.single_class))
+                all_labels = df.iloc[:, [single_cls_index]].to_numpy(dtype=bool)
+
+            features = df.iloc[:, self._DATA_REPRESENTATION_IDX].to_numpy()
+            idents = df.iloc[:, self._ID_IDX].to_numpy()
+
+            for feat, labels, ident in zip(features, all_labels, idents):
+                yield dict(features=feat, labels=labels, ident=ident)
 
     # ------------------------------ Phase: Dynamic Splits -----------------------------------
     def _get_data_splits(self) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
@@ -566,43 +567,43 @@ class _ChEBIDataExtractor(_DynamicDataset, ABC):
         Returns:
             pd.DataFrame: The pruned test dataset.
         """
-        # TODO: find a more efficient way to do this
-        filename_old = "classes.txt"
-        # filename_new = f"classes_v{self.chebi_version_train}.txt"
-        # dataset = torch.load(os.path.join(self.processed_dir, "test.pt"))
+        classes_file_name = "classes.txt"
 
-        # Load original classes (from the current ChEBI version - chebi_version)
-        with open(os.path.join(self.processed_dir_main, filename_old), "r") as file:
-            orig_classes = file.readlines()
-
-        # Load new classes (from the training ChEBI version - chebi_version_train)
+        # Load original and new classes
+        with open(os.path.join(self.processed_dir_main, classes_file_name), "r") as f:
+            orig_classes = f.readlines()
         with open(
             os.path.join(
-                self._chebi_version_train_obj.processed_dir_main, filename_old
+                self._chebi_version_train_obj.processed_dir_main, classes_file_name
             ),
             "r",
-        ) as file:
-            new_classes = file.readlines()
+        ) as f:
+            new_classes = f.readlines()
 
-        # Create a mapping which give index of a class from chebi_version, if the corresponding
-        # class exists in chebi_version_train, Size = Number of classes in chebi_version
-        mapping = [
-            None if or_class not in new_classes else new_classes.index(or_class)
-            for or_class in orig_classes
-        ]
+        # Mapping array (-1 means no match in new classes)
+        mapping_array = np.array(
+            [
+                -1 if oc not in new_classes else new_classes.index(oc)
+                for oc in orig_classes
+            ],
+            dtype=int,
+        )
 
-        # Iterate over each data instance in the test set which is derived from chebi_version
-        for _, row in df_test_chebi_version.iterrows():
-            # Size = Number of classes in chebi_version_train
-            new_labels = [False for _ in new_classes]
-            for ind, label in enumerate(row["labels"]):
-                # If the chebi_version class exists in the chebi_version_train and has a True label,
-                # set the corresponding label in new_labels to True
-                if mapping[ind] is not None and label:
-                    new_labels[mapping[ind]] = label
-            # Update the labels from test instance from chebi_version to the new labels, which are compatible to both versions
-            row["labels"] = new_labels
+        # Convert labels column to 2D NumPy array
+        labels_matrix = np.array(df_test_chebi_version["labels"].tolist(), dtype=bool)
 
+        # Allocate new labels matrix
+        num_new_classes = len(new_classes)
+        new_labels_matrix = np.zeros(
+            (labels_matrix.shape[0], num_new_classes), dtype=bool
+        )
+
+        # Copy only valid columns
+        valid_mask = mapping_array != -1
+        new_labels_matrix[:, mapping_array[valid_mask]] = labels_matrix[:, valid_mask]
+
+        # Assign back
+        df_test_chebi_version["labels"] = new_labels_matrix.tolist()
         return df_test_chebi_version
 
     # ------------------------------ Phase: Raw Properties -----------------------------------

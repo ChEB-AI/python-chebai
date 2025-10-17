@@ -628,8 +628,8 @@ class PubChemKMeans(PubChem):
                     if not os.path.exists(os.path.join(self.raw_dir, f"{name}.txt")):
                         open(os.path.join(self.raw_dir, f"{name}.txt"), "x").close()
                     with open(os.path.join(self.raw_dir, f"{name}.txt"), "w") as f:
-                        for id, row in splits[i].iterrows():
-                            f.writelines(f"{id}\t{row['smiles']}\n")
+                        for id, row in splits[i].itertuples(index=True):
+                            f.writelines(f"{id}\t{row.smiles}\n")
 
 
 class PubChemDissimilarSMILES(PubChemDissimilar):
@@ -809,12 +809,12 @@ class Hazardous(SWJChem):
         csv_path = os.path.join(self.raw_dir, "pubchem_hazardous_compound_list.csv")
         compounds = pd.read_csv(csv_path)
         smiles_list = []
-        for id, compound in compounds.iterrows():
+        for compound in compounds.itertuples(index=False):
             if (
-                not isinstance(compound["cmpdsynonym"], str)
-                or "CHEBI" not in compound["cmpdsynonym"]
+                not isinstance(compound.cmpdsynonym, str)
+                or "CHEBI" not in compound.cmpdsynonym
             ):
-                smiles_list.append(f"{compound['cid']}\t{compound['isosmiles']}")
+                smiles_list.append(f"{compound.cid}\t{compound.isosmiles}")
         with open(os.path.join(self.raw_dir, "smiles.txt"), "w") as f:
             f.write("\n".join(smiles_list))
 
