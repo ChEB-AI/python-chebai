@@ -105,10 +105,11 @@ class RaggedCollator(Collator):
         lens = torch.tensor(list(map(len, x)))
         model_kwargs["mask"] = torch.arange(max(lens))[None, :] < lens[:, None]
         model_kwargs["lens"] = lens
-        for d in data:
-            id = d["ident"]
-            weight = d["weight"]
-            loss_kwargs[str(id)] = weight
+        if "weight" in data[0]:
+            for d in data:
+                id = d["ident"]
+                weight = d["weight"]
+                loss_kwargs[str(id)] = weight
 
 
         return XYData(
