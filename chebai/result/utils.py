@@ -119,7 +119,6 @@ def evaluate_model(
     data_list = data_list[: data_module.data_limit]
     preds_list = []
     labels_list = []
-    weights_list = []
     if buffer_dir is not None:
         os.makedirs(buffer_dir, exist_ok=True)
     save_ind = 0
@@ -135,8 +134,6 @@ def evaluate_model(
             preds, labels = _run_batch(data_list[i : i + batch_size], model, collate)
             preds_list.append(preds)
             labels_list.append(labels)
-            for j in range(i,i+batch_size):
-                weights_list.append(data_list[j])
 
             if buffer_dir is not None:
                 if n_saved * batch_size >= save_batch_size:
@@ -173,69 +170,6 @@ def evaluate_model(
                 _concat_tuple(labels_list),
                 os.path.join(buffer_dir, f"labels{save_ind:03d}.pt"),
             )
-
-
-def evaluate_model_weights(
-    model: ChebaiBaseNet,
-    data_module: XYBaseDataModule,
-    filename: Optional[str] = None,
-    buffer_dir: Optional[str] = None,
-    batch_size: int = 32,
-    skip_existing_preds: bool = False,
-    kind: str = "test",
-):
-    """
-    Runs the model on the test set of the data module or on the dataset found in the specified file.
-    If buffer_dir is set, results will be saved in buffer_dir.
-
-    Note:
-        No need to provide "filename" parameter for Chebi dataset, "kind" parameter should be provided.
-
-    Args:
-        model: The model to evaluate.
-        data_module: The data module containing the dataset.
-        filename: Optional file name for the dataset.
-        buffer_dir: Optional directory to save the results.
-        batch_size: The batch size for evaluation.
-        skip_existing_preds: Whether to skip evaluation if predictions already exist.
-        kind: Kind of split of the data to be used for testing the model. Default is `test`.
-
-    Returns:
-        Tensors with predictions and labels.
-    """
-    model.eval()
-    collate = data_module.reader.COLLATOR()
-
-    if isinstance(data_module, _ChEBIDataExtractor):
-        # As the dynamic split change is implemented only for chebi-dataset as of now
-        data_df = data_module.dynamic_split_dfs[kind]
-        data_list = data_df.to_dict(orient="records")
-    else:
-        data_list = data_module.load_processed_data("test", filename)
-    data_list = data_list[: data_module.data_limit]
-    preds_list = []
-    labels_list = []
-    weights_list = []
-    if buffer_dir is not None:
-        os.makedirs(buffer_dir, exist_ok=True)
-    save_ind = 0
-    save_batch_size = 128
-    n_saved = 1
-
-    print("")
-    for i in tqdm.tqdm(range(0, len(data_list), batch_size)):
-        if not (
-            skip_existing_preds
-            and os.path.isfile(os.path.join(buffer_dir, f"preds{save_ind:03d}.pt"))
-        ):
-            preds, labels = _run_batch(data_list[i : i + batch_size], model, collate)
-            preds_list.append(preds)
-            labels_list.append(labels)
-
-    result = create_weight_dict(preds_list,labels_list,data_list)
-    torch.save(result,"./result.pt")
-    
-
 
 def load_results_from_buffer(
     buffer_dir: str, device: torch.device
