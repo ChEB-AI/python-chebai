@@ -183,7 +183,7 @@ def evaluate_model_weights(
     batch_size: int = 32,
     skip_existing_preds: bool = False,
     kind: str = "test",
-) -> Tuple[torch.Tensor, Optional[torch.Tensor]]:
+):
     """
     Runs the model on the test set of the data module or on the dataset found in the specified file.
     If buffer_dir is set, results will be saved in buffer_dir.
