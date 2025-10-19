@@ -18,8 +18,6 @@ from sklearn.model_selection import StratifiedShuffleSplit
 from torch.utils.data import DataLoader
 
 from chebai.preprocessing import reader as dr
-import sys
-sys.path.insert(1,'/home/programmer/Bachelorarbeit/python-chebai')
 
 import extras.weight_loader as f
 

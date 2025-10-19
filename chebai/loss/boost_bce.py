@@ -1,7 +1,4 @@
 import torch
-import sys
-sys.path.insert(1,'/home/programmer/Bachelorarbeit/python-chebai')
-
 import extras.weight_loader as f
 
 

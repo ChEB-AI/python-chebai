@@ -7,8 +7,6 @@ from lightning.pytorch.core.module import LightningModule
 
 from chebai.preprocessing.structures import XYData
 
-import sys
-sys.path.insert(1,'/home/programmer/Bachelorarbeit/python-chebai')
 
 import extras.weight_loader as f
 
