@@ -10,6 +10,11 @@ from torchmetrics.classification import (
     MultilabelF1Score,
     MultilabelPrecision,
     MultilabelRecall,
+    MultilabelAUROC,
+    BinaryF1Score,
+    BinaryAUROC,
+    BinaryAveragePrecision,
+    MultilabelAveragePrecision,
 )
 
 from chebai.callbacks.epoch_metrics import BalancedAccuracy, MacroF1
@@ -59,6 +64,8 @@ def print_metrics(
         top_k: The number of top classes to display based on F1 score.
         markdown_output: If True, print metrics in markdown format.
     """
+    if device != labels.device:
+        device = labels.device
     f1_micro = MultilabelF1Score(preds.shape[1], average="micro").to(device=device)
     my_f1_macro = MacroF1(preds.shape[1]).to(device=device)
     my_bal_acc = BalancedAccuracy(preds.shape[1]).to(device=device)
@@ -106,3 +113,52 @@ def print_metrics(
     print(
         f"Found {len(zeros)} classes with F1-score == 0 (and non-zero labels): {', '.join(zeros)}"
     )
+
+
+def metrics_classification_multilabel(
+    preds: Tensor,
+    labels: Tensor,
+    device: torch.device,
+):
+
+    if device != labels.device:
+        device = labels.device
+
+    my_bal_acc = BalancedAccuracy(preds.shape[1]).to(device=device)
+
+    bal_acc = my_bal_acc(preds, labels).cpu().numpy()
+    my_f1_macro = MultilabelF1Score(preds.shape[1], average="micro").to(device=device)
+    f1_micro = MacroF1(preds.shape[1]).to(device=device)
+    my_auc_roc = MultilabelAUROC(preds.shape[1]).to(device=device)
+    my_av_prec = MultilabelAveragePrecision(preds.shape[1]).to(device=device)
+
+    macro_f1 = my_f1_macro(preds, labels).cpu().numpy()
+    micro_f1 = f1_micro(preds, labels).cpu().numpy()
+    auc_roc = my_auc_roc(preds, labels).cpu().numpy()
+    prc_auc = my_av_prec(preds, labels).cpu().numpy()
+
+    return auc_roc, macro_f1, micro_f1, bal_acc, prc_auc
+
+
+def metrics_classification_binary(
+    preds: Tensor,
+    labels: Tensor,
+    device: torch.device,
+):
+
+    if device != labels.device:
+        device = labels.device
+
+    my_auc_roc = BinaryAUROC()
+    my_f1 = BinaryF1Score().to(device=device)
+    my_av_prec = BinaryAveragePrecision().to(device=device)
+    my_bal_acc = BalancedAccuracy(preds.shape[1]).to(device=device)
+
+    bal_acc = my_bal_acc(preds, labels).cpu().numpy()
+    auc_roc = my_auc_roc(preds, labels).cpu().numpy()
+    # my_auc_roc.update(preds.cpu()[:, 0], labels.cpu()[:, 0])
+    # auc_roc = my_auc_roc.compute().numpy()
+    f1_score = my_f1(preds, labels).cpu().numpy()
+    prc_auc = my_av_prec(preds, labels).cpu().numpy()
+
+    return auc_roc, f1_score, bal_acc, prc_auc

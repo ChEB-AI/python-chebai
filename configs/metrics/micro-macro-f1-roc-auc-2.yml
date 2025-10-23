@@ -1,0 +1,13 @@
+class_path: torchmetrics.MetricCollection
+init_args:
+  metrics:
+    micro-f1:
+      class_path: torchmetrics.classification.MultilabelF1Score
+      init_args:
+        average: micro
+    macro-f1:
+      class_path: chebai.callbacks.epoch_metrics.MacroF1
+    roc-auc:
+      class_path: torchmetrics.classification.MultilabelAUROC
+      init_args:
+        num_labels: 2

@@ -1,6 +1,6 @@
 class_path: chebai.models.Electra
 init_args:
-  model_type: regression
+  model_type: classification
   optimizer_kwargs:
     lr: 1e-4
   config:
@@ -10,3 +10,4 @@ init_args:
     num_hidden_layers: 6
     type_vocab_size: 1
     hidden_size: 256
+    out_dim: 12

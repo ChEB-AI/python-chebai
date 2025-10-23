@@ -94,13 +94,18 @@ class DataReader:
         return raw
 
     def _read_components(self, row: Dict[str, Any]) -> Dict[str, Any]:
-        """Read and return components from the row."""
+        """Read and return components from the row. If the data contains any missing labels (`None`), they are tracked
+        under the additional `missing_labels` keyword."""
+        labels = self._get_raw_label(row)
+        additional_kwargs = self._get_additional_kwargs(row)
+        if any(l is None for l in labels):
+            additional_kwargs["missing_labels"] = [l is None for l in labels]
         return dict(
             features=self._get_raw_data(row),
-            labels=self._get_raw_label(row),
+            labels=labels,
             ident=self._get_raw_id(row),
             group=self._get_raw_group(row),
-            additional_kwargs=self._get_additional_kwargs(row),
+            additional_kwargs=additional_kwargs,
         )
 
     def to_data(self, row: Dict[str, Any]) -> Dict[str, Any]:

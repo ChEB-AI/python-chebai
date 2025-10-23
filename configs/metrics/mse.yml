@@ -1,0 +1,5 @@
+class_path: torchmetrics.MetricCollection
+init_args:
+  metrics:
+    mse:
+      class_path: torchmetrics.regression.MeanSquaredError

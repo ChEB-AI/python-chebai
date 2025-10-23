@@ -63,6 +63,7 @@ class ImplicationLoss(torch.nn.Module):
         multiply_by_softmax: bool = False,
         use_sigmoidal_implication: bool = False,
         weight_epoch_dependent: Union[bool, Tuple[int, int]] = False,
+        weight_epoch_dependent: Union[bool, Tuple[int, int]] = False,
         start_at_epoch: int = 0,
         violations_per_cls_aggregator: Literal[
             "sum", "max", "mean", "log-sum", "log-max", "log-mean"

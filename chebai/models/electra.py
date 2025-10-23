@@ -224,6 +224,7 @@ class Electra(ChebaiBaseNet):
         config: Optional[Dict[str, Any]] = None,
         pretrained_checkpoint: Optional[str] = None,
         load_prefix: Optional[str] = None,
+        model_type="classification",
         **kwargs: Any,
     ):
         # Remove this property in order to prevent it from being stored as a
@@ -236,6 +237,8 @@ class Electra(ChebaiBaseNet):
             config["num_labels"] = self.out_dim
         self.config = ElectraConfig(**config, output_attentions=True)
         self.word_dropout = nn.Dropout(config.get("word_dropout", 0))
+        self.model_type = model_type
+        self.pass_loss_kwargs = True
 
         in_d = self.config.hidden_size
         self.output = nn.Sequential(
@@ -262,6 +265,10 @@ class Electra(ChebaiBaseNet):
         else:
             self.electra = ElectraModel(config=self.config)
 
+        # freeze parameters
+        # for param in self.electra.parameters():
+        #     param.requires_grad = False
+
     def _process_for_loss(
         self,
         model_output: Dict[str, Tensor],
@@ -280,9 +287,16 @@ class Electra(ChebaiBaseNet):
             tuple: A tuple containing the processed model output, labels, and loss arguments.
         """
         kwargs_copy = dict(loss_kwargs)
+        output = model_output["logits"]
         if labels is not None:
             labels = labels.float()
-        return model_output["logits"], labels, kwargs_copy
+        if "missing_labels" in kwargs_copy:
+            missing_labels = kwargs_copy.pop("missing_labels")
+            output = output * (~missing_labels).int() - 10000 * missing_labels.int()
+            labels = labels * (~missing_labels).int()
+        if self.model_type == "classification":
+            assert ((labels <= torch.tensor(1.0)) & (labels >= torch.tensor(0.0))).all()
+        return output, labels, kwargs_copy
 
     def _get_prediction_and_labels(
         self, data: Dict[str, Any], labels: Tensor, model_output: Dict[str, Tensor]
@@ -303,7 +317,25 @@ class Electra(ChebaiBaseNet):
         if "non_null_labels" in loss_kwargs:
             n = loss_kwargs["non_null_labels"]
             d = d[n]
-        return torch.sigmoid(d), labels.int() if labels is not None else None
+        if self.model_type == "classification":
+            # print(self.model_type, ' in electra 324')
+            # for mulitclass here softmax instead of sigmoid
+            d = torch.sigmoid(
+                d
+            )  # changing this made a difference for the roc-auc but not the f1, why?
+            if "missing_labels" in loss_kwargs:
+                missing_labels = loss_kwargs["missing_labels"]
+                d = d * (~missing_labels).int().to(
+                    device=d.device
+                )  # we set the prob of missing labels to 0
+                labels = labels * (~missing_labels).int().to(
+                    device=d.device
+                )  # we set the labels of missing labels to 0
+            return d, labels.int() if labels is not None else None
+        elif self.model_type == "regression":
+            return d, labels
+        else:
+            raise ValueError("Please specify a valid model type in your model config.")
 
     def forward(self, data: Dict[str, Tensor], **kwargs: Any) -> Dict[str, Any]:
         """

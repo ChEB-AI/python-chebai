@@ -41,7 +41,8 @@ class ChebaiBaseNet(LightningModule, ABC):
         exclude_hyperparameter_logging: Optional[Iterable[str]] = None,
         **kwargs,
     ):
-        super().__init__()
+        super().__init__(**kwargs)
+        # super().__init__()
         if exclude_hyperparameter_logging is None:
             exclude_hyperparameter_logging = tuple()
         self.criterion = criterion
@@ -264,7 +265,7 @@ class ChebaiBaseNet(LightningModule, ABC):
                 loss_kwargs = dict()
                 if self.pass_loss_kwargs:
                     loss_kwargs = loss_kwargs_candidates
-                loss_kwargs["current_epoch"] = self.trainer.current_epoch
+                # loss_kwargs["current_epoch"] = self.trainer.current_epoch
                 loss = self.criterion(loss_data, loss_labels, **loss_kwargs)
                 if isinstance(loss, tuple):
                     unnamed_loss_index = 1

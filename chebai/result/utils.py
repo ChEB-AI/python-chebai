@@ -62,7 +62,7 @@ def _run_batch(batch, model, collate):
     if collated.y is not None:
         collated.y = collated.to_y(model.device)
     processable_data = model._process_batch(collated, 0)
-    del processable_data["loss_kwargs"]
+    # del processable_data["loss_kwargs"]
     model_output = model(processable_data, **processable_data["model_kwargs"])
     preds, labels = model._get_prediction_and_labels(
         processable_data, processable_data["labels"], model_output
@@ -105,6 +105,7 @@ def evaluate_model(
     Returns:
         Tensors with predictions and labels.
     """
+    assert model.model_type == "classification"
     model.eval()
     collate = data_module.reader.COLLATOR()
 
@@ -158,16 +159,113 @@ def evaluate_model(
             return test_preds, test_labels
         return test_preds, None
     elif len(preds_list) < 0:
-        if len(preds_list) > 0 and preds_list[0] is not None:
-            torch.save(
-                _concat_tuple(preds_list),
-                os.path.join(buffer_dir, f"preds{save_ind:03d}.pt"),
-            )
-        if len(labels_list) > 0 and labels_list[0] is not None:
+        torch.save(
+            _concat_tuple(preds_list),
+            os.path.join(buffer_dir, f"preds{save_ind:03d}.pt"),
+        )
+        if labels_list[0] is not None:
             torch.save(
                 _concat_tuple(labels_list),
                 os.path.join(buffer_dir, f"labels{save_ind:03d}.pt"),
             )
+    return torch.cat(preds_list_all), torch.cat(labels_list_all)
+
+
+def evaluate_model_regression(
+    model: ChebaiBaseNet,
+    data_module: XYBaseDataModule,
+    filename: Optional[str] = None,
+    buffer_dir: Optional[str] = None,
+    batch_size: int = 32,
+    skip_existing_preds: bool = False,
+    kind: str = "test",
+) -> Tuple[torch.Tensor, Optional[torch.Tensor]]:
+    """
+    Runs the model on the test set of the data module or on the dataset found in the specified file.
+    If buffer_dir is set, results will be saved in buffer_dir.
+
+    Note:
+        No need to provide "filename" parameter for Chebi dataset, "kind" parameter should be provided.
+
+    Args:
+        model: The model to evaluate.
+        data_module: The data module containing the dataset.
+        filename: Optional file name for the dataset.
+        buffer_dir: Optional directory to save the results.
+        batch_size: The batch size for evaluation.
+        skip_existing_preds: Whether to skip evaluation if predictions already exist.
+        kind: Kind of split of the data to be used for testing the model. Default is `test`.
+
+    Returns:
+        Tensors with predictions and labels.
+    """
+    model.eval()
+    collate = data_module.reader.COLLATOR()
+
+    if isinstance(data_module, _ChEBIDataExtractor):
+        # As the dynamic split change is implemented only for chebi-dataset as of now
+        data_df = data_module.dynamic_split_dfs[kind]
+        data_list = data_df.to_dict(orient="records")
+    else:
+        data_list = data_module.load_processed_data("test", filename)
+    data_list = data_list[: data_module.data_limit]
+    preds_list = []
+    labels_list = []
+    preds_list_all = []
+    labels_list_all = []
+    if buffer_dir is not None:
+        os.makedirs(buffer_dir, exist_ok=True)
+    save_ind = 0
+    save_batch_size = 128
+    n_saved = 1
+
+    print(f"")
+    for i in tqdm.tqdm(range(0, len(data_list), batch_size)):
+        if not (
+            skip_existing_preds
+            and os.path.isfile(os.path.join(buffer_dir, f"preds{save_ind:03d}.pt"))
+        ):
+            preds, labels = _run_batch(data_list[i : i + batch_size], model, collate)
+            preds_list.append(preds)
+            labels_list.append(labels)
+            preds_list_all.append(preds)
+            labels_list_all.append(labels)
+            if buffer_dir is not None:
+                if n_saved * batch_size >= save_batch_size:
+                    torch.save(
+                        _concat_tuple(preds_list),
+                        os.path.join(buffer_dir, f"preds{save_ind:03d}.pt"),
+                    )
+                    if labels_list[0] is not None:
+                        torch.save(
+                            _concat_tuple(labels_list),
+                            os.path.join(buffer_dir, f"labels{save_ind:03d}.pt"),
+                        )
+                    preds_list = []
+                    labels_list = []
+        if n_saved * batch_size >= save_batch_size:
+            save_ind += 1
+            n_saved = 0
+        n_saved += 1
+
+    if buffer_dir is None:
+        test_preds = _concat_tuple(preds_list)
+        if labels_list is not None:
+            test_labels = _concat_tuple(labels_list)
+
+            return test_preds, test_labels
+        return test_preds, None
+    else:
+        torch.save(
+            _concat_tuple(preds_list),
+            os.path.join(buffer_dir, f"preds{save_ind:03d}.pt"),
+        )
+        if labels_list[0] is not None:
+            torch.save(
+                _concat_tuple(labels_list),
+                os.path.join(buffer_dir, f"labels{save_ind:03d}.pt"),
+            )
+    return torch.cat(preds_list_all), torch.cat(labels_list_all)
 
 
 def load_results_from_buffer(
