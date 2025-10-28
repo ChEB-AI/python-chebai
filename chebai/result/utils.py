@@ -157,7 +157,7 @@ def evaluate_model(
             test_labels = _concat_tuple(labels_list)
             return test_preds, test_labels
         return test_preds, None
-    elif len(preds_list) < 0:
+    elif len(preds_list) > 0:
         if len(preds_list) > 0 and preds_list[0] is not None:
             torch.save(
                 _concat_tuple(preds_list),
