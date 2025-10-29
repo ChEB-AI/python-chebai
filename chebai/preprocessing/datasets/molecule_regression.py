@@ -38,9 +38,17 @@ class Lipo(XYBaseDataModule):
     def raw_file_names(self):
         return ["Lipo.csv"]
 
+    # @property
+    # def processed_file_names(self):
+    #     return ["test.pt", "train.pt", "validation.pt"]
+
     @property
-    def processed_file_names(self):
-        return ["test.pt", "train.pt", "validation.pt"]
+    def processed_file_names_dict(self) -> dict:
+        return {
+            "test": "test.pt", 
+            "train": "train.pt", 
+            "validation": "validation.pt",
+        }
 
     def download(self):
         # download
@@ -96,6 +104,23 @@ class Lipo(XYBaseDataModule):
 
         self._after_setup()
 
+    def _set_processed_data_props(self):
+        """
+        Load processed data and extract metadata.
+
+        Sets:
+            - self._num_of_labels: Number of target labels in the dataset.
+            - self._feature_vector_size: Maximum feature vector length across all data points.
+        """
+        pt_file_path = os.path.join(
+            self.processed_dir, self.processed_file_names_dict["train"]
+        )
+        data_pt = torch.load(pt_file_path, weights_only=False)
+
+        self._num_of_labels = len(data_pt[0]["labels"])
+        self._feature_vector_size = max(len(d["features"]) for d in data_pt)
+
+
     def _load_dict(self, input_file_path: str) -> List[Dict]:
         """Loads data from a CSV file.
 
@@ -117,7 +142,14 @@ class Lipo(XYBaseDataModule):
         for i in range(0, len(smiles_l)):
             yield dict(features=smiles_l[i], labels=[labels_l[i]], ident=i)
             # yield self.reader.to_data(dict(features=smiles_l[i], labels=[labels_l[i]], ident=i))
+            
+    def _perform_data_preparation(self, *args, **kwargs) -> None:
+        pass
 
+class LipoChem(Lipo):
+    """Chemical data reader for the solubility dataset."""
+
+    READER = dr.ChemDataReader
 
 class FreeSolv(XYBaseDataModule):
     HEADERS = [
@@ -243,11 +275,6 @@ class FreeSolv(XYBaseDataModule):
 
     def _perform_data_preparation(self, *args, **kwargs) -> None:
         pass
-
-class LipoChem(Lipo):
-    """Chemical data reader for the solubility dataset."""
-
-    READER = dr.ChemDataReader
 
 
 class FreeSolvChem(FreeSolv):

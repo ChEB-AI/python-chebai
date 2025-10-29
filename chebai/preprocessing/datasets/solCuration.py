@@ -38,9 +38,17 @@ class SolCuration(XYBaseDataModule):
     def raw_file_names(self):
         return ["solCuration.csv"]
 
+    # @property
+    # def processed_file_names(self):
+    #     return ["test.pt", "train.pt", "validation.pt"]
+
     @property
-    def processed_file_names(self):
-        return ["test.pt", "train.pt", "validation.pt"]
+    def processed_file_names_dict(self) -> dict:
+        return {
+            "test": "test.pt", 
+            "train": "train.pt", 
+            "validation": "validation.pt",
+        }
 
     def download(self):
         # download and combine all the available curated datasets from xxx
@@ -56,14 +64,16 @@ class SolCuration(XYBaseDataModule):
 
     def setup_processed(self):
         print("Create splits")
-        print(self.train_split)
-        print(os.path.join(self.raw_dir, f"solCuration.csv"))
         data = list(
             self._load_data_from_file(os.path.join(self.raw_dir, f"solCuration.csv"))
         )
         print(len(data))
-        # data = self._load_data_from_file(os.path.join(self.raw_dir, f"solCuration.csv"))
-        if 0 == 0:
+
+        train_split, test_split = train_test_split(data, test_size=self.test_split, shuffle=True)
+        train_split, validation_split = train_test_split(train_split, test_size=self.validation_split, shuffle=True)
+
+
+        if False:
             train_split, test_split = train_test_split(
                 data, train_size=self.train_split, shuffle=True
             )
@@ -99,6 +109,24 @@ class SolCuration(XYBaseDataModule):
         ):
             self.setup_processed()
 
+        self._after_setup()
+
+    def _set_processed_data_props(self):
+        """
+        Load processed data and extract metadata.
+
+        Sets:
+            - self._num_of_labels: Number of target labels in the dataset.
+            - self._feature_vector_size: Maximum feature vector length across all data points.
+        """
+        pt_file_path = os.path.join(
+            self.processed_dir, self.processed_file_names_dict["train"]
+        )
+        data_pt = torch.load(pt_file_path, weights_only=False)
+
+        self._num_of_labels = len(data_pt[0]["labels"])
+        self._feature_vector_size = max(len(d["features"]) for d in data_pt)
+
     def _load_data_from_file(self, input_file_path: str) -> List[Dict]:
         """Loads data from a CSV file.
 
@@ -108,7 +136,6 @@ class SolCuration(XYBaseDataModule):
         Returns:
             List[Dict]: List of data dictionaries.
         """
-        print("!!!!!!!!!!!!!!!!")
         smiles_l = []
         labels_l = []
         with open(input_file_path, "r") as input_file:
@@ -131,6 +158,14 @@ class SolCuration(XYBaseDataModule):
                 dict(features=smiles_l[i], labels=[labels_l[i]], ident=i)
             )
 
+    def _perform_data_preparation(self, *args, **kwargs) -> None:
+        pass
+
+class SolCurationChem(SolCuration):
+    """Chemical data reader for the solubility dataset."""
+
+    READER = dr.ChemDataReader
+
 
 class SolESOL(XYBaseDataModule):
     HEADERS = [
@@ -149,9 +184,17 @@ class SolESOL(XYBaseDataModule):
     def raw_file_names(self):
         return ["solESOL.csv"]
 
+    # @property
+    # def processed_file_names(self):
+    #     return ["test.pt", "train.pt", "validation.pt"]
+
     @property
-    def processed_file_names(self):
-        return ["test.pt", "train.pt", "validation.pt"]
+    def processed_file_names_dict(self) -> dict:
+        return {
+            "test": "test.pt", 
+            "train": "train.pt", 
+            "validation": "validation.pt",
+        }
 
     def download(self):
         # download
@@ -167,8 +210,13 @@ class SolESOL(XYBaseDataModule):
             self._load_data_from_file(os.path.join(self.raw_dir, f"solESOL.csv"))
         )
         print(len(data))
-        # data = self._load_data_from_file(os.path.join(self.raw_dir, f"solCuration.csv"))
-        if 0 == 0:
+
+
+        train_split, test_split = train_test_split(data, test_size=self.test_split, shuffle=True)
+        train_split, validation_split = train_test_split(train_split, test_size=self.validation_split, shuffle=True)
+
+
+        if False:
             train_split, test_split = train_test_split(
                 data, train_size=self.train_split, shuffle=True
             )
@@ -203,6 +251,24 @@ class SolESOL(XYBaseDataModule):
             for f in self.processed_file_names
         ):
             self.setup_processed()
+        
+        self._after_setup()
+
+    def _set_processed_data_props(self):
+        """
+        Load processed data and extract metadata.
+
+        Sets:
+            - self._num_of_labels: Number of target labels in the dataset.
+            - self._feature_vector_size: Maximum feature vector length across all data points.
+        """
+        pt_file_path = os.path.join(
+            self.processed_dir, self.processed_file_names_dict["train"]
+        )
+        data_pt = torch.load(pt_file_path, weights_only=False)
+
+        self._num_of_labels = len(data_pt[0]["labels"])
+        self._feature_vector_size = max(len(d["features"]) for d in data_pt)
 
     def _load_dict(self, input_file_path: str) -> List[Dict]:
         """Loads data from a CSV file.
@@ -226,11 +292,8 @@ class SolESOL(XYBaseDataModule):
             yield dict(features=smiles_l[i], labels=[labels_l[i]], ident=i)
             # yield self.reader.to_data(dict(features=smiles_l[i], labels=[labels_l[i]], ident=i))
 
-
-class SolCurationChem(SolCuration):
-    """Chemical data reader for the solubility dataset."""
-
-    READER = dr.ChemDataReader
+    def _perform_data_preparation(self, *args, **kwargs) -> None:
+        pass
 
 
 class SolESOLChem(SolESOL):

@@ -48,10 +48,18 @@ class ClinTox(XYBaseDataModule):
         """Returns a list of raw file names."""
         return ["clintox_groups.csv"]
 
+    # @property
+    # def processed_file_names(self) -> List[str]:
+    #     """Returns a list of processed file names."""
+    #     return ["test.pt", "train.pt", "validation.pt"]
+
     @property
-    def processed_file_names(self) -> List[str]:
-        """Returns a list of processed file names."""
-        return ["test.pt", "train.pt", "validation.pt"]
+    def processed_file_names_dict(self) -> dict:
+        return {
+            "test": "test.pt", 
+            "train": "train.pt", 
+            "validation": "validation.pt",
+        }
 
     def download(self) -> None:
         """Downloads and extracts the dataset."""
@@ -100,21 +108,6 @@ class ClinTox(XYBaseDataModule):
                 d for d in (data[temp_split_index[i]] for i in validation_split_index)
             ]
         else:
-            # print(self.train_split)
-            # print(type(data))
-            # print((data[0]))
-            # print(type(data[0]))
-            # X = []
-            # y = []
-            # for item in data:
-            #     X.append(item['ident'])
-            #     y.append(item['labels'])
-            # sss = StratifiedShuffleSplit(n_splits=10, test_size=1-self.train_split, random_state=0)
-            # sss.get_n_splits(np.array(X), np.array(y))
-            # print(sss)
-            # train, test = sss.split(X, y)
-            # print(train)
-            # exit()
             train_split, test_split = train_test_split(
                 data, train_size=self.train_split, shuffle=True
             )
@@ -145,6 +138,24 @@ class ClinTox(XYBaseDataModule):
         ):
             self.setup_processed()
 
+        self._after_setup()
+
+   def _set_processed_data_props(self):
+        """
+        Load processed data and extract metadata.
+
+        Sets:
+            - self._num_of_labels: Number of target labels in the dataset.
+            - self._feature_vector_size: Maximum feature vector length across all data points.
+        """
+        pt_file_path = os.path.join(
+            self.processed_dir, self.processed_file_names_dict["train"]
+        )
+        data_pt = torch.load(pt_file_path, weights_only=False)
+
+        self._num_of_labels = len(data_pt[0]["labels"])
+        self._feature_vector_size = max(len(d["features"]) for d in data_pt)
+
     def _load_dict(self, input_file_path: str) -> List[Dict]:
         """Loads data from a CSV file.
 
@@ -167,6 +178,9 @@ class ClinTox(XYBaseDataModule):
                 yield dict(features=smiles, labels=labels, ident=i, group=group)
                 # yield dict(features=smiles, labels=labels, ident=i)
                 # yield self.reader.to_data(dict(features=smiles, labels=labels, ident=i))
+
+    def _perform_data_preparation(self, *args, **kwargs) -> None:
+        pass
 
 
 class BBBP(XYBaseDataModule):
@@ -191,10 +205,18 @@ class BBBP(XYBaseDataModule):
         """Returns a list of raw file names."""
         return ["bbbp_groups.csv"]
 
+    # @property
+    # def processed_file_names(self) -> List[str]:
+    #     """Returns a list of processed file names."""
+    #     return ["test.pt", "train.pt", "validation.pt"]
+
     @property
-    def processed_file_names(self) -> List[str]:
-        """Returns a list of processed file names."""
-        return ["test.pt", "train.pt", "validation.pt"]
+    def processed_file_names_dict(self) -> dict:
+        return {
+            "test": "test.pt", 
+            "train": "train.pt", 
+            "validation": "validation.pt",
+        }
 
     def download(self) -> None:
         """Downloads and extracts the dataset."""
@@ -270,6 +292,26 @@ class BBBP(XYBaseDataModule):
             for f in self.processed_file_names
         ):
             self.setup_processed()
+        
+        self._after_setup()
+
+
+   def _set_processed_data_props(self):
+        """
+        Load processed data and extract metadata.
+
+        Sets:
+            - self._num_of_labels: Number of target labels in the dataset.
+            - self._feature_vector_size: Maximum feature vector length across all data points.
+        """
+        pt_file_path = os.path.join(
+            self.processed_dir, self.processed_file_names_dict["train"]
+        )
+        data_pt = torch.load(pt_file_path, weights_only=False)
+
+        self._num_of_labels = len(data_pt[0]["labels"])
+        self._feature_vector_size = max(len(d["features"]) for d in data_pt)
+
 
     def _load_dict(self, input_file_path: str) -> List[Dict]:
         """Loads data from a CSV file.
@@ -290,6 +332,9 @@ class BBBP(XYBaseDataModule):
                 group = int(row["group"])
                 yield dict(features=smiles, labels=labels, ident=i, group=group)
                 # yield self.reader.to_data(dict(features=smiles, labels=labels, ident=i))
+
+    def _perform_data_preparation(self, *args, **kwargs) -> None:
+        pass
 
 
 class Sider(XYBaseDataModule):
@@ -340,10 +385,18 @@ class Sider(XYBaseDataModule):
         """Returns a list of raw file names."""
         return ["sider_groups.csv"]
 
+    # @property
+    # def processed_file_names(self) -> List[str]:
+    #     """Returns a list of processed file names."""
+    #     return ["test.pt", "train.pt", "validation.pt"]
+
     @property
-    def processed_file_names(self) -> List[str]:
-        """Returns a list of processed file names."""
-        return ["test.pt", "train.pt", "validation.pt"]
+    def processed_file_names_dict(self) -> dict:
+        return {
+            "test": "test.pt", 
+            "train": "train.pt", 
+            "validation": "validation.pt",
+        }
 
     def download(self) -> None:
         """Downloads and extracts the dataset."""
@@ -421,6 +474,24 @@ class Sider(XYBaseDataModule):
             for f in self.processed_file_names
         ):
             self.setup_processed()
+        
+        self._after_setup()
+
+   def _set_processed_data_props(self):
+        """
+        Load processed data and extract metadata.
+
+        Sets:
+            - self._num_of_labels: Number of target labels in the dataset.
+            - self._feature_vector_size: Maximum feature vector length across all data points.
+        """
+        pt_file_path = os.path.join(
+            self.processed_dir, self.processed_file_names_dict["train"]
+        )
+        data_pt = torch.load(pt_file_path, weights_only=False)
+
+        self._num_of_labels = len(data_pt[0]["labels"])
+        self._feature_vector_size = max(len(d["features"]) for d in data_pt)
 
     def _load_dict(self, input_file_path: str) -> List[Dict]:
         """Loads data from a CSV file.
@@ -444,6 +515,8 @@ class Sider(XYBaseDataModule):
                 yield dict(features=smiles, labels=labels, ident=i, group=group)
                 # yield self.reader.to_data(dict(features=smiles, labels=labels, ident=i))
 
+    def _perform_data_preparation(self, *args, **kwargs) -> None:
+        pass
 
 class Bace(XYBaseDataModule):
     """Data module for ClinTox MoleculeNet dataset."""
@@ -467,10 +540,18 @@ class Bace(XYBaseDataModule):
         """Returns a list of raw file names."""
         return ["bace.csv"]
 
+    # @property
+    # def processed_file_names(self) -> List[str]:
+    #     """Returns a list of processed file names."""
+    #     return ["test.pt", "train.pt", "validation.pt"]
+
     @property
-    def processed_file_names(self) -> List[str]:
-        """Returns a list of processed file names."""
-        return ["test.pt", "train.pt", "validation.pt"]
+    def processed_file_names_dict(self) -> dict:
+        return {
+            "test": "test.pt", 
+            "train": "train.pt", 
+            "validation": "validation.pt",
+        }
 
     def download(self) -> None:
         """Downloads and extracts the dataset."""
@@ -543,6 +624,24 @@ class Bace(XYBaseDataModule):
         ):
             self.setup_processed()
 
+        self._after_setup()
+
+   def _set_processed_data_props(self):
+        """
+        Load processed data and extract metadata.
+
+        Sets:
+            - self._num_of_labels: Number of target labels in the dataset.
+            - self._feature_vector_size: Maximum feature vector length across all data points.
+        """
+        pt_file_path = os.path.join(
+            self.processed_dir, self.processed_file_names_dict["train"]
+        )
+        data_pt = torch.load(pt_file_path, weights_only=False)
+
+        self._num_of_labels = len(data_pt[0]["labels"])
+        self._feature_vector_size = max(len(d["features"]) for d in data_pt)
+
     def _load_dict(self, input_file_path: str) -> List[Dict]:
         """Loads data from a CSV file.
 
@@ -562,6 +661,9 @@ class Bace(XYBaseDataModule):
                 # group = row["group"]
                 yield dict(features=smiles, labels=labels, ident=i)  # , group=group
                 # yield self.reader.to_data(dict(features=smiles, labels=labels, ident=i))
+
+    def _perform_data_preparation(self, *args, **kwargs) -> None:
+        pass
 
 
 class HIV(XYBaseDataModule):
@@ -586,10 +688,18 @@ class HIV(XYBaseDataModule):
         """Returns a list of raw file names."""
         return ["hiv_groups.csv"]
 
+    # @property
+    # def processed_file_names(self) -> List[str]:
+    #     """Returns a list of processed file names."""
+    #     return ["test.pt", "train.pt", "validation.pt"]
+
     @property
-    def processed_file_names(self) -> List[str]:
-        """Returns a list of processed file names."""
-        return ["test.pt", "train.pt", "validation.pt"]
+    def processed_file_names_dict(self) -> dict:
+        return {
+            "test": "test.pt", 
+            "train": "train.pt", 
+            "validation": "validation.pt",
+        }
 
     def download(self) -> None:
         """Downloads and extracts the dataset."""
@@ -662,6 +772,24 @@ class HIV(XYBaseDataModule):
         ):
             self.setup_processed()
 
+        self._after_setup()
+
+   def _set_processed_data_props(self):
+        """
+        Load processed data and extract metadata.
+
+        Sets:
+            - self._num_of_labels: Number of target labels in the dataset.
+            - self._feature_vector_size: Maximum feature vector length across all data points.
+        """
+        pt_file_path = os.path.join(
+            self.processed_dir, self.processed_file_names_dict["train"]
+        )
+        data_pt = torch.load(pt_file_path, weights_only=False)
+
+        self._num_of_labels = len(data_pt[0]["labels"])
+        self._feature_vector_size = max(len(d["features"]) for d in data_pt)
+
     def _load_dict(self, input_file_path: str) -> List[Dict]:
         """Loads data from a CSV file.
 
@@ -682,6 +810,9 @@ class HIV(XYBaseDataModule):
                     group = int(row["group"])
                     yield dict(features=smiles, labels=labels, ident=i, group=group)
                 # yield self.reader.to_data(dict(features=smiles, labels=labels, ident=i))
+
+    def _perform_data_preparation(self, *args, **kwargs) -> None:
+        pass
 
 
 class MUV(XYBaseDataModule):
@@ -722,10 +853,18 @@ class MUV(XYBaseDataModule):
         """Returns a list of raw file names."""
         return ["muv.csv"]
 
+    # @property
+    # def processed_file_names(self) -> List[str]:
+    #     """Returns a list of processed file names."""
+    #     return ["test.pt", "train.pt", "validation.pt"]
+
     @property
-    def processed_file_names(self) -> List[str]:
-        """Returns a list of processed file names."""
-        return ["test.pt", "train.pt", "validation.pt"]
+    def processed_file_names_dict(self) -> dict:
+        return {
+            "test": "test.pt", 
+            "train": "train.pt", 
+            "validation": "validation.pt",
+        }
 
     def download(self) -> None:
         """Downloads and extracts the dataset."""
@@ -802,6 +941,25 @@ class MUV(XYBaseDataModule):
         ):
             self.setup_processed()
 
+        self._after_setup()
+
+   def _set_processed_data_props(self):
+        """
+        Load processed data and extract metadata.
+
+        Sets:
+            - self._num_of_labels: Number of target labels in the dataset.
+            - self._feature_vector_size: Maximum feature vector length across all data points.
+        """
+        pt_file_path = os.path.join(
+            self.processed_dir, self.processed_file_names_dict["train"]
+        )
+        data_pt = torch.load(pt_file_path, weights_only=False)
+
+        self._num_of_labels = len(data_pt[0]["labels"])
+        self._feature_vector_size = max(len(d["features"]) for d in data_pt)
+
+
     def _load_dict(self, input_file_path: str) -> List[Dict]:
         """Loads data from a CSV file.
 
@@ -823,6 +981,9 @@ class MUV(XYBaseDataModule):
                 # group = row["group"]
                 yield dict(features=smiles, labels=labels, ident=i)  # , group=group)
                 # yield self.reader.to_data(dict(features=smiles, labels=labels, ident=i))
+
+    def _perform_data_preparation(self, *args, **kwargs) -> None:
+        pass
 
 
 class BaceChem(Bace):

@@ -49,10 +49,18 @@ class Tox21MolNet(XYBaseDataModule):
         # return ["tox21.csv"]
         return ["tox21.csv"]
 
+    # @property
+    # def processed_file_names(self) -> List[str]:
+    #     """Returns a list of processed file names."""
+    #     return ["test.pt", "train.pt", "validation.pt"]
+
     @property
-    def processed_file_names(self) -> List[str]:
-        """Returns a list of processed file names."""
-        return ["test.pt", "train.pt", "validation.pt"]
+    def processed_file_names_dict(self) -> dict:
+        return {
+            "test": "test.pt", 
+            "train": "train.pt", 
+            "validation": "validation.pt",
+        }
 
     def download(self) -> None:
         """Downloads and extracts the dataset."""

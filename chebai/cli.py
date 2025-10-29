@@ -43,7 +43,7 @@ class ChebaiCLI(LightningCLI):
         def call_data_methods(data: Type[XYBaseDataModule]):
             if data._num_of_labels is None:
                 data.prepare_data()
-                data.setup()
+                data.setup()    
             return data.num_of_labels
 
         parser.link_arguments(
@@ -60,7 +60,9 @@ class ChebaiCLI(LightningCLI):
         )
 
         for kind in ("train", "val", "test"):
-            for average in ("micro-f1", "macro-f1", "balanced-accuracy", "f1", "mse", "rmse","r2"):
+            # todo: fix this
+            # for average in ("mse", "rmse","r2"): # for regression
+            for average in ("micro-f1", "macro-f1", "balanced-accuracy", "f1"): # for classification 
                 parser.link_arguments(
                     "data.num_of_labels",
                     f"model.init_args.{kind}_metrics.init_args.metrics.{average}.init_args.num_labels",
@@ -79,7 +81,7 @@ class ChebaiCLI(LightningCLI):
         # parser.link_arguments(
         #     "data.init_args.chebi_version",
         #     "model.init_args.criterion.init_args.data_extractor.init_args.chebi_version",
-        # )
+        # ) 
 
     @staticmethod
     def subcommands() -> Dict[str, Set[str]]:
