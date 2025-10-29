@@ -60,9 +60,10 @@ class ChebaiCLI(LightningCLI):
         )
 
         for kind in ("train", "val", "test"):
-            # todo: fix this
+            for average in ("micro-f1", "macro-f1", "balanced-accuracy", "roc-auc", "f1", "mse", "rmse", "r2"):
+            # When using lightning > 2.5.1 then need to uncomment all metrics that are not used
             # for average in ("mse", "rmse","r2"): # for regression
-            for average in ("f1", "roc-auc"): # for binary classification 
+            # for average in ("f1", "roc-auc"): # for binary classification 
             # for average in ("micro-f1", "macro-f1", "roc-auc"): # for multilabel classification 
             # for average in ("micro-f1", "macro-f1", "balanced-accuracy", "roc-auc"): # for multilabel classification using balanced-accuracy
                 parser.link_arguments(
