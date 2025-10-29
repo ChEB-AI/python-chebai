@@ -19,7 +19,8 @@ from chebai.preprocessing.reader import CLS_TOKEN, MASK_TOKEN_INDEX
 
 logging.getLogger("pysmiles").setLevel(logging.CRITICAL)
 
-from chebai.loss.semantic import DisjointLoss as ElectraChEBIDisjointLoss  # noqa
+# TODO: put back in before pull request
+# from chebai.loss.semantic import DisjointLoss as ElectraChEBIDisjointLoss  # noqa
 
 
 class ElectraPre(ChebaiBaseNet):
@@ -40,6 +41,7 @@ class ElectraPre(ChebaiBaseNet):
 
     def __init__(self, config: Dict[str, Any] = None, **kwargs: Any):
         super().__init__(config=config, **kwargs)
+      
         self.generator_config = ElectraConfig(**config["generator"])
         self.generator = ElectraForMaskedLM(self.generator_config)
         self.discriminator_config = ElectraConfig(**config["discriminator"])

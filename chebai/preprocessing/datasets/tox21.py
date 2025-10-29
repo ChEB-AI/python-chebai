@@ -163,7 +163,7 @@ class Tox21MolNet(XYBaseDataModule):
                     features=smiles, labels=labels, ident=row["mol_id"], group=group
                 )
                 # yield self.reader.to_data(dict(features=smiles, labels=labels, ident=row["mol_id"]))
-        def _set_processed_data_props(self):
+    def _set_processed_data_props(self):
         """
         Load processed data and extract metadata.
 

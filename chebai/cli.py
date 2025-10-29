@@ -46,18 +46,18 @@ class ChebaiCLI(LightningCLI):
                 data.setup()
             return data.num_of_labels
 
-        # parser.link_arguments(
-        #     "data",
-        #     "model.init_args.out_dim",
-        #     apply_on="instantiate",
-        #     compute_fn=call_data_methods,
-        # )
+        parser.link_arguments(
+            "data",
+            "model.init_args.out_dim",
+            apply_on="instantiate",
+            compute_fn=call_data_methods,
+        )
 
-        # parser.link_arguments(
-        #     "data.feature_vector_size",
-        #     "model.init_args.input_dim",
-        #     apply_on="instantiate",
-        # )
+        parser.link_arguments(
+            "data.feature_vector_size",
+            "model.init_args.input_dim",
+            apply_on="instantiate",
+        )
 
         for kind in ("train", "val", "test"):
             for average in ("micro-f1", "macro-f1", "balanced-accuracy", "f1", "mse", "rmse","r2"):
@@ -66,9 +66,13 @@ class ChebaiCLI(LightningCLI):
                     f"model.init_args.{kind}_metrics.init_args.metrics.{average}.init_args.num_labels",
                     apply_on="instantiate",
                 )
+        
         parser.link_arguments(
-            "model.init_args.out_dim", "trainer.callbacks.init_args.num_labels"
+            "data.num_of_labels", "trainer.callbacks.init_args.num_labels"
         )
+        # parser.link_arguments(
+        #     "model.init_args.out_dim", "trainer.callbacks.init_args.num_labels"
+        # )
         # parser.link_arguments(
         #     "data", "model.init_args.criterion.init_args.data_extractor"
         # )
