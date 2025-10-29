@@ -41,7 +41,7 @@ class ElectraPre(ChebaiBaseNet):
 
     def __init__(self, config: Dict[str, Any] = None, **kwargs: Any):
         super().__init__(config=config, **kwargs)
-      
+
         self.generator_config = ElectraConfig(**config["generator"])
         self.generator = ElectraForMaskedLM(self.generator_config)
         self.discriminator_config = ElectraConfig(**config["discriminator"])

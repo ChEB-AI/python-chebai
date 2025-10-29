@@ -56,8 +56,8 @@ class ClinTox(XYBaseDataModule):
     @property
     def processed_file_names_dict(self) -> dict:
         return {
-            "test": "test.pt", 
-            "train": "train.pt", 
+            "test": "test.pt",
+            "train": "train.pt",
             "validation": "validation.pt",
         }
 
@@ -69,22 +69,20 @@ class ClinTox(XYBaseDataModule):
                 gout.name,
             )
             with gzip.open(gout.name) as gfile:
-                with open(
-                    os.path.join(self.raw_dir, "clintox.csv"), "wt"
-                ) as fout:
+                with open(os.path.join(self.raw_dir, "clintox.csv"), "wt") as fout:
                     fout.write(gfile.read().decode())
 
     def setup_processed(self) -> None:
         """Processes and splits the dataset."""
         print("Create splits")
         data = list(
-            self._load_data_from_file(
-                os.path.join(self.raw_dir, f"clintox.csv")
-            )
+            self._load_data_from_file(os.path.join(self.raw_dir, f"clintox.csv"))
         )
         groups = np.array([d["group"] for d in data])
         if not all(g is None for g in groups):
-            split_size = int(len(set(groups)) * (1 - self.test_split - self.validation_split))
+            split_size = int(
+                len(set(groups)) * (1 - self.test_split - self.validation_split)
+            )
             os.makedirs(self.processed_dir, exist_ok=True)
             splitter = GroupShuffleSplit(train_size=split_size, n_splits=1)
 
@@ -95,7 +93,11 @@ class ClinTox(XYBaseDataModule):
             split_groups = groups[temp_split_index]
 
             splitter = GroupShuffleSplit(
-                train_size=int(len(set(split_groups)) * (1 - self.test_split - self.validation_split)), n_splits=1
+                train_size=int(
+                    len(set(split_groups))
+                    * (1 - self.test_split - self.validation_split)
+                ),
+                n_splits=1,
             )
             test_split_index, validation_split_index = next(
                 splitter.split(temp_split_index, groups=split_groups)
@@ -108,8 +110,12 @@ class ClinTox(XYBaseDataModule):
                 d for d in (data[temp_split_index[i]] for i in validation_split_index)
             ]
         else:
-            train_split, test_split = train_test_split(data, test_size=self.test_split, shuffle=True)
-            train_split, validation_split = train_test_split(train_split, test_size=self.validation_split, shuffle=True)
+            train_split, test_split = train_test_split(
+                data, test_size=self.test_split, shuffle=True
+            )
+            train_split, validation_split = train_test_split(
+                train_split, test_size=self.validation_split, shuffle=True
+            )
         for k, split in [
             ("test", test_split),
             ("train", train_split),
@@ -171,8 +177,11 @@ class ClinTox(XYBaseDataModule):
                     bool(int(l)) if l else None for l in (row[k] for k in self.HEADERS)
                 ]
                 # group = int(row["group"])
-                yield dict(features=smiles, labels=labels, ident=i, 
-                            # group=group
+                yield dict(
+                    features=smiles,
+                    labels=labels,
+                    ident=i,
+                    # group=group
                 )
                 # yield dict(features=smiles, labels=labels, ident=i)
                 # yield self.reader.to_data(dict(features=smiles, labels=labels, ident=i))
@@ -211,8 +220,8 @@ class BBBP(XYBaseDataModule):
     @property
     def processed_file_names_dict(self) -> dict:
         return {
-            "test": "test.pt", 
-            "train": "train.pt", 
+            "test": "test.pt",
+            "train": "train.pt",
             "validation": "validation.pt",
         }
 
@@ -227,13 +236,13 @@ class BBBP(XYBaseDataModule):
     def setup_processed(self) -> None:
         """Processes and splits the dataset."""
         print("Create splits")
-        data = list(
-            self._load_data_from_file(os.path.join(self.raw_dir, f"bbbp.csv"))
-        )
+        data = list(self._load_data_from_file(os.path.join(self.raw_dir, f"bbbp.csv")))
         groups = np.array([d["group"] for d in data])
         if not all(g is None for g in groups):
             print("Group shuffled")
-            split_size = int(len(set(groups)) * (1 - self.test_split - self.validation_split))
+            split_size = int(
+                len(set(groups)) * (1 - self.test_split - self.validation_split)
+            )
             os.makedirs(self.processed_dir, exist_ok=True)
             splitter = GroupShuffleSplit(train_size=split_size, n_splits=1)
 
@@ -244,7 +253,11 @@ class BBBP(XYBaseDataModule):
             split_groups = groups[temp_split_index]
 
             splitter = GroupShuffleSplit(
-                train_size=int(len(set(split_groups)) * (1 - self.test_split - self.validation_split)), n_splits=1
+                train_size=int(
+                    len(set(split_groups))
+                    * (1 - self.test_split - self.validation_split)
+                ),
+                n_splits=1,
             )
             test_split_index, validation_split_index = next(
                 splitter.split(temp_split_index, groups=split_groups)
@@ -261,8 +274,12 @@ class BBBP(XYBaseDataModule):
                 # if d["original"]
             ]
         else:
-            train_split, test_split = train_test_split(data, test_size=self.test_split, shuffle=True)
-            train_split, validation_split = train_test_split(train_split, test_size=self.validation_split, shuffle=True)
+            train_split, test_split = train_test_split(
+                data, test_size=self.test_split, shuffle=True
+            )
+            train_split, validation_split = train_test_split(
+                train_split, test_size=self.validation_split, shuffle=True
+            )
         for k, split in [
             ("test", test_split),
             ("train", train_split),
@@ -286,9 +303,8 @@ class BBBP(XYBaseDataModule):
             for f in self.processed_file_names
         ):
             self.setup_processed()
-        
-        self._after_setup()
 
+        self._after_setup()
 
     def _set_processed_data_props(self):
         """
@@ -305,7 +321,6 @@ class BBBP(XYBaseDataModule):
 
         self._num_of_labels = len(data_pt[0]["labels"])
         self._feature_vector_size = max(len(d["features"]) for d in data_pt)
-
 
     def _load_dict(self, input_file_path: str) -> List[Dict]:
         """Loads data from a CSV file.
@@ -324,8 +339,11 @@ class BBBP(XYBaseDataModule):
                 smiles = row["smiles"]
                 labels = [int(row["p_np"])]
                 # group = int(row["group"])
-                yield dict(features=smiles, labels=labels, ident=i
-                # , group=group
+                yield dict(
+                    features=smiles,
+                    labels=labels,
+                    ident=i,
+                    # , group=group
                 )
                 # yield self.reader.to_data(dict(features=smiles, labels=labels, ident=i))
 
@@ -389,8 +407,8 @@ class Sider(XYBaseDataModule):
     @property
     def processed_file_names_dict(self) -> dict:
         return {
-            "test": "test.pt", 
-            "train": "train.pt", 
+            "test": "test.pt",
+            "train": "train.pt",
             "validation": "validation.pt",
         }
 
@@ -408,12 +426,12 @@ class Sider(XYBaseDataModule):
     def setup_processed(self) -> None:
         """Processes and splits the dataset."""
         print("Create splits")
-        data = list(
-            self._load_data_from_file(os.path.join(self.raw_dir, f"sider.csv"))
-        )
+        data = list(self._load_data_from_file(os.path.join(self.raw_dir, f"sider.csv")))
         groups = np.array([d["group"] for d in data])
         if not all(g is None for g in groups):
-            split_size = int(len(set(groups)) * (1 - self.test_split - self.validation_split))
+            split_size = int(
+                len(set(groups)) * (1 - self.test_split - self.validation_split)
+            )
             os.makedirs(self.processed_dir, exist_ok=True)
             splitter = GroupShuffleSplit(train_size=split_size, n_splits=1)
 
@@ -424,7 +442,11 @@ class Sider(XYBaseDataModule):
             split_groups = groups[temp_split_index]
 
             splitter = GroupShuffleSplit(
-                train_size=int(len(set(split_groups)) * (1 - self.test_split - self.validation_split)), n_splits=1
+                train_size=int(
+                    len(set(split_groups))
+                    * (1 - self.test_split - self.validation_split)
+                ),
+                n_splits=1,
             )
             test_split_index, validation_split_index = next(
                 splitter.split(temp_split_index, groups=split_groups)
@@ -441,8 +463,12 @@ class Sider(XYBaseDataModule):
                 # if d["original"]
             ]
         else:
-            train_split, test_split = train_test_split(data, test_size=self.test_split, shuffle=True)
-            train_split, validation_split = train_test_split(train_split, test_size=self.validation_split, shuffle=True)
+            train_split, test_split = train_test_split(
+                data, test_size=self.test_split, shuffle=True
+            )
+            train_split, validation_split = train_test_split(
+                train_split, test_size=self.validation_split, shuffle=True
+            )
         for k, split in [
             ("test", test_split),
             ("train", train_split),
@@ -466,7 +492,7 @@ class Sider(XYBaseDataModule):
             for f in self.processed_file_names
         ):
             self.setup_processed()
-        
+
         self._after_setup()
 
     def _set_processed_data_props(self):
@@ -504,13 +530,17 @@ class Sider(XYBaseDataModule):
                     bool(int(l)) if l else None for l in (row[k] for k in self.HEADERS)
                 ]
                 # group = row["group"]
-                yield dict(features=smiles, labels=labels, ident=i
-                # , group=group
+                yield dict(
+                    features=smiles,
+                    labels=labels,
+                    ident=i,
+                    # , group=group
                 )
                 # yield self.reader.to_data(dict(features=smiles, labels=labels, ident=i))
 
     def _perform_data_preparation(self, *args, **kwargs) -> None:
         pass
+
 
 class Bace(XYBaseDataModule):
     """Data module for ClinTox MoleculeNet dataset."""
@@ -542,8 +572,8 @@ class Bace(XYBaseDataModule):
     @property
     def processed_file_names_dict(self) -> dict:
         return {
-            "test": "test.pt", 
-            "train": "train.pt", 
+            "test": "test.pt",
+            "train": "train.pt",
             "validation": "validation.pt",
         }
 
@@ -588,8 +618,12 @@ class Bace(XYBaseDataModule):
         #         for d in (data[temp_split_index[i]] for i in validation_split_index)
         #     ]
         # else:
-        train_split, test_split = train_test_split(data, test_size=self.test_split, shuffle=True)
-        train_split, validation_split = train_test_split(train_split, test_size=self.validation_split, shuffle=True)
+        train_split, test_split = train_test_split(
+            data, test_size=self.test_split, shuffle=True
+        )
+        train_split, validation_split = train_test_split(
+            train_split, test_size=self.validation_split, shuffle=True
+        )
         for k, split in [
             ("test", test_split),
             ("train", train_split),
@@ -686,8 +720,8 @@ class HIV(XYBaseDataModule):
     @property
     def processed_file_names_dict(self) -> dict:
         return {
-            "test": "test.pt", 
-            "train": "train.pt", 
+            "test": "test.pt",
+            "train": "train.pt",
             "validation": "validation.pt",
         }
 
@@ -702,13 +736,13 @@ class HIV(XYBaseDataModule):
     def setup_processed(self) -> None:
         """Processes and splits the dataset."""
         print("Create splits")
-        data = list(
-            self._load_data_from_file(os.path.join(self.raw_dir, f"hiv.csv"))
-        )
+        data = list(self._load_data_from_file(os.path.join(self.raw_dir, f"hiv.csv")))
         groups = np.array([d["group"] for d in data])
         if not all(g is None for g in groups):
             print("Group shuffled")
-            split_size = int(len(set(groups)) * (1 - self.test_split - self.validation_split))
+            split_size = int(
+                len(set(groups)) * (1 - self.test_split - self.validation_split)
+            )
             os.makedirs(self.processed_dir, exist_ok=True)
             splitter = GroupShuffleSplit(train_size=split_size, n_splits=1)
 
@@ -719,7 +753,11 @@ class HIV(XYBaseDataModule):
             split_groups = groups[temp_split_index]
 
             splitter = GroupShuffleSplit(
-                train_size=int(len(set(split_groups)) * (1 - self.test_split - self.validation_split)), n_splits=1
+                train_size=int(
+                    len(set(split_groups))
+                    * (1 - self.test_split - self.validation_split)
+                ),
+                n_splits=1,
             )
             test_split_index, validation_split_index = next(
                 splitter.split(temp_split_index, groups=split_groups)
@@ -732,8 +770,12 @@ class HIV(XYBaseDataModule):
                 d for d in (data[temp_split_index[i]] for i in validation_split_index)
             ]
         else:
-            train_split, test_split = train_test_split(data, test_size=self.test_split, shuffle=True)
-            train_split, validation_split = train_test_split(train_split, test_size=self.validation_split, shuffle=True)
+            train_split, test_split = train_test_split(
+                data, test_size=self.test_split, shuffle=True
+            )
+            train_split, validation_split = train_test_split(
+                train_split, test_size=self.validation_split, shuffle=True
+            )
         for k, split in [
             ("test", test_split),
             ("train", train_split),
@@ -794,8 +836,11 @@ class HIV(XYBaseDataModule):
                     smiles = row["smiles"]
                     labels = [int(row["HIV_active"])]
                     # group = int(row["group"])
-                    yield dict(features=smiles, labels=labels, ident=i
-                    # , group=group
+                    yield dict(
+                        features=smiles,
+                        labels=labels,
+                        ident=i,
+                        # , group=group
                     )
                 # yield self.reader.to_data(dict(features=smiles, labels=labels, ident=i))
 
@@ -849,8 +894,8 @@ class MUV(XYBaseDataModule):
     @property
     def processed_file_names_dict(self) -> dict:
         return {
-            "test": "test.pt", 
-            "train": "train.pt", 
+            "test": "test.pt",
+            "train": "train.pt",
             "validation": "validation.pt",
         }
 
@@ -871,7 +916,9 @@ class MUV(XYBaseDataModule):
         data = list(self._load_data_from_file(os.path.join(self.raw_dir, f"muv.csv")))
         groups = np.array([d["group"] for d in data])
         if not all(g is None for g in groups):
-            split_size = int(len(set(groups)) * (1 - self.test_split - self.validation_split))
+            split_size = int(
+                len(set(groups)) * (1 - self.test_split - self.validation_split)
+            )
             os.makedirs(self.processed_dir, exist_ok=True)
             splitter = GroupShuffleSplit(train_size=split_size, n_splits=1)
 
@@ -882,7 +929,11 @@ class MUV(XYBaseDataModule):
             split_groups = groups[temp_split_index]
 
             splitter = GroupShuffleSplit(
-                train_size=int(len(set(split_groups)) * (1 - self.test_split - self.validation_split)), n_splits=1
+                train_size=int(
+                    len(set(split_groups))
+                    * (1 - self.test_split - self.validation_split)
+                ),
+                n_splits=1,
             )
             test_split_index, validation_split_index = next(
                 splitter.split(temp_split_index, groups=split_groups)
@@ -899,8 +950,12 @@ class MUV(XYBaseDataModule):
                 # if d["original"]
             ]
         else:
-            train_split, test_split = train_test_split(data, test_size=self.test_split, shuffle=True)
-            train_split, validation_split = train_test_split(train_split, test_size=self.validation_split, shuffle=True)
+            train_split, test_split = train_test_split(
+                data, test_size=self.test_split, shuffle=True
+            )
+            train_split, validation_split = train_test_split(
+                train_split, test_size=self.validation_split, shuffle=True
+            )
         for k, split in [
             ("test", test_split),
             ("train", train_split),
@@ -942,7 +997,6 @@ class MUV(XYBaseDataModule):
 
         self._num_of_labels = len(data_pt[0]["labels"])
         self._feature_vector_size = max(len(d["features"]) for d in data_pt)
-
 
     def _load_dict(self, input_file_path: str) -> List[Dict]:
         """Loads data from a CSV file.

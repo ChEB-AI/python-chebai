@@ -45,8 +45,8 @@ class SolCuration(XYBaseDataModule):
     @property
     def processed_file_names_dict(self) -> dict:
         return {
-            "test": "test.pt", 
-            "train": "train.pt", 
+            "test": "test.pt",
+            "train": "train.pt",
             "validation": "validation.pt",
         }
 
@@ -69,9 +69,12 @@ class SolCuration(XYBaseDataModule):
         )
         print(len(data))
 
-        train_split, test_split = train_test_split(data, test_size=self.test_split, shuffle=True)
-        train_split, validation_split = train_test_split(train_split, test_size=self.validation_split, shuffle=True)
-
+        train_split, test_split = train_test_split(
+            data, test_size=self.test_split, shuffle=True
+        )
+        train_split, validation_split = train_test_split(
+            train_split, test_size=self.validation_split, shuffle=True
+        )
 
         if False:
             train_split, test_split = train_test_split(
@@ -161,6 +164,7 @@ class SolCuration(XYBaseDataModule):
     def _perform_data_preparation(self, *args, **kwargs) -> None:
         pass
 
+
 class SolCurationChem(SolCuration):
     """Chemical data reader for the solubility dataset."""
 
@@ -191,8 +195,8 @@ class SolESOL(XYBaseDataModule):
     @property
     def processed_file_names_dict(self) -> dict:
         return {
-            "test": "test.pt", 
-            "train": "train.pt", 
+            "test": "test.pt",
+            "train": "train.pt",
             "validation": "validation.pt",
         }
 
@@ -211,10 +215,12 @@ class SolESOL(XYBaseDataModule):
         )
         print(len(data))
 
-
-        train_split, test_split = train_test_split(data, test_size=self.test_split, shuffle=True)
-        train_split, validation_split = train_test_split(train_split, test_size=self.validation_split, shuffle=True)
-
+        train_split, test_split = train_test_split(
+            data, test_size=self.test_split, shuffle=True
+        )
+        train_split, validation_split = train_test_split(
+            train_split, test_size=self.validation_split, shuffle=True
+        )
 
         if False:
             train_split, test_split = train_test_split(
@@ -251,7 +257,7 @@ class SolESOL(XYBaseDataModule):
             for f in self.processed_file_names
         ):
             self.setup_processed()
-        
+
         self._after_setup()
 
     def _set_processed_data_props(self):

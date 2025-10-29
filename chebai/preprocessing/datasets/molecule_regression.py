@@ -45,8 +45,8 @@ class Lipo(XYBaseDataModule):
     @property
     def processed_file_names_dict(self) -> dict:
         return {
-            "test": "test.pt", 
-            "train": "train.pt", 
+            "test": "test.pt",
+            "train": "train.pt",
             "validation": "validation.pt",
         }
 
@@ -63,8 +63,12 @@ class Lipo(XYBaseDataModule):
         data = list(self._load_data_from_file(os.path.join(self.raw_dir, f"Lipo.csv")))
         print(len(data))
 
-        train_split, test_split = train_test_split(data, test_size=self.test_split, shuffle=True)
-        train_split, validation_split = train_test_split(train_split, test_size=self.validation_split, shuffle=True)
+        train_split, test_split = train_test_split(
+            data, test_size=self.test_split, shuffle=True
+        )
+        train_split, validation_split = train_test_split(
+            train_split, test_size=self.validation_split, shuffle=True
+        )
 
         if False:
             train_split, test_split = train_test_split(
@@ -120,7 +124,6 @@ class Lipo(XYBaseDataModule):
         self._num_of_labels = len(data_pt[0]["labels"])
         self._feature_vector_size = max(len(d["features"]) for d in data_pt)
 
-
     def _load_dict(self, input_file_path: str) -> List[Dict]:
         """Loads data from a CSV file.
 
@@ -142,14 +145,16 @@ class Lipo(XYBaseDataModule):
         for i in range(0, len(smiles_l)):
             yield dict(features=smiles_l[i], labels=[labels_l[i]], ident=i)
             # yield self.reader.to_data(dict(features=smiles_l[i], labels=[labels_l[i]], ident=i))
-            
+
     def _perform_data_preparation(self, *args, **kwargs) -> None:
         pass
+
 
 class LipoChem(Lipo):
     """Chemical data reader for the solubility dataset."""
 
     READER = dr.ChemDataReader
+
 
 class FreeSolv(XYBaseDataModule):
     HEADERS = [
@@ -175,8 +180,8 @@ class FreeSolv(XYBaseDataModule):
     @property
     def processed_file_names_dict(self) -> dict:
         return {
-            "test": "test.pt", 
-            "train": "train.pt", 
+            "test": "test.pt",
+            "train": "train.pt",
             "validation": "validation.pt",
         }
 
@@ -194,8 +199,12 @@ class FreeSolv(XYBaseDataModule):
             self._load_data_from_file(os.path.join(self.raw_dir, f"FreeSolv.csv"))
         )
         print(len(data))
-        train_split, test_split = train_test_split(data, test_size=self.test_split, shuffle=True)
-        train_split, validation_split = train_test_split(train_split, test_size=self.validation_split, shuffle=True)
+        train_split, test_split = train_test_split(
+            data, test_size=self.test_split, shuffle=True
+        )
+        train_split, validation_split = train_test_split(
+            train_split, test_size=self.validation_split, shuffle=True
+        )
 
         if False:
             train_split, test_split = train_test_split(

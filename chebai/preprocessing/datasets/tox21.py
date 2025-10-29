@@ -56,8 +56,8 @@ class Tox21MolNet(XYBaseDataModule):
     @property
     def processed_file_names_dict(self) -> dict:
         return {
-            "test": "test.pt", 
-            "train": "train.pt", 
+            "test": "test.pt",
+            "train": "train.pt",
             "validation": "validation.pt",
         }
 
@@ -75,15 +75,13 @@ class Tox21MolNet(XYBaseDataModule):
     def setup_processed(self) -> None:
         """Processes and splits the dataset."""
         print("Create splits")
-        data = list(
-            self._load_data_from_file(
-                os.path.join(self.raw_dir, f"tox21.csv")
-            )
-        )
+        data = list(self._load_data_from_file(os.path.join(self.raw_dir, f"tox21.csv")))
         groups = np.array([d.get("group") for d in data])
 
         if not all(g is None for g in groups):
-            split_size = int(len(set(groups)) * (1 - self.test_split - self.validation_split))
+            split_size = int(
+                len(set(groups)) * (1 - self.test_split - self.validation_split)
+            )
             os.makedirs(self.processed_dir, exist_ok=True)
             splitter = GroupShuffleSplit(train_size=split_size, n_splits=1)
 
@@ -94,7 +92,11 @@ class Tox21MolNet(XYBaseDataModule):
             split_groups = groups[temp_split_index]
 
             splitter = GroupShuffleSplit(
-                train_size=int(len(set(split_groups)) * (1 - self.test_split - self.validation_split)), n_splits=1
+                train_size=int(
+                    len(set(split_groups))
+                    * (1 - self.test_split - self.validation_split)
+                ),
+                n_splits=1,
             )
             test_split_index, validation_split_index = next(
                 splitter.split(temp_split_index, groups=split_groups)
@@ -111,8 +113,12 @@ class Tox21MolNet(XYBaseDataModule):
                 # if d["original"]
             ]
         else:
-            train_split, test_split = train_test_split(data, test_size=self.test_split, shuffle=True)
-            train_split, validation_split = train_test_split(train_split, test_size=self.validation_split, shuffle=True)
+            train_split, test_split = train_test_split(
+                data, test_size=self.test_split, shuffle=True
+            )
+            train_split, validation_split = train_test_split(
+                train_split, test_size=self.validation_split, shuffle=True
+            )
 
         for k, split in [
             ("test", test_split),
@@ -164,10 +170,13 @@ class Tox21MolNet(XYBaseDataModule):
                 ]
                 # group = int(row["group"])
                 yield dict(
-                    features=smiles, labels=labels, ident=row["mol_id"]
+                    features=smiles,
+                    labels=labels,
+                    ident=row["mol_id"],
                     #  group=group
                 )
                 # yield self.reader.to_data(dict(features=smiles, labels=labels, ident=row["mol_id"]))
+
     def _set_processed_data_props(self):
         """
         Load processed data and extract metadata.
@@ -186,6 +195,7 @@ class Tox21MolNet(XYBaseDataModule):
 
     def _perform_data_preparation(self, *args, **kwargs) -> None:
         pass
+
 
 class Tox21Challenge(XYBaseDataModule):
     """Data module for Tox21Challenge dataset."""
