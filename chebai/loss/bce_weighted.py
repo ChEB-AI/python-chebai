@@ -33,6 +33,10 @@ class BCEWeighted(torch.nn.BCEWithLogitsLoss):
             data_extractor = data_extractor.labeled
         self.data_extractor = data_extractor
 
+        assert (
+            beta is not None
+        ), f"Beta parameter must be provided if this loss ({self.__class__.__name__}) is used."
+
         # If beta is provided, require a data_extractor.
         if self.beta is not None and self.data_extractor is None:
             raise ValueError("When 'beta' is set, 'data_extractor' must also be set.")
