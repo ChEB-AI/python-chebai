@@ -15,6 +15,7 @@ class FFN(ChebaiBaseNet):
             1024,
         ],
         use_adam_optimizer: bool = False,
+        pretrained_checkpoint: Optional[str] = None,
         **kwargs,
     ):
         super().__init__(**kwargs)
@@ -31,6 +32,14 @@ class FFN(ChebaiBaseNet):
 
         layers.append(torch.nn.Linear(current_layer_input_size, self.out_dim))
         self.model = nn.Sequential(*layers)
+
+        if pretrained_checkpoint is not None:
+            self.model.load_state_dict(
+                torch.load(
+                    pretrained_checkpoint, map_location=self.device, weights_only=False
+                )
+            )
+            print(f"Loaded pretrained checkpoint from {pretrained_checkpoint}")
 
     def _get_prediction_and_labels(self, data, labels, model_output):
         d = model_output["logits"]
