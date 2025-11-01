@@ -34,12 +34,11 @@ class FFN(ChebaiBaseNet):
         self.model = nn.Sequential(*layers)
 
         if pretrained_checkpoint is not None:
-            self.model.load_state_dict(
-                torch.load(
-                    pretrained_checkpoint, map_location=self.device, weights_only=False
-                )
+            ckpt_file = torch.load(
+                pretrained_checkpoint, map_location=self.device, weights_only=False
             )
-            print(f"Loaded pretrained checkpoint from {pretrained_checkpoint}")
+            self.model.load_state_dict(ckpt_file["state_dict"])
+            print(f"Loaded pretrained weights from {pretrained_checkpoint}")
 
     def _get_prediction_and_labels(self, data, labels, model_output):
         d = model_output["logits"]
