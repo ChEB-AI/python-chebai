@@ -32,6 +32,11 @@ class BCEWeighted(torch.nn.BCEWithLogitsLoss):
         if isinstance(data_extractor, LabeledUnlabeledMixed):
             data_extractor = data_extractor.labeled
         self.data_extractor = data_extractor
+
+        # If beta is provided, require a data_extractor.
+        if self.beta is not None and self.data_extractor is None:
+            raise ValueError("When 'beta' is set, 'data_extractor' must also be set.")
+
         assert (
             isinstance(self.data_extractor, _ChEBIDataExtractor)
             or self.data_extractor is None
