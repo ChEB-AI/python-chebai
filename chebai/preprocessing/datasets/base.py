@@ -710,13 +710,17 @@ class _DynamicDataset(XYBaseDataModule, ABC):
         dynamic_data_split_seed (int, optional): The seed for random data splitting. Defaults to 42.
         splits_file_path (str, optional): Path to the splits CSV file. Defaults to None.
         apply_label_filter (Optional[str]): Path to a classes.txt file - only labels that are in the labels filter
-        file will be used (in that order). All labels in the label filter have to be present in the dataset.
+        file will be used (in that order). All labels in the label filter have to be present in the dataset. This filter
+        is only active when loading splits from a CSV file. Defaults to None.
+        apply_id_filter (Optional[str]): Path to a data.pt file from a different dataset - only IDs that are in the
+        id filter file will be used. Defaults to None. This filter is only active when loading splits from a CSV file.
         **kwargs: Additional keyword arguments passed to XYBaseDataModule.
 
     Attributes:
         dynamic_data_split_seed (int): The seed for random data splitting, default is 42.
         splits_file_path (Optional[str]): Path to the CSV file containing split assignments.
         apply_label_filter (Optional[str]): Path to a classes.txt file for label filtering.
+        apply_id_filter (Optional[str]): Path to a data.pt file for ID filtering.
     """
 
     # ---- Index for columns of processed `data.pkl` (should be derived from `_graph_to_raw_dataset` method) ------
@@ -727,6 +731,7 @@ class _DynamicDataset(XYBaseDataModule, ABC):
     def __init__(
         self,
         apply_label_filter: Optional[str] = None,
+        apply_id_filter: Optional[str] = None,
         **kwargs,
     ):
         super(_DynamicDataset, self).__init__(**kwargs)
@@ -741,6 +746,7 @@ class _DynamicDataset(XYBaseDataModule, ABC):
             kwargs.get("splits_file_path", None)
         )
         self.apply_label_filter = apply_label_filter
+        self.apply_id_filter = apply_id_filter
 
     @staticmethod
     def _validate_splits_file_path(splits_file_path: Optional[str]) -> Optional[str]:
@@ -1139,6 +1145,15 @@ class _DynamicDataset(XYBaseDataModule, ABC):
             os.path.join(self.processed_dir, filename)
         )
         df_data = pd.DataFrame(data)
+
+        if self.apply_id_filter:
+            print(f"Applying ID filter from {self.apply_id_filter}...")
+            with open(self.apply_id_filter, "r") as f:
+                id_filter = [
+                    line["ident"]
+                    for line in torch.load(self.apply_id_filter, weights_only=False)
+                ]
+            df_data = df_data[df_data["ident"].isin(id_filter)]
 
         if self.apply_label_filter:
             print(f"Applying label filter from {self.apply_label_filter}...")
