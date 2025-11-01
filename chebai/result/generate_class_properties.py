@@ -121,6 +121,7 @@ class ClassesPropertiesGenerator:
         model_config_file_path: str,
         data_config_file_path: str,
         output_path: str | None = None,
+        apply_id_filter: str | None = None,
     ) -> None:
         """
         Run inference on validation set, compute TPV/NPV  per class, and save to JSON.
@@ -132,11 +133,13 @@ class ClassesPropertiesGenerator:
             data_config_file_path: Path to yaml config file of the data.
             output_path: Optional path where to write the JSON metrics file.
                          Defaults to '<processed_dir_main>/classes.json'.
+            apply_id_filter: Optional path to a (data.pt) file containing IDs to filter the dataset. This is useful for comparing datasets with different ids.
         """
         data_cls_path, data_cls_kwargs = parse_config_file(data_config_file_path)
         data_module: XYBaseDataModule = load_data_instance(
             data_cls_path, data_cls_kwargs
         )
+        data_module.apply_id_filter = apply_id_filter
 
         splits_file_path = Path(data_module.processed_dir_main, "splits.csv")
         if data_module.splits_file_path is None:
@@ -222,6 +225,7 @@ class Main:
         model_config_file_path: str,
         data_config_file_path: str,
         output_path: str | None = None,
+        apply_id_filter: str | None = None,
     ) -> None:
         """
         CLI command to generate JSON with metrics on validation set.
@@ -246,6 +250,7 @@ class Main:
             model_config_file_path,
             data_config_file_path,
             output_path,
+            apply_id_filter=apply_id_filter,
         )
 
 
