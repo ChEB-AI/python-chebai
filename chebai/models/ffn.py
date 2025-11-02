@@ -5,6 +5,8 @@ from torch import Tensor, nn
 
 from chebai.models import ChebaiBaseNet
 
+from .electra import filter_dict
+
 
 class FFN(ChebaiBaseNet):
     # Reference: https://github.com/bio-ontology-research-group/deepgo2/blob/main/deepgo/models.py#L121-L139
@@ -16,6 +18,7 @@ class FFN(ChebaiBaseNet):
         ],
         use_adam_optimizer: bool = False,
         pretrained_checkpoint: Optional[str] = None,
+        load_prefix: Optional[str] = "model.",
         **kwargs,
     ):
         super().__init__(**kwargs)
@@ -37,7 +40,11 @@ class FFN(ChebaiBaseNet):
             ckpt_file = torch.load(
                 pretrained_checkpoint, map_location=self.device, weights_only=False
             )
-            self.model.load_state_dict(ckpt_file["state_dict"])
+            if load_prefix is not None:
+                state_dict = filter_dict(ckpt_file["state_dict"], load_prefix)
+            else:
+                state_dict = ckpt_file["state_dict"]
+            self.model.load_state_dict(state_dict)
             print(f"Loaded pretrained weights from {pretrained_checkpoint}")
 
     def _get_prediction_and_labels(self, data, labels, model_output):
