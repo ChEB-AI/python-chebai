@@ -49,6 +49,10 @@ class ChebaiBaseNet(LightningModule, ABC):
         assert input_dim is not None, "input_dim must be specified"
         self.out_dim = out_dim
         self.input_dim = input_dim
+        print(
+            f"Input dimension for the model: {self.input_dim}",
+            f"Output dimension for the model: {self.out_dim}",
+        )
 
         self.save_hyperparameters(
             ignore=[
