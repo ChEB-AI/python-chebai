@@ -1,11 +1,11 @@
+from collections import OrderedDict
 from typing import Any, Dict, List, Optional, Tuple
 
 import torch
 from torch import Tensor, nn
 
 from chebai.models import ChebaiBaseNet
-
-from .electra import filter_dict
+from chebai.models.electra import filter_dict
 
 
 class FFN(ChebaiBaseNet):
@@ -44,8 +44,24 @@ class FFN(ChebaiBaseNet):
                 state_dict = filter_dict(ckpt_file["state_dict"], load_prefix)
             else:
                 state_dict = ckpt_file["state_dict"]
-            self.model.load_state_dict(state_dict)
-            print(f"Loaded pretrained weights from {pretrained_checkpoint}")
+
+            model_sd = self.model.state_dict()
+            filtered = OrderedDict()
+            skipped = set()
+            for k, v in state_dict.items():
+                if model_sd[k].shape == v.shape:
+                    filtered[k] = v  # only load params with matching shapes
+                else:
+                    skipped.add(k)
+                    filtered[k] = model_sd[k]
+                # else: silently skip mismatched keys like "2.weight", "2.bias"
+                # which is the last linear layers which maps to output dimension
+
+            self.model.load_state_dict(filtered)
+            print(
+                f"Loaded (shape-matched) weights from {pretrained_checkpoint}",
+                f"Skipped the following weights: {skipped}",
+            )
 
     def _get_prediction_and_labels(self, data, labels, model_output):
         d = model_output["logits"]
