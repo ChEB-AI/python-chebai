@@ -97,12 +97,15 @@ class TestChemDataReader(unittest.TestCase):
     def test_read_data_with_invalid_input(self) -> None:
         """
         Test the _read_data method with an invalid input.
-        The invalid token should raise an error or be handled appropriately.
+        The invalid token should prompt a return value None
         """
         raw_data = "%INVALID%"
 
-        with self.assertRaises(ValueError):
-            self.reader._read_data(raw_data)
+        result = self.reader._read_data(raw_data)
+        self.assertIsNone(
+            result,
+            "The output for invalid token '%INVALID%' should be None.",
+        )
 
     @patch("builtins.open", new_callable=mock_open)
     def test_finish_method_for_new_tokens(self, mock_file: mock_open) -> None:
