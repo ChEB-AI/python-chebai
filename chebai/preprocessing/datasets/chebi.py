@@ -14,18 +14,8 @@ import pickle
 import random
 from abc import ABC
 from collections import OrderedDict
-from typing import (
-    TYPE_CHECKING,
-    Any,
-    Dict,
-    Generator,
-    List,
-    Literal,
-    Optional,
-    Tuple,
-    Union,
-)
 from itertools import cycle, permutations, product
+from typing import TYPE_CHECKING, Any, Dict, Generator, List, Literal, Optional, Union
 
 import numpy as np
 import pandas as pd
@@ -1038,6 +1028,7 @@ def term_callback(doc: "fastobo.term.TermFrame") -> Union[Dict, bool]:
     parents = []
     name = None
     smiles = None
+    subset = None
     for clause in doc:
         if isinstance(clause, fastobo.term.PropertyValueClause):
             t = clause.property_value
