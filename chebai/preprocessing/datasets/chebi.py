@@ -11,6 +11,7 @@ __all__ = [
 
 import os
 import pickle
+import random
 from abc import ABC
 from collections import OrderedDict
 from typing import (
@@ -24,9 +25,12 @@ from typing import (
     Tuple,
     Union,
 )
+from itertools import cycle, permutations, product
 
+import numpy as np
 import pandas as pd
 import torch
+from rdkit import Chem
 
 from chebai.preprocessing import reader as dr
 from chebai.preprocessing.datasets.base import XYBaseDataModule, _DynamicDataset
@@ -145,8 +149,27 @@ class _ChEBIDataExtractor(_DynamicDataset, ABC):
         chebi_version_train: Optional[int] = None,
         single_class: Optional[int] = None,
         subset: Optional[Literal["2_STAR", "3_STAR"]] = None,
+        augment_smiles: bool = False,
+        aug_smiles_variations: Optional[int] = None,
         **kwargs,
     ):
+        if bool(augment_smiles):
+            assert (
+                int(aug_smiles_variations) > 0
+            ), "Number of variations must be greater than 0"
+            aug_smiles_variations = int(aug_smiles_variations)
+
+            if not kwargs.get("splits_file_path", None):
+                raise ValueError(
+                    "When using SMILES augmentation, a splits_file_path must be provided to ensure consistent splits."
+                )
+
+            reader_kwargs = kwargs.get("reader_kwargs", {})
+            reader_kwargs["canonicalize_smiles"] = False
+            kwargs["reader_kwargs"] = reader_kwargs
+
+        self.augment_smiles = bool(augment_smiles)
+        self.aug_smiles_variations = aug_smiles_variations
         # predict only single class (given as id of one of the classes present in the raw data set)
         self.single_class = single_class
         self.subset = subset
@@ -163,6 +186,8 @@ class _ChEBIDataExtractor(_DynamicDataset, ABC):
             _init_kwargs["chebi_version"] = self.chebi_version_train
             self._chebi_version_train_obj = self.__class__(
                 single_class=self.single_class,
+                augment_smiles=self.augment_smiles,
+                aug_smiles_variations=self.aug_smiles_variations,
                 **_init_kwargs,
             )
 
@@ -322,9 +347,78 @@ class _ChEBIDataExtractor(_DynamicDataset, ABC):
 
         data = pd.DataFrame(data)
         data = data[~data["SMILES"].isnull()]
-        data = data[[name not in CHEBI_BLACKLIST for name, _ in data.iterrows()]]
+        data = data[~data["name"].isin(CHEBI_BLACKLIST)]
 
         return data
+
+    def _after_prepare_data(self, *args, **kwargs) -> None:
+        self._perform_smiles_augmentation()
+
+    def _perform_smiles_augmentation(self) -> None:
+        if not self.augment_smiles:
+            return
+
+        aug_pkl_file_name = self.processed_main_file_names_dict["aug_data"]
+        aug_data_df = self.get_processed_pickled_df_file(aug_pkl_file_name)
+        if aug_data_df is not None:
+            self._data_pkl_filename = aug_pkl_file_name
+            return
+
+        data_df = self.get_processed_pickled_df_file(
+            self.processed_main_file_names_dict["data"]
+        )
+
+        AUG_SMILES_VARIATIONS = self.aug_smiles_variations
+
+        def generate_augmented_smiles(smiles: str) -> list[str]:
+            mol: Chem.Mol = Chem.MolFromSmiles(smiles)
+            if mol is None:
+                return [smiles]  # if mol is None, return original SMILES
+
+            # sanitization set to False, as it can alter the fragment representation in ways you might not want.
+            # As we don’t want RDKit to "fix" fragments, only need the fragments as-is, to generate SMILES strings.
+            frags = Chem.GetMolFrags(mol, asMols=True, sanitizeFrags=False)
+            augmented = set()
+
+            frag_smiles: list[set] = []
+            for frag in frags:
+                atom_ids = [atom.GetIdx() for atom in frag.GetAtoms()]
+                random.shuffle(atom_ids)  # seed set by lightning
+                atom_id_iter = cycle(atom_ids)
+                frag_smiles.append(
+                    {
+                        Chem.MolToSmiles(
+                            frag, rootedAtAtom=next(atom_id_iter), doRandom=True
+                        )
+                        for _ in range(AUG_SMILES_VARIATIONS)
+                    }
+                )
+            if len(frags) > 1:
+                # all permutations (ignoring the set order, meaning mixing sets in every order),
+                aug_counter: int = 0
+                for perm in permutations(frag_smiles):
+                    for combo in product(*perm):
+                        augmented.add(".".join(combo))
+                        aug_counter += 1
+                        if aug_counter >= AUG_SMILES_VARIATIONS:
+                            break
+                    if aug_counter >= AUG_SMILES_VARIATIONS:
+                        break
+            else:
+                augmented = frag_smiles[0]
+
+            return [smiles] + list(augmented)
+
+        data_df["SMILES"] = data_df["SMILES"].apply(generate_augmented_smiles)
+
+        # Explode the list of augmented smiles into multiple rows
+        # augmented smiles will have same ident, as of the original, but does it matter ?
+        # instead its helpful to group augmented smiles generated from the same original SMILES
+        exploded_df = data_df.explode("SMILES").reset_index(drop=True)
+        self.save_processed(
+            exploded_df, self.processed_main_file_names_dict["aug_data"]
+        )
+        self._data_pkl_filename = aug_pkl_file_name
 
     # ------------------------------ Phase: Setup data -----------------------------------
     def setup_processed(self) -> None:
@@ -353,7 +447,7 @@ class _ChEBIDataExtractor(_DynamicDataset, ABC):
             print("Calling the setup method related to it")
             self._chebi_version_train_obj.setup()
 
-    def _load_dict(self, input_file_path: str) -> Generator[Dict[str, Any], None, None]:
+    def _load_dict(self, input_file_path: str) -> Generator[dict[str, Any], None, None]:
         """
         Loads a dictionary from a pickled file, yielding individual dictionaries for each row.
 
@@ -380,21 +474,21 @@ class _ChEBIDataExtractor(_DynamicDataset, ABC):
         """
         with open(input_file_path, "rb") as input_file:
             df = pd.read_pickle(input_file)
-            if self.single_class is not None:
-                single_cls_index = list(df.columns).index(int(self.single_class))
-            for row in df.values:
-                if self.single_class is None:
-                    labels = row[self._LABELS_START_IDX :].astype(bool)
-                else:
-                    labels = [bool(row[single_cls_index])]
-                yield dict(
-                    features=row[self._DATA_REPRESENTATION_IDX],
-                    labels=labels,
-                    ident=row[self._ID_IDX],
-                )
+
+            if self.single_class is None:
+                all_labels = df.iloc[:, self._LABELS_START_IDX :].to_numpy(dtype=bool)
+            else:
+                single_cls_index = df.columns.get_loc(int(self.single_class))
+                all_labels = df.iloc[:, [single_cls_index]].to_numpy(dtype=bool)
+
+            features = df.iloc[:, self._DATA_REPRESENTATION_IDX].to_numpy()
+            idents = df.iloc[:, self._ID_IDX].to_numpy()
+
+            for feat, labels, ident in zip(features, all_labels, idents):
+                yield dict(features=feat, labels=labels, ident=ident)
 
     # ------------------------------ Phase: Dynamic Splits -----------------------------------
-    def _get_data_splits(self) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+    def _get_data_splits(self) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
         """
         Loads encoded/transformed data and generates training, validation, and test splits.
 
@@ -487,43 +581,43 @@ class _ChEBIDataExtractor(_DynamicDataset, ABC):
         Returns:
             pd.DataFrame: The pruned test dataset.
         """
-        # TODO: find a more efficient way to do this
-        filename_old = "classes.txt"
-        # filename_new = f"classes_v{self.chebi_version_train}.txt"
-        # dataset = torch.load(os.path.join(self.processed_dir, "test.pt"))
+        classes_file_name = "classes.txt"
 
-        # Load original classes (from the current ChEBI version - chebi_version)
-        with open(os.path.join(self.processed_dir_main, filename_old), "r") as file:
-            orig_classes = file.readlines()
-
-        # Load new classes (from the training ChEBI version - chebi_version_train)
+        # Load original and new classes
+        with open(os.path.join(self.processed_dir_main, classes_file_name), "r") as f:
+            orig_classes = f.readlines()
         with open(
             os.path.join(
-                self._chebi_version_train_obj.processed_dir_main, filename_old
+                self._chebi_version_train_obj.processed_dir_main, classes_file_name
             ),
             "r",
-        ) as file:
-            new_classes = file.readlines()
+        ) as f:
+            new_classes = f.readlines()
 
-        # Create a mapping which give index of a class from chebi_version, if the corresponding
-        # class exists in chebi_version_train, Size = Number of classes in chebi_version
-        mapping = [
-            None if or_class not in new_classes else new_classes.index(or_class)
-            for or_class in orig_classes
-        ]
+        # Mapping array (-1 means no match in new classes)
+        mapping_array = np.array(
+            [
+                -1 if oc not in new_classes else new_classes.index(oc)
+                for oc in orig_classes
+            ],
+            dtype=int,
+        )
 
-        # Iterate over each data instance in the test set which is derived from chebi_version
-        for _, row in df_test_chebi_version.iterrows():
-            # Size = Number of classes in chebi_version_train
-            new_labels = [False for _ in new_classes]
-            for ind, label in enumerate(row["labels"]):
-                # If the chebi_version class exists in the chebi_version_train and has a True label,
-                # set the corresponding label in new_labels to True
-                if mapping[ind] is not None and label:
-                    new_labels[mapping[ind]] = label
-            # Update the labels from test instance from chebi_version to the new labels, which are compatible to both versions
-            row["labels"] = new_labels
+        # Convert labels column to 2D NumPy array
+        labels_matrix = np.array(df_test_chebi_version["labels"].tolist(), dtype=bool)
 
+        # Allocate new labels matrix
+        num_new_classes = len(new_classes)
+        new_labels_matrix = np.zeros(
+            (labels_matrix.shape[0], num_new_classes), dtype=bool
+        )
+
+        # Copy only valid columns
+        valid_mask = mapping_array != -1
+        new_labels_matrix[:, mapping_array[valid_mask]] = labels_matrix[:, valid_mask]
+
+        # Assign back
+        df_test_chebi_version["labels"] = new_labels_matrix.tolist()
         return df_test_chebi_version
 
     # ------------------------------ Phase: Raw Properties -----------------------------------
@@ -571,6 +665,37 @@ class _ChEBIDataExtractor(_DynamicDataset, ABC):
     @property
     def raw_file_names_dict(self) -> dict:
         return {"chebi": "chebi.obo"}
+
+    @property
+    def processed_main_file_names_dict(self) -> dict:
+        """
+        Returns a dictionary mapping processed data file names.
+
+        Returns:
+            dict: A dictionary mapping dataset key to their respective file names.
+                  For example, {"data": "data.pkl"}.
+        """
+        p_dict = super().processed_main_file_names_dict
+        if self.augment_smiles:
+            p_dict["aug_data"] = f"aug_data_var{self.aug_smiles_variations}.pkl"
+        return p_dict
+
+    @property
+    def processed_file_names_dict(self) -> dict:
+        """
+        Returns a dictionary for the processed and tokenized data files.
+
+        Returns:
+            dict: A dictionary mapping dataset keys to their respective file names.
+                  For example, {"data": "data.pt"}.
+        """
+        if not self.augment_smiles:
+            return super().processed_file_names_dict
+        if self.n_token_limit is not None:
+            return {
+                "data": f"aug_data_var{self.aug_smiles_variations}_maxlen{self.n_token_limit}.pt"
+            }
+        return {"data": f"aug_data_var{self.aug_smiles_variations}.pt"}
 
 
 class JCIExtendedBase(_ChEBIDataExtractor):
