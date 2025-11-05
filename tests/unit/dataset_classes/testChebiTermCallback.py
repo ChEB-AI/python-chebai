@@ -36,6 +36,7 @@ class TestChebiTermCallback(unittest.TestCase):
             "has_part": set(),
             "name": "Compound A",
             "smiles": "C1=CC=CC=C1",
+            "subset": "2_STAR",
         }
 
         actual_dict: Dict[str, Any] = term_callback(
