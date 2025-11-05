@@ -81,6 +81,7 @@ class CustomTrainer(Trainer):
         input_path: _PATH,
         save_to: _PATH = "predictions.csv",
         classes_path: Optional[_PATH] = None,
+        **kwargs,
     ) -> None:
         """
         Loads a model from a checkpoint and makes predictions on input data from a file.
@@ -90,7 +91,7 @@ class CustomTrainer(Trainer):
             checkpoint_path: Path to the model checkpoint.
             input_path: Path to the input file containing SMILES strings.
             save_to: Path to save the predictions CSV file.
-            classes_path: Optional path to a file containing class names.
+            classes_path: Optional path to a file containing class names (if no class names are provided, columns will be numbered).
         """
         loaded_model = model.__class__.load_from_checkpoint(checkpoint_path)
         with open(input_path, "r") as input:
