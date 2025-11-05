@@ -15,7 +15,7 @@ import random
 from abc import ABC
 from collections import OrderedDict
 from itertools import cycle, permutations, product
-from typing import TYPE_CHECKING, Any, Dict, Generator, List, Optional, Union
+from typing import TYPE_CHECKING, Any, Dict, Generator, List, Literal, Optional, Union
 
 import numpy as np
 import pandas as pd
@@ -115,15 +115,14 @@ class _ChEBIDataExtractor(_DynamicDataset, ABC):
             chebi_version will be used for training, validation and test. Defaults to None.
         single_class (int, optional): The ID of the single class to predict. If not set, all available labels will be
             predicted. Defaults to None.
-        dynamic_data_split_seed (int, optional): The seed for random data splitting. Defaults to 42.
-        splits_file_path (str, optional): Path to the splits CSV file. Defaults to None.
+        subset (Literal["2_STAR", "3_STAR"], optional): If set, only use entities that are part of the given subset.
         **kwargs: Additional keyword arguments (passed to XYBaseDataModule).
 
     Attributes:
         single_class (Optional[int]): The ID of the single class to predict.
         chebi_version_train (Optional[int]): The version of ChEBI to use for training and validation.
-        dynamic_data_split_seed (int): The seed for random data splitting, default is 42.
-        splits_file_path (Optional[str]): Path to csv file containing split assignments.
+        subset (Optional[Literal["2_STAR", "3_STAR"]]): If set, only use entities that are part of the given subset.
+
     """
 
     # ---- Index for columns of processed `data.pkl` (derived from `_graph_to_raw_dataset` method) ------
@@ -139,6 +138,7 @@ class _ChEBIDataExtractor(_DynamicDataset, ABC):
         self,
         chebi_version_train: Optional[int] = None,
         single_class: Optional[int] = None,
+        subset: Optional[Literal["2_STAR", "3_STAR"]] = None,
         augment_smiles: bool = False,
         aug_smiles_variations: Optional[int] = None,
         **kwargs,
@@ -162,6 +162,8 @@ class _ChEBIDataExtractor(_DynamicDataset, ABC):
         self.aug_smiles_variations = aug_smiles_variations
         # predict only single class (given as id of one of the classes present in the raw data set)
         self.single_class = single_class
+        self.subset = subset
+
         super(_ChEBIDataExtractor, self).__init__(**kwargs)
         # use different version of chebi for training and validation (if not None)
         # (still uses self.chebi_version for test set)
@@ -277,7 +279,9 @@ class _ChEBIDataExtractor(_DynamicDataset, ABC):
                 and term_doc.id.prefix == "CHEBI"
             ):
                 term_dict = term_callback(term_doc)
-                if term_dict:
+                if term_dict and (
+                    not self.subset or term_dict["subset"] == self.subset
+                ):
                     elements.append(term_dict)
 
         g = nx.DiGraph()
@@ -618,6 +622,20 @@ class _ChEBIDataExtractor(_DynamicDataset, ABC):
         return os.path.join("data", f"chebi_v{self.chebi_version}")
 
     @property
+    def processed_dir_main(self) -> str:
+        """
+        Returns the main directory path where processed data is stored.
+
+        Returns:
+            str: The path to the main processed data directory, based on the base directory and the instance's name.
+        """
+        return os.path.join(
+            self.base_dir,
+            self._name if self.subset is None else f"{self._name}_{self.subset}",
+            "processed",
+        )
+
+    @property
     def processed_dir(self) -> str:
         """
         Return the directory path for processed data.
@@ -946,6 +964,22 @@ class ChEBIOver50Partial(ChEBIOverXPartial, ChEBIOver50):
     pass
 
 
+class ChEBIOverXFingerprints(ChEBIOverX):
+    """A class that uses Fingerprints for the processed data (used for fixed-length ML models)."""
+
+    READER = dr.FingerprintReader
+
+
+class ChEBIOver100Fingerprints(ChEBIOverXFingerprints, ChEBIOver100):
+    """
+    A class for extracting data from the ChEBI dataset with Fingerprints reader and a threshold of 100.
+
+    Inherits from ChEBIOverXFingerprints and ChEBIOver100.
+    """
+
+    pass
+
+
 class JCIExtendedBPEData(JCIExtendedBase):
     READER = dr.ChemBPEReader
 
@@ -994,6 +1028,7 @@ def term_callback(doc: "fastobo.term.TermFrame") -> Union[Dict, bool]:
     parents = []
     name = None
     smiles = None
+    subset = None
     for clause in doc:
         if isinstance(clause, fastobo.term.PropertyValueClause):
             t = clause.property_value
@@ -1013,6 +1048,8 @@ def term_callback(doc: "fastobo.term.TermFrame") -> Union[Dict, bool]:
             parents.append(chebi_to_int(str(clause.term)))
         elif isinstance(clause, fastobo.term.NameClause):
             name = str(clause.name)
+        elif isinstance(clause, fastobo.term.SubsetClause):
+            subset = str(clause.subset)
 
         if isinstance(clause, fastobo.term.IsObsoleteClause):
             if clause.obsolete:
@@ -1025,6 +1062,7 @@ def term_callback(doc: "fastobo.term.TermFrame") -> Union[Dict, bool]:
         "has_part": parts,
         "name": name,
         "smiles": smiles,
+        "subset": subset,
     }
 
 

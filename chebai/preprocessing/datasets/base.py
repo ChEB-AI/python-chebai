@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, Dict, Generator, List, Optional, Tuple, Union
 
 import lightning as pl
+import numpy as np
 import pandas as pd
 import torch
 import tqdm
@@ -256,6 +257,9 @@ class XYBaseDataModule(LightningDataModule):
         Returns:
             DataLoader: A DataLoader object.
         """
+        rank_zero_info(
+            f"Loading {kind} data... (datamodule.current_epoch={self.curr_epoch if hasattr(self, 'curr_epoch') else 'N/A'})"
+        )
         dataset = self.load_processed_data(kind)
         if "ids" in kwargs:
             ids = kwargs.pop("ids")
@@ -446,6 +450,7 @@ class XYBaseDataModule(LightningDataModule):
 
         rank_zero_info(f"Check for processed data in {self.processed_dir}")
         rank_zero_info(f"Cross-validation enabled: {self.use_inner_cross_validation}")
+        rank_zero_info(f"Looking for files: {self.processed_file_names}")
         if any(
             not os.path.isfile(os.path.join(self.processed_dir, f))
             for f in self.processed_file_names
@@ -717,11 +722,18 @@ class _DynamicDataset(XYBaseDataModule, ABC):
     Args:
         dynamic_data_split_seed (int, optional): The seed for random data splitting. Defaults to 42.
         splits_file_path (str, optional): Path to the splits CSV file. Defaults to None.
+        apply_label_filter (Optional[str]): Path to a classes.txt file - only labels that are in the labels filter
+        file will be used (in that order). All labels in the label filter have to be present in the dataset. This filter
+        is only active when loading splits from a CSV file. Defaults to None.
+        apply_id_filter (Optional[str]): Path to a data.pt file from a different dataset - only IDs that are in the
+        id filter file will be used. Defaults to None. This filter is only active when loading splits from a CSV file.
         **kwargs: Additional keyword arguments passed to XYBaseDataModule.
 
     Attributes:
         dynamic_data_split_seed (int): The seed for random data splitting, default is 42.
         splits_file_path (Optional[str]): Path to the CSV file containing split assignments.
+        apply_label_filter (Optional[str]): Path to a classes.txt file for label filtering.
+        apply_id_filter (Optional[str]): Path to a data.pt file for ID filtering.
     """
 
     # ---- Index for columns of processed `data.pkl` (should be derived from `_graph_to_raw_dataset` method) ------
@@ -731,6 +743,8 @@ class _DynamicDataset(XYBaseDataModule, ABC):
 
     def __init__(
         self,
+        apply_label_filter: Optional[str] = None,
+        apply_id_filter: Optional[str] = None,
         **kwargs,
     ):
         super(_DynamicDataset, self).__init__(**kwargs)
@@ -744,6 +758,8 @@ class _DynamicDataset(XYBaseDataModule, ABC):
         self.splits_file_path = self._validate_splits_file_path(
             kwargs.get("splits_file_path", None)
         )
+        self.apply_label_filter = apply_label_filter
+        self.apply_id_filter = apply_id_filter
         self._data_pkl_filename: str = "data.pkl"
 
     @staticmethod
@@ -1160,6 +1176,27 @@ class _DynamicDataset(XYBaseDataModule, ABC):
             os.path.join(self.processed_dir, filename)
         )
         df_data = pd.DataFrame(data)
+
+        if self.apply_id_filter:
+            print(f"Applying ID filter from {self.apply_id_filter}...")
+            with open(self.apply_id_filter, "r") as f:
+                id_filter = [
+                    line["ident"]
+                    for line in torch.load(self.apply_id_filter, weights_only=False)
+                ]
+            df_data = df_data[df_data["ident"].isin(id_filter)]
+
+        if self.apply_label_filter:
+            print(f"Applying label filter from {self.apply_label_filter}...")
+            with open(self.apply_label_filter, "r") as f:
+                label_filter = [line.strip() for line in f]
+            with open(os.path.join(self.processed_dir_main, "classes.txt"), "r") as cf:
+                classes = [line.strip() for line in cf]
+            # reorder labels
+            old_labels = np.stack(df_data["labels"])
+            label_mapping = [classes.index(lbl) for lbl in label_filter]
+            new_labels = old_labels[:, label_mapping]
+            df_data["labels"] = list(new_labels)
 
         train_ids = splits_df[splits_df["split"] == "train"]["id"]
         validation_ids = splits_df[splits_df["split"] == "validation"]["id"]

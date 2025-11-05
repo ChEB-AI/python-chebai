@@ -121,6 +121,7 @@ class ClassesPropertiesGenerator:
         model_config_file_path: str,
         data_config_file_path: str,
         output_path: str | None = None,
+        apply_id_filter: str | None = None,
     ) -> None:
         """
         Run inference on validation set, compute TPV/NPV  per class, and save to JSON.
@@ -132,11 +133,13 @@ class ClassesPropertiesGenerator:
             data_config_file_path: Path to yaml config file of the data.
             output_path: Optional path where to write the JSON metrics file.
                          Defaults to '<processed_dir_main>/classes.json'.
+            apply_id_filter: Optional path to a (data.pt) file containing IDs to filter the dataset. This is useful for comparing datasets with different ids.
         """
         data_cls_path, data_cls_kwargs = parse_config_file(data_config_file_path)
         data_module: XYBaseDataModule = load_data_instance(
             data_cls_path, data_cls_kwargs
         )
+        data_module.apply_id_filter = apply_id_filter
 
         splits_file_path = Path(data_module.processed_dir_main, "splits.csv")
         if data_module.splits_file_path is None:
@@ -168,17 +171,26 @@ class ClassesPropertiesGenerator:
             raise ValueError(f"Unknown data partition: {data_partition}")
         print(f"Running inference on {data_partition} data...")
 
-        classes_file = Path(data_module.processed_dir_main) / "classes.txt"
+        if data_module.apply_label_filter is not None:
+            classes_file = data_module.apply_label_filter
+        else:
+            classes_file = Path(data_module.processed_dir_main) / "classes.txt"
         class_names = self.load_class_labels(classes_file)
         num_classes = len(class_names)
         metrics_obj_dict: dict[str, torchmetrics.Metric] = {
-            "cm": MultilabelConfusionMatrix(num_labels=num_classes),
-            "f1": MultilabelF1Score(num_labels=num_classes, average=None),
+            "cm": MultilabelConfusionMatrix(num_labels=num_classes).to(
+                device=model.device
+            ),
+            "f1": MultilabelF1Score(num_labels=num_classes, average=None).to(
+                device=model.device
+            ),
         }
 
         for batch_idx, batch in enumerate(data_loader):
+            batch = batch.to(device=model.device)
             data = model._process_batch(batch, batch_idx=batch_idx)
-            labels = data["labels"]
+            labels = data["labels"].to(device=model.device)
+            data["features"][0].to(device=model.device)
             model_output = model(data, **data.get("model_kwargs", {}))
             preds, targets = model._get_prediction_and_labels(
                 data, labels, model_output
@@ -213,6 +225,7 @@ class Main:
         model_config_file_path: str,
         data_config_file_path: str,
         output_path: str | None = None,
+        apply_id_filter: str | None = None,
     ) -> None:
         """
         CLI command to generate JSON with metrics on validation set.
@@ -237,11 +250,13 @@ class Main:
             model_config_file_path,
             data_config_file_path,
             output_path,
+            apply_id_filter=apply_id_filter,
         )
 
 
 if __name__ == "__main__":
-    # _generate_classes_props_json.py generate \
+    # Usage:
+    # generate_classes_properties.py generate \
     # --data_partition "val" \
     # --model_ckpt_path "model/ckpt/path" \
     # --model_config_file_path "model/config/file/path" \

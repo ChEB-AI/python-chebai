@@ -4,6 +4,7 @@ from typing import Any, Dict, Iterable, Optional, Union
 
 import torch
 from lightning.pytorch.core.module import LightningModule
+from lightning.pytorch.utilities.rank_zero import rank_zero_info
 
 from chebai.preprocessing.structures import XYData
 
@@ -106,7 +107,8 @@ class ChebaiBaseNet(LightningModule, ABC):
         Returns:
             Tuple[torch.Tensor, torch.Tensor]: Predictions and labels.
         """
-        return output, labels
+        # cast labels to int
+        return output, labels.to(torch.int) if labels is not None else labels
 
     def _process_labels_in_batch(self, batch: XYData) -> torch.Tensor:
         """
@@ -157,6 +159,13 @@ class ChebaiBaseNet(LightningModule, ABC):
             Tuple[torch.Tensor, torch.Tensor, Dict[str, Any]]: Model output, labels, and loss kwargs.
         """
         return model_output, labels, loss_kwargs
+
+    def on_train_epoch_start(self) -> None:
+        # pass current epoch to datamodule if it has the attribute curr_epoch (for PubChemBatched dataset)
+        rank_zero_info(f"Starting epoch {self.current_epoch}")
+        if hasattr(self.trainer.datamodule, "curr_epoch"):
+            rank_zero_info(f"Setting datamodule.curr_epoch to {self.current_epoch}")
+            self.trainer.datamodule.curr_epoch = self.current_epoch
 
     def training_step(
         self, batch: XYData, batch_idx: int
@@ -310,6 +319,8 @@ class ChebaiBaseNet(LightningModule, ABC):
                 for metric_name, metric in metrics.items():
                     metric.update(pr, tar)
                 self._log_metrics(prefix, metrics, len(batch))
+        if isinstance(d, dict) and "loss" not in d:
+            print(f"d has keys {d.keys()}, log={log}, criterion={self.criterion}")
         return d
 
     def _log_metrics(self, prefix: str, metrics: torch.nn.Module, batch_size: int):

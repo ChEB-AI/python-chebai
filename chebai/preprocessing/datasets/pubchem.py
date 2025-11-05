@@ -14,7 +14,7 @@ import shutil
 import tempfile
 import time
 from datetime import datetime
-from typing import Generator, List, Optional, Tuple, Type
+from typing import Generator, List, Optional, Tuple, Type, Union
 
 import numpy as np
 import pandas as pd
@@ -176,12 +176,12 @@ class PubChem(XYBaseDataModule):
         return ["smiles.txt"]
 
     @property
-    def processed_file_names(self) -> List[str]:
+    def processed_file_names_dict(self) -> List[str]:
         """
         Returns:
             List[str]: List of processed data file names.
         """
-        return ["test.pt", "train.pt", "validation.pt"]
+        return {"train": "train.pt", "test": "test.pt", "validation": "validation.pt"}
 
     def _set_processed_data_props(self):
         """
@@ -210,6 +210,146 @@ class PubChem(XYBaseDataModule):
             print("Downloading data. This may take some time...")
             self.download()
             print("Done")
+
+
+class PubChemBatched(PubChem):
+    """Store train data as batches of 10m, validation and test should each be 100k max"""
+
+    READER: Type[dr.ChemDataReader] = dr.ChemDataReader
+
+    def __init__(self, train_batch_size=1_000_000, *args, **kwargs):
+        super(PubChemBatched, self).__init__(*args, **kwargs)
+        self.curr_epoch = 0
+        self.train_batch_size = train_batch_size
+        if self._k != self.FULL:
+            self.val_batch_size = (
+                100_000
+                if self.validation_split * self._k > 100_000
+                else int(self.validation_split * self._k)
+            )
+            self.test_batch_size = (
+                100_000
+                if self.test_split * self._k > 100_000
+                else int(self.test_split * self._k)
+            )
+        else:
+            self.val_batch_size = 100_000
+            self.test_batch_size = 100_000
+
+    @property
+    def processed_file_names_dict(self) -> List[str]:
+        """
+        Returns:
+            List[str]: List of processed data file names.
+        """
+        train_samples = (
+            self._k if self._k != self.FULL else 120_000_000  # estimated PubChem size
+        )  # estimate size
+        train_samples -= self.val_batch_size + self.test_batch_size
+        train_batches = (
+            {"train": "train.pt"}
+            if train_samples <= self.train_batch_size
+            else {
+                f"train_{i}": f"train_{i}.pt"
+                for i in range(train_samples // self.train_batch_size)
+            }
+        )
+        train_batches["test"] = "test.pt"
+        train_batches["validation"] = "validation.pt"
+        return train_batches
+
+    def _tokenize_batched(self, data):
+        """
+        Load data from a file and return a list of dictionaries, batched in 1,000,000 entries.
+
+        Args:
+            path (str): The path to the input file.
+            batch_size (int): The size of each batch.
+            batch_idx (int): The index of the batch to load.
+
+        Returns:
+            List: A list of dictionaries containing the features and labels.
+        """
+        print(f"Processing {len(data)} lines...")
+        batch = []
+        for i, d in enumerate(tqdm.tqdm(data, total=len(data))):
+            if d["features"] is not None:
+                batch.append(self.reader.to_data(d))
+            if i % self.train_batch_size == 0 and i > 0:
+                print(f"Generating batch {i // self.train_batch_size - 1}")
+                batch = [b for b in batch if b["features"] is not None]
+                if self.n_token_limit is not None:
+                    batch = [
+                        b for b in batch if len(b["features"]) <= self.n_token_limit
+                    ]
+                yield batch
+                batch = []
+        print("Generating final batch")
+        batch = [b for b in batch if b["features"] is not None]
+        if self.n_token_limit is not None:
+            batch = [b for b in batch if len(b["features"]) <= self.n_token_limit]
+        yield batch
+
+    def setup_processed(self):
+        """
+        Prepares processed data and saves them as Torch tensors.
+        """
+        filename = os.path.join(self.raw_dir, self.raw_file_names[0])
+        print("Load data from file", filename)
+        data_not_tokenized = [entry for entry in self._load_dict(filename)]
+        print("Create splits")
+        train, test = train_test_split(
+            data_not_tokenized, test_size=self.test_batch_size + self.val_batch_size
+        )
+        del data_not_tokenized
+        test, val = train_test_split(test, train_size=self.test_batch_size)
+        # Save first (and only) test batch
+        torch.save(
+            next(self._tokenize_batched(test)),
+            os.path.join(self.processed_dir, self.processed_file_names_dict["test"]),
+        )
+        # save first (and only) validation batch
+        torch.save(
+            next(self._tokenize_batched(val)),
+            os.path.join(
+                self.processed_dir, self.processed_file_names_dict["validation"]
+            ),
+        )
+
+        # batch training if necessary
+        if len(train) > self.train_batch_size:
+            for i, batch in enumerate(self._tokenize_batched(train)):
+                torch.save(batch, os.path.join(self.processed_dir, f"train_{i}.pt"))
+        else:
+            torch.save(
+                next(self._tokenize_batched(train)),
+                os.path.join(self.processed_dir, "train.pt"),
+            )
+
+        self.reader.on_finish()
+
+    def train_dataloader(self, *args, **kwargs) -> Union[DataLoader, List[DataLoader]]:
+        """
+        Returns the train DataLoader. This swaps the training batch for each epoch.
+
+        Args:
+            *args: Additional positional arguments.
+            **kwargs: Additional keyword arguments.
+
+        Returns:
+            DataLoader: A DataLoader object for training data.
+        """
+        return self.dataloader(
+            (
+                "train"
+                if "train" in self.processed_file_names_dict
+                else f"train_{self.curr_epoch}"
+            ),
+            shuffle=True,
+            num_workers=self.num_workers,
+            persistent_workers=True,
+            **kwargs,
+        )
 
 
 class PubChemDissimilar(PubChem):
