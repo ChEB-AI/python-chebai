@@ -142,6 +142,8 @@ class TokenIndexerReader(DataReader, ABC):
 
     def _get_token_index(self, token: str) -> int:
         """Returns a unique number for each token, automatically adds new tokens."""
+        print(str(token))
+        print(self.cache[str(token)] + EMBEDDING_OFFSET)
         if str(token) not in self.cache:
             self.cache[(str(token))] = len(self.cache)
         return self.cache[str(token)] + EMBEDDING_OFFSET
@@ -210,6 +212,23 @@ class ChemDataReader(TokenIndexerReader):
 
         return [self._get_token_index(v[1]) for v in _tokenize(raw_data)]
 
+    def _back_to_smiles(smiles_encoded):
+
+        token_file = self.reader.token_path
+        token_coding = {}
+        counter = 0
+        smiles_decoded = ''
+        
+        # todo: for now just copied over from a notebook but ideally do this using the cache
+        with open(token_file, 'r') as file:
+            for line in file:
+                token_coding[counter] = line.strip()
+                counter += 1
+
+        for token in smiles_encoded:
+            smiles_decoded += token_coding[token - EMBEDDING_OFFSET]
+
+        return smiles_decoded
 
 class DeepChemDataReader(ChemDataReader):
     """
