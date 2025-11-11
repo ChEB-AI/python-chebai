@@ -142,8 +142,6 @@ class TokenIndexerReader(DataReader, ABC):
 
     def _get_token_index(self, token: str) -> int:
         """Returns a unique number for each token, automatically adds new tokens."""
-        print(str(token))
-        print(self.cache[str(token)] + EMBEDDING_OFFSET)
         if str(token) not in self.cache:
             self.cache[(str(token))] = len(self.cache)
         return self.cache[str(token)] + EMBEDDING_OFFSET
