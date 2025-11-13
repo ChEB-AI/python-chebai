@@ -13,7 +13,6 @@ from rdkit import Chem
 from sklearn.model_selection import (
     GroupShuffleSplit,
     train_test_split,
-    StratifiedShuffleSplit,
 )
 
 from chebai.preprocessing import reader as dr
@@ -75,7 +74,7 @@ class Tox21MolNet(XYBaseDataModule):
     def setup_processed(self) -> None:
         """Processes and splits the dataset."""
         print("Create splits")
-        data = list(self._load_data_from_file(os.path.join(self.raw_dir, f"tox21.csv")))
+        data = list(self._load_data_from_file(os.path.join(self.raw_dir, "tox21.csv")))
         groups = np.array([d.get("group") for d in data])
 
         if not all(g is None for g in groups):

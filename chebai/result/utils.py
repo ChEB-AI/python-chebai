@@ -234,7 +234,7 @@ def evaluate_model_regression(
     save_batch_size = 128
     n_saved = 1
 
-    print(f"")
+    print("")
     for i in tqdm.tqdm(range(0, len(data_list), batch_size)):
         if not (
             skip_existing_preds
@@ -333,7 +333,7 @@ def evaluate_model_regression_attention(
     save_batch_size = 128
     n_saved = 1
 
-    print(f"")
+    print("")
     for i in tqdm.tqdm(range(0, len(data_list), batch_size)):
         if not (
             skip_existing_preds
@@ -434,7 +434,7 @@ def evaluate_model_regression(
     save_batch_size = 128
     n_saved = 1
 
-    print(f"")
+    print("")
     for i in tqdm.tqdm(range(0, len(data_list), batch_size)):
         if not (
             skip_existing_preds
@@ -533,7 +533,7 @@ def evaluate_model_regression_attention(
     save_batch_size = 128
     n_saved = 1
 
-    print(f"")
+    print("")
     for i in tqdm.tqdm(range(0, len(data_list), batch_size)):
         if not (
             skip_existing_preds

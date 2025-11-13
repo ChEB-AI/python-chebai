@@ -1,28 +1,20 @@
-from tempfile import NamedTemporaryFile, TemporaryDirectory
+from tempfile import NamedTemporaryFile
 from urllib import request
 import csv
 import gzip
 import os
-import random
 import shutil
-import zipfile
-from typing import Dict, Generator, List, Optional
+from typing import Dict, List
 
-from rdkit import Chem
 from sklearn.model_selection import (
     GroupShuffleSplit,
     train_test_split,
-    StratifiedShuffleSplit,
 )
 import numpy as np
-import pysmiles
 import torch
-from sklearn.preprocessing import LabelBinarizer
 
 from chebai.preprocessing import reader as dr
-from chebai.preprocessing.datasets.base import MergedDataset, XYBaseDataModule
-from chebai.preprocessing.datasets.chebi import JCIExtendedTokenData
-from chebai.preprocessing.datasets.pubchem import Hazardous
+from chebai.preprocessing.datasets.base import XYBaseDataModule
 
 
 class ClinTox(XYBaseDataModule):
@@ -76,7 +68,7 @@ class ClinTox(XYBaseDataModule):
         """Processes and splits the dataset."""
         print("Create splits")
         data = list(
-            self._load_data_from_file(os.path.join(self.raw_dir, f"clintox.csv"))
+            self._load_data_from_file(os.path.join(self.raw_dir, "clintox.csv"))
         )
         groups = np.array([d["group"] for d in data])
         if not all(g is None for g in groups):
@@ -229,14 +221,14 @@ class BBBP(XYBaseDataModule):
         """Downloads and extracts the dataset."""
         with open(os.path.join(self.raw_dir, "bbbp.csv"), "ab") as dst:
             with request.urlopen(
-                f"https://deepchemdata.s3-us-west-1.amazonaws.com/datasets/BBBP.csv",
+                "https://deepchemdata.s3-us-west-1.amazonaws.com/datasets/BBBP.csv",
             ) as src:
                 shutil.copyfileobj(src, dst)
 
     def setup_processed(self) -> None:
         """Processes and splits the dataset."""
         print("Create splits")
-        data = list(self._load_data_from_file(os.path.join(self.raw_dir, f"bbbp.csv")))
+        data = list(self._load_data_from_file(os.path.join(self.raw_dir, "bbbp.csv")))
         groups = np.array([d["group"] for d in data])
         if not all(g is None for g in groups):
             print("Group shuffled")
@@ -426,7 +418,7 @@ class Sider(XYBaseDataModule):
     def setup_processed(self) -> None:
         """Processes and splits the dataset."""
         print("Create splits")
-        data = list(self._load_data_from_file(os.path.join(self.raw_dir, f"sider.csv")))
+        data = list(self._load_data_from_file(os.path.join(self.raw_dir, "sider.csv")))
         groups = np.array([d["group"] for d in data])
         if not all(g is None for g in groups):
             split_size = int(
@@ -581,14 +573,14 @@ class Bace(XYBaseDataModule):
         """Downloads and extracts the dataset."""
         with open(os.path.join(self.raw_dir, "bace.csv"), "ab") as dst:
             with request.urlopen(
-                f"https://deepchemdata.s3-us-west-1.amazonaws.com/datasets/bace.csv",
+                "https://deepchemdata.s3-us-west-1.amazonaws.com/datasets/bace.csv",
             ) as src:
                 shutil.copyfileobj(src, dst)
 
     def setup_processed(self) -> None:
         """Processes and splits the dataset."""
         print("Create splits")
-        data = list(self._load_data_from_file(os.path.join(self.raw_dir, f"bace.csv")))
+        data = list(self._load_data_from_file(os.path.join(self.raw_dir, "bace.csv")))
         # groups = np.array([d.get("group") for d in data])
 
         # if not all(g is None for g in groups):
@@ -729,14 +721,14 @@ class HIV(XYBaseDataModule):
         """Downloads and extracts the dataset."""
         with open(os.path.join(self.raw_dir, "hiv.csv"), "ab") as dst:
             with request.urlopen(
-                f"https://deepchemdata.s3-us-west-1.amazonaws.com/datasets/HIV.csv",
+                "https://deepchemdata.s3-us-west-1.amazonaws.com/datasets/HIV.csv",
             ) as src:
                 shutil.copyfileobj(src, dst)
 
     def setup_processed(self) -> None:
         """Processes and splits the dataset."""
         print("Create splits")
-        data = list(self._load_data_from_file(os.path.join(self.raw_dir, f"hiv.csv")))
+        data = list(self._load_data_from_file(os.path.join(self.raw_dir, "hiv.csv")))
         groups = np.array([d["group"] for d in data])
         if not all(g is None for g in groups):
             print("Group shuffled")
@@ -913,7 +905,7 @@ class MUV(XYBaseDataModule):
     def setup_processed(self) -> None:
         """Processes and splits the dataset."""
         print("Create splits")
-        data = list(self._load_data_from_file(os.path.join(self.raw_dir, f"muv.csv")))
+        data = list(self._load_data_from_file(os.path.join(self.raw_dir, "muv.csv")))
         groups = np.array([d["group"] for d in data])
         if not all(g is None for g in groups):
             split_size = int(

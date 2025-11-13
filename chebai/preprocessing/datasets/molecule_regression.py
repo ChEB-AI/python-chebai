@@ -1,24 +1,14 @@
-from tempfile import NamedTemporaryFile, TemporaryDirectory
 from urllib import request
 import csv
-import gzip
 import os
-import random
 import shutil
-import zipfile
-from typing import Dict, Generator, List, Optional
+from typing import Dict, List
 
-from rdkit import Chem
-from sklearn.model_selection import GroupShuffleSplit, train_test_split
-import numpy as np
-import pysmiles
+from sklearn.model_selection import train_test_split
 import torch
-from sklearn.preprocessing import LabelBinarizer
 
 from chebai.preprocessing import reader as dr
-from chebai.preprocessing.datasets.base import MergedDataset, XYBaseDataModule
-from chebai.preprocessing.datasets.chebi import JCIExtendedTokenData
-from chebai.preprocessing.datasets.pubchem import Hazardous
+from chebai.preprocessing.datasets.base import XYBaseDataModule
 
 
 class Lipo(XYBaseDataModule):
@@ -54,13 +44,13 @@ class Lipo(XYBaseDataModule):
         # download
         with open(os.path.join(self.raw_dir, "Lipo.csv"), "ab") as dst:
             with request.urlopen(
-                f"https://deepchemdata.s3-us-west-1.amazonaws.com/datasets/Lipophilicity.csv",
+                "https://deepchemdata.s3-us-west-1.amazonaws.com/datasets/Lipophilicity.csv",
             ) as src:
                 shutil.copyfileobj(src, dst)
 
     def setup_processed(self):
         print("Create splits")
-        data = list(self._load_data_from_file(os.path.join(self.raw_dir, f"Lipo.csv")))
+        data = list(self._load_data_from_file(os.path.join(self.raw_dir, "Lipo.csv")))
         print(len(data))
 
         train_split, test_split = train_test_split(
@@ -189,14 +179,14 @@ class FreeSolv(XYBaseDataModule):
         # download
         with open(os.path.join(self.raw_dir, "FreeSolv.csv"), "ab") as dst:
             with request.urlopen(
-                f"https://deepchemdata.s3-us-west-1.amazonaws.com/datasets/SAMPL.csv",
+                "https://deepchemdata.s3-us-west-1.amazonaws.com/datasets/SAMPL.csv",
             ) as src:
                 shutil.copyfileobj(src, dst)
 
     def setup_processed(self):
         print("Create splits")
         data = list(
-            self._load_data_from_file(os.path.join(self.raw_dir, f"FreeSolv.csv"))
+            self._load_data_from_file(os.path.join(self.raw_dir, "FreeSolv.csv"))
         )
         print(len(data))
         train_split, test_split = train_test_split(

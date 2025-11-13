@@ -1,24 +1,14 @@
-from tempfile import NamedTemporaryFile, TemporaryDirectory
 from urllib import request
 import csv
-import gzip
 import os
-import random
 import shutil
-import zipfile
-from typing import Dict, Generator, List, Optional
+from typing import Dict, List
 
-from rdkit import Chem
-from sklearn.model_selection import GroupShuffleSplit, train_test_split
-import numpy as np
-import pysmiles
+from sklearn.model_selection import train_test_split
 import torch
-from sklearn.preprocessing import LabelBinarizer
 
 from chebai.preprocessing import reader as dr
-from chebai.preprocessing.datasets.base import MergedDataset, XYBaseDataModule
-from chebai.preprocessing.datasets.chebi import JCIExtendedTokenData
-from chebai.preprocessing.datasets.pubchem import Hazardous
+from chebai.preprocessing.datasets.base import XYBaseDataModule
 
 
 class SolCuration(XYBaseDataModule):
@@ -65,7 +55,7 @@ class SolCuration(XYBaseDataModule):
     def setup_processed(self):
         print("Create splits")
         data = list(
-            self._load_data_from_file(os.path.join(self.raw_dir, f"solCuration.csv"))
+            self._load_data_from_file(os.path.join(self.raw_dir, "solCuration.csv"))
         )
         print(len(data))
 
@@ -144,7 +134,7 @@ class SolCuration(XYBaseDataModule):
         with open(input_file_path, "r") as input_file:
             reader = csv.DictReader(input_file)
             for row in reader:
-                if not row["smiles"] in smiles_l:
+                if row["smiles"] not in smiles_l:
                     smiles_l.append(row["smiles"])
                     labels_l.append(float(row["logS"]))
         # print(len(smiles_l), len(labels_l))
@@ -204,14 +194,14 @@ class SolESOL(XYBaseDataModule):
         # download
         with open(os.path.join(self.raw_dir, "solESOL.csv"), "ab") as dst:
             with request.urlopen(
-                f"https://deepchemdata.s3-us-west-1.amazonaws.com/datasets/delaney-processed.csv",
+                "https://deepchemdata.s3-us-west-1.amazonaws.com/datasets/delaney-processed.csv",
             ) as src:
                 shutil.copyfileobj(src, dst)
 
     def setup_processed(self):
         print("Create splits")
         data = list(
-            self._load_data_from_file(os.path.join(self.raw_dir, f"solESOL.csv"))
+            self._load_data_from_file(os.path.join(self.raw_dir, "solESOL.csv"))
         )
         print(len(data))
 
