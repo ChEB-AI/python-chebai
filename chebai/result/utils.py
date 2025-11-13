@@ -69,6 +69,7 @@ def _run_batch(batch, model, collate):
     )
     return preds, labels
 
+
 def _run_batch_give_attention(batch, model, collate):
     collated = collate(batch)
     collated.x = collated.to_x(model.device)
@@ -81,6 +82,7 @@ def _run_batch_give_attention(batch, model, collate):
         processable_data, processable_data["labels"], model_output
     )
     return preds, labels, model_output
+
 
 def _concat_tuple(l_):
     if isinstance(l_[0], tuple):
@@ -170,7 +172,7 @@ def evaluate_model(
             test_labels = _concat_tuple(labels_list)
             return test_preds, test_labels
         return test_preds, None
-    elif len(preds_list) > 0 :
+    elif len(preds_list) > 0:
         if preds_list[0] is not None:
             torch.save(
                 _concat_tuple(preds_list),
@@ -280,6 +282,7 @@ def evaluate_model_regression(
             )
     return torch.cat(preds_list_all), torch.cat(labels_list_all)
 
+
 def evaluate_model_regression_attention(
     model: ChebaiBaseNet,
     data_module: XYBaseDataModule,
@@ -336,7 +339,9 @@ def evaluate_model_regression_attention(
             skip_existing_preds
             and os.path.isfile(os.path.join(buffer_dir, f"preds{save_ind:03d}.pt"))
         ):
-            preds, labels, model_output = _run_batch_give_attention(data_list[i : i + batch_size], model, collate)
+            preds, labels, model_output = _run_batch_give_attention(
+                data_list[i : i + batch_size], model, collate
+            )
             preds_list.append(preds)
             labels_list.append(labels)
             preds_list_all.append(preds)
@@ -477,6 +482,7 @@ def evaluate_model_regression(
             )
     return torch.cat(preds_list_all), torch.cat(labels_list_all)
 
+
 def evaluate_model_regression_attention(
     model: ChebaiBaseNet,
     data_module: XYBaseDataModule,
@@ -533,7 +539,9 @@ def evaluate_model_regression_attention(
             skip_existing_preds
             and os.path.isfile(os.path.join(buffer_dir, f"preds{save_ind:03d}.pt"))
         ):
-            preds, labels, model_output = _run_batch_give_attention(data_list[i : i + batch_size], model, collate)
+            preds, labels, model_output = _run_batch_give_attention(
+                data_list[i : i + batch_size], model, collate
+            )
             preds_list.append(preds)
             labels_list.append(labels)
             preds_list_all.append(preds)
@@ -575,7 +583,12 @@ def evaluate_model_regression_attention(
                 _concat_tuple(labels_list),
                 os.path.join(buffer_dir, f"labels{save_ind:03d}.pt"),
             )
-    return torch.cat(preds_list_all), torch.cat(labels_list_all), features_list_all, attention_list_all
+    return (
+        torch.cat(preds_list_all),
+        torch.cat(labels_list_all),
+        features_list_all,
+        attention_list_all,
+    )
 
 
 def load_results_from_buffer(

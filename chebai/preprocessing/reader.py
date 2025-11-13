@@ -219,10 +219,10 @@ class ChemDataReader(TokenIndexerReader):
         token_file = self.reader.token_path
         token_coding = {}
         counter = 0
-        smiles_decoded = ''
-        
+        smiles_decoded = ""
+
         # todo: for now just copied over from a notebook but ideally do this using the cache
-        with open(token_file, 'r') as file:
+        with open(token_file, "r") as file:
             for line in file:
                 token_coding[counter] = line.strip()
                 counter += 1
@@ -231,6 +231,7 @@ class ChemDataReader(TokenIndexerReader):
             smiles_decoded += token_coding[token - EMBEDDING_OFFSET]
 
         return smiles_decoded
+
 
 class DeepChemDataReader(ChemDataReader):
     """
