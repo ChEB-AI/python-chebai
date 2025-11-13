@@ -1,7 +1,7 @@
 import logging
 
 from torch import nn
-from torch.nn.utils.rnn import pack_padded_sequence
+from torch.nn.utils.rnn import pack_padded_sequence, pad_packed_sequence
 
 from chebai.models.base import ChebaiBaseNet
 
@@ -9,23 +9,47 @@ logging.getLogger("pysmiles").setLevel(logging.CRITICAL)
 
 
 class ChemLSTM(ChebaiBaseNet):
-    def __init__(self, in_d, out_d, num_classes, **kwargs):
-        super().__init__(num_classes, **kwargs)
-        self.lstm = nn.LSTM(in_d, out_d, batch_first=True)
-        self.embedding = nn.Embedding(800, 100)
+    def __init__(
+        self,
+        out_d,
+        in_d,
+        num_classes,
+        criterion: nn.Module = None,
+        num_layers=6,
+        dropout=0.2,
+        **kwargs,
+    ):
+        super().__init__(
+            out_dim=out_d,
+            input_dim=in_d,
+            criterion=criterion,
+            num_classes=num_classes,
+            **kwargs,
+        )
+        self.lstm = nn.LSTM(
+            in_d,
+            out_d,
+            batch_first=True,
+            dropout=dropout,
+            bidirectional=True,
+            num_layers=num_layers,
+        )
+        self.embedding = nn.Embedding(1400, in_d)
         self.output = nn.Sequential(
-            nn.Linear(out_d, in_d),
+            nn.Linear(out_d * 2, out_d),
             nn.ReLU(),
             nn.Dropout(0.2),
-            nn.Linear(in_d, num_classes),
+            nn.Linear(out_d, num_classes),
         )
 
-    def forward(self, data):
-        x = data.x
-        x_lens = data.lens
+    def forward(self, data, *args, **kwargs):
+        x = data["features"]
+        x_lens = data["model_kwargs"]["lens"]
         x = self.embedding(x)
         x = pack_padded_sequence(x, x_lens, batch_first=True, enforce_sorted=False)
-        x = self.lstm(x)[1][0]
-        # = pad_packed_sequence(x, batch_first=True)[0]
+        x = self.lstm(x)[0]
+        x = pad_packed_sequence(x, batch_first=True)[0][
+            :, 0
+        ]  # reduce sequence dimension to first element
         x = self.output(x)
-        return x.squeeze(0)
+        return x

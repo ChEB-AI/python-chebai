@@ -227,6 +227,7 @@ class Electra(ChebaiBaseNet):
         pretrained_checkpoint: Optional[str] = None,
         load_prefix: Optional[str] = None,
         model_type="classification",
+        freeze_electra: bool = False,
         **kwargs: Any,
     ):
         # Remove this property in order to prevent it from being stored as a
@@ -267,9 +268,9 @@ class Electra(ChebaiBaseNet):
         else:
             self.electra = ElectraModel(config=self.config)
 
-        # freeze parameters
-        # for param in self.electra.parameters():
-        #     param.requires_grad = False
+        if freeze_electra:
+            for param in self.electra.parameters():
+                param.requires_grad = False
 
     def _process_for_loss(
         self,

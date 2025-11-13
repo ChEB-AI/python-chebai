@@ -1,0 +1,7 @@
+class_path: chebai.models.lstm.ChemLSTM
+init_args:
+  in_d: 100
+  out_d: 100
+  num_classes: 1528
+  optimizer_kwargs:
+    lr: 1e-3
