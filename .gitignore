@@ -177,6 +177,6 @@ logs
 .isort.cfg
 /.vscode
 
-*.out 
+*.out
 *.err
 *.sh
