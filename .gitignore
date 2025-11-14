@@ -176,3 +176,7 @@ lightning_logs
 logs
 .isort.cfg
 /.vscode
+
+*.out 
+*.err
+*.sh

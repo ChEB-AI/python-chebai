@@ -21,7 +21,7 @@ class BCEWeighted(torch.nn.BCEWithLogitsLoss):
 
     def __init__(
         self,
-        beta: Optional[float] = None,
+        beta: float = 0.99,
         data_extractor: Optional[XYBaseDataModule] = None,
         **kwargs,
     ):
@@ -32,15 +32,20 @@ class BCEWeighted(torch.nn.BCEWithLogitsLoss):
             data_extractor = data_extractor.labeled
         self.data_extractor = data_extractor
 
-        assert self.beta is not None and self.data_extractor is not None, (
-            f"Beta parameter must be provided along with data_extractor, "
-            f"if this loss class ({self.__class__.__name__}) is used."
+        assert isinstance(beta, float) and beta > 0.0, (
+            f"Beta parameter must be a float with value greater than 0.0, for loss class {self.__class__.__name__}."
+        )
+
+        assert self.data_extractor is not None, (
+            f"Data extractor must be provided if this loss class ({self.__class__.__name__}) is used."
         )
 
         assert all(
             os.path.exists(os.path.join(self.data_extractor.processed_dir, file_name))
             for file_name in self.data_extractor.processed_file_names
-        ), "Dataset files not found. Make sure the dataset is processed before using this loss."
+        ), (
+            "Dataset files not found. Make sure the dataset is processed before using this loss."
+        )
 
         assert (
             isinstance(self.data_extractor, _ChEBIDataExtractor)
