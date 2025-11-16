@@ -70,7 +70,7 @@ python -m chebai fit --config=[path-to-your-tox21-config] --trainer.callbacks=co
 
 ### Predicting classes given SMILES strings
 ```
-python3 -m chebai predict_from_file --model=[path-to-model-config] --checkpoint_path=[path-to-model] --input_path={path-to-file-containing-smiles] [--classes_path=[path-to-classes-file]] [--save_to=[path-to-output]]
+python3 -m chebai predict_from_file --checkpoint_path=[path-to-model] --input_path=[path-to-file-containing-smiles] [--classes_path=[path-to-classes-file]] [--save_to=[path-to-output]]
 ```
 The input files should contain a list of line-separated SMILES strings. This generates a CSV file  that contains the
 one row for each SMILES string and one column for each class.
