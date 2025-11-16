@@ -1,4 +1,5 @@
 import logging
+import os
 from typing import Any, List, Optional, Tuple
 
 import pandas as pd
@@ -6,13 +7,17 @@ import torch
 from lightning import LightningModule, Trainer
 from lightning.fabric.utilities.data import _set_sampler_epoch
 from lightning.fabric.utilities.types import _PATH
+from lightning.pytorch.cli import instantiate_module
 from lightning.pytorch.loggers import WandbLogger
 from lightning.pytorch.loops.fit_loop import _FitLoop
 from lightning.pytorch.trainer import call
 from torch.nn.utils.rnn import pad_sequence
 
+from build.lib.chebai.preprocessing.datasets.base import XYBaseDataModule
 from chebai.loggers.custom import CustomLogger
-from chebai.preprocessing.reader import CLS_TOKEN, ChemDataReader
+from chebai.models.base import ChebaiBaseNet
+from chebai.preprocessing.datasets.base import XYBaseDataModule
+from chebai.preprocessing.reader import CLS_TOKEN
 
 log = logging.getLogger(__name__)
 
@@ -44,6 +49,7 @@ class CustomTrainer(Trainer):
 
         # use custom fit loop (https://lightning.ai/docs/pytorch/LTS/extensions/loops.html#overriding-the-default-loops)
         self.fit_loop = LoadDataLaterFitLoop(self, self.min_epochs, self.max_epochs)
+        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     def _resolve_logging_argument(self, key: str, value: Any) -> Tuple[str, Any]:
         """
@@ -76,12 +82,10 @@ class CustomTrainer(Trainer):
 
     def predict_from_file(
         self,
-        model: LightningModule,
         checkpoint_path: _PATH,
         input_path: _PATH,
         save_to: _PATH = "predictions.csv",
         classes_path: Optional[_PATH] = None,
-        **kwargs,
     ) -> None:
         """
         Loads a model from a checkpoint and makes predictions on input data from a file.
@@ -93,20 +97,21 @@ class CustomTrainer(Trainer):
             save_to: Path to save the predictions CSV file.
             classes_path: Optional path to a file containing class names (if no class names are provided, columns will be numbered).
         """
-        loaded_model = model.__class__.load_from_checkpoint(checkpoint_path)
         with open(input_path, "r") as input:
             smiles_strings = [inp.strip() for inp in input.readlines()]
-        loaded_model.eval()
-        predictions = self._predict_smiles(loaded_model, smiles_strings)
-        predictions_df = pd.DataFrame(predictions.detach().cpu().numpy())
-        if classes_path is not None:
-            with open(classes_path, "r") as f:
-                predictions_df.columns = [cls.strip() for cls in f.readlines()]
-        predictions_df.index = smiles_strings
-        predictions_df.to_csv(save_to)
+        self._predict_smiles(
+            checkpoint_path,
+            smiles=smiles_strings,
+            classes_path=classes_path,
+            save_to=save_to,
+        )
 
     def _predict_smiles(
-        self, model: LightningModule, smiles: List[str]
+        self,
+        checkpoint_path: _PATH,
+        smiles: List[str],
+        classes_path: Optional[_PATH] = None,
+        save_to: _PATH = "predictions.csv",
     ) -> torch.Tensor:
         """
         Predicts the output for a list of SMILES strings using the model.
@@ -118,22 +123,47 @@ class CustomTrainer(Trainer):
         Returns:
             A tensor containing the predictions.
         """
-        reader = ChemDataReader()
-        parsed_smiles = [reader._read_data(s) for s in smiles]
+        ckpt_file = torch.load(
+            checkpoint_path, map_location=self.device, weights_only=False
+        )
+
+        ckpt_file["datamodule_hyper_parameters"].pop("splits_file_path")
+        dm: XYBaseDataModule = instantiate_module(
+            XYBaseDataModule, ckpt_file["datamodule_hyper_parameters"]
+        )
+
+        model: ChebaiBaseNet = instantiate_module(
+            ChebaiBaseNet, ckpt_file["hyper_parameters"]
+        )
+        model.to(self.device)
+        model.eval()
+
+        parsed_smiles = [dm.reader._read_data(s) for s in smiles]
         x = pad_sequence(
-            [torch.tensor(a, device=model.device) for a in parsed_smiles],
+            [torch.tensor(a, device=self.device) for a in parsed_smiles],
             batch_first=True,
         )
         cls_tokens = (
-            torch.ones(x.shape[0], dtype=torch.int, device=model.device).unsqueeze(-1)
+            torch.ones(x.shape[0], dtype=torch.int, device=self.device).unsqueeze(-1)
             * CLS_TOKEN
         )
         features = torch.cat((cls_tokens, x), dim=1)
         model_output = model({"features": features})
         preds = torch.sigmoid(model_output["logits"])
 
-        print(preds.shape)
-        return preds
+        predictions_df = pd.DataFrame(preds.detach().cpu().numpy())
+
+        def _add_class_columns(class_file_path: _PATH):
+            with open(class_file_path, "r") as f:
+                predictions_df.columns = [cls.strip() for cls in f.readlines()]
+
+        if classes_path is not None:
+            _add_class_columns(classes_path)
+        elif os.path.exists(dm.classes_txt_file_path):
+            _add_class_columns(dm.classes_txt_file_path)
+
+        predictions_df.index = smiles
+        predictions_df.to_csv(save_to)
 
     @property
     def log_dir(self) -> Optional[str]:
@@ -157,7 +187,6 @@ class CustomTrainer(Trainer):
 
 
 class LoadDataLaterFitLoop(_FitLoop):
-
     def on_advance_start(self) -> None:
         """Calls the hook ``on_train_epoch_start`` **before** the dataloaders are setup. This is necessary
          so that the dataloaders can get information from the model. For example: The on_train_epoch_start
