@@ -10,7 +10,6 @@ from chebai.preprocessing.datasets.chebi import _ChEBIDataExtractor
 class BCEWeighted(torch.nn.BCEWithLogitsLoss):
     """
     BCEWithLogitsLoss with weights automatically computed according to the beta parameter.
-    If beta is None or data_extractor is None, the loss is unweighted.
 
     This class computes weights based on the formula from the paper by Cui et al. (2019):
     https://openaccess.thecvf.com/content_CVPR_2019/papers/Cui_Class-Balanced_Loss_Based_on_Effective_Number_of_Samples_CVPR_2019_paper.pdf
@@ -22,7 +21,7 @@ class BCEWeighted(torch.nn.BCEWithLogitsLoss):
 
     def __init__(
         self,
-        beta: Optional[float] = None,
+        beta: float = 0.99,
         data_extractor: Optional[XYBaseDataModule] = None,
         **kwargs,
     ):
@@ -32,11 +31,26 @@ class BCEWeighted(torch.nn.BCEWithLogitsLoss):
         if isinstance(data_extractor, LabeledUnlabeledMixed):
             data_extractor = data_extractor.labeled
         self.data_extractor = data_extractor
+
+        assert (
+            isinstance(beta, float) and beta > 0.0
+        ), f"Beta parameter must be a float with value greater than 0.0, for loss class {self.__class__.__name__}."
+
+        assert (
+            self.data_extractor is not None
+        ), f"Data extractor must be provided if this loss class ({self.__class__.__name__}) is used."
+
+        assert all(
+            os.path.exists(os.path.join(self.data_extractor.processed_dir, file_name))
+            for file_name in self.data_extractor.processed_file_names
+        ), "Dataset files not found. Make sure the dataset is processed before using this loss."
+
         assert (
             isinstance(self.data_extractor, _ChEBIDataExtractor)
             or self.data_extractor is None
         )
         super().__init__(**kwargs)
+        self.pos_weight: Optional[torch.Tensor] = None
 
     def set_pos_weight(self, input: torch.Tensor) -> None:
         """
@@ -45,17 +59,7 @@ class BCEWeighted(torch.nn.BCEWithLogitsLoss):
         Args:
             input (torch.Tensor): The input tensor for which to set the positive weights.
         """
-        if (
-            self.beta is not None
-            and self.data_extractor is not None
-            and all(
-                os.path.exists(
-                    os.path.join(self.data_extractor.processed_dir, file_name)
-                )
-                for file_name in self.data_extractor.processed_file_names
-            )
-            and self.pos_weight is None
-        ):
+        if self.pos_weight is None:
             print(
                 f"Computing loss-weights based on v{self.data_extractor.chebi_version} dataset (beta={self.beta})"
             )
@@ -95,4 +99,10 @@ class BCEWeighted(torch.nn.BCEWithLogitsLoss):
             torch.Tensor: The computed loss.
         """
         self.set_pos_weight(input)
+        return super().forward(input, target)
+
+
+class UnWeightedBCEWithLogitsLoss(torch.nn.BCEWithLogitsLoss):
+    def forward(self, input, target, **kwargs):
+        # As the custom passed kwargs are not used in BCEWithLogitsLoss, we can ignore them
         return super().forward(input, target)
