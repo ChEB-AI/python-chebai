@@ -2,6 +2,7 @@ import csv
 import torch
 import os
 
+class_weights = True
 
 #inint weights in a csv file
 def init_weights(path="../weights/first_it.csv",path_to_split="../split/splits.csv"):
@@ -113,7 +114,45 @@ def check_weights(data):
     for i in data:
         print(f"({i["ident"]} , {i["weight"]}")
 
-init_weights()
-mock_init_weights()
-# print(get_weights((233713,51990)))
 
+def init_class_weights(class_path:str,weight_path:str,weight:float):
+    with open(class_path,'r') as classes:
+        with open(weight_path,'w') as weights:
+            reader = csv.reader(classes)
+            writer = csv.writer(weights)
+            writer.writerow(["class","weight"])
+            for row in reader:
+                row = row + [weight,]
+                writer.writerow(row)
+
+def create_class_tensor(save_path:str)-> torch.Tensor:
+    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+    t = torch.empty(1,1528)
+    with open("../../weights/class_first_it.csv",'r') as f:
+        reader = csv.reader(f)
+        index = 0
+        for row in reader:
+            if row[1] == "weight":
+                continue
+            t[0][index] = float(row[1])
+            index = index + 1
+    torch.save(t,save_path)
+
+def create_weight_class_tensor(batch_size:int)-> torch.Tensor:
+    t = torch.load("../../weights/test.pt")
+    w = None
+    for i in range(0,batch_size):
+        if w is None:
+            w = t
+        else:
+            w = torch.cat((w,t),dim=0)
+    print(w.shape)
+    return w
+
+
+
+
+
+#init_class_weights("../../data/chebi_v241/ChEBI50/processed/classes.txt","../../weights/class_first_it.csv",1)
+create_class_tensor("../../weights/test.pt")
+create_weight_class_tensor(32)
