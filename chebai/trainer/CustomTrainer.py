@@ -80,6 +80,7 @@ class CustomTrainer(Trainer):
         else:
             return key, value
 
+    @torch.no_grad()
     def predict_from_file(
         self,
         checkpoint_path: _PATH,
@@ -106,6 +107,7 @@ class CustomTrainer(Trainer):
             save_to=save_to,
         )
 
+    @torch.no_grad()
     def _predict_smiles(
         self,
         checkpoint_path: _PATH,
