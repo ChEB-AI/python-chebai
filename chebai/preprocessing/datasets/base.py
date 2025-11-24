@@ -19,7 +19,7 @@ from torch.utils.data import DataLoader
 
 from chebai.preprocessing import reader as dr
 
-import extras.weight_loader as f
+import extras.adamh as f
 
 
 class XYBaseDataModule(LightningDataModule):
@@ -1181,12 +1181,10 @@ class _DynamicDataset(XYBaseDataModule, ABC):
             else:
                 data_df = self.dynamic_split_dfs[kind]
                 data = data_df.to_dict(orient="records")
-                if f.class_weights:
-                    f.create_class_tensor("../../../weights/test.pt")
-                if kind == "train" and f.class_weights == False:
-                    f.init_weights()
+                if kind == "train" :
+                    #f.init_weights()
                     data = f.add_train_weights(data)
-                if kind == "validation" and f.class_weights == False:
+                if kind == "validation" :
                     data = f.add_val_weights(data)
                 # torch.save(data,"gewicht.pt")
 

@@ -8,7 +8,7 @@ from lightning.pytorch.core.module import LightningModule
 from chebai.preprocessing.structures import XYData
 
 
-import extras.weight_loader as f
+import extras.adamh as f
 
 logging.getLogger("pysmiles").setLevel(logging.CRITICAL)
 
@@ -270,10 +270,8 @@ class ChebaiBaseNet(LightningModule, ABC):
                 if self.pass_loss_kwargs:
                     loss_kwargs = loss_kwargs_candidates
                 #torch.save(loss_data,"loss_data.pt")
-                if not f.class_weights:
-                    loss_kwargs['weights'] = f.create_data_weights(batchsize=len(data['idents']),dim=data['labels'].size(dim=1),weights=data["loss_kwargs"],idents=data["idents"])
-                else:
-                    loss_kwargs['weights'] = f.create_weight_class_tensor(len(data['idents']))
+                loss_kwargs['weights'] = f.create_data_weights(batchsize=len(data['idents']),dim=data['labels'].size(dim=1),weights=data["loss_kwargs"],idents=data["idents"])
+
                 loss_kwargs["current_epoch"] = self.trainer.current_epoch
                 loss = self.criterion(loss_data, loss_labels, **loss_kwargs)
                 if isinstance(loss, tuple):
