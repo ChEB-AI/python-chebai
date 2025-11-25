@@ -10,6 +10,8 @@ from chebai.preprocessing.structures import XYData
 
 import extras.adamh as f
 
+import extras.weight_loader as e
+
 logging.getLogger("pysmiles").setLevel(logging.CRITICAL)
 
 _MODEL_REGISTRY = dict()
@@ -271,6 +273,7 @@ class ChebaiBaseNet(LightningModule, ABC):
                     loss_kwargs = loss_kwargs_candidates
                 #torch.save(loss_data,"loss_data.pt")
                 loss_kwargs['weights'] = f.create_data_weights(batchsize=len(data['idents']),dim=data['labels'].size(dim=1),weights=data["loss_kwargs"],idents=data["idents"])
+                #loss_kwargs['weights'] = e.create_data_weights(batchsize=len(data['idents']),dim=data['labels'].size(dim=1),weights=data["loss_kwargs"],idents=data["idents"])
 
                 loss_kwargs["current_epoch"] = self.trainer.current_epoch
                 loss = self.criterion(loss_data, loss_labels, **loss_kwargs)

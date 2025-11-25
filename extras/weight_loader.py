@@ -110,9 +110,9 @@ def add_train_weights(ids):
         it = it +1
     return ids
 
-def check_weights(data):
-    for i in data:
-        print(f"({i["ident"]} , {i["weight"]}")
+#def check_weights(data):
+#    for i in data:
+#        print(f"({i["ident"]} , {i["weight"]}")
 
 
 def init_class_weights(class_path:str,weight_path:str,weight:float):
@@ -154,5 +154,5 @@ def create_weight_class_tensor(batch_size:int)-> torch.Tensor:
 
 
 #init_class_weights("../../data/chebi_v241/ChEBI50/processed/classes.txt","../../weights/class_first_it.csv",1)
-create_class_tensor("../../weights/test.pt")
-create_weight_class_tensor(32)
+#create_class_tensor("../../weights/test.pt")
+#create_weight_class_tensor(32)
