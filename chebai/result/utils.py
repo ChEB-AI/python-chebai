@@ -116,7 +116,7 @@ def evaluate_model(
         data_list = data_df.to_dict(orient="records")
     else:
         data_list = data_module.load_processed_data("test", filename)
-    torch.save(data_list,"./data_list.pt")
+    torch.save(data_list,"./data_list"+ kind +".pt")
     data_list = data_list[: data_module.data_limit]
     preds_list = []
     labels_list = []
