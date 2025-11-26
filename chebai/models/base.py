@@ -70,7 +70,6 @@ class ChebaiBaseNet(LightningModule, ABC):
 
         if optimizer_kwargs:
             self.optimizer_kwargs = optimizer_kwargs
-            self.optimizer_kwargs["lr"] = 0.003
         else:
             self.optimizer_kwargs = dict()
         self.train_metrics = train_metrics
