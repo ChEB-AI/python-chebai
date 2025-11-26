@@ -42,7 +42,7 @@ class ChebaiBaseNet(LightningModule, ABC):
         val_metrics: Optional[torch.nn.Module] = None,
         test_metrics: Optional[torch.nn.Module] = None,
         pass_loss_kwargs: bool = True,
-        optimizer_kwargs: Optional[Dict[str, Any]] = None,
+        optimizer_kwargs: Optional[Dict[str, Any]] = {"lr":0.003},
         exclude_hyperparameter_logging: Optional[Iterable[str]] = None,
         **kwargs,
     ):

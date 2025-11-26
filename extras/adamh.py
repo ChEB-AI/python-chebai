@@ -30,11 +30,11 @@ def new_create_weight(path_to_split="/home/programmer/Bachelorarbeit/split/split
         for row in reader:
             if (row[1] == "train") and i > 0:
                 # print(row[0])
-                weights[row[0]] = [1/1528 * 160716 ]* 1528
+                weights[row[0]] = [1/(1528 * 160715)]* 1528
                 # print(row[0])
             i = i + 1
         print(len(weights))
-    torch.save(weights, "../../weights/init_mh.pt")
+    torch.save(weights, "/home/programmer/Bachelorarbeit/weights/init_mh.pt")
 
 
 def add_train_weights(ids):
