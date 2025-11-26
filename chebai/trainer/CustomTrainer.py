@@ -1,23 +1,14 @@
 import logging
-import os
-from typing import Any, List, Optional, Tuple
+from typing import Any, Optional, Tuple
 
-import pandas as pd
 import torch
 from lightning import Trainer
 from lightning.fabric.utilities.data import _set_sampler_epoch
-from lightning.fabric.utilities.types import _PATH
-from lightning.pytorch.cli import instantiate_module
 from lightning.pytorch.loggers import WandbLogger
 from lightning.pytorch.loops.fit_loop import _FitLoop
 from lightning.pytorch.trainer import call
-from torch.nn.utils.rnn import pad_sequence
 
-from build.lib.chebai.preprocessing.datasets.base import XYBaseDataModule
 from chebai.loggers.custom import CustomLogger
-from chebai.models.base import ChebaiBaseNet
-from chebai.preprocessing.datasets.base import XYBaseDataModule
-from chebai.preprocessing.reader import CLS_TOKEN
 
 log = logging.getLogger(__name__)
 
@@ -80,94 +71,18 @@ class CustomTrainer(Trainer):
         else:
             return key, value
 
-    @torch.no_grad()
-    def predict_from_file(
+    def predict(
         self,
-        checkpoint_path: _PATH,
-        input_path: _PATH,
-        save_to: _PATH = "predictions.csv",
-        classes_path: Optional[_PATH] = None,
-        **kwargs,
-    ) -> None:
-        """
-        Loads a model from a checkpoint and makes predictions on input data from a file.
-
-        Args:
-            model: The model to use for predictions.
-            checkpoint_path: Path to the model checkpoint.
-            input_path: Path to the input file containing SMILES strings.
-            save_to: Path to save the predictions CSV file.
-            classes_path: Optional path to a file containing class names (if no class names are provided, columns will be numbered).
-        """
-        with open(input_path, "r") as input:
-            smiles_strings = [inp.strip() for inp in input.readlines()]
-        self._predict_smiles(
-            checkpoint_path,
-            smiles=smiles_strings,
-            classes_path=classes_path,
-            save_to=save_to,
+        model=None,
+        dataloaders=None,
+        datamodule=None,
+        return_predictions=None,
+        ckpt_path=None,
+    ):
+        raise NotImplementedError(
+            "CustomTrainer.predict is not implemented."
+            "Use `Prediction.predict_from_file` or `Prediction.predict_smiles` from `chebai/result/prediction.py` instead."
         )
-
-    @torch.no_grad()
-    def _predict_smiles(
-        self,
-        checkpoint_path: _PATH,
-        smiles: List[str],
-        classes_path: Optional[_PATH] = None,
-        save_to: _PATH = "predictions.csv",
-        **kwargs,
-    ) -> torch.Tensor:
-        """
-        Predicts the output for a list of SMILES strings using the model.
-
-        Args:
-            model: The model to use for predictions.
-            smiles: A list of SMILES strings.
-
-        Returns:
-            A tensor containing the predictions.
-        """
-        ckpt_file = torch.load(
-            checkpoint_path, map_location=self.device, weights_only=False
-        )
-
-        ckpt_file["datamodule_hyper_parameters"].pop("splits_file_path")
-        dm: XYBaseDataModule = instantiate_module(
-            XYBaseDataModule, ckpt_file["datamodule_hyper_parameters"]
-        )
-
-        model: ChebaiBaseNet = instantiate_module(
-            ChebaiBaseNet, ckpt_file["hyper_parameters"]
-        )
-        model.to(self.device)
-        model.eval()
-
-        parsed_smiles = [dm.reader._read_data(s) for s in smiles]
-        x = pad_sequence(
-            [torch.tensor(a, device=self.device) for a in parsed_smiles],
-            batch_first=True,
-        )
-        cls_tokens = (
-            torch.ones(x.shape[0], dtype=torch.int, device=self.device).unsqueeze(-1)
-            * CLS_TOKEN
-        )
-        features = torch.cat((cls_tokens, x), dim=1)
-        model_output = model({"features": features})
-        preds = torch.sigmoid(model_output["logits"])
-
-        predictions_df = pd.DataFrame(preds.detach().cpu().numpy())
-
-        def _add_class_columns(class_file_path: _PATH):
-            with open(class_file_path, "r") as f:
-                predictions_df.columns = [cls.strip() for cls in f.readlines()]
-
-        if classes_path is not None:
-            _add_class_columns(classes_path)
-        elif os.path.exists(dm.classes_txt_file_path):
-            _add_class_columns(dm.classes_txt_file_path)
-
-        predictions_df.index = smiles
-        predictions_df.to_csv(save_to)
 
     @property
     def log_dir(self) -> Optional[str]:
