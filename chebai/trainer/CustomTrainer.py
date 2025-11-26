@@ -4,7 +4,7 @@ from typing import Any, List, Optional, Tuple
 
 import pandas as pd
 import torch
-from lightning import LightningModule, Trainer
+from lightning import Trainer
 from lightning.fabric.utilities.data import _set_sampler_epoch
 from lightning.fabric.utilities.types import _PATH
 from lightning.pytorch.cli import instantiate_module
@@ -87,6 +87,7 @@ class CustomTrainer(Trainer):
         input_path: _PATH,
         save_to: _PATH = "predictions.csv",
         classes_path: Optional[_PATH] = None,
+        **kwargs,
     ) -> None:
         """
         Loads a model from a checkpoint and makes predictions on input data from a file.
@@ -114,6 +115,7 @@ class CustomTrainer(Trainer):
         smiles: List[str],
         classes_path: Optional[_PATH] = None,
         save_to: _PATH = "predictions.csv",
+        **kwargs,
     ) -> torch.Tensor:
         """
         Predicts the output for a list of SMILES strings using the model.

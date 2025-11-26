@@ -339,8 +339,14 @@ class XYBaseDataModule(LightningDataModule):
             for d in tqdm.tqdm(self._load_dict(path), total=lines)
             if d["features"] is not None
         ]
+
+        return self._filter_to_token_limit(data)
+
+    def _filter_to_token_limit(
+        self, data: List[Dict[str, Any]]
+    ) -> List[Dict[str, Any]]:
         # filter for missing features in resulting data, keep features length below token limit
-        data = [
+        return [
             val
             for val in data
             if val["features"] is not None
@@ -348,8 +354,6 @@ class XYBaseDataModule(LightningDataModule):
                 self.n_token_limit is None or len(val["features"]) <= self.n_token_limit
             )
         ]
-
-        return data
 
     def train_dataloader(self, *args, **kwargs) -> Union[DataLoader, List[DataLoader]]:
         """
@@ -400,10 +404,13 @@ class XYBaseDataModule(LightningDataModule):
         Returns:
             Union[DataLoader, List[DataLoader]]: A DataLoader object for test data.
         """
+
         return self.dataloader("test", shuffle=False, **kwargs)
 
     def predict_dataloader(
-        self, *args, **kwargs
+        self,
+        smiles_list: List[str],
+        **kwargs,
     ) -> Union[DataLoader, List[DataLoader]]:
         """
         Returns the predict DataLoader.
@@ -415,7 +422,21 @@ class XYBaseDataModule(LightningDataModule):
         Returns:
             Union[DataLoader, List[DataLoader]]: A DataLoader object for prediction data.
         """
-        return self.dataloader(self.prediction_kind, shuffle=False, **kwargs)
+
+        data = [
+            self.reader.to_data(
+                {"id": f"smiles_{idx}", "features": smiles, "labels": None}
+            )
+            for idx, smiles in enumerate(smiles_list)
+        ]
+        data = self._filter_to_token_limit(data)
+
+        return DataLoader(
+            data,
+            collate_fn=self.reader.collator,
+            batch_size=self.batch_size,
+            **kwargs,
+        )
 
     def prepare_data(self, *args, **kwargs) -> None:
         if self._prepare_data_flag != 1:

@@ -232,7 +232,13 @@ class ChebaiBaseNet(LightningModule, ABC):
         Returns:
             Dict[str, Union[torch.Tensor, Any]]: The result of the prediction step.
         """
-        return self._execute(batch, batch_idx, self.test_metrics, prefix="", log=False)
+        assert isinstance(batch, XYData)
+        batch = batch.to(self.device)
+        data = self._process_batch(batch, batch_idx)
+        labels = data["labels"]
+        model_output = self(data, **data.get("model_kwargs", dict()))
+        pr, _ = self._get_prediction_and_labels(data, labels, model_output)
+        return pr
 
     def _execute(
         self,
