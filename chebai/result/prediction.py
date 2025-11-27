@@ -67,25 +67,26 @@ class Predictor:
             checkpoint_path, map_location=self.device, weights_only=False
         )
 
-        ckpt_file["datamodule_hyper_parameters"].pop("splits_file_path")
-        dm: XYBaseDataModule = instantiate_module(
-            XYBaseDataModule, ckpt_file["datamodule_hyper_parameters"]
-        )
+        dm_hparams = ckpt_file["datamodule_hyper_parameters"]
+        dm_hparams.pop("splits_file_path")
+        dm: XYBaseDataModule = instantiate_module(XYBaseDataModule, dm_hparams)
         print(f"Loaded datamodule class: {dm.__class__.__name__}")
 
-        pred_dl: DataLoader = dm.predict_dataloader(smiles_list=smiles)
-
-        model: ChebaiBaseNet = instantiate_module(
-            ChebaiBaseNet, ckpt_file["hyper_parameters"]
-        )
+        model_hparams = ckpt_file["hyper_parameters"]
+        model: ChebaiBaseNet = instantiate_module(ChebaiBaseNet, model_hparams)
         model.eval()
         # model = torch.compile(model)
-
         print(f"Loaded model class: {model.__class__.__name__}")
+
+        # For certain data prediction piplines, we may need model hyperparameters
+        pred_dl: DataLoader = dm.predict_dataloader(
+            smiles_list=smiles, model_hparams=model_hparams
+        )
 
         preds = []
         for batch_idx, batch in enumerate(pred_dl):
-            preds.append(model.predict_step(batch, batch_idx))
+            # For certain model prediction pipelines, we may need data module hyperparameters
+            preds.append(model.predict_step(batch, batch_idx, dm_hparams=dm_hparams))
 
         if not save_to:
             # If no save path is provided, return the predictions tensor

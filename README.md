@@ -81,7 +81,7 @@ The `classes_path` is the path to the dataset's `raw/classes.txt` file that cont
 You can evaluate a model trained on the ontology extension task in one of two ways:
 
 ### 1. Using the Jupyter Notebook
-An example notebook is provided at `tutorials/eval_model_basic.ipynb`.  
+An example notebook is provided at `tutorials/eval_model_basic.ipynb`.
 - Load your finetuned model and run the evaluation cells to compute metrics on the test set.
 
 ### 2. Using the Lightning CLI

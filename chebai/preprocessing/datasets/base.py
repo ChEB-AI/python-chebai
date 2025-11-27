@@ -96,9 +96,9 @@ class XYBaseDataModule(LightningDataModule):
         self.prediction_kind = prediction_kind
         self.data_limit = data_limit
         self.label_filter = label_filter
-        assert (balance_after_filter is not None) or (self.label_filter is None), (
-            "Filter balancing requires a filter"
-        )
+        assert (balance_after_filter is not None) or (
+            self.label_filter is None
+        ), "Filter balancing requires a filter"
         self.balance_after_filter = balance_after_filter
         self.num_workers = num_workers
         self.persistent_workers: bool = bool(persistent_workers)
@@ -108,13 +108,13 @@ class XYBaseDataModule(LightningDataModule):
         self.use_inner_cross_validation = (
             inner_k_folds > 1
         )  # only use cv if there are at least 2 folds
-        assert fold_index is None or self.use_inner_cross_validation is not None, (
-            "fold_index can only be set if cross validation is used"
-        )
+        assert (
+            fold_index is None or self.use_inner_cross_validation is not None
+        ), "fold_index can only be set if cross validation is used"
         if fold_index is not None and self.inner_k_folds is not None:
-            assert fold_index < self.inner_k_folds, (
-                "fold_index can't be larger than the total number of folds"
-            )
+            assert (
+                fold_index < self.inner_k_folds
+            ), "fold_index can't be larger than the total number of folds"
         self.fold_index = fold_index
         self._base_dir = base_dir
         self.n_token_limit = n_token_limit
@@ -137,9 +137,9 @@ class XYBaseDataModule(LightningDataModule):
 
     @property
     def feature_vector_size(self):
-        assert self._feature_vector_size is not None, (
-            "size of feature vector must be set"
-        )
+        assert (
+            self._feature_vector_size is not None
+        ), "size of feature vector must be set"
         return self._feature_vector_size
 
     @property
@@ -410,6 +410,7 @@ class XYBaseDataModule(LightningDataModule):
     def predict_dataloader(
         self,
         smiles_list: List[str],
+        model_hparams: Optional[dict] = None,
         **kwargs,
     ) -> Union[DataLoader, List[DataLoader]]:
         """
@@ -423,6 +424,26 @@ class XYBaseDataModule(LightningDataModule):
             Union[DataLoader, List[DataLoader]]: A DataLoader object for prediction data.
         """
 
+        data = self._process_input_for_prediction(smiles_list, model_hparams)
+        return DataLoader(
+            data,
+            collate_fn=self.reader.collator,
+            batch_size=self.batch_size,
+            **kwargs,
+        )
+
+    def _process_input_for_prediction(
+        self, smiles_list: list[str], model_hparams: Optional[dict] = None
+    ) -> list:
+        """
+        Process input data for prediction.
+
+        Args:
+            smiles_list (List[str]): List of SMILES strings.
+
+        Returns:
+            List[Dict[str, Any]]: Processed input data.
+        """
         data = [
             self.reader.to_data(
                 {"id": f"smiles_{idx}", "features": smiles, "labels": None}
@@ -430,13 +451,7 @@ class XYBaseDataModule(LightningDataModule):
             for idx, smiles in enumerate(smiles_list)
         ]
         data = self._filter_to_token_limit(data)
-
-        return DataLoader(
-            data,
-            collate_fn=self.reader.collator,
-            batch_size=self.batch_size,
-            **kwargs,
-        )
+        return data
 
     def prepare_data(self, *args, **kwargs) -> None:
         if self._prepare_data_flag != 1:
