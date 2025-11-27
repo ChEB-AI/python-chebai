@@ -70,11 +70,19 @@ python -m chebai fit --config=[path-to-your-tox21-config] --trainer.callbacks=co
 
 ### Predicting classes given SMILES strings
 ```
-python3 -m chebai predict_from_file --checkpoint_path=[path-to-model] --input_path=[path-to-file-containing-smiles] [--classes_path=[path-to-classes-file]] [--save_to=[path-to-output]]
+python3  chebai/result/prediction.py predict_from_file --checkpoint_path=[path-to-model] ----smiles_file_path=[path-to-file-containing-smiles] [--classes_path=[path-to-classes-file]] [--save_to=[path-to-output]]
 ```
-The input files should contain a list of line-separated SMILES strings. This generates a CSV file  that contains the
-one row for each SMILES string and one column for each class.
-The `classes_path` is the path to the dataset's `raw/classes.txt` file that contains the relationship between model output and ChEBI-IDs.
+
+* **`--checkpoint_path`**: Path to the Lightning checkpoint file (must end with `.ckpt`).
+
+* **`--smiles_file_path`**: Path to a text file containing one SMILES string per line.
+
+* **`--save_to`** *(optional)*: Predictions will be saved to the path as CSV file. The CSV will contain one row per SMILES string and one column per predicted class.
+
+* **`--classes_path`** *(optional)*: Path to the dataset’s `raw/classes.txt` file, which maps model output indices to ChEBI IDs.
+
+  * If provided, the CSV columns will be named using the ChEBI IDs.
+  * If omitted, then script will located the file automatically. If unable to locate then the columns will be numbered sequentially.
 
 ## Evaluation
 
