@@ -51,7 +51,7 @@ class DataReader:
 
     def _get_raw_id(self, row: Dict[str, Any]) -> Any:
         """Get raw ID from the row."""
-        return row.get("ident", row["id"])
+        return row.get("ident", row["features"])
 
     def _get_raw_group(self, row: Dict[str, Any]) -> Any:
         """Get raw group from the row."""
