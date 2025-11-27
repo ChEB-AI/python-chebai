@@ -20,21 +20,25 @@ class Predictor:
     def predict_from_file(
         self,
         checkpoint_path: _PATH,
-        input_path: _PATH,
+        smiles_file_path: _PATH,
         save_to: _PATH = "predictions.csv",
         classes_path: Optional[_PATH] = None,
+        batch_size: Optional[int] = None,
     ) -> None:
         """
         Loads a model from a checkpoint and makes predictions on input data from a file.
 
         Args:
-            model: The model to use for predictions.
             checkpoint_path: Path to the model checkpoint.
-            input_path: Path to the input file containing SMILES strings.
+            smiles_file_path: Path to the input file containing SMILES strings.
             save_to: Path to save the predictions CSV file.
-            classes_path: Optional path to a file containing class names (if no class names are provided, columns will be numbered).
+            classes_path: Optional path to a file containing class names:
+                if no class names are provided, code will try to get the class path
+                from the datamodule, else the columns will be numbered.
+            batch_size: Optional batch size for the DataLoader. If not provided,
+                the default from the datamodule will be used.
         """
-        with open(input_path, "r") as input:
+        with open(smiles_file_path, "r") as input:
             smiles_strings = [inp.strip() for inp in input.readlines()]
 
         self.predict_smiles(
@@ -42,6 +46,7 @@ class Predictor:
             smiles=smiles_strings,
             classes_path=classes_path,
             save_to=save_to,
+            batch_size=batch_size,
         )
 
     @torch.inference_mode()
@@ -51,16 +56,24 @@ class Predictor:
         smiles: List[str],
         classes_path: Optional[_PATH] = None,
         save_to: Optional[_PATH] = None,
+        batch_size: Optional[int] = None,
         **kwargs,
     ) -> torch.Tensor | None:
         """
         Predicts the output for a list of SMILES strings using the model.
 
         Args:
-            model: The model to use for predictions.
+            checkpoint_path: Path to the model checkpoint.
             smiles: A list of SMILES strings.
+            classes_path: Optional path to a file containing class names. If no class
+                names are provided, code will try to get the class path from the datamodule,
+                else the columns will be numbered.
+            save_to: Optional path to save the predictions CSV file. If not provided,
+                predictions will be returned as a tensor.
+            batch_size: Optional batch size for the DataLoader. If not provided, the default
+                from the datamodule will be used.
 
-        Returns:
+        Returns: (if save_to is None)
             A tensor containing the predictions.
         """
         ckpt_file = torch.load(
@@ -71,10 +84,13 @@ class Predictor:
         dm_hparams.pop("splits_file_path")
         dm: XYBaseDataModule = instantiate_module(XYBaseDataModule, dm_hparams)
         print(f"Loaded datamodule class: {dm.__class__.__name__}")
+        if batch_size is not None:
+            dm.batch_size = batch_size
 
         model_hparams = ckpt_file["hyper_parameters"]
         model: ChebaiBaseNet = instantiate_module(ChebaiBaseNet, model_hparams)
         model.eval()
+        # TODO: Enable torch.compile when supported
         # model = torch.compile(model)
         print(f"Loaded model class: {model.__class__.__name__}")
 
