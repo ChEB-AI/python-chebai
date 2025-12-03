@@ -40,15 +40,13 @@ class Ensemble_loader():
         path_to_dict = load_path
         d = torch.load(path_to_dict,weights_only=False)
         length = len(data)
-        print(length)
         for i in range(0,length):
             ident = data[i]["ident"]
             if(d[str(ident)] > 1):
                 r = d[str(ident)]
                 for j in range(0,r-1):
                     data.append(data[i])
-                    print("append")
-        print(len(data))
+
 
         return data
 
