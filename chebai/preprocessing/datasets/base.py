@@ -19,7 +19,7 @@ from torch.utils.data import DataLoader
 
 from chebai.preprocessing import reader as dr
 
-import extras.adamh as f
+from extras.adamh import Ensemble_loader
 
 
 class XYBaseDataModule(LightningDataModule):
@@ -723,6 +723,8 @@ class _DynamicDataset(XYBaseDataModule, ABC):
 
     def __init__(
         self,
+            ensemble: bool,
+            load_path: str,
         **kwargs,
     ):
         super(_DynamicDataset, self).__init__(**kwargs)
@@ -731,6 +733,7 @@ class _DynamicDataset(XYBaseDataModule, ABC):
         self._dynamic_df_train = None
         self._dynamic_df_test = None
         self._dynamic_df_val = None
+        self.loader= Ensemble_loader(ensemble=ensemble,load_path=load_path)
         # Path of csv file which contains a list of ids & their assignment to a dataset (either train,
         # validation or test).
         self.splits_file_path = self._validate_splits_file_path(
@@ -1182,11 +1185,20 @@ class _DynamicDataset(XYBaseDataModule, ABC):
                 data_df = self.dynamic_split_dfs[kind]
                 data = data_df.to_dict(orient="records")
                 if kind == "train" :
-                    #       f.init_weights()
-                    data = f.add_train_weights(data)
+
+                    if self.loader.ensemble:
+                        data = self.loader.add_val_weights(data)
+                        
+                        data = self.loader.add_duplicates(data,self.loader.load_path)
+
+                    else:
+                        data = self.loader.add_train_weights(data,self.loader.load_path)
+                    exit()
                 if kind == "validation" :
-                    data = f.add_val_weights(data)
-                # torch.save(data,"gewicht.pt")
+                    data = self.loader.add_val_weights(data)
+
+
+
 
                 return data
 
