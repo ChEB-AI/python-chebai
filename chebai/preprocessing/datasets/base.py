@@ -1187,13 +1187,14 @@ class _DynamicDataset(XYBaseDataModule, ABC):
                 if kind == "train" :
 
                     if self.loader.ensemble:
+
                         data = self.loader.add_val_weights(data)
-                        
+
                         data = self.loader.add_duplicates(data,self.loader.load_path)
 
                     else:
                         data = self.loader.add_train_weights(data,self.loader.load_path)
-                    exit()
+
                 if kind == "validation" :
                     data = self.loader.add_val_weights(data)
 
