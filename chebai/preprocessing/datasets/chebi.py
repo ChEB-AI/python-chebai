@@ -144,9 +144,9 @@ class _ChEBIDataExtractor(_DynamicDataset, ABC):
         **kwargs,
     ):
         if bool(augment_smiles):
-            assert int(aug_smiles_variations) > 0, (
-                "Number of variations must be greater than 0"
-            )
+            assert (
+                int(aug_smiles_variations) > 0
+            ), "Number of variations must be greater than 0"
             aug_smiles_variations = int(aug_smiles_variations)
 
             if not kwargs.get("splits_file_path", None):
