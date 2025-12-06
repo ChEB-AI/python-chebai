@@ -13,36 +13,47 @@ from chebai.preprocessing.datasets.base import XYBaseDataModule
 
 
 class Predictor:
-    def __init__(self, checkpoint_path: _PATH, batch_size: Optional[int] = None):
+    def __init__(
+        self,
+        checkpoint_path: _PATH,
+        batch_size: Optional[int] = None,
+        compile_model: bool = True,
+    ):
         """Initializes the Predictor with a model loaded from the checkpoint.
 
         Args:
             checkpoint_path: Path to the model checkpoint.
             batch_size: Optional batch size for the DataLoader. If not provided,
                 the default from the datamodule will be used.
+            compile_model: Whether to compile the model using torch.compile. Default is True.
         """
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         ckpt_file = torch.load(
             checkpoint_path, map_location=self.device, weights_only=False
         )
+        print("-" * 50)
+        print(f"For Loaded checkpoint from: {checkpoint_path}")
+        print("Below are the modules loaded from the checkpoint:")
 
         self._dm_hparams = ckpt_file["datamodule_hyper_parameters"]
         # self._dm_hparams.pop("splits_file_path")
         self._dm: XYBaseDataModule = instantiate_module(
             XYBaseDataModule, self._dm_hparams
         )
-        print(f"Loaded datamodule class: {self._dm.__class__.__name__}")
         if batch_size is not None and int(batch_size) > 0:
             self._dm.batch_size = int(batch_size)
+        print("*" * 10, f"Loaded datamodule class: {self._dm.__class__.__name__}")
 
         self._model_hparams = ckpt_file["hyper_parameters"]
         self._model: ChebaiBaseNet = instantiate_module(
             ChebaiBaseNet, self._model_hparams
         )
+        print("*" * 10, f"Loaded model class: {self._model.__class__.__name__}")
+
+        if compile_model:
+            self._model = torch.compile(self._model)
         self._model.eval()
-        # TODO: Enable torch.compile when supported
-        # model = torch.compile(model)
-        print(f"Loaded model class: {self._model.__class__.__name__}")
+        print("-" * 50)
 
     def predict_from_file(
         self,
