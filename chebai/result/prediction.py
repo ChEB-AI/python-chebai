@@ -27,7 +27,7 @@ class Predictor:
         )
 
         self._dm_hparams = ckpt_file["datamodule_hyper_parameters"]
-        self._dm_hparams.pop("splits_file_path")
+        # self._dm_hparams.pop("splits_file_path")
         self._dm: XYBaseDataModule = instantiate_module(
             XYBaseDataModule, self._dm_hparams
         )
@@ -63,11 +63,7 @@ class Predictor:
         with open(smiles_file_path, "r") as input:
             smiles_strings = [inp.strip() for inp in input.readlines()]
 
-        preds: torch.Tensor = self.predict_smiles(
-            smiles=smiles_strings,
-            classes_path=classes_path,
-            save_to=save_to,
-        )
+        preds: torch.Tensor = self.predict_smiles(smiles=smiles_strings)
 
         predictions_df = pd.DataFrame(torch.cat(preds).detach().cpu().numpy())
 
