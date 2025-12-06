@@ -36,7 +36,7 @@ class Predictor:
         print("Below are the modules loaded from the checkpoint:")
 
         self._dm_hparams = ckpt_file["datamodule_hyper_parameters"]
-        # self._dm_hparams.pop("splits_file_path")
+        self._dm_hparams.pop("splits_file_path")
         self._dm: XYBaseDataModule = instantiate_module(
             XYBaseDataModule, self._dm_hparams
         )
