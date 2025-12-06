@@ -65,7 +65,7 @@ class Predictor:
 
         preds: torch.Tensor = self.predict_smiles(smiles=smiles_strings)
 
-        predictions_df = pd.DataFrame(torch.cat(preds).detach().cpu().numpy())
+        predictions_df = pd.DataFrame(preds.detach().cpu().numpy())
 
         def _add_class_columns(class_file_path: _PATH):
             with open(class_file_path, "r") as f:

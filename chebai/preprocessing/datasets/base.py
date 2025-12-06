@@ -444,9 +444,12 @@ class XYBaseDataModule(LightningDataModule):
         Returns:
             List[Dict[str, Any]]: Processed input data.
         """
+        # Add dummy labels because the collate function requires them.
+        # Note: If labels are set to `None`, the collator will insert a `non_null_labels` entry into `loss_kwargs`,
+        # which later causes `_get_prediction_and_labels` method in the prediction pipeline to treat the data as empty.
         data = [
             self.reader.to_data(
-                {"id": f"smiles_{idx}", "features": smiles, "labels": None}
+                {"id": f"smiles_{idx}", "features": smiles, "labels": [1, 2]}
             )
             for idx, smiles in enumerate(smiles_list)
         ]
