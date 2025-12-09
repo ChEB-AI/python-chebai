@@ -723,8 +723,8 @@ class _DynamicDataset(XYBaseDataModule, ABC):
 
     def __init__(
         self,
-            ensemble: bool,
-            load_path: str,
+            ensemble=True,
+            load_path=None,
         **kwargs,
     ):
         super(_DynamicDataset, self).__init__(**kwargs)
@@ -1189,8 +1189,9 @@ class _DynamicDataset(XYBaseDataModule, ABC):
                     if self.loader.ensemble:
 
                         data = self.loader.add_val_weights(data)
+                        if self.loader.load_path is not None:
 
-                        data = self.loader.add_duplicates(data,self.loader.load_path)
+                            data = self.loader.add_duplicates(data,self.loader.load_path)
 
                     else:
                         data = self.loader.add_train_weights(data,self.loader.load_path)
