@@ -11,11 +11,10 @@ from matplotlib.image import imread
 from networkx.algorithms.isomorphism import GraphMatcher
 from pysmiles.read_smiles import LOGGER, TokenType, _tokenize
 from rdkit import Chem
+from rdkit.Chem.Draw import MolToMPL  # , rdMolDraw2D
 from rdkit.Chem.Draw import rdMolDraw2D
 
-# from rdkit.Chem.Draw import MolToMPL, rdMolDraw2D
-
-# from chebai.preprocessing.datasets import JCI_500_COLUMNS_INT
+from chebai.preprocessing.datasets import JCI_500_COLUMNS_INT
 from chebai.result.base import ResultProcessor
 
 

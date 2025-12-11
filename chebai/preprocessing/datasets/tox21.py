@@ -10,10 +10,7 @@ from urllib import request
 import numpy as np
 import torch
 from rdkit import Chem
-from sklearn.model_selection import (
-    GroupShuffleSplit,
-    train_test_split,
-)
+from sklearn.model_selection import GroupShuffleSplit, train_test_split
 
 from chebai.preprocessing import reader as dr
 from chebai.preprocessing.datasets.base import XYBaseDataModule
@@ -164,8 +161,8 @@ class Tox21MolNet(XYBaseDataModule):
             for row in reader:
                 smiles = row["smiles"]
                 labels = [
-                    bool(int(float(l))) if len(l) > 1 else None
-                    for l in (row[k] for k in self.HEADERS)
+                    bool(int(float(label))) if len(label) > 1 else None
+                    for label in (row[k] for k in self.HEADERS)
                 ]
                 # group = int(row["group"])
                 yield dict(

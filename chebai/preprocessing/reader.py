@@ -98,8 +98,8 @@ class DataReader:
         under the additional `missing_labels` keyword."""
         labels = self._get_raw_label(row)
         additional_kwargs = self._get_additional_kwargs(row)
-        if any(l is None for l in labels):
-            additional_kwargs["missing_labels"] = [l is None for l in labels]
+        if any(label is None for label in labels):
+            additional_kwargs["missing_labels"] = [label is None for label in labels]
         return dict(
             features=self._get_raw_data(row),
             labels=labels,
@@ -214,7 +214,7 @@ class ChemDataReader(TokenIndexerReader):
             print(f"\t{e}")
             return None
 
-    def _back_to_smiles(smiles_encoded):
+    def _back_to_smiles(self, smiles_encoded):
 
         token_file = self.reader.token_path
         token_coding = {}

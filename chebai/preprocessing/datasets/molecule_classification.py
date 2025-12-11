@@ -1,17 +1,14 @@
-from tempfile import NamedTemporaryFile
-from urllib import request
 import csv
 import gzip
 import os
 import shutil
+from tempfile import NamedTemporaryFile
 from typing import Dict, List
+from urllib import request
 
-from sklearn.model_selection import (
-    GroupShuffleSplit,
-    train_test_split,
-)
 import numpy as np
 import torch
+from sklearn.model_selection import GroupShuffleSplit, train_test_split
 
 from chebai.preprocessing import reader as dr
 from chebai.preprocessing.datasets.base import XYBaseDataModule
@@ -166,7 +163,8 @@ class ClinTox(XYBaseDataModule):
                 i += 1
                 smiles = row["smiles"]
                 labels = [
-                    bool(int(l)) if l else None for l in (row[k] for k in self.HEADERS)
+                    bool(int(label)) if label else None
+                    for label in (row[k] for k in self.HEADERS)
                 ]
                 # group = int(row["group"])
                 yield dict(
@@ -519,7 +517,8 @@ class Sider(XYBaseDataModule):
                 i += 1
                 smiles = row["smiles"]
                 labels = [
-                    bool(int(l)) if l else None for l in (row[k] for k in self.HEADERS)
+                    bool(int(label)) if label else None
+                    for label in (row[k] for k in self.HEADERS)
                 ]
                 # group = row["group"]
                 yield dict(
@@ -1006,7 +1005,8 @@ class MUV(XYBaseDataModule):
                 i += 1
                 smiles = row["smiles"]
                 labels = [
-                    bool(int(l)) if l else None for l in (row[k] for k in self.HEADERS)
+                    bool(int(label)) if label else None
+                    for label in (row[k] for k in self.HEADERS)
                 ]
                 # group = row["group"]
                 yield dict(features=smiles, labels=labels, ident=i)  # , group=group)
