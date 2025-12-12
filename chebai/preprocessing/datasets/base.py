@@ -725,6 +725,7 @@ class _DynamicDataset(XYBaseDataModule, ABC):
         self,
             ensemble=True,
             load_path=None,
+            dim = 1528,
         **kwargs,
     ):
         super(_DynamicDataset, self).__init__(**kwargs)
@@ -733,7 +734,7 @@ class _DynamicDataset(XYBaseDataModule, ABC):
         self._dynamic_df_train = None
         self._dynamic_df_test = None
         self._dynamic_df_val = None
-        self.loader= Ensemble_loader(ensemble=ensemble,load_path=load_path)
+        self.loader= Ensemble_loader(ensemble=ensemble,load_path=load_path,dim=dim)
         # Path of csv file which contains a list of ids & their assignment to a dataset (either train,
         # validation or test).
         self.splits_file_path = self._validate_splits_file_path(
@@ -1188,7 +1189,7 @@ class _DynamicDataset(XYBaseDataModule, ABC):
 
                     if self.loader.ensemble:
 
-                        data = self.loader.add_val_weights(data)
+                        data = self.loader.add_val_weights(data,self.loader.dim)
                         if self.loader.load_path is not None:
 
                             data = self.loader.add_duplicates(data,self.loader.load_path)
@@ -1197,7 +1198,7 @@ class _DynamicDataset(XYBaseDataModule, ABC):
                         data = self.loader.add_train_weights(data,self.loader.load_path)
 
                 if kind == "validation" :
-                    data = self.loader.add_val_weights(data)
+                    data = self.loader.add_val_weights(data,self.loader.dim)
 
 
 

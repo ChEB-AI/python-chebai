@@ -11,9 +11,11 @@ class Ensemble_loader():
             #True :bagging, False : boosting
             ensemble:bool,
             load_path:str,
+            dim:int,
     ):
         self.ensemble=ensemble
         self.load_path=load_path
+        self.dim=dim
 
 
 
@@ -26,14 +28,13 @@ class Ensemble_loader():
             if it % 10000 == 0:
                 print(it)
             ident = i["ident"]
-            print(d[str(ident)])
             i["weight"] = d[str(ident)]
             it = it + 1
         return ids
 
-    def add_val_weights(self,ids):
+    def add_val_weights(self,ids,dim):
         for i in ids:
-            i["weight"] = [1]*1528
+            i["weight"] = [1]*dim
         return ids
     #dict reverse to the dict created by the method bootstrapping in sample.py
     def add_duplicates(self,data,load_path):
@@ -64,23 +65,23 @@ def create_data_weights(batchsize:int,dim:int,weights:dict[str,list[float,...]],
         index = index + 1
     return weight
 
-def create_weight(path_to_split="/home/programmer/Bachelorarbeit/split/splits.csv"):
-    weights = {}
-    with open(path_to_split, 'r') as csvfile:
-        reader = csv.reader(csvfile)
-        i = 0
-        for row in reader:
-            if (row[1] == "train") and i > 0:
-                #print(row[0])
-                weights[row[0]] = torch.full((1,1528),int(row[0]))
-                #print(row[0])
-            i = i +1
-        print(len(weights))
-    torch.save(weights,"/home/programmer/Bachelorarbeit/weights/init_mh.pt")
+# def create_weight(path_to_split="/home/programmer/Bachelorarbeit/split/splits.csv"):
+#     weights = {}
+#     with open(path_to_split, 'r') as csvfile:
+#         reader = csv.reader(csvfile)
+#         i = 0
+#         for row in reader:
+#             if (row[1] == "train") and i > 0:
+#                 #print(row[0])
+#                 weights[row[0]] = torch.full((1,1528),int(row[0]))
+#                 #print(row[0])
+#             i = i +1
+#         print(len(weights))
+#     torch.save(weights,"/home/programmer/Bachelorarbeit/weights/init_mh.pt")
 
 
 #for 1_ada_no_normal_weights weights =0.0001
-def new_create_weight(path_to_split="/home/programmer/Bachelorarbeit/split/splits.csv"):
+def new_create_weight(path_to_split="/home/programmer/Bachelorarbeit/split/reworked_splits.csv"):
     weights = {}
     with open(path_to_split, 'r') as csvfile:
         reader = csv.reader(csvfile)
@@ -88,11 +89,11 @@ def new_create_weight(path_to_split="/home/programmer/Bachelorarbeit/split/split
         for row in reader:
             if (row[1] == "train") and i > 0:
                 # print(row[0])
-                weights[row[0]] = [1/(1528*160715)]* 1528
+                weights[row[0]] = [(1/(1528*160677))*10000]* 1528
                 # print(row[0])
             i = i + 1
         print(len(weights))
-    torch.save(weights, "/home/programmer/Bachelorarbeit/weights/init_mh.pt")
+    torch.save(weights, "/home/programmer/Bachelorarbeit/weights/init_mh_10000.pt")
 
 
 
@@ -114,4 +115,4 @@ def new_create_weight(path_to_split="/home/programmer/Bachelorarbeit/split/split
 
 
 #new_create_weight()
-#create_weight()
+
