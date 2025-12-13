@@ -1,7 +1,6 @@
 import logging
 from typing import Any, Optional, Tuple
 
-import torch
 from lightning import Trainer
 from lightning.fabric.utilities.data import _set_sampler_epoch
 from lightning.pytorch.loggers import WandbLogger
@@ -40,7 +39,6 @@ class CustomTrainer(Trainer):
 
         # use custom fit loop (https://lightning.ai/docs/pytorch/LTS/extensions/loops.html#overriding-the-default-loops)
         self.fit_loop = LoadDataLaterFitLoop(self, self.min_epochs, self.max_epochs)
-        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     def _resolve_logging_argument(self, key: str, value: Any) -> Tuple[str, Any]:
         """
