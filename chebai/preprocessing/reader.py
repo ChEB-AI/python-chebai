@@ -203,10 +203,13 @@ class ChemDataReader(TokenIndexerReader):
                 print(f"RDKit failed to process {raw_data}")
                 print(f"\t{e}")
         try:
+            mol = Chem.MolFromSmiles(raw_data.strip())
+            if mol is None:
+                raise ValueError(f"Invalid SMILES: {raw_data}")
             return [self._get_token_index(v[1]) for v in _tokenize(raw_data)]
         except ValueError as e:
             print(f"could not process {raw_data}")
-            print(f"\t{e}")
+            print(f"\tError: {e}")
             return None
 
 
