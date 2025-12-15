@@ -44,10 +44,18 @@ class Tox21MolNet(XYBaseDataModule):
         """Returns a list of raw file names."""
         return ["tox21.csv"]
 
+    # @property
+    # def processed_file_names(self) -> List[str]:
+    #     """Returns a list of processed file names."""
+    #     return ["test.pt", "train.pt", "validation.pt"]
+
     @property
-    def processed_file_names(self) -> List[str]:
-        """Returns a list of processed file names."""
-        return ["test.pt", "train.pt", "validation.pt"]
+    def processed_file_names_dict(self) -> dict:
+        return {
+            "test": "test.pt",
+            "train": "train.pt",
+            "validation": "validation.pt",
+        }
 
     def download(self) -> None:
         """Downloads and extracts the dataset."""
@@ -63,10 +71,13 @@ class Tox21MolNet(XYBaseDataModule):
     def setup_processed(self) -> None:
         """Processes and splits the dataset."""
         print("Create splits")
-        data = self._load_data_from_file(os.path.join(self.raw_dir, "tox21.csv"))
-        groups = np.array([d["group"] for d in data])
+        data = list(self._load_data_from_file(os.path.join(self.raw_dir, "tox21.csv")))
+        groups = np.array([d.get("group") for d in data])
+
         if not all(g is None for g in groups):
-            split_size = int(len(set(groups)) * self.train_split)
+            split_size = int(
+                len(set(groups)) * (1 - self.test_split - self.validation_split)
+            )
             os.makedirs(self.processed_dir, exist_ok=True)
             splitter = GroupShuffleSplit(train_size=split_size, n_splits=1)
 
@@ -77,7 +88,11 @@ class Tox21MolNet(XYBaseDataModule):
             split_groups = groups[temp_split_index]
 
             splitter = GroupShuffleSplit(
-                train_size=int(len(set(split_groups)) * self.train_split), n_splits=1
+                train_size=int(
+                    len(set(split_groups))
+                    * (1 - self.test_split - self.validation_split)
+                ),
+                n_splits=1,
             )
             test_split_index, validation_split_index = next(
                 splitter.split(temp_split_index, groups=split_groups)
@@ -86,20 +101,21 @@ class Tox21MolNet(XYBaseDataModule):
             test_split = [
                 d
                 for d in (data[temp_split_index[i]] for i in test_split_index)
-                if d["original"]
+                # if d["original"]
             ]
             validation_split = [
                 d
                 for d in (data[temp_split_index[i]] for i in validation_split_index)
-                if d["original"]
+                # if d["original"]
             ]
         else:
             train_split, test_split = train_test_split(
-                data, train_size=self.train_split, shuffle=True
+                data, test_size=self.test_split, shuffle=True
             )
-            test_split, validation_split = train_test_split(
-                test_split, train_size=0.5, shuffle=True
+            train_split, validation_split = train_test_split(
+                train_split, test_size=self.validation_split, shuffle=True
             )
+
         for k, split in [
             ("test", test_split),
             ("train", train_split),
@@ -128,9 +144,10 @@ class Tox21MolNet(XYBaseDataModule):
         ):
             self.setup_processed()
 
-        self._set_processed_data_props()
+        # self._set_processed_data_props()
+        self._after_setup()
 
-    def _load_data_from_file(self, input_file_path: str) -> List[Dict]:
+    def _load_dict(self, input_file_path: str) -> List[Dict]:
         """Loads data from a CSV file.
 
         Args:
@@ -144,10 +161,36 @@ class Tox21MolNet(XYBaseDataModule):
             for row in reader:
                 smiles = row["smiles"]
                 labels = [
-                    bool(int(line)) if line else None
-                    for line in (row[k] for k in self.HEADERS)
+                    bool(int(float(label))) if len(label) > 1 else None
+                    for label in (row[k] for k in self.HEADERS)
                 ]
-                yield dict(features=smiles, labels=labels, ident=row["mol_id"])
+                # group = int(row["group"])
+                yield dict(
+                    features=smiles,
+                    labels=labels,
+                    ident=row["mol_id"],
+                    #  group=group
+                )
+                # yield self.reader.to_data(dict(features=smiles, labels=labels, ident=row["mol_id"]))
+
+    def _set_processed_data_props(self):
+        """
+        Load processed data and extract metadata.
+
+        Sets:
+            - self._num_of_labels: Number of target labels in the dataset.
+            - self._feature_vector_size: Maximum feature vector length across all data points.
+        """
+        pt_file_path = os.path.join(
+            self.processed_dir, self.processed_file_names_dict["train"]
+        )
+        data_pt = torch.load(pt_file_path, weights_only=False)
+
+        self._num_of_labels = len(data_pt[0]["labels"])
+        self._feature_vector_size = max(len(d["features"]) for d in data_pt)
+
+    def _perform_data_preparation(self, *args, **kwargs) -> None:
+        pass
 
 
 class Tox21Challenge(XYBaseDataModule):

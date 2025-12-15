@@ -1,0 +1,11 @@
+class_path: torchmetrics.MetricCollection
+init_args:
+  metrics:
+    mse:
+      class_path: torchmetrics.regression.MeanSquaredError
+    rmse:
+      class_path: torchmetrics.regression.MeanSquaredError
+      init_args:
+        squared: True
+    r2:
+      class_path: torchmetrics.regression.R2Score

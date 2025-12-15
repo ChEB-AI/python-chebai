@@ -395,6 +395,10 @@ class Tox21ChallengeMockData:
         for dict_ in data_list:
             dict_["features"] = Tox21ChallengeMockData.FEATURE_OF_SMILES
             dict_["group"] = None
+            if any(label is None for label in dict_["labels"]):
+                dict_["missing_labels"] = [
+                    True if label is None else False for label in dict_["labels"]
+                ]
 
         return data_list
 
@@ -506,5 +510,9 @@ class Tox21ChallengeMockData:
                     "group": None,
                 }
             )
+            if any(label is None for label in dict_["labels"]):
+                complete_list[-1]["missing_labels"] = [
+                    True if label is None else False for label in dict_["labels"]
+                ]
 
         return complete_list

@@ -1,0 +1,5 @@
+class_path: chebai.preprocessing.datasets.solCuration.SolCurationChem
+init_args:
+  batch_size: 32
+  validation_split: 0.05
+  test_split: 0.15

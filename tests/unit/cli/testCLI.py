@@ -15,8 +15,7 @@ class TestChebaiCLI(unittest.TestCase):
             "--model.pass_loss_kwargs=false",
             "--trainer.min_epochs=1",
             "--trainer.max_epochs=1",
-            "--model.criterion=configs/loss/bce.yml",
-            "--model.criterion.init_args.beta=0.99",
+            "--model.criterion=tests/unit/cli/bce_loss.yml",
         ]
 
     def test_mlp_on_chebai_cli(self):
