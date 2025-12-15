@@ -1,7 +1,8 @@
 class_path: chebai.models.Electra
 init_args:
+  model_type: regression
   optimizer_kwargs:
-    lr: 1e-3
+    lr: 1e-4
   config:
     vocab_size: 4400
     max_position_embeddings: 1800

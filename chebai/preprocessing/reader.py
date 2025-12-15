@@ -94,13 +94,18 @@ class DataReader:
         return raw
 
     def _read_components(self, row: Dict[str, Any]) -> Dict[str, Any]:
-        """Read and return components from the row."""
+        """Read and return components from the row. If the data contains any missing labels (`None`), they are tracked
+        under the additional `missing_labels` keyword."""
+        labels = self._get_raw_label(row)
+        additional_kwargs = self._get_additional_kwargs(row)
+        if any(label is None for label in labels):
+            additional_kwargs["missing_labels"] = [label is None for label in labels]
         return dict(
             features=self._get_raw_data(row),
-            labels=self._get_raw_label(row),
+            labels=labels,
             ident=self._get_raw_id(row),
             group=self._get_raw_group(row),
-            additional_kwargs=self._get_additional_kwargs(row),
+            additional_kwargs=additional_kwargs,
         )
 
     def to_data(self, row: Dict[str, Any]) -> Dict[str, Any]:
@@ -208,6 +213,24 @@ class ChemDataReader(TokenIndexerReader):
             print(f"could not process {raw_data}")
             print(f"\t{e}")
             return None
+
+    def _back_to_smiles(self, smiles_encoded):
+
+        token_file = self.reader.token_path
+        token_coding = {}
+        counter = 0
+        smiles_decoded = ""
+
+        # todo: for now just copied over from a notebook but ideally do this using the cache
+        with open(token_file, "r") as file:
+            for line in file:
+                token_coding[counter] = line.strip()
+                counter += 1
+
+        for token in smiles_encoded:
+            smiles_decoded += token_coding[token - EMBEDDING_OFFSET]
+
+        return smiles_decoded
 
 
 class DeepChemDataReader(ChemDataReader):

@@ -60,15 +60,40 @@ class ChebaiCLI(LightningCLI):
         )
 
         for kind in ("train", "val", "test"):
-            for average in ("micro-f1", "macro-f1", "balanced-accuracy"):
+            for average in (
+                "micro-f1",
+                "macro-f1",
+                "balanced-accuracy",
+                "roc-auc",
+                "f1",
+                "mse",
+                "rmse",
+                "r2",
+            ):
+                # When using lightning > 2.5.1 then need to uncomment all metrics that are not used
+                # for average in ("mse", "rmse","r2"): # for regression
+                # for average in ("f1", "roc-auc"): # for binary classification
+                # for average in ("micro-f1", "macro-f1", "roc-auc"): # for multilabel classification
+                # for average in ("micro-f1", "macro-f1", "balanced-accuracy", "roc-auc"): # for multilabel classification using balanced-accuracy
                 parser.link_arguments(
                     "data.num_of_labels",
                     f"model.init_args.{kind}_metrics.init_args.metrics.{average}.init_args.num_labels",
                     apply_on="instantiate",
                 )
+
         parser.link_arguments(
             "data.num_of_labels", "trainer.callbacks.init_args.num_labels"
         )
+        # parser.link_arguments(
+        #     "model.init_args.out_dim", "trainer.callbacks.init_args.num_labels"
+        # )
+        # parser.link_arguments(
+        #     "data", "model.init_args.criterion.init_args.data_extractor"
+        # )
+        # parser.link_arguments(
+        #     "data.init_args.chebi_version",
+        #     "model.init_args.criterion.init_args.data_extractor.init_args.chebi_version",
+        # )
 
         parser.link_arguments(
             "data", "model.init_args.criterion.init_args.data_extractor"

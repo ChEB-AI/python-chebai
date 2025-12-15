@@ -1,3 +1,5 @@
 class_path: chebai.preprocessing.datasets.tox21.Tox21MolNetChem
 init_args:
-  batch_size: 10
+  batch_size: 32
+  validation_split: 0.05
+  test_split: 0.15

@@ -130,9 +130,11 @@ class CustomTrainer(Trainer):
         )
         features = torch.cat((cls_tokens, x), dim=1)
         model_output = model({"features": features})
-        preds = torch.sigmoid(model_output["logits"])
+        if model.model_type == "regression":
+            preds = model_output["logits"]
+        else:
+            preds = torch.sigmoid(model_output["logits"])
 
-        print(preds.shape)
         return preds
 
     @property

@@ -1,0 +1,1 @@
+class_path: torch.nn.BCELoss
