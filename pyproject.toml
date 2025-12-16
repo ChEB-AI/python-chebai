@@ -21,7 +21,7 @@ dependencies = [
     "torch",
     "transformers",
     "pysmiles==1.1.2",
-    "rdkit",
+    "rdkit==2024.3.6",
     "lightning==2.5.1",
 ]
 
