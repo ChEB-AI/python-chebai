@@ -412,49 +412,68 @@ class XYBaseDataModule(LightningDataModule):
         smiles_list: List[str],
         model_hparams: Optional[dict] = None,
         **kwargs,
-    ) -> Union[DataLoader, List[DataLoader]]:
+    ) -> tuple[DataLoader, list[int]]:
         """
         Returns the predict DataLoader.
 
         Args:
-            *args: Additional positional arguments (unused).
+            smiles_list (List[str]): List of SMILES strings to predict.
+            model_hparams (Optional[dict]): Model hyperparameters.
+                Some prediction pre-processing pipelines may require these.
             **kwargs: Additional keyword arguments, passed to dataloader().
 
         Returns:
-            Union[DataLoader, List[DataLoader]]: A DataLoader object for prediction data.
+            tuple[DataLoader, list[int]]: A DataLoader object for prediction data and a list of valid indices.
         """
 
-        data = self._process_input_for_prediction(smiles_list, model_hparams)
-        return DataLoader(
-            data,
-            collate_fn=self.reader.collator,
-            batch_size=self.batch_size,
-            **kwargs,
+        data, valid_indices = self._process_input_for_prediction(
+            smiles_list, model_hparams
+        )
+        return (
+            DataLoader(
+                data,
+                collate_fn=self.reader.collator,
+                batch_size=self.batch_size,
+                **kwargs,
+            ),
+            valid_indices,
         )
 
     def _process_input_for_prediction(
         self, smiles_list: list[str], model_hparams: Optional[dict] = None
-    ) -> list:
+    ) -> tuple[list, list]:
         """
         Process input data for prediction.
 
         Args:
             smiles_list (List[str]): List of SMILES strings.
+            model_hparams (Optional[dict]): Model hyperparameters.
+                Some prediction pre-processing pipelines may require these.
 
         Returns:
-            List[Dict[str, Any]]: Processed input data.
+            tuple[list, list]: Processed input data and valid indices.
         """
+        data, valid_indices = [], []
+        for idx, smiles in enumerate(smiles_list):
+            result = self._preprocess_smiles_for_pred(idx, smiles, model_hparams)
+            if result is None or result["features"] is None:
+                continue
+            data.append(result)
+            valid_indices.append(idx)
+
+        data = self._filter_to_token_limit(data)
+        return data, valid_indices
+
+    def _preprocess_smiles_for_pred(
+        self, idx, smiles: str, model_hparams: Optional[dict] = None
+    ) -> dict:
+        """Preprocess prediction data."""
         # Add dummy labels because the collate function requires them.
         # Note: If labels are set to `None`, the collator will insert a `non_null_labels` entry into `loss_kwargs`,
         # which later causes `_get_prediction_and_labels` method in the prediction pipeline to treat the data as empty.
-        data = [
-            self.reader.to_data(
-                {"id": f"smiles_{idx}", "features": smiles, "labels": [1, 2]}
-            )
-            for idx, smiles in enumerate(smiles_list)
-        ]
-        data = self._filter_to_token_limit(data)
-        return data
+        return self.reader.to_data(
+            {"id": f"smiles_{idx}", "features": smiles, "labels": [1, 2]}
+        )
 
     def prepare_data(self, *args, **kwargs) -> None:
         if self._prepare_data_flag != 1:

@@ -6,7 +6,6 @@ import torch
 from jsonargparse import CLI
 from lightning.fabric.utilities.types import _PATH
 from lightning.pytorch.cli import instantiate_module
-from torch.utils.data import DataLoader
 
 from chebai.models.base import ChebaiBaseNet
 from chebai.preprocessing.datasets.base import XYBaseDataModule
@@ -101,7 +100,7 @@ class Predictor:
     def predict_smiles(
         self,
         smiles: List[str],
-    ) -> torch.Tensor:
+    ) -> list[torch.Tensor | None]:
         """
         Predicts the output for a list of SMILES strings using the model.
 
@@ -112,7 +111,7 @@ class Predictor:
             A tensor containing the predictions.
         """
         # For certain data prediction piplines, we may need model hyperparameters
-        pred_dl: DataLoader = self._dm.predict_dataloader(
+        pred_dl, valid_indices = self._dm.predict_dataloader(
             smiles_list=smiles, model_hparams=self._model_hparams
         )
 
@@ -122,8 +121,16 @@ class Predictor:
             preds.append(
                 self._model.predict_step(batch, batch_idx, dm_hparams=self._dm_hparams)
             )
+        preds = torch.cat(preds)
 
-        return torch.cat(preds)
+        # Initialize output with None
+        output: list[torch.Tensor | None] = [None] * len(smiles)
+
+        # Scatter predictions back
+        for pred, idx in zip(preds, valid_indices):
+            output[idx] = pred
+
+        return output
 
 
 class MainPredictor:
