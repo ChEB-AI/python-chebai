@@ -3,14 +3,13 @@
 ChEBai is a deep learning library designed for the integration of deep learning methods with chemical ontologies, particularly ChEBI.
 The library emphasizes the incorporation of the semantic qualities of the ontology into the learning process.
 
+##  News
+
+Starting in version 1.1, we support regression tasks!
+
 ## Installation
 
-You can install ChEBai via pip:
-```
-pip install chebai
-```
-
-Alternatively, you can get the latest development version directly from GitHub:
+To install ChEBai, follow these steps:
 
 1. Clone the repository:
 ```
@@ -60,12 +59,17 @@ python -m chebai fit --trainer=configs/training/default_trainer.yml --model=conf
 ```
 A command with additional options may look like this:
 ```
-python3 -m chebai fit --trainer=configs/training/default_trainer.yml --model=configs/model/electra.yml --model.train_metrics=configs/metrics/micro-macro-f1.yml --model.test_metrics=configs/metrics/micro-macro-f1.yml --model.val_metrics=configs/metrics/micro-macro-f1.yml --model.pretrained_checkpoint=electra_pretrained.ckpt --model.load_prefix=generator. --data=configs/data/chebi50.yml --model.criterion=configs/loss/bce.yml --data.init_args.batch_size=10 --trainer.logger.init_args.name=chebi50_bce_unweighted --data.init_args.num_workers=9 --model.pass_loss_kwargs=false --data.init_args.chebi_version=231 --data.init_args.data_limit=1000
+python3 -m chebai fit --trainer=configs/training/default_trainer.yml --model=configs/model/electra.yml --model.train_metrics=configs/metrics/micro-macro-f1.yml --model.test_metrics=configs/metrics/micro-macro-f1.yml --model.val_metrics=configs/metrics/micro-macro-f1.yml --model.pretrained_checkpoint=electra_pretrained.ckpt --model.load_prefix=generator. --data=configs/data/chebi/chebi50.yml --model.criterion=configs/loss/bce.yml --data.init_args.batch_size=10 --trainer.logger.init_args.name=chebi50_bce_unweighted --data.init_args.num_workers=9 --model.pass_loss_kwargs=false --data.init_args.chebi_version=231 --data.init_args.data_limit=1000
 ```
 
-### Fine-tuning for Toxicity prediction
+### Fine-tuning for classification tasks, e.g. Toxicity prediction
 ```
 python -m chebai fit --config=[path-to-your-tox21-config] --trainer.callbacks=configs/training/default_callbacks.yml  --model.pretrained_checkpoint=[path-to-pretrained-model]
+```
+
+### Fine-tuning for regression tasks, e.g. solubility prediction
+```
+python -m chebai fit --config=[path-to-your-esol-config] --trainer.callbacks=configs/training/solCur_callbacks.yml  --model.pretrained_checkpoint=[path-to-pretrained-model]
 ```
 
 ### Predicting classes given SMILES strings

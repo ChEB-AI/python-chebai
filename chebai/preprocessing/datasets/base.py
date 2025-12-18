@@ -332,6 +332,7 @@ class XYBaseDataModule(LightningDataModule):
         Returns:
             List: A list of dictionaries containing the features and labels.
         """
+
         lines = self._get_data_size(path)
         print(f"Processing {lines} lines...")
         data = [

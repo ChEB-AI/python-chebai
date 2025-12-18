@@ -64,7 +64,7 @@ class RaggedCollator(Collator):
         Handles both fully and partially labeled data, where some samples may have `None` as their label. The indices
         of non-null labels are stored in the `non_null_labels` field, which is used to filter out predictions for
         unlabeled data during evaluation (e.g., F1, MSE). For models supporting partially labeled data, this method
-        ensures alignment between features and labels.
+        ensures alignment between features and labels. Missing labels are passed as a loss keyword.
 
         Args:
             data (List[Union[Dict, Tuple]]): List of ragged data samples. Each sample can be a dictionary or tuple
@@ -81,10 +81,15 @@ class RaggedCollator(Collator):
         if isinstance(data[0], tuple):
             # For legacy data
             x, y, idents = zip(*data)
+            missing_labels = None
         else:
             x, y, idents = zip(
                 *((d["features"], d["labels"], d.get("ident")) for d in data)
             )
+            missing_labels = [
+                d.get("missing_labels", [False for _ in y[0]]) for d in data
+            ]
+
         if any(x is not None for x in y):
             # If any label is not None: (None, None, `1`, None)
             if any(x is None for x in y):
@@ -97,11 +102,13 @@ class RaggedCollator(Collator):
             else:
                 # If all labels are not None: (`0`, `2`, `1`, `3`)
                 y = self.process_label_rows(y)
+
         else:
             # If all labels are None : (`None`, `None`, `None`, `None`)
             y = None
             loss_kwargs["non_null_labels"] = []
 
+        loss_kwargs["missing_labels"] = torch.tensor(missing_labels)
         # Calculate the lengths of each sequence, create a binary mask for valid (non-padded) positions
         lens = torch.tensor(list(map(len, x)))
         model_kwargs["mask"] = torch.arange(max(lens))[None, :] < lens[:, None]
