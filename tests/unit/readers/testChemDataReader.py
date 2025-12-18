@@ -42,19 +42,22 @@ class TestChemDataReader(unittest.TestCase):
         """
         Test the _read_data method with a SMILES string to ensure it correctly tokenizes the string.
         """
-        raw_data = "CC(=O)NC1[Mg-2]"
+        raw_data = "CC(=O)NC1CC1[Mg-2]"
         # Expected output as per the tokens already in the cache, and ")" getting added to it.
         expected_output: List[int] = [
             EMBEDDING_OFFSET + 0,  # C
             EMBEDDING_OFFSET + 0,  # C
-            EMBEDDING_OFFSET + 5,  # =
-            EMBEDDING_OFFSET + 3,  # O
-            EMBEDDING_OFFSET + 1,  # N
-            EMBEDDING_OFFSET + len(self.reader.cache),  # (
-            EMBEDDING_OFFSET + 2,  # C
+            EMBEDDING_OFFSET + 5,  # (
+            EMBEDDING_OFFSET + 3,  # =
+            EMBEDDING_OFFSET + 1,  # O
+            EMBEDDING_OFFSET + len(self.reader.cache),  # ) - new token
+            EMBEDDING_OFFSET + 2,  # N
             EMBEDDING_OFFSET + 0,  # C
             EMBEDDING_OFFSET + 4,  # 1
-            EMBEDDING_OFFSET + len(self.reader.cache) + 1,  # [Mg-2]
+            EMBEDDING_OFFSET + 0,  # C
+            EMBEDDING_OFFSET + 0,  # C
+            EMBEDDING_OFFSET + 4,  # 1
+            EMBEDDING_OFFSET + len(self.reader.cache) + 1,  # [Mg-2] - new token
         ]
         result = self.reader._read_data(raw_data)
         self.assertEqual(
@@ -99,13 +102,14 @@ class TestChemDataReader(unittest.TestCase):
         Test the _read_data method with an invalid input.
         The invalid token should prompt a return value None
         """
-        raw_data = "%INVALID%"
-
-        result = self.reader._read_data(raw_data)
-        self.assertIsNone(
-            result,
-            "The output for invalid token '%INVALID%' should be None.",
-        )
+        # see https://github.com/ChEB-AI/python-chebai/issues/137
+        raw_datas = ["%INVALID%", "ADADAD", "ADASDAD", "CC(=O)NC1[Mg-2]"]
+        for raw_data in raw_datas:
+            result = self.reader._read_data(raw_data)
+            self.assertIsNone(
+                result,
+                f"The output for invalid token '{raw_data}' should be None.",
+            )
 
     @patch("builtins.open", new_callable=mock_open)
     def test_finish_method_for_new_tokens(self, mock_file: mock_open) -> None:
