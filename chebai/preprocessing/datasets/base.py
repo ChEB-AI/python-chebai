@@ -341,20 +341,17 @@ class XYBaseDataModule(LightningDataModule):
             if d["features"] is not None
         ]
 
-        return self._filter_to_token_limit(data)
+        data = [val for val in data if self._filter_to_token_limit(val)]
+        return data
 
-    def _filter_to_token_limit(
-        self, data: List[Dict[str, Any]]
-    ) -> List[Dict[str, Any]]:
+    def _filter_to_token_limit(self, data_instance: dict) -> bool:
         # filter for missing features in resulting data, keep features length below token limit
-        return [
-            val
-            for val in data
-            if val["features"] is not None
-            and (
-                self.n_token_limit is None or len(val["features"]) <= self.n_token_limit
-            )
-        ]
+        if data_instance["features"] is not None and (
+            self.n_token_limit is None
+            or len(data_instance["features"]) <= self.n_token_limit
+        ):
+            return True
+        return False
 
     def train_dataloader(self, *args, **kwargs) -> Union[DataLoader, List[DataLoader]]:
         """
@@ -459,10 +456,11 @@ class XYBaseDataModule(LightningDataModule):
             result = self._preprocess_smiles_for_pred(idx, smiles, model_hparams)
             if result is None or result["features"] is None:
                 continue
+            if not self._filter_to_token_limit(result):
+                continue
             data.append(result)
             valid_indices.append(idx)
 
-        data = self._filter_to_token_limit(data)
         return data, valid_indices
 
     def _preprocess_smiles_for_pred(
