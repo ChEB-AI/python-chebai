@@ -30,6 +30,15 @@ class Predictor:
         ckpt_file = torch.load(
             checkpoint_path, map_location=self.device, weights_only=False
         )
+        assert (
+            "_class_path" in ckpt_file["datamodule_hyper_parameters"]
+            and "_class_path" in ckpt_file["hyper_parameters"]
+        ), (
+            "Datamodule and Model hyperparameters must include a '_class_path' key.\n"
+            "Hence, either the checkpoint is corrupted or "
+            "it was not saved properly with latest lightning version"
+        )
+
         print("-" * 50)
         print(f"For Loaded checkpoint from: {checkpoint_path}")
         print("Below are the modules loaded from the checkpoint:")
@@ -38,11 +47,7 @@ class Predictor:
         self._dm_hparams.pop("splits_file_path")
         self._dm_hparams.pop("augment_smiles", None)
         self._dm_hparams.pop("aug_smiles_variations", None)
-        assert "_class_path" in self._dm_hparams, (
-            "Datamodule hyperparameters must include a '_class_path' key.\n"
-            "Hence, either the checkpoint is corrupted or "
-            "it was not saved properly with latest lightning version"
-        )
+        self._dm_hparams.pop("_instantiator", None)
         self._dm: XYBaseDataModule = instantiate_module(
             XYBaseDataModule, self._dm_hparams
         )
@@ -51,6 +56,7 @@ class Predictor:
         print("*" * 10, f"Loaded datamodule class: {self._dm.__class__.__name__}")
 
         self._model_hparams = ckpt_file["hyper_parameters"]
+        self._model_hparams.pop("_instantiator", None)
         self._model: ChebaiBaseNet = instantiate_module(
             ChebaiBaseNet, self._model_hparams
         )
