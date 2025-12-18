@@ -205,7 +205,7 @@ class ChemDataReader(TokenIndexerReader):
                 if mol is not None:
                     raw_data = Chem.MolToSmiles(mol, canonical=True)
             except Exception as e:
-                print(f"RDKit failed to process {raw_data}")
+                print(f"RDKit failed to canonicalize the SMILES: {raw_data}")
                 print(f"\t{e}")
         try:
             mol = Chem.MolFromSmiles(raw_data.strip())
