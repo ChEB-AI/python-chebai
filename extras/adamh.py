@@ -1,6 +1,6 @@
 import torch
 import csv
-import numpy
+import copy
 
 
 
@@ -51,6 +51,55 @@ class Ensemble_loader():
 
         return data
 
+    def find_id(self,id, d):
+        for i in range(0, len(d)):
+            if int(id) == d[i]["ident"]:
+                return i
+
+    def resample_dataset(self,d, load_path):
+
+        t = torch.load(load_path, weights_only=False)
+        l = torch.load("",
+                       weights_only=False)
+        for i in t:
+            # print(i)
+            check = str(i).split("m")
+            if len(check) == 1:
+                if t[i] > 1:
+                    index = self.find_id(check[0], d)
+                    instance = d[index]
+                    for k in range(0, t[i] - 1):
+                        d.append(instance)
+                    t[i] = 0
+                else:
+                    t[i] = 0
+
+            else:
+                if t[i] > 0:
+                    # it is a split instance
+                    index = self.find_id(check[0], d)
+
+                    if t[check[0] + "mi"] > 0:
+                        mi = copy.deepcopy(d[index])
+                        # get majority labels to set weight to zero
+                        positives = l[check[0] + "ma"]
+                        for k in positives:
+                            mi["weight"][k] = 0
+                        for j in range(0, t[check[0] + "mi"]):
+                            d.append(mi)
+
+                    if t[check[0] + "ma"] > 0:
+                        # get minority labels to set weight to zero
+                        ma = copy.deepcopy(d[index])
+                        positive = l[str(check[0]) + "mi"]
+                        for k in positive:
+                            ma["weight"][k] = 0
+                        for j in range(0, t[check[0] + "ma"]):
+                            d.append(ma)
+                    t[check[0] + "ma"] = 0
+                    t[check[0] + "mi"] = 0
+                    d.pop(index)
+        return d
 
 def create_data_weights(batchsize:int,dim:int,weights:dict[str,list[float,...]],idents:tuple[int,...])-> torch.tensor:
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
@@ -94,6 +143,10 @@ def new_create_weight(path_to_split="/home/programmer/Bachelorarbeit/split/rewor
             i = i + 1
         print(len(weights))
     torch.save(weights, "/home/programmer/Bachelorarbeit/weights/init_mh_10000.pt")
+
+
+
+
 
 
 

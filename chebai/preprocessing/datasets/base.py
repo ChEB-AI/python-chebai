@@ -1192,10 +1192,11 @@ class _DynamicDataset(XYBaseDataModule, ABC):
                         data = self.loader.add_val_weights(data,self.loader.dim)
                         if self.loader.load_path is not None:
 
-                            data = self.loader.add_duplicates(data,self.loader.load_path)
-
+                            #data = self.loader.add_duplicates(data,self.loader.load_path)
+                            data = self.loader.resample_dataset(data,self.loader.load_path)
                     else:
                         data = self.loader.add_train_weights(data,self.loader.load_path)
+                    torch.save(data,"fifth_bootstrap_data.pt")
 
                 if kind == "validation" :
                     data = self.loader.add_val_weights(data,self.loader.dim)
