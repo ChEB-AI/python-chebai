@@ -62,6 +62,19 @@ class Predictor:
         )
         print("*" * 10, f"Loaded model class: {self._model.__class__.__name__}")
 
+        self._classification_labels: list | None = ckpt_file.get(
+            "classification_labels", None
+        )
+        if self._classification_labels is not None:
+            print(f"Loaded {len(self._classification_labels)} classification labels.")
+            assert len(self._classification_labels) > 0, (
+                "Classification labels list is empty."
+            )
+            assert len(self._classification_labels) == self._model.out_dim, (
+                f"Number of class labels ({len(self._classification_labels)}) does not match "
+                f"the model output dimension ({self._model.out_dim})."
+            )
+
         if compile_model:
             self._model = torch.compile(self._model)
         self._model.eval()
@@ -92,7 +105,10 @@ class Predictor:
             with open(class_file_path, "r") as f:
                 return [cls.strip() for cls in f.readlines()]
 
-        if classes_path is not None:
+        if self._classification_labels is not None:
+            CLASS_LABELS = self._classification_labels
+        # --- For old checkpoints that do not have classification_labels saved ---
+        elif classes_path is not None:
             CLASS_LABELS = _add_class_columns(classes_path)
         elif os.path.exists(self._dm.classes_txt_file_path):
             CLASS_LABELS = _add_class_columns(self._dm.classes_txt_file_path)
@@ -102,6 +118,7 @@ class Predictor:
             print("No valid predictions were made. (All predictions are None.)")
             return
 
+        # --- Logic for old checkpoints that do not have classification_labels saved ---
         if CLASS_LABELS is not None and self._model.out_dim is not None:
             assert len(CLASS_LABELS) > 0, "Class labels list is empty."
             assert len(CLASS_LABELS) == self._model.out_dim, (
