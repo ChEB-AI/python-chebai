@@ -40,6 +40,7 @@ class ChebaiBaseNet(LightningModule, ABC):
         pass_loss_kwargs: bool = True,
         optimizer_kwargs: Optional[Dict[str, Any]] = None,
         exclude_hyperparameter_logging: Optional[Iterable[str]] = None,
+        classes_txt_file_path: Optional[str] = None,
         **kwargs,
     ):
         super().__init__(**kwargs)
@@ -77,6 +78,17 @@ class ChebaiBaseNet(LightningModule, ABC):
         self.validation_metrics = val_metrics
         self.test_metrics = test_metrics
         self.pass_loss_kwargs = pass_loss_kwargs
+        with open(classes_txt_file_path, "r") as f:
+            self.labels_list = [cls.strip() for cls in f.readlines()]
+        assert len(self.labels_list) > 0, "Class labels list is empty."
+        assert len(self.labels_list) == out_dim, (
+            f"Number of class labels ({len(self.labels_list)}) does not match "
+            f"the model output dimension ({out_dim})."
+        )
+
+    def on_save_checkpoint(self, checkpoint):
+        # https://lightning.ai/docs/pytorch/stable/common/checkpointing_intermediate.html#modify-a-checkpoint-anywhere
+        checkpoint["classification_labels"] = self.labels_list
 
     def on_load_checkpoint(self, checkpoint: Dict[str, Any]) -> None:
         # avoid errors due to unexpected keys (e.g., if loading checkpoint from a bce model and using it with a
@@ -100,7 +112,7 @@ class ChebaiBaseNet(LightningModule, ABC):
 
     def _get_prediction_and_labels(
         self, data: Dict[str, Any], labels: torch.Tensor, output: torch.Tensor
-    ) -> (torch.Tensor, torch.Tensor):
+    ) -> tuple[torch.Tensor, torch.Tensor]:
         """
         Gets the predictions and labels from the model output.
 
@@ -151,7 +163,7 @@ class ChebaiBaseNet(LightningModule, ABC):
         model_output: torch.Tensor,
         labels: torch.Tensor,
         loss_kwargs: Dict[str, Any],
-    ) -> (torch.Tensor, torch.Tensor, Dict[str, Any]):
+    ) -> tuple[torch.Tensor, torch.Tensor, Dict[str, Any]]:
         """
         Processes the data for loss computation.
 

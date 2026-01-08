@@ -126,6 +126,7 @@ class Predictor:
         predictions_df = pd.DataFrame(rows, columns=CLASS_LABELS, index=smiles_strings)
 
         predictions_df.to_csv(save_to)
+        print(f"Predictions saved to: {save_to}")
 
     @torch.inference_mode()
     def predict_smiles(
