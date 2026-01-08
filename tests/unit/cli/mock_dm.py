@@ -1,3 +1,5 @@
+import os
+
 import torch
 from lightning.pytorch.core.datamodule import LightningDataModule
 from torch.utils.data import DataLoader
@@ -28,6 +30,10 @@ class MyLightningDataModule(LightningDataModule):
     @property
     def feature_vector_size(self):
         return self._feature_vector_size
+
+    @property
+    def classes_txt_file_path(self) -> str:
+        return os.path.join("tests", "unit", "cli", "classification_labels.txt")
 
     def train_dataloader(self):
         assert self.feature_vector_size is not None, "feature_vector_size must be set"
