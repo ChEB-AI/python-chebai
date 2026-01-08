@@ -86,20 +86,45 @@ class Predictor:
         with open(smiles_file_path, "r") as input:
             smiles_strings = [inp.strip() for inp in input.readlines()]
 
-        preds: torch.Tensor = self.predict_smiles(smiles=smiles_strings)
+        CLASS_LABELS: list | None = None
 
-        predictions_df = pd.DataFrame(preds.detach().cpu().numpy())
-
-        def _add_class_columns(class_file_path: _PATH):
+        def _add_class_columns(class_file_path: _PATH) -> list[str]:
             with open(class_file_path, "r") as f:
-                predictions_df.columns = [cls.strip() for cls in f.readlines()]
+                return [cls.strip() for cls in f.readlines()]
 
         if classes_path is not None:
-            _add_class_columns(classes_path)
+            CLASS_LABELS = _add_class_columns(classes_path)
         elif os.path.exists(self._dm.classes_txt_file_path):
-            _add_class_columns(self._dm.classes_txt_file_path)
+            CLASS_LABELS = _add_class_columns(self._dm.classes_txt_file_path)
 
-        predictions_df.index = smiles_strings
+        preds: list[torch.Tensor | None] = self.predict_smiles(smiles=smiles_strings)
+        if all(pred is None for pred in preds):
+            print("No valid predictions were made. (All predictions are None.)")
+            return
+
+        if CLASS_LABELS is not None and self._model.out_dim is not None:
+            assert len(CLASS_LABELS) > 0, "Class labels list is empty."
+            assert len(CLASS_LABELS) == self._model.out_dim, (
+                f"Number of class labels ({len(CLASS_LABELS)}) does not match "
+                f"the model output dimension ({self._model.out_dim})."
+            )
+            num_of_cols = len(CLASS_LABELS)
+        elif CLASS_LABELS is not None:
+            assert len(CLASS_LABELS) > 0, "Class labels list is empty."
+            num_of_cols = len(CLASS_LABELS)
+        elif self._model.out_dim is not None:
+            num_of_cols = self._model.out_dim
+        else:
+            # find first non-None tensor to determine width
+            num_of_cols = next(x.numel() for x in preds if x is not None)
+            CLASS_LABELS = [f"class_{i}" for i in range(num_of_cols)]
+
+        rows = [
+            pred.tolist() if pred is not None else [None] * num_of_cols
+            for pred in preds
+        ]
+        predictions_df = pd.DataFrame(rows, columns=CLASS_LABELS, index=smiles_strings)
+
         predictions_df.to_csv(save_to)
 
     @torch.inference_mode()
