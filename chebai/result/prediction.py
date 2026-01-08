@@ -67,9 +67,9 @@ class Predictor:
         )
         if self._classification_labels is not None:
             print(f"Loaded {len(self._classification_labels)} classification labels.")
-            assert len(self._classification_labels) > 0, (
-                "Classification labels list is empty."
-            )
+            assert (
+                len(self._classification_labels) > 0
+            ), "Classification labels list is empty."
             assert len(self._classification_labels) == self._model.out_dim, (
                 f"Number of class labels ({len(self._classification_labels)}) does not match "
                 f"the model output dimension ({self._model.out_dim})."
