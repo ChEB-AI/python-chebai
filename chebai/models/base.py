@@ -47,8 +47,8 @@ class ChebaiBaseNet(LightningModule, ABC):
         if exclude_hyperparameter_logging is None:
             exclude_hyperparameter_logging = tuple()
         self.criterion = criterion
-        assert out_dim is not None, "out_dim must be specified"
-        assert input_dim is not None, "input_dim must be specified"
+        assert out_dim is not None and out_dim > 0, "out_dim must be specified"
+        assert input_dim is not None and input_dim > 0, "input_dim must be specified"
         self.out_dim = out_dim
         self.input_dim = input_dim
         print(
