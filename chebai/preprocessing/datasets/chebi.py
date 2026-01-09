@@ -516,9 +516,7 @@ class _ChEBIDataExtractor(_DynamicDataset, ABC):
         """
         try:
             filename = self.processed_file_names_dict["data"]
-            data_chebi_version = self.load_processed_data_from_file(
-                os.path.join(self.processed_dir, filename)
-            )
+            data_chebi_version = self.load_processed_data_from_file(filename)
         except FileNotFoundError:
             raise FileNotFoundError(
                 "File data.pt doesn't exists. "

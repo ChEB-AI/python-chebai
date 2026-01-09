@@ -1173,9 +1173,7 @@ class _DynamicDataset(XYBaseDataModule, ABC):
         splits_df = pd.read_csv(self.splits_file_path)
 
         filename = self.processed_file_names_dict["data"]
-        data = self.load_processed_data_from_file(
-            os.path.join(self.processed_dir, filename)
-        )
+        data = self.load_processed_data_from_file(filename)
         df_data = pd.DataFrame(data)
 
         if self.apply_id_filter:
@@ -1255,7 +1253,9 @@ class _DynamicDataset(XYBaseDataModule, ABC):
         return self.load_processed_data_from_file(filename)
 
     def load_processed_data_from_file(self, filename):
-        return torch.load(os.path.join(filename), weights_only=False)
+        return torch.load(
+            os.path.join(self.processed_dir, filename), weights_only=False
+        )
 
     # ------------------------------ Phase: Raw Properties -----------------------------------
     @property
