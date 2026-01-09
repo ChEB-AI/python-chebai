@@ -144,9 +144,9 @@ class _ChEBIDataExtractor(_DynamicDataset, ABC):
         **kwargs,
     ):
         if bool(augment_smiles):
-            assert (
-                int(aug_smiles_variations) > 0
-            ), "Number of variations must be greater than 0"
+            assert int(aug_smiles_variations) > 0, (
+                "Number of variations must be greater than 0"
+            )
             aug_smiles_variations = int(aug_smiles_variations)
 
             if not kwargs.get("splits_file_path", None):
@@ -516,9 +516,7 @@ class _ChEBIDataExtractor(_DynamicDataset, ABC):
         """
         try:
             filename = self.processed_file_names_dict["data"]
-            data_chebi_version = self.load_processed_data_from_file(
-                os.path.join(self.processed_dir, filename)
-            )
+            data_chebi_version = self.load_processed_data_from_file(filename)
         except FileNotFoundError:
             raise FileNotFoundError(
                 "File data.pt doesn't exists. "
