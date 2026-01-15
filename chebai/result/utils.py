@@ -655,9 +655,9 @@ def load_data_instance(data_cls_path: str, data_cls_kwargs: dict):
     assert isinstance(data_cls_kwargs, dict), "data_cls_kwargs must be a dict"
     data_cls = load_class(data_cls_path)
     assert isinstance(data_cls, type), f"{data_cls} is not a class."
-    assert issubclass(
-        data_cls, XYBaseDataModule
-    ), f"{data_cls} must inherit from XYBaseDataModule"
+    assert issubclass(data_cls, XYBaseDataModule), (
+        f"{data_cls} must inherit from XYBaseDataModule"
+    )
     return data_cls(**data_cls_kwargs)
 
 
@@ -682,17 +682,17 @@ def load_model_for_inference(
     lightning_cls = load_class(model_cls_path)
 
     assert isinstance(lightning_cls, type), f"{lightning_cls} is not a class."
-    assert issubclass(
-        lightning_cls, ChebaiBaseNet
-    ), f"{lightning_cls} must inherit from ChebaiBaseNet"
+    assert issubclass(lightning_cls, ChebaiBaseNet), (
+        f"{lightning_cls} must inherit from ChebaiBaseNet"
+    )
     try:
         model = lightning_cls.load_from_checkpoint(model_ckpt_path, **model_load_kwargs)
     except Exception as e:
         raise RuntimeError(f"Error loading model {model_name} \n Error: {e}") from e
 
-    assert isinstance(
-        model, ChebaiBaseNet
-    ), f"Model: {model}(Model Name: {model_name}) is not a ChebaiBaseNet instance."
+    assert isinstance(model, ChebaiBaseNet), (
+        f"Model: {model}(Model Name: {model_name}) is not a ChebaiBaseNet instance."
+    )
     model.eval()
     model.freeze()
     return model

@@ -12,7 +12,7 @@ init_args:
       class_path: torchmetrics.classification.MultilabelAUROC
       init_args:
         num_labels: 17
-    precision: 
+    precision:
       class_path: torchmetrics.classification.MultilabelPrecision
       init_args:
         num_labels: 17

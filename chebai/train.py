@@ -277,9 +277,9 @@ def batchify(x: List, y: List) -> List:
     ]
 
 
-def load_data() -> (
-    Tuple[List[Molecule], List[torch.Tensor], List[Molecule], List[torch.Tensor]]
-):
+def load_data() -> Tuple[
+    List[Molecule], List[torch.Tensor], List[Molecule], List[torch.Tensor]
+]:
     """
     Load and preprocess the data.
 

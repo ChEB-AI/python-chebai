@@ -215,7 +215,6 @@ class ChemDataReader(TokenIndexerReader):
             return None
 
     def _back_to_smiles(self, smiles_encoded):
-
         token_file = self.reader.token_path
         token_coding = {}
         counter = 0

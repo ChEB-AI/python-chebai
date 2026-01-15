@@ -9,7 +9,6 @@ from tests.unit.mock_data.ontology_mock_data import ChebiMockOntology
 
 
 class TestChEBIDataExtractor(unittest.TestCase):
-
     @classmethod
     @patch.multiple(_ChEBIDataExtractor, __abstractmethods__=frozenset())
     @patch.object(_ChEBIDataExtractor, "base_dir", new_callable=PropertyMock)

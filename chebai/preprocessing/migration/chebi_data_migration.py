@@ -308,7 +308,6 @@ class ChebiDataMigration:
 
 
 class Main:
-
     def migrate(
         self,
         datamodule: Optional[_ChEBIDataExtractor] = None,
