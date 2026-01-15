@@ -1252,7 +1252,20 @@ class _DynamicDataset(XYBaseDataModule, ABC):
         # If filename is provided
         return self.load_processed_data_from_file(filename)
 
-    def load_processed_data_from_file(self, filename):
+    def load_processed_data_from_file(self, filename: str) -> list[dict[str, Any]]:
+        """Load processed data from a file.
+
+        The full path is not required; only the filename is needed, as it will be joined with the processed directory.
+
+        Args:
+            filename (str): The name of the file to load the processed data from.
+
+        Returns:
+            List[Dict[str, Any]]: The loaded processed data.
+
+        Example:
+            data = self.load_processed_data_from_file('data.pt')
+        """
         return torch.load(
             os.path.join(self.processed_dir, filename), weights_only=False
         )
