@@ -1,6 +1,6 @@
 class_path: chebai.models.Electra
 init_args:
-  model_type: regression
+  model_type: classification
   optimizer_kwargs:
     lr: 1e-4
   config:

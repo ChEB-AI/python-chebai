@@ -1,4 +1,3 @@
 class_path: chebai.loss.focal_loss.FocalLoss
 init_args:
   task_type: multi-label
-  num_classes: 12
