@@ -241,7 +241,6 @@ class Electra(ChebaiBaseNet):
         self.config = ElectraConfig(**config, output_attentions=True)
         self.word_dropout = nn.Dropout(config.get("word_dropout", 0))
         self.model_type = model_type
-        self.pass_loss_kwargs = True
 
         in_d = self.config.hidden_size
         self.output = nn.Sequential(
