@@ -1173,9 +1173,7 @@ class _DynamicDataset(XYBaseDataModule, ABC):
         splits_df = pd.read_csv(self.splits_file_path)
 
         filename = self.processed_file_names_dict["data"]
-        data = self.load_processed_data_from_file(
-            os.path.join(self.processed_dir, filename)
-        )
+        data = self.load_processed_data_from_file(filename)
         df_data = pd.DataFrame(data)
 
         if self.apply_id_filter:
@@ -1254,8 +1252,23 @@ class _DynamicDataset(XYBaseDataModule, ABC):
         # If filename is provided
         return self.load_processed_data_from_file(filename)
 
-    def load_processed_data_from_file(self, filename):
-        return torch.load(os.path.join(filename), weights_only=False)
+    def load_processed_data_from_file(self, filename: str) -> list[dict[str, Any]]:
+        """Load processed data from a file.
+
+        The full path is not required; only the filename is needed, as it will be joined with the processed directory.
+
+        Args:
+            filename (str): The name of the file to load the processed data from.
+
+        Returns:
+            List[Dict[str, Any]]: The loaded processed data.
+
+        Example:
+            data = self.load_processed_data_from_file('data.pt')
+        """
+        return torch.load(
+            os.path.join(self.processed_dir, filename), weights_only=False
+        )
 
     # ------------------------------ Phase: Raw Properties -----------------------------------
     @property
