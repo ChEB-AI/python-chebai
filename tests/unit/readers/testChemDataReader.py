@@ -111,6 +111,21 @@ class TestChemDataReader(unittest.TestCase):
                 f"The output for invalid token '{raw_data}' should be None.",
             )
 
+    def test_read_data_with_invalid_input_with_no_canonicalize(self) -> None:
+        """
+        Test the _read_data method with an invalid input.
+        The invalid token should prompt a return value None
+        """
+        self.reader.canonicalize_smiles = False
+        raw_datas = ["%INVALID%", "ADADAD", "ADASDAD", "CC(=O)NC1[Mg-2]"]
+        for raw_data in raw_datas:
+            result = self.reader._read_data(raw_data)
+            self.assertIsNone(
+                result,
+                f"The output for invalid token '{raw_data}' should be None.",
+            )
+        self.reader.canonicalize_smiles = True  # Reset to original state
+
     @patch("builtins.open", new_callable=mock_open)
     def test_finish_method_for_new_tokens(self, mock_file: mock_open) -> None:
         """
