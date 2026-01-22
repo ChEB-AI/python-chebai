@@ -199,23 +199,24 @@ class ChemDataReader(TokenIndexerReader):
         Returns:
             List[int]: A list of integers representing the indices of the SMILES tokens.
         """
-        if self.canonicalize_smiles:
-            try:
-                mol = Chem.MolFromSmiles(raw_data.strip())
-                if mol is not None:
-                    raw_data = Chem.MolToSmiles(mol, canonical=True)
-            except Exception as e:
-                print(f"RDKit failed to canonicalize the SMILES: {raw_data}")
-                print(f"\t{e}")
         try:
             mol = Chem.MolFromSmiles(raw_data.strip())
             if mol is None:
                 raise ValueError(f"Invalid SMILES: {raw_data}")
-            return [self._get_token_index(v[1]) for v in _tokenize(raw_data)]
         except ValueError as e:
             print(f"could not process {raw_data}")
             print(f"\tError: {e}")
             return None
+
+        if self.canonicalize_smiles:
+            try:
+                raw_data = Chem.MolToSmiles(mol, canonical=True)
+            except Exception as e:
+                print(f"RDKit failed to canonicalize the SMILES: {raw_data}")
+                print(f"\t{e}")
+                return None
+
+        return [self._get_token_index(v[1]) for v in _tokenize(raw_data)]
 
     def _back_to_smiles(self, smiles_encoded):
         token_file = self.reader.token_path
