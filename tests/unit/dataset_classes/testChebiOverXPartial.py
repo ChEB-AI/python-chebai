@@ -8,7 +8,6 @@ from tests.unit.mock_data.ontology_mock_data import ChebiMockOntology
 
 
 class TestChEBIOverX(unittest.TestCase):
-
     @classmethod
     @patch.multiple(ChEBIOverXPartial, __abstractmethods__=frozenset())
     @patch("os.makedirs", return_value=None)
