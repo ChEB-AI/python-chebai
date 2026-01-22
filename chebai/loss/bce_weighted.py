@@ -33,8 +33,8 @@ class BCEWeighted(torch.nn.BCEWithLogitsLoss):
         self.data_extractor = data_extractor
 
         assert (
-            isinstance(beta, float) and beta > 0.0
-        ), f"Beta parameter must be a float with value greater than 0.0, for loss class {self.__class__.__name__}."
+            isinstance(beta, float) and beta >= 0.0 and beta <= 1.0
+        ), f"Beta parameter must be a float with value between 0 and 1, for loss class {self.__class__.__name__}."
 
         assert (
             self.data_extractor is not None
@@ -63,13 +63,16 @@ class BCEWeighted(torch.nn.BCEWithLogitsLoss):
             print(
                 f"Computing loss-weights based on v{self.data_extractor.chebi_version} dataset (beta={self.beta})"
             )
+            print(f"loading: {self.data_extractor.processed_file_names[0]}")
             complete_labels = torch.concat(
                 [
                     torch.stack(
                         [
                             torch.Tensor(row["labels"])
                             for row in self.data_extractor.load_processed_data(
-                                filename=file_name
+                                filename=os.path.join(
+                                    self.data_extractor.processed_dir, file_name
+                                )
                             )
                         ]
                     )
