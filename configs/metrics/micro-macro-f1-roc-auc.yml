@@ -9,5 +9,3 @@ init_args:
       class_path: chebai.callbacks.epoch_metrics.MacroF1
     roc-auc:
       class_path: torchmetrics.classification.MultilabelAUROC
-      init_args:
-        num_labels: 12
