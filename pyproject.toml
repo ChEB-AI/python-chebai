@@ -44,8 +44,7 @@ dev = [
 ]
 
 linters = [
-    "black",
-    "isort",
+    "ruff",
     "pre-commit",
 ]
 
