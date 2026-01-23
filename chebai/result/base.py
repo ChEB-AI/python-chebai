@@ -22,9 +22,9 @@ class ResultProcessor(abc.ABC):
         pass
 
     def __init_subclass__(cls, **kwargs):
-        assert (
-            cls._identifier() not in PROCESSORS
-        ), f"ResultProcessor {cls.__name__} does not have a unique identifier"
+        assert cls._identifier() not in PROCESSORS, (
+            f"ResultProcessor {cls.__name__} does not have a unique identifier"
+        )
         PROCESSORS[cls._identifier()] = cls
 
     def process_prediction(self, proc_id, features, labels, pred, ident):
