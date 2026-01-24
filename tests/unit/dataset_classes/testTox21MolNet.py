@@ -34,9 +34,9 @@ class TestTox21MolNet(unittest.TestCase):
         Args:
             mock_open_file (mock_open): Mocked open function to simulate file reading.
         """
-        actual_data = self.data_module._load_data_from_file("fake/file/path.csv")
+        actual_data: list = self.data_module._load_data_from_file("fake/file/path.csv")
 
-        first_instance = next(actual_data)
+        first_instance = actual_data[0]
 
         # Check for required keys
         required_keys = ["features", "labels", "ident"]
