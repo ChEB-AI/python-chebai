@@ -126,7 +126,11 @@ class TestTox21MolNet(unittest.TestCase):
             mock_torch_save (MagicMock): Mocked `torch.save` function to avoid actual file writes.
             mock_load_file (MagicMock): Mocked `_load_data_from_file` to provide custom data.
         """
-        self.data_module.train_split = 0.5
+        # self.data_module.train_split = 0.5
+        # To get the train split as 50%, set test and validation splits to 25% each
+        # Refer: https://github.com/ChEB-AI/python-chebai/pull/102
+        self.data_module.test_split = 0.25
+        self.data_module.validation_split = 0.25
         self.data_module.setup_processed()
 
         # Verify if torch.save was called for each split
