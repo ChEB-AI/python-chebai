@@ -14,6 +14,7 @@ import numpy as np
 import pandas as pd
 import torch
 from rdkit import Chem
+from tqdm import tqdm
 
 from chebai.preprocessing import reader as dr
 from chebai.preprocessing.datasets.base import _DynamicDataset
@@ -61,10 +62,11 @@ class _ChEBIDataExtractor(_DynamicDataset, ABC):
     # "id" at                 row index 0
     # "name" at               row index 1
     # "SMILES" at             row index 2
-    # labels starting from    row index 3
+    # "mol" at                row index 3
+    # labels starting from    row index 4
     _ID_IDX: int = 0
-    _DATA_REPRESENTATION_IDX: int = 2
-    _LABELS_START_IDX: int = 3
+    _DATA_REPRESENTATION_IDX: int = 3
+    _LABELS_START_IDX: int = 4
 
     def __init__(
         self,
@@ -155,35 +157,74 @@ class _ChEBIDataExtractor(_DynamicDataset, ABC):
 
     def _download_required_data(self) -> str:
         """
-        Downloads the required raw data related to chebi.
+        Downloads the required raw data related to ChEBI.
 
         Returns:
-            str: Path to the downloaded data.
+            str: Path to the ontology file.
         """
-        return self._load_chebi(self.chebi_version)
+        self._load_sdf()
+        return self._load_chebi()
 
-    def _load_chebi(self, version: int) -> str:
+    def _load_chebi(self, version: Optional[int] = None) -> str:
         """
         Load the ChEBI ontology file.
 
         Args:
-            version (int): The version of the ChEBI ontology to load.
+            version (int): The version of the ChEBI ontology to load. Default: self.chebi_version
 
         Returns:
             str: The file path of the loaded ChEBI ontology.
         """
         import requests
 
+        if version is None:
+            version = self.chebi_version
+
         chebi_name = self.raw_file_names_dict["chebi"]
         chebi_path = os.path.join(self.raw_dir, chebi_name)
         if not os.path.isfile(chebi_path):
             print(
-                f"Missing raw chebi data related to version: v_{version}, Downloading..."
+                f"Missing raw ChEBI data related for version v{version}. Downloading..."
             )
-            url = f"http://purl.obolibrary.org/obo/chebi/{version}/chebi.obo"
+            if version < 245:
+                url = f"https://ftp.ebi.ac.uk/pub/databases/chebi/archive/chebi_legacy/archive/rel{version}/ontology/chebi.obo"
+            else:
+                url = f"https://ftp.ebi.ac.uk/pub/databases/chebi/archive/rel{version}/ontology/chebi.obo"
             r = requests.get(url, allow_redirects=True)
             open(chebi_path, "wb").write(r.content)
         return chebi_path
+
+    def _load_sdf(self, version: Optional[int] = None) -> str:
+        """
+        Load the ChEBI SDF file containing molecule data.
+
+        Args:
+            version (int): The version of the ChEBI SDF file to load. Default: self.chebi_version
+
+        Returns:
+            str: The file path of the loaded ChEBI SDF file.
+        """
+        import requests
+        import gzip
+        import shutil
+
+        if version is None:
+            version = self.chebi_version
+
+        sdf_name = self.raw_file_names_dict["sdf"]
+        sdf_path = os.path.join(self.raw_dir, sdf_name)
+        if not os.path.isfile(sdf_path):
+            print(f"Missing raw SDF data related to version v{version}. Downloading...")
+            if version < 245:
+                url = f"https://ftp.ebi.ac.uk/pub/databases/chebi/archive/chebi_legacy/archive/rel{version}/ontology/chebi.obo"
+            else:
+                url = f"https://ftp.ebi.ac.uk/pub/databases/chebi/archive/rel{version}/SDF/chebi.sdf.gz"
+            r = requests.get(url, allow_redirects=True, stream=True)
+            open(sdf_path + ".gz", "wb").write(r.content)
+            with gzip.open(sdf_path + ".gz", "rb") as f_in:
+                with open(sdf_path, "wb") as f_out:
+                    shutil.copyfileobj(f_in, f_out)
+        return sdf_path
 
     def _extract_class_hierarchy(self, data_path: str) -> "nx.DiGraph":
         """
@@ -246,7 +287,7 @@ class _ChEBIDataExtractor(_DynamicDataset, ABC):
         smiles = nx.get_node_attributes(g, "smiles")
         names = nx.get_node_attributes(g, "name")
 
-        print("Process graph")
+        print(f"Processing {g}")
 
         molecules, smiles_list = zip(
             *(
@@ -261,14 +302,50 @@ class _ChEBIDataExtractor(_DynamicDataset, ABC):
         ]  # `name` column at index 1
         data["SMILES"] = smiles_list  # `SMILES` (data representation) column at index 2
 
-        # Labels columns from index 3 onwards
+        # # `mol` (RDKit Mol object) column at index 3
+        from chembl_structure_pipeline.standardizer import (
+            parse_molblock,
+            update_mol_valences,
+        )
+
+        with open(
+            os.path.join(self.raw_dir, self.raw_file_names_dict["sdf"]), "rb"
+        ) as f:
+            # split input into blocks separated by "$$$$"
+            blocks = f.read().decode("utf-8").split("$$$$\n")
+        id_to_mol = dict()
+        for molfile in tqdm(blocks, desc="Processing SDF molecules"):
+            if "<ChEBI ID>" not in molfile:
+                print(f"Skipping molfile without ChEBI ID: {molfile[:30]}...")
+                continue
+            ident = int(molfile.split("<ChEBI ID>")[1].split(">")[0].split("CHEBI:")[1])
+            # use same parsing strategy as CHEBI: github.com/chembl/libRDChEBI/blob/main/libRDChEBI/formats.py
+            mol = parse_molblock(molfile)
+            if mol is None:
+                print(f"Failed to parse molfile for CHEBI:{ident}")
+                continue
+            mol = update_mol_valences(mol)
+            Chem.SanitizeMol(
+                mol,
+                sanitizeOps=Chem.SanitizeFlags.SANITIZE_FINDRADICALS
+                | Chem.SanitizeFlags.SANITIZE_KEKULIZE
+                | Chem.SanitizeFlags.SANITIZE_SETAROMATICITY
+                | Chem.SanitizeFlags.SANITIZE_SETCONJUGATION
+                | Chem.SanitizeFlags.SANITIZE_SETHYBRIDIZATION
+                | Chem.SanitizeFlags.SANITIZE_SYMMRINGS,
+                catchErrors=True,
+            )
+            id_to_mol[ident] = mol
+        data["mol"] = [id_to_mol.get(node) for node in molecules]
+
+        # Labels columns from index 4 onwards
         for n in self.select_classes(g):
             data[n] = [
                 ((n in g.predecessors(node)) or (n == node)) for node in molecules
             ]
 
         data = pd.DataFrame(data)
-        data = data[~data["SMILES"].isnull()]
+        data = data[~data["mol"].isnull()]
         data = data[~data["name"].isin(CHEBI_BLACKLIST)]
 
         return data
@@ -595,7 +672,7 @@ class _ChEBIDataExtractor(_DynamicDataset, ABC):
 
     @property
     def raw_file_names_dict(self) -> dict:
-        return {"chebi": "chebi.obo"}
+        return {"chebi": "chebi.obo", "sdf": "chebi.sdf"}
 
     @property
     def processed_main_file_names_dict(self) -> dict:
@@ -952,7 +1029,11 @@ def term_callback(doc: "fastobo.term.TermFrame") -> Union[Dict, bool]:
     for clause in doc:
         if isinstance(clause, fastobo.term.PropertyValueClause):
             t = clause.property_value
-            if str(t.relation) == "http://purl.obolibrary.org/obo/chebi/smiles":
+            # chemrof:smiles_string is the new annotation property, chebi/smiles is the old one (see https://chembl.blogspot.com/2025/07/chebi-20-data-products.html)
+            if (
+                str(t.relation) == "chemrof:smiles_string"
+                or str(t.relation) == "http://purl.obolibrary.org/obo/chebi/smiles"
+            ):
                 assert smiles is None
                 smiles = t.value
         # in older chebi versions, smiles strings are synonyms
@@ -984,3 +1065,9 @@ def term_callback(doc: "fastobo.term.TermFrame") -> Union[Dict, bool]:
         "smiles": smiles,
         "subset": subset,
     }
+
+
+if __name__ == "__main__":
+    dataset = ChEBIOver50(chebi_version=246)
+    # dataset.prepare_data()
+    dataset.setup()
