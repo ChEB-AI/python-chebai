@@ -23,6 +23,7 @@ dependencies = [
     "pysmiles==1.1.2",
     "rdkit==2024.3.6",
     "lightning==2.5.1",
+    "chembl_structure_pipeline",
 ]
 
 [project.optional-dependencies]
