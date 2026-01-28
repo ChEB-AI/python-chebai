@@ -218,7 +218,7 @@ class XYBaseDataModule(LightningDataModule):
 
         Args:
             kind (str, optional): The kind of dataset to load such as "train", "val" or "test". Defaults to None.
-            filename (str, optional): The name of the file to load the dataset from. Defaults to None.
+            filename (str, optional): The name of the file (in self.processed_dir) to load the dataset from. Defaults to None.
 
         Returns:
             List: The loaded processed data.
