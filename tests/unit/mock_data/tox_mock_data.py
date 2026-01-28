@@ -194,9 +194,9 @@ class Tox21MolNetMockData:
         processed_data = Tox21MolNetMockData.get_processed_data()
         groups = ["A", "A", "B", "B", "C", "C", "C", "C"]
 
-        assert len(processed_data) == len(
-            groups
-        ), "The number of processed data entries does not match the number of groups."
+        assert len(processed_data) == len(groups), (
+            "The number of processed data entries does not match the number of groups."
+        )
 
         # Combine processed data with their corresponding groups
         grouped_data = [
@@ -208,7 +208,6 @@ class Tox21MolNetMockData:
 
 
 class Tox21ChallengeMockData:
-
     MOL_BINARY_STR = (
         b"cyclobutane\n"
         b"     RDKit          2D\n\n"

@@ -1,0 +1,4 @@
+class_path: chebai.preprocessing.datasets.chebi.ChEBIOver100
+init_args:
+  chebi_version: 244
+  splits_file_path: data/chebi_v244/splits_v244.csv

@@ -23,11 +23,15 @@ cd python-chebai
 pip install -e .
 ```
 
-Some packages are not installed by default:
+Some packages are not installed by default but can be added with the following extras:
 ```
 pip install chebai[dev]
 ```
 installs additional packages useful to people who want to contribute to the library.
+This includes `pre-commit`, which runs automatic formatting before each commit.
+To set up `pre-commit` for your workflow, run `pre-commit install`.
+For more details, see the [`pre-commit` documentation](https://pre-commit.com).
+
 ```
 pip install chebai[plot]
 ```

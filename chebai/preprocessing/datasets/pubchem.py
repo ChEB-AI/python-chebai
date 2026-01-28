@@ -408,9 +408,7 @@ class PubChemDissimilar(PubChem):
                 print("Selecting most dissimilar values from random subsets...")
                 for i in tqdm.tqdm(range(self.n_random_subsets)):
                     smiles_i = random_smiles[
-                        i
-                        * len(random_smiles)
-                        // self.n_random_subsets : (i + 1)
+                        i * len(random_smiles) // self.n_random_subsets : (i + 1)
                         * len(random_smiles)
                         // self.n_random_subsets
                     ]

@@ -642,9 +642,9 @@ def run_all(
                 for file in os.listdir(os.path.join(ckpt_dir, run_name)):
                     if f"epoch={epoch}_" in file or f"epoch={epoch}." in file:
                         ckpt_path = os.path.join(os.path.join(ckpt_dir, run_name, file))
-                assert (
-                    ckpt_path is not None
-                ), f"Failed to find checkpoint for epoch {epoch} in {os.path.join(ckpt_dir, run_name)}"
+                assert ckpt_path is not None, (
+                    f"Failed to find checkpoint for epoch {epoch} in {os.path.join(ckpt_dir, run_name)}"
+                )
             print(f"Starting run {run_name} (epoch {epoch})")
 
             for dataset, dataset_key in prediction_datasets:
