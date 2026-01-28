@@ -63,16 +63,16 @@ class BCEWeighted(torch.nn.BCEWithLogitsLoss):
             print(
                 f"Computing loss-weights based on v{self.data_extractor.chebi_version} dataset (beta={self.beta})"
             )
-            print(f"loading: {self.data_extractor.processed_file_names[0]}")
+            print(
+                f"loading: {','.join(f for f in self.data_extractor.processed_file_names)}"
+            )
             complete_labels = torch.concat(
                 [
                     torch.stack(
                         [
                             torch.Tensor(row["labels"])
                             for row in self.data_extractor.load_processed_data(
-                                filename=os.path.join(
-                                    self.data_extractor.processed_dir, file_name
-                                )
+                                filename=os.path.join(file_name)
                             )
                         ]
                     )
