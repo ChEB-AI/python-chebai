@@ -470,8 +470,13 @@ class XYBaseDataModule(LightningDataModule):
         # Add dummy labels because the collate function requires them.
         # Note: If labels are set to `None`, the collator will insert a `non_null_labels` entry into `loss_kwargs`,
         # which later causes `_get_prediction_and_labels` method in the prediction pipeline to treat the data as empty.
+        num_of_labels = int(model_hparams["out_dim"])
         return self.reader.to_data(
-            {"id": f"smiles_{idx}", "features": smiles, "labels": [1, 2]}
+            {
+                "id": f"smiles_{idx}",
+                "features": smiles,
+                "labels": list(range(1, num_of_labels + 1)),
+            }
         )
 
     def prepare_data(self, *args, **kwargs) -> None:

@@ -63,6 +63,7 @@ class ChebaiBaseNet(LightningModule, ABC):
                 "train_metrics",
                 "val_metrics",
                 "test_metrics",
+                "classes_txt_file_path",
                 *exclude_hyperparameter_logging,
             ]
         )
@@ -78,17 +79,21 @@ class ChebaiBaseNet(LightningModule, ABC):
         self.validation_metrics = val_metrics
         self.test_metrics = test_metrics
         self.pass_loss_kwargs = pass_loss_kwargs
-        with open(classes_txt_file_path, "r") as f:
-            self.labels_list = [cls.strip() for cls in f.readlines()]
-        assert len(self.labels_list) > 0, "Class labels list is empty."
-        assert len(self.labels_list) == out_dim, (
-            f"Number of class labels ({len(self.labels_list)}) does not match "
-            f"the model output dimension ({out_dim})."
-        )
+
+        self.classes_txt_file_path = classes_txt_file_path
+        if classes_txt_file_path is not None:
+            with open(classes_txt_file_path, "r") as f:
+                self.labels_list = [cls.strip() for cls in f.readlines()]
+            assert len(self.labels_list) > 0, "Class labels list is empty."
+            assert len(self.labels_list) == out_dim, (
+                f"Number of class labels ({len(self.labels_list)}) does not match "
+                f"the model output dimension ({out_dim})."
+            )
 
     def on_save_checkpoint(self, checkpoint):
-        # https://lightning.ai/docs/pytorch/stable/common/checkpointing_intermediate.html#modify-a-checkpoint-anywhere
-        checkpoint["classification_labels"] = self.labels_list
+        if self.classes_txt_file_path is not None:
+            # https://lightning.ai/docs/pytorch/stable/common/checkpointing_intermediate.html#modify-a-checkpoint-anywhere
+            checkpoint["classification_labels"] = self.labels_list
 
     def on_load_checkpoint(self, checkpoint: Dict[str, Any]) -> None:
         # avoid errors due to unexpected keys (e.g., if loading checkpoint from a bce model and using it with a
@@ -257,7 +262,7 @@ class ChebaiBaseNet(LightningModule, ABC):
         # Dummy labels to avoid errors in _get_prediction_and_labels
         labels = torch.zeros((len(batch), self.out_dim)).to(self.device)
         pr, _ = self._get_prediction_and_labels(data, labels, model_output)
-        return pr
+        return {"prediction": pr, "model_output": model_output}
 
     def _execute(
         self,

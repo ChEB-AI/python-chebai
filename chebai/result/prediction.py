@@ -57,6 +57,7 @@ class Predictor:
 
         self._model_hparams = ckpt_file["hyper_parameters"]
         self._model_hparams.pop("_instantiator", None)
+        self._model_hparams.pop("classes_txt_file_path", None)
         self._model: ChebaiBaseNet = instantiate_module(
             ChebaiBaseNet, self._model_hparams
         )
@@ -106,11 +107,14 @@ class Predictor:
                 return [cls.strip() for cls in f.readlines()]
 
         if self._classification_labels is not None:
+            # Prioritize classification labels saved in the checkpoint
             CLASS_LABELS = self._classification_labels
         # --- For old checkpoints that do not have classification_labels saved ---
         elif classes_path is not None:
+            # If user provides a classes_path, use it
             CLASS_LABELS = _add_class_columns(classes_path)
         elif os.path.exists(self._dm.classes_txt_file_path):
+            # Check existence of classes_txt_file_path which the datamodule points to
             CLASS_LABELS = _add_class_columns(self._dm.classes_txt_file_path)
 
         preds: list[torch.Tensor | None] = self.predict_smiles(smiles=smiles_strings)
@@ -119,21 +123,12 @@ class Predictor:
             return
 
         # --- Logic for old checkpoints that do not have classification_labels saved ---
-        if CLASS_LABELS is not None and self._model.out_dim is not None:
-            assert len(CLASS_LABELS) > 0, "Class labels list is empty."
-            assert len(CLASS_LABELS) == self._model.out_dim, (
-                f"Number of class labels ({len(CLASS_LABELS)}) does not match "
-                f"the model output dimension ({self._model.out_dim})."
-            )
-            num_of_cols = len(CLASS_LABELS)
-        elif CLASS_LABELS is not None:
+        if CLASS_LABELS is not None:
             assert len(CLASS_LABELS) > 0, "Class labels list is empty."
             num_of_cols = len(CLASS_LABELS)
-        elif self._model.out_dim is not None:
-            num_of_cols = self._model.out_dim
         else:
-            # find first non-None tensor to determine width
-            num_of_cols = next(x.numel() for x in preds if x is not None)
+            # self._model.out_dim is already asserted during model initialization
+            num_of_cols = self._model.out_dim
             CLASS_LABELS = [f"class_{i}" for i in range(num_of_cols)]
 
         rows = [
@@ -167,9 +162,10 @@ class Predictor:
         preds = []
         for batch_idx, batch in enumerate(pred_dl):
             # For certain model prediction pipelines, we may need data module hyperparameters
-            preds.append(
-                self._model.predict_step(batch, batch_idx, dm_hparams=self._dm_hparams)
+            result = self._model.predict_step(
+                batch, batch_idx, dm_hparams=self._dm_hparams
             )
+            preds.append(result["prediction"])
         preds = torch.cat(preds)
 
         # Initialize output with None
