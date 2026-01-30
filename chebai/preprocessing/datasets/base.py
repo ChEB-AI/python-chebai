@@ -452,6 +452,9 @@ class XYBaseDataModule(LightningDataModule):
             tuple[list, list]: Processed input data and valid indices.
         """
         data, valid_indices = [], []
+        num_of_labels = int(model_hparams["out_dim"])
+        self._dummy_labels: list = list(range(1, num_of_labels + 1))
+
         for idx, smiles in enumerate(smiles_list):
             result = self._preprocess_smiles_for_pred(idx, smiles, model_hparams)
             if result is None or result["features"] is None:
@@ -470,12 +473,11 @@ class XYBaseDataModule(LightningDataModule):
         # Add dummy labels because the collate function requires them.
         # Note: If labels are set to `None`, the collator will insert a `non_null_labels` entry into `loss_kwargs`,
         # which later causes `_get_prediction_and_labels` method in the prediction pipeline to treat the data as empty.
-        num_of_labels = int(model_hparams["out_dim"])
         return self.reader.to_data(
             {
                 "id": f"smiles_{idx}",
                 "features": smiles,
-                "labels": list(range(1, num_of_labels + 1)),
+                "labels": self._dummy_labels,
             }
         )
 
