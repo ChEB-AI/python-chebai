@@ -340,17 +340,18 @@ class XYBaseDataModule(LightningDataModule):
             for d in tqdm.tqdm(self._load_dict(path), total=lines)
             if d["features"] is not None
         ]
-        # filter for missing features in resulting data, keep features length below token limit
-        data = [
-            val
-            for val in data
-            if val["features"] is not None
-            and (
-                self.n_token_limit is None or len(val["features"]) <= self.n_token_limit
-            )
-        ]
 
+        data = [val for val in data if self._filter_to_token_limit(val)]
         return data
+
+    def _filter_to_token_limit(self, data_instance: dict) -> bool:
+        # filter for missing features in resulting data, keep features length below token limit
+        if data_instance["features"] is not None and (
+            self.n_token_limit is None
+            or len(data_instance["features"]) <= self.n_token_limit
+        ):
+            return True
+        return False
 
     def train_dataloader(self, *args, **kwargs) -> Union[DataLoader, List[DataLoader]]:
         """
@@ -401,22 +402,77 @@ class XYBaseDataModule(LightningDataModule):
         Returns:
             Union[DataLoader, List[DataLoader]]: A DataLoader object for test data.
         """
+
         return self.dataloader("test", shuffle=False, **kwargs)
 
     def predict_dataloader(
-        self, *args, **kwargs
-    ) -> Union[DataLoader, List[DataLoader]]:
+        self,
+        smiles_list: List[str],
+        model_hparams: Optional[dict] = None,
+        **kwargs,
+    ) -> tuple[DataLoader, list[int]]:
         """
         Returns the predict DataLoader.
 
         Args:
-            *args: Additional positional arguments (unused).
+            smiles_list (List[str]): List of SMILES strings to predict.
+            model_hparams (Optional[dict]): Model hyperparameters.
+                Some prediction pre-processing pipelines may require these.
             **kwargs: Additional keyword arguments, passed to dataloader().
 
         Returns:
-            Union[DataLoader, List[DataLoader]]: A DataLoader object for prediction data.
+            tuple[DataLoader, list[int]]: A DataLoader object for prediction data and a list of valid indices.
         """
-        return self.dataloader(self.prediction_kind, shuffle=False, **kwargs)
+
+        data, valid_indices = self._process_input_for_prediction(
+            smiles_list, model_hparams
+        )
+        return (
+            DataLoader(
+                data,
+                collate_fn=self.reader.collator,
+                batch_size=self.batch_size,
+                **kwargs,
+            ),
+            valid_indices,
+        )
+
+    def _process_input_for_prediction(
+        self, smiles_list: list[str], model_hparams: Optional[dict] = None
+    ) -> tuple[list, list]:
+        """
+        Process input data for prediction.
+
+        Args:
+            smiles_list (List[str]): List of SMILES strings.
+            model_hparams (Optional[dict]): Model hyperparameters.
+                Some prediction pre-processing pipelines may require these.
+
+        Returns:
+            tuple[list, list]: Processed input data and valid indices.
+        """
+        data, valid_indices = [], []
+        for idx, smiles in enumerate(smiles_list):
+            result = self._preprocess_smiles_for_pred(idx, smiles, model_hparams)
+            if result is None or result["features"] is None:
+                continue
+            if not self._filter_to_token_limit(result):
+                continue
+            data.append(result)
+            valid_indices.append(idx)
+
+        return data, valid_indices
+
+    def _preprocess_smiles_for_pred(
+        self, idx, smiles: str, model_hparams: Optional[dict] = None
+    ) -> dict:
+        """Preprocess prediction data."""
+        # Add dummy labels because the collate function requires them.
+        # Note: If labels are set to `None`, the collator will insert a `non_null_labels` entry into `loss_kwargs`,
+        # which later causes `_get_prediction_and_labels` method in the prediction pipeline to treat the data as empty.
+        return self.reader.to_data(
+            {"id": f"smiles_{idx}", "features": smiles, "labels": [1, 2]}
+        )
 
     def prepare_data(self, *args, **kwargs) -> None:
         if self._prepare_data_flag != 1:
@@ -562,6 +618,19 @@ class XYBaseDataModule(LightningDataModule):
             dict: The dictionary of raw file names.
         """
         raise NotImplementedError
+
+    @property
+    def classes_txt_file_path(self) -> str:
+        """
+        Returns the filename for the classes text file.
+
+        Returns:
+            str: The filename for the classes text file.
+        """
+        # This property also used in following places:
+        #   - results/prediction.py: to load class names for csv columns names
+        #   - chebai/cli.py: to link this property to `model.init_args.classes_txt_file_path`
+        return os.path.join(self.processed_dir_main, "classes.txt")
 
 
 class MergedDataset(XYBaseDataModule):
@@ -1189,7 +1258,8 @@ class _DynamicDataset(XYBaseDataModule, ABC):
             print(f"Applying label filter from {self.apply_label_filter}...")
             with open(self.apply_label_filter, "r") as f:
                 label_filter = [line.strip() for line in f]
-            with open(os.path.join(self.processed_dir_main, "classes.txt"), "r") as cf:
+
+            with open(self.classes_txt_file_path, "r") as cf:
                 classes = [line.strip() for line in cf]
             # reorder labels
             old_labels = np.stack(df_data["labels"])
