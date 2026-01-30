@@ -78,7 +78,7 @@ python -m chebai fit --config=[path-to-your-esol-config] --trainer.callbacks=con
 
 ### Predicting classes given SMILES strings
 ```
-python3  chebai/result/prediction.py predict_from_file --checkpoint_path=[path-to-model] ----smiles_file_path=[path-to-file-containing-smiles] [--classes_path=[path-to-classes-file]] [--save_to=[path-to-output]]
+python3  chebai/result/prediction.py predict_from_file --checkpoint_path=[path-to-model] ----smiles_file_path=[path-to-file-containing-smiles]  [--save_to=[path-to-output]]
 ```
 
 * **`--checkpoint_path`**: Path to the Lightning checkpoint file (must end with `.ckpt`).
@@ -87,10 +87,7 @@ python3  chebai/result/prediction.py predict_from_file --checkpoint_path=[path-t
 
 * **`--save_to`** *(optional)*: Predictions will be saved to the path as CSV file. The CSV will contain one row per SMILES string and one column per predicted class. Default path will be the current working directory with file name as `predictions.csv`.
 
-* **`--classes_path`** *(optional)*: Path to the dataset’s `classes.txt` file, which maps model output indices to ChEBI IDs.
-  * Checkpoints created after PR #135 will have the classification labels stored in them and hence this parameter is not required.
-  * If provided, the CSV columns will be named using the ChEBI IDs.
-  * If omitted, then script will located the file automatically. If unable to locate then the columns will be numbered sequentially.
+> **Note**: Newly created checkpoints after PR #148 must be used for this prediction pipeline. The list of ChEBI classes (classification labels) used during training is stored in new checkpoints, which are required.
 
 ## Evaluation
 

@@ -1,4 +1,3 @@
-import os
 from typing import List, Optional
 
 import pandas as pd
@@ -63,18 +62,15 @@ class Predictor:
         )
         print("*" * 10, f"Loaded model class: {self._model.__class__.__name__}")
 
-        self._classification_labels: list | None = ckpt_file.get(
-            "classification_labels", None
+        self._classification_labels: list = ckpt_file.get("classification_labels")
+        print(f"Loaded {len(self._classification_labels)} classification labels.")
+        assert len(self._classification_labels) > 0, (
+            "Classification labels list is empty."
         )
-        if self._classification_labels is not None:
-            print(f"Loaded {len(self._classification_labels)} classification labels.")
-            assert len(self._classification_labels) > 0, (
-                "Classification labels list is empty."
-            )
-            assert len(self._classification_labels) == self._model.out_dim, (
-                f"Number of class labels ({len(self._classification_labels)}) does not match "
-                f"the model output dimension ({self._model.out_dim})."
-            )
+        assert len(self._classification_labels) == self._model.out_dim, (
+            f"Number of class labels ({len(self._classification_labels)}) does not match "
+            f"the model output dimension ({self._model.out_dim})."
+        )
 
         if compile_model:
             self._model = torch.compile(self._model)
@@ -85,7 +81,6 @@ class Predictor:
         self,
         smiles_file_path: _PATH,
         save_to: _PATH = "predictions.csv",
-        classes_path: Optional[_PATH] = None,
     ) -> None:
         """
         Loads a model from a checkpoint and makes predictions on input data from a file.
@@ -93,49 +88,23 @@ class Predictor:
         Args:
             smiles_file_path: Path to the input file containing SMILES strings.
             save_to: Path to save the predictions CSV file.
-            classes_path: Optional path to a file containing class names:
-                if no class names are provided, code will try to get the class path
-                from the datamodule, else the columns will be numbered.
         """
         with open(smiles_file_path, "r") as input:
             smiles_strings = [inp.strip() for inp in input.readlines()]
-
-        CLASS_LABELS: list | None = None
-
-        def _add_class_columns(class_file_path: _PATH) -> list[str]:
-            with open(class_file_path, "r") as f:
-                return [cls.strip() for cls in f.readlines()]
-
-        if self._classification_labels is not None:
-            # Prioritize classification labels saved in the checkpoint
-            CLASS_LABELS = self._classification_labels
-        # --- For old checkpoints that do not have classification_labels saved ---
-        elif classes_path is not None:
-            # If user provides a classes_path, use it
-            CLASS_LABELS = _add_class_columns(classes_path)
-        elif os.path.exists(self._dm.classes_txt_file_path):
-            # Check existence of classes_txt_file_path which the datamodule points to
-            CLASS_LABELS = _add_class_columns(self._dm.classes_txt_file_path)
 
         preds: list[torch.Tensor | None] = self.predict_smiles(smiles=smiles_strings)
         if all(pred is None for pred in preds):
             print("No valid predictions were made. (All predictions are None.)")
             return
 
-        # --- Logic for old checkpoints that do not have classification_labels saved ---
-        if CLASS_LABELS is not None:
-            assert len(CLASS_LABELS) > 0, "Class labels list is empty."
-            num_of_cols = len(CLASS_LABELS)
-        else:
-            # self._model.out_dim is already asserted during model initialization
-            num_of_cols = self._model.out_dim
-            CLASS_LABELS = [f"class_{i}" for i in range(num_of_cols)]
-
+        num_of_cols = len(self._classification_labels)
         rows = [
             pred.tolist() if pred is not None else [None] * num_of_cols
             for pred in preds
         ]
-        predictions_df = pd.DataFrame(rows, columns=CLASS_LABELS, index=smiles_strings)
+        predictions_df = pd.DataFrame(
+            rows, columns=self._classification_labels, index=smiles_strings
+        )
 
         predictions_df.to_csv(save_to)
         print(f"Predictions saved to: {save_to}")
@@ -184,14 +153,12 @@ class MainPredictor:
         checkpoint_path: _PATH,
         smiles_file_path: _PATH,
         save_to: _PATH = "predictions.csv",
-        classes_path: Optional[_PATH] = None,
         batch_size: Optional[int] = None,
     ) -> None:
         predictor = Predictor(checkpoint_path, batch_size)
         predictor.predict_from_file(
             smiles_file_path,
             save_to,
-            classes_path,
         )
 
     @staticmethod

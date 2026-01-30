@@ -81,6 +81,8 @@ class ChebaiBaseNet(LightningModule, ABC):
         self.pass_loss_kwargs = pass_loss_kwargs
 
         self.classes_txt_file_path = classes_txt_file_path
+
+        # During prediction `classes_txt_file_path` is set to None
         if classes_txt_file_path is not None:
             with open(classes_txt_file_path, "r") as f:
                 self.labels_list = [cls.strip() for cls in f.readlines()]
