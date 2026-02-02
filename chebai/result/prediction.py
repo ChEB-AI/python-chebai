@@ -39,6 +39,7 @@ class Predictor:
         )
 
         print("-" * 50)
+        print(f"Using device: {self.device}")
         print(f"For Loaded checkpoint from: {checkpoint_path}")
         print("Below are the modules loaded from the checkpoint:")
 
@@ -60,6 +61,7 @@ class Predictor:
         self._model: ChebaiBaseNet = instantiate_module(
             ChebaiBaseNet, self._model_hparams
         )
+        self._model.to(self.device)
         print("*" * 10, f"Loaded model class: {self._model.__class__.__name__}")
 
         self._classification_labels: list = ckpt_file.get("classification_labels")
@@ -73,7 +75,7 @@ class Predictor:
         )
 
         if compile_model:
-            self._model = torch.compile(self._model)
+            self._model = torch.compile(self._model)  # type: ignore
         self._model.eval()
         print("-" * 50)
 
@@ -166,7 +168,7 @@ class MainPredictor:
         checkpoint_path: _PATH,
         smiles: List[str],
         batch_size: Optional[int] = None,
-    ) -> torch.Tensor:
+    ) -> list[torch.Tensor | None]:
         predictor = Predictor(checkpoint_path, batch_size)
         return predictor.predict_smiles(smiles)
 
