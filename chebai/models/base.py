@@ -256,15 +256,7 @@ class ChebaiBaseNet(LightningModule, ABC):
         Returns:
             Dict[str, Union[torch.Tensor, Any]]: The result of the prediction step.
         """
-        assert isinstance(batch, XYData)
-        batch = batch.to(self.device)
-        data = self._process_batch(batch, batch_idx)
-        model_output = self(data, **data.get("model_kwargs", dict()))
-
-        # Dummy labels to avoid errors in _get_prediction_and_labels
-        labels = torch.zeros((len(batch), self.out_dim)).to(self.device)
-        pr, _ = self._get_prediction_and_labels(data, labels, model_output)
-        return {"prediction": pr, "model_output": model_output}
+        return self._execute(batch, batch_idx, log=False)
 
     def _execute(
         self,

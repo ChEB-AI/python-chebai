@@ -136,7 +136,7 @@ class Predictor:
             result = self._model.predict_step(
                 batch, batch_idx, dm_hparams=self._dm_hparams
             )
-            preds.append(result["prediction"])
+            preds.append(result["preds"])
         preds = torch.cat(preds)
 
         # Initialize output with None
