@@ -1,3 +1,3 @@
 class_path: chebai.loss.bce_weighted.BCEWeighted
 init_args:
-  beta: 0.99
+  beta: 0.99 # this is the default weight, change this factor to increase/decrease the weighting effect

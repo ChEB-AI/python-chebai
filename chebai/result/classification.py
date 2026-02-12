@@ -123,7 +123,6 @@ def metrics_classification_multilabel(
     labels: Tensor,
     device: torch.device,
 ):
-
     if device != labels.device:
         device = labels.device
 
@@ -174,7 +173,6 @@ def metrics_classification_binary(
     labels: Tensor,
     device: torch.device,
 ):
-
     if device != labels.device:
         device = labels.device
 

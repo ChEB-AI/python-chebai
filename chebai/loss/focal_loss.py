@@ -36,9 +36,9 @@ class FocalLoss(nn.Module):
             and alpha is not None
             and isinstance(alpha, (list, torch.Tensor))
         ):
-            assert (
-                num_classes is not None
-            ), "num_classes must be specified for multi-class classification"
+            assert num_classes is not None, (
+                "num_classes must be specified for multi-class classification"
+            )
             if isinstance(alpha, list):
                 self.alpha = torch.Tensor(alpha)
             else:
