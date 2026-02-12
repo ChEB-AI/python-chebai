@@ -5,24 +5,7 @@ The library emphasizes the incorporation of the semantic qualities of the ontolo
 
 ##  News
 
-We now support regression tasks!
-
-## Note for developers
-
-If you have used ChEBai before PR #39, the file structure in which your ChEBI-data is saved has changed. This means that
-datasets will be freshly generated. The data however is the same. If you want to keep the old data (including the old
-splits), you can use a migration script. It copies the old data to the new location for a specific ChEBI class
-(including chebi version and other parameters). The script can be called by specifying the data module from a config
-```
-python chebai/preprocessing/migration/chebi_data_migration.py migrate --datamodule=[path-to-data-config]
-```
-or by specifying the class name (e.g. `ChEBIOver50`) and arguments separately
-```
-python chebai/preprocessing/migration/chebi_data_migration.py migrate --class_name=[data-class] [--chebi_version=[version]]
-```
-The new dataset will by default generate random data splits (with a given seed).
-To reuse a fixed data split, you have to provide the path of the csv file generated during the migration:
-`--data.init_args.splits_file_path=[path-to-processed_data]/splits.csv`
+Starting in version 1.1, we support regression tasks!
 
 ## Installation
 
@@ -76,7 +59,7 @@ python -m chebai fit --trainer=configs/training/default_trainer.yml --model=conf
 ```
 A command with additional options may look like this:
 ```
-python3 -m chebai fit --trainer=configs/training/default_trainer.yml --model=configs/model/electra.yml --model.train_metrics=configs/metrics/micro-macro-f1.yml --model.test_metrics=configs/metrics/micro-macro-f1.yml --model.val_metrics=configs/metrics/micro-macro-f1.yml --model.pretrained_checkpoint=electra_pretrained.ckpt --model.load_prefix=generator. --data=configs/data/chebi50.yml --model.criterion=configs/loss/bce.yml --data.init_args.batch_size=10 --trainer.logger.init_args.name=chebi50_bce_unweighted --data.init_args.num_workers=9 --model.pass_loss_kwargs=false --data.init_args.chebi_version=231 --data.init_args.data_limit=1000
+python3 -m chebai fit --trainer=configs/training/default_trainer.yml --model=configs/model/electra.yml --model.train_metrics=configs/metrics/micro-macro-f1.yml --model.test_metrics=configs/metrics/micro-macro-f1.yml --model.val_metrics=configs/metrics/micro-macro-f1.yml --model.pretrained_checkpoint=electra_pretrained.ckpt --model.load_prefix=generator. --data=configs/data/chebi/chebi50.yml --model.criterion=configs/loss/bce.yml --data.init_args.batch_size=10 --trainer.logger.init_args.name=chebi50_bce_unweighted --data.init_args.num_workers=9 --model.pass_loss_kwargs=false --data.init_args.chebi_version=231 --data.init_args.data_limit=1000
 ```
 
 ### Fine-tuning for classification tasks, e.g. Toxicity prediction
@@ -102,7 +85,7 @@ The `classes_path` is the path to the dataset's `raw/classes.txt` file that cont
 You can evaluate a model trained on the ontology extension task in one of two ways:
 
 ### 1. Using the Jupyter Notebook
-An example notebook is provided at `tutorials/eval_model_basic.ipynb`.  
+An example notebook is provided at `tutorials/eval_model_basic.ipynb`.
 - Load your finetuned model and run the evaluation cells to compute metrics on the test set.
 
 ### 2. Using the Lightning CLI
