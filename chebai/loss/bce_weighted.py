@@ -7,6 +7,13 @@ from chebai.preprocessing.datasets.base import XYBaseDataModule
 from chebai.preprocessing.datasets.chebi import _ChEBIDataExtractor
 
 
+class UnWeightedBCEWithLogitsLoss(torch.nn.BCEWithLogitsLoss):
+
+    def forward(self, input, target, **kwargs):
+        # As the custom passed kwargs are not used in BCEWithLogitsLoss, we can ignore them
+        return super().forward(input, target)
+
+
 class BCEWeighted(torch.nn.BCEWithLogitsLoss):
     """
     BCEWithLogitsLoss with weights automatically computed according to the beta parameter.
