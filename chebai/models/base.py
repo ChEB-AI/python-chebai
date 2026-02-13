@@ -278,7 +278,7 @@ class ChebaiBaseNet(LightningModule, ABC):
                 loss_kwargs = dict()
                 if self.pass_loss_kwargs:
                     loss_kwargs = loss_kwargs_candidates
-                loss_kwargs["current_epoch"] = self.trainer.current_epoch
+                    loss_kwargs["current_epoch"] = self.trainer.current_epoch
                 loss = self.criterion(loss_data, loss_labels, **loss_kwargs)
                 if isinstance(loss, tuple):
                     unnamed_loss_index = 1

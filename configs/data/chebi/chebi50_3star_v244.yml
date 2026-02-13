@@ -1,0 +1,5 @@
+class_path: chebai.preprocessing.datasets.chebi.ChEBIOver50
+init_args:
+  chebi_version: 244
+  splits_file_path: data/chebi_v244/splits_v244.csv
+  apply_label_filter: data/chebi_v244/ChEBI50_3_STAR/processed/classes.txt # map labels to ChEBI50_3_STAR

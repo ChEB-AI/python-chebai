@@ -159,7 +159,6 @@ class CustomTrainer(Trainer):
 
 
 class LoadDataLaterFitLoop(_FitLoop):
-
     def on_advance_start(self) -> None:
         """Calls the hook ``on_train_epoch_start`` **before** the dataloaders are setup. This is necessary
          so that the dataloaders can get information from the model. For example: The on_train_epoch_start

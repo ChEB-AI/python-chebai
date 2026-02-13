@@ -242,7 +242,9 @@ class Main:
             "train",
             "val",
             "test",
-        ], f"Given data partition invalid: {data_partition}, Choose one of the value among `train`, `val`, `test` "
+        ], (
+            f"Given data partition invalid: {data_partition}, Choose one of the value among `train`, `val`, `test` "
+        )
         generator = ClassesPropertiesGenerator()
         generator.generate_props(
             data_partition,
