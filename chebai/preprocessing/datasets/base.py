@@ -635,7 +635,7 @@ class XYBaseDataModule(LightningDataModule):
             str: The filename for the classes text file.
         """
         # This property also used in following places:
-        #   - results/prediction.py: to load class names for csv columns names
+        #   - chebai/result/prediction.py: to load class names for csv columns names
         #   - chebai/cli.py: to link this property to `model.init_args.classes_txt_file_path`
         return os.path.join(self.processed_dir_main, "classes.txt")
 
