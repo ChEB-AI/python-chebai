@@ -78,7 +78,7 @@ python -m chebai fit --config=[path-to-your-esol-config] --trainer.callbacks=con
 
 ### Predicting classes given SMILES strings
 ```
-python3  chebai/result/prediction.py predict_from_file --checkpoint_path=[path-to-model] ----smiles_file_path=[path-to-file-containing-smiles]  [--save_to=[path-to-output]]
+python3  chebai/result/prediction.py predict_from_file --checkpoint_path=[path-to-model] --smiles_file_path=[path-to-file-containing-smiles]  [--save_to=[path-to-output]]
 ```
 
 * **`--checkpoint_path`**: Path to the Lightning checkpoint file (must end with `.ckpt`).
