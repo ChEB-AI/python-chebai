@@ -445,7 +445,7 @@ class XYBaseDataModule(LightningDataModule):
 
         Args:
             smiles_list (List[str]): List of SMILES strings.
-            model_hparams (Optional[dict]): Model hyperparameters.
+            model_hparams (dict): Model hyperparameters.
                 Some prediction pre-processing pipelines may require these.
 
         Returns:
@@ -467,7 +467,7 @@ class XYBaseDataModule(LightningDataModule):
         return data, valid_indices
 
     def _preprocess_smiles_for_pred(
-        self, idx, smiles: str, model_hparams: Optional[dict] = None
+        self, idx: int, smiles: str, model_hparams: Optional[dict] = None
     ) -> dict:
         """Preprocess prediction data."""
         # Add dummy labels because the collate function requires them.

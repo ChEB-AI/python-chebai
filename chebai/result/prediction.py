@@ -71,9 +71,8 @@ class Predictor:
         self._model.to(self.device)
         print("*" * 10, f"Loaded model class: {self._model.__class__.__name__}")
 
-        try:
-            self._classification_labels: list = ckpt_file.get("classification_labels")
-        except KeyError:
+        self._classification_labels: list = ckpt_file.get("classification_labels")
+        if self._classification_labels is None:
             raise KeyError(
                 "The checkpoint does not contain 'classification_labels'. "
                 "Make sure the checkpoint is compatible with python-chebai version 1.2.1 or later."
@@ -140,7 +139,7 @@ class Predictor:
         Returns:
             A tensor containing the predictions.
         """
-        # For certain data prediction piplines, we may need model hyperparameters
+        # For certain data prediction pipelines, we may need model hyperparameters
         pred_dl, valid_indices = self._dm.predict_dataloader(
             smiles_list=smiles, model_hparams=self._model_hparams
         )
