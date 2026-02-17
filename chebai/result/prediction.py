@@ -58,8 +58,15 @@ class Predictor:
         self._model_hparams = ckpt_file["hyper_parameters"]
         self._model_hparams.pop("_instantiator", None)
         self._model_hparams.pop("classes_txt_file_path", None)
-        self._model: ChebaiBaseNet = instantiate_module(
-            ChebaiBaseNet, self._model_hparams
+        self._model = ChebaiBaseNet.load_from_checkpoint(
+            checkpoint_path, map_location=self.device
+        )
+        assert (
+            isinstance(self._model, ChebaiBaseNet)
+            and type(self._model) is not ChebaiBaseNet
+        ), (
+            f"Loaded model must be a subclass of ChebaiBaseNet, not ChebaiBaseNet itself. "
+            f"Got {type(self._model).__name__}."
         )
         self._model.to(self.device)
         print("*" * 10, f"Loaded model class: {self._model.__class__.__name__}")
