@@ -127,10 +127,16 @@ class ChebaiCLI(LightningCLI):
 
         Args:
             parser (LightningArgumentParser): Argument parser instance.
+            
+        Note:
+            In Lightning 2.6+, we use model.init_args.out_dim as the source for linking
+            because it's set during before_instantiate_classes() from the computed num_labels.
+            This avoids issues with linking from data.num_of_labels which is a property
+            that requires the datamodule to be instantiated.
         """
 
-        # Link num_labels to metrics configurations
-        # These links use the values set in before_instantiate_classes()
+        # Link num_labels (via out_dim) to metrics configurations
+        # out_dim is set in before_instantiate_classes() from data.num_of_labels
         for kind in ("train", "val", "test"):
             for average in (
                 "micro-f1",
@@ -147,10 +153,12 @@ class ChebaiCLI(LightningCLI):
                     f"model.init_args.{kind}_metrics.init_args.metrics.{average}.init_args.num_labels",
                 )
 
+        # Link out_dim to trainer callbacks
         parser.link_arguments(
             "model.init_args.out_dim", "trainer.callbacks.init_args.num_labels"
         )
 
+        # Link datamodule to criterion's data extractor
         parser.link_arguments(
             "data", "model.init_args.criterion.init_args.data_extractor"
         )
