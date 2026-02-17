@@ -1,7 +1,7 @@
 """
 Docstring for chebai.preprocessing.migration.migrate_checkpoints
 
-This script migrates lightning checkpoints create before python-chebai
+This script migrates lightning checkpoints created before python-chebai
 version 1.2.1 to be compatible with the new version.
 
 The main change is the addition of a new key "classification_labels" in the checkpoint,
