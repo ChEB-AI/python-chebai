@@ -21,13 +21,20 @@ class CustomSaveConfigCallback(SaveConfigCallback):
     W&B web interface under the "Files" tab of the run.
     """
 
-    def save_config(self, trainer: Trainer, pl_module: LightningModule, stage: str) -> None:
+    def save_config(
+        self, trainer: Trainer, pl_module: LightningModule, stage: str
+    ) -> None:
         """
         Save the config to W&B if a WandbLogger is being used.
 
         This method is called after the config file has been saved to the log directory.
         It checks if the trainer is using a WandbLogger and, if so, uploads the config
         file to W&B using wandb.save().
+
+        Note:
+            We don't call super().save_config() because the parent class implementation
+            is empty. The actual config file saving to disk happens in the setup() method
+            before this method is called.
 
         Args:
             trainer: The PyTorch Lightning Trainer instance.

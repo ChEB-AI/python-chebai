@@ -169,12 +169,14 @@ class TestCustomSaveConfigCallback(unittest.TestCase):
         # Create a dummy module
         pl_module = DummyModule()
 
-        # Mock wandb import to raise ImportError
-        with patch("builtins.__import__", side_effect=ImportError("No wandb")):
+        # Mock wandb import to raise ImportError by patching sys.modules
+        import sys
+
+        with patch.dict(sys.modules, {"wandb": None}):
             # Call save_config - should not raise an error
             try:
                 callback.save_config(mock_trainer, pl_module, "fit")
-            except ImportError:
+            except (ImportError, AttributeError):
                 self.fail("save_config should handle ImportError gracefully")
 
 
