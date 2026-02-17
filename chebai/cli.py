@@ -39,59 +39,86 @@ class ChebaiCLI(LightningCLI):
         # Get the current subcommand config (fit, test, validate, predict, etc.)
         subcommand = self.config.get(self.config["subcommand"])
         
-        if subcommand and "data" in subcommand:
-            # Instantiate datamodule to get num_labels and feature_vector_size
-            data_config = subcommand["data"]
+        if not (subcommand and "data" in subcommand):
+            return
             
-            if "class_path" in data_config:
-                # Import and instantiate the datamodule class
-                module_path, class_name = data_config["class_path"].rsplit(".", 1)
-                import importlib
-                module = importlib.import_module(module_path)
-                data_class = getattr(module, class_name)
-                
-                # Instantiate with init_args
-                init_args = data_config.get("init_args", {})
-                data_instance = data_class(**init_args)
-                
-                # Call prepare_data and setup to initialize dynamic properties
-                if hasattr(data_instance, "_num_of_labels") and data_instance._num_of_labels is None:
-                    data_instance.prepare_data()
-                    data_instance.setup()
-                
-                num_labels = data_instance.num_of_labels
-                feature_vector_size = data_instance.feature_vector_size
-                
-                # Update config with the computed values if not already set
-                if "model" in subcommand and "init_args" in subcommand["model"]:
-                    model_init_args = subcommand["model"]["init_args"]
-                    if model_init_args.get("out_dim") is None:
-                        model_init_args["out_dim"] = num_labels
-                    if model_init_args.get("input_dim") is None:
-                        model_init_args["input_dim"] = feature_vector_size
-                    
-                    # Update metrics num_labels in all metrics configurations
-                    for kind in ("train", "val", "test"):
-                        metrics_key = f"{kind}_metrics"
-                        if metrics_key in model_init_args and model_init_args[metrics_key]:
-                            metrics_config = model_init_args[metrics_key]
-                            if "init_args" in metrics_config and "metrics" in metrics_config["init_args"]:
-                                for metric_name, metric_config in metrics_config["init_args"]["metrics"].items():
-                                    if "init_args" in metric_config and "num_labels" in metric_config["init_args"]:
-                                        if metric_config["init_args"]["num_labels"] is None:
-                                            metric_config["init_args"]["num_labels"] = num_labels
-                
-                # Update trainer callbacks num_labels
-                if "trainer" in subcommand and "callbacks" in subcommand["trainer"]:
-                    callbacks = subcommand["trainer"]["callbacks"]
-                    if isinstance(callbacks, list):
-                        for callback in callbacks:
-                            if "init_args" in callback and "num_labels" in callback["init_args"]:
-                                if callback["init_args"]["num_labels"] is None:
-                                    callback["init_args"]["num_labels"] = num_labels
-                    elif "init_args" in callbacks and "num_labels" in callbacks["init_args"]:
-                        if callbacks["init_args"]["num_labels"] is None:
-                            callbacks["init_args"]["num_labels"] = num_labels
+        data_config = subcommand["data"]
+        if "class_path" not in data_config:
+            return
+            
+        # Import and instantiate the datamodule class
+        module_path, class_name = data_config["class_path"].rsplit(".", 1)
+        import importlib
+        module = importlib.import_module(module_path)
+        data_class = getattr(module, class_name)
+        
+        # Instantiate with init_args
+        init_args = data_config.get("init_args", {})
+        data_instance = data_class(**init_args)
+        
+        # Call prepare_data and setup to initialize dynamic properties
+        # We need to check the private attribute to avoid calling the property which has an assert
+        if hasattr(data_instance, "_num_of_labels") and data_instance._num_of_labels is None:
+            data_instance.prepare_data()
+            data_instance.setup()
+        
+        num_labels = data_instance.num_of_labels
+        feature_vector_size = data_instance.feature_vector_size
+        
+        # Update model init args
+        self._update_model_args(subcommand, num_labels, feature_vector_size)
+        
+        # Update trainer callbacks
+        self._update_trainer_callbacks(subcommand, num_labels)
+
+    def _update_model_args(self, subcommand: dict, num_labels: int, feature_vector_size: int) -> None:
+        """Helper method to update model initialization arguments."""
+        if "model" not in subcommand or "init_args" not in subcommand["model"]:
+            return
+            
+        model_init_args = subcommand["model"]["init_args"]
+        
+        # Set out_dim and input_dim if not already set
+        if model_init_args.get("out_dim") is None:
+            model_init_args["out_dim"] = num_labels
+        if model_init_args.get("input_dim") is None:
+            model_init_args["input_dim"] = feature_vector_size
+        
+        # Update metrics num_labels in all metrics configurations
+        for kind in ("train", "val", "test"):
+            metrics_key = f"{kind}_metrics"
+            metrics_config = model_init_args.get(metrics_key)
+            if metrics_config:
+                self._update_metrics_num_labels(metrics_config, num_labels)
+    
+    def _update_metrics_num_labels(self, metrics_config: dict, num_labels: int) -> None:
+        """Helper method to update num_labels in metrics configuration."""
+        init_args = metrics_config.get("init_args", {})
+        metrics_dict = init_args.get("metrics", {})
+        
+        for metric_name, metric_config in metrics_dict.items():
+            metric_init_args = metric_config.get("init_args", {})
+            if "num_labels" in metric_init_args and metric_init_args["num_labels"] is None:
+                metric_init_args["num_labels"] = num_labels
+    
+    def _update_trainer_callbacks(self, subcommand: dict, num_labels: int) -> None:
+        """Helper method to update num_labels in trainer callbacks."""
+        if "trainer" not in subcommand or "callbacks" not in subcommand["trainer"]:
+            return
+            
+        callbacks = subcommand["trainer"]["callbacks"]
+        
+        if isinstance(callbacks, list):
+            for callback in callbacks:
+                self._set_callback_num_labels(callback, num_labels)
+        else:
+            self._set_callback_num_labels(callbacks, num_labels)
+    
+    def _set_callback_num_labels(self, callback: dict, num_labels: int) -> None:
+        """Helper method to set num_labels in a single callback configuration."""
+        init_args = callback.get("init_args", {})
+        if "num_labels" in init_args and init_args["num_labels"] is None:
+            init_args["num_labels"] = num_labels
 
     def add_arguments_to_parser(self, parser: LightningArgumentParser):
         """
