@@ -408,7 +408,7 @@ class XYBaseDataModule(LightningDataModule):
     def predict_dataloader(
         self,
         smiles_list: List[str],
-        model_hparams: Optional[dict] = None,
+        model_hparams: dict,
         **kwargs,
     ) -> tuple[DataLoader, list[int]]:
         """
@@ -438,7 +438,7 @@ class XYBaseDataModule(LightningDataModule):
         )
 
     def _process_input_for_prediction(
-        self, smiles_list: list[str], model_hparams: Optional[dict] = None
+        self, smiles_list: list[str], model_hparams: dict
     ) -> tuple[list, list]:
         """
         Process input data for prediction.
