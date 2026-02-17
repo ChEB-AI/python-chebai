@@ -1,13 +1,9 @@
 import logging
 import os
-from typing import TYPE_CHECKING
 
 from lightning import LightningModule, Trainer
 from lightning.pytorch.cli import SaveConfigCallback
 from lightning.pytorch.loggers import WandbLogger
-
-if TYPE_CHECKING:
-    pass
 
 logger = logging.getLogger(__name__)
 

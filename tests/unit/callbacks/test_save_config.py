@@ -169,19 +169,20 @@ class TestCustomSaveConfigCallback(unittest.TestCase):
         # Create a dummy module
         pl_module = DummyModule()
 
-        # Mock wandb import to raise ImportError by patching sys.modules
-        import sys
+        # Mock wandb import to raise ImportError
+        # This simulates wandb not being installed
+        with patch("builtins.__import__") as mock_import:
 
-        with patch.dict(sys.modules, {"wandb": None}):
+            def import_side_effect(name, *args, **kwargs):
+                if name == "wandb":
+                    raise ImportError("No module named 'wandb'")
+                return __import__(name, *args, **kwargs)
+
+            mock_import.side_effect = import_side_effect
+
             # Call save_config - should not raise an error
-            # Note: This may raise AttributeError when trying to access wandb.save
-            # since wandb is None, which is expected behavior we want to handle gracefully
-            try:
-                callback.save_config(mock_trainer, pl_module, "fit")
-            except (ImportError, AttributeError) as e:
-                self.fail(
-                    f"save_config should handle missing wandb package gracefully, got: {e}"
-                )
+            # The callback should catch the ImportError and continue gracefully
+            callback.save_config(mock_trainer, pl_module, "fit")
 
 
 if __name__ == "__main__":
