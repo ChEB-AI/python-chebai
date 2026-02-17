@@ -41,8 +41,8 @@ def add_class_labels_to_checkpoint(input_path, classes_file_path):
 
 
 if __name__ == "__main__":
-    if len(sys.argv) < 2:
-        print("Usage: python modify_checkpoints.py <input_checkpoint> <classes_file>")
+    if len(sys.argv) < 3:
+        print("Usage: python migrate_checkpoints.py <input_checkpoint> <classes_file>")
         sys.exit(1)
 
     input_ckpt = sys.argv[1]
