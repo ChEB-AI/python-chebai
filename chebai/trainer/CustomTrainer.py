@@ -79,7 +79,7 @@ class CustomTrainer(Trainer):
     ):
         raise NotImplementedError(
             "CustomTrainer.predict is not implemented."
-            "Use `Prediction.predict_from_file` or `Prediction.predict_smiles` from `chebai/result/prediction.py` instead."
+            "Use the script from `chebai/result/prediction.py` instead."
         )
 
     @property

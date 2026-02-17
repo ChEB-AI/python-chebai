@@ -117,7 +117,6 @@ class ChebaiCLI(LightningCLI):
             "fit": {"model", "train_dataloaders", "val_dataloaders", "datamodule"},
             "validate": {"model", "dataloaders", "datamodule"},
             "test": {"model", "dataloaders", "datamodule"},
-            "predict": {"model", "dataloaders", "datamodule"},
         }
 
 

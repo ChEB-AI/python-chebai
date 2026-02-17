@@ -44,7 +44,7 @@ class Predictor:
         print("Below are the modules loaded from the checkpoint:")
 
         self._dm_hparams = ckpt_file["datamodule_hyper_parameters"]
-        self._dm_hparams.pop("splits_file_path")
+        self._dm_hparams.pop("splits_file_path", None)
         self._dm_hparams.pop("augment_smiles", None)
         self._dm_hparams.pop("aug_smiles_variations", None)
         self._dm_hparams.pop("_instantiator", None)
@@ -64,7 +64,15 @@ class Predictor:
         self._model.to(self.device)
         print("*" * 10, f"Loaded model class: {self._model.__class__.__name__}")
 
-        self._classification_labels: list = ckpt_file.get("classification_labels")
+        try:
+            self._classification_labels: list = ckpt_file.get("classification_labels")
+        except KeyError:
+            raise KeyError(
+                "The checkpoint does not contain 'classification_labels'. "
+                "Make sure the checkpoint is compatible with python-chebai version 1.2.1 or later."
+                "See the migration script in `chebai.preprocessing.migration.migrate_checkpoints` for more details."
+            )
+
         print(f"Loaded {len(self._classification_labels)} classification labels.")
         assert len(self._classification_labels) > 0, (
             "Classification labels list is empty."
@@ -129,6 +137,8 @@ class Predictor:
         pred_dl, valid_indices = self._dm.predict_dataloader(
             smiles_list=smiles, model_hparams=self._model_hparams
         )
+        if valid_indices is None or len(valid_indices) == 0:
+            return [None] * len(smiles)
 
         preds = []
         for batch_idx, batch in enumerate(pred_dl):
