@@ -16,6 +16,9 @@ import torch
 
 
 def add_class_labels_to_checkpoint(input_path, classes_file_path):
+    print(f"Loading checkpoint from {input_path}...")
+    print(f"Loading class labels from {classes_file_path}...")
+
     with open(classes_file_path, "r") as f:
         class_labels = [line.strip() for line in f.readlines()]
 
