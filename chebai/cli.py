@@ -2,6 +2,7 @@ from typing import Dict, Set, Type
 
 from lightning.pytorch.cli import LightningArgumentParser, LightningCLI
 
+from chebai.callbacks.save_config import CustomSaveConfigCallback
 from chebai.preprocessing.datasets.base import XYBaseDataModule
 from chebai.trainer.CustomTrainer import CustomTrainer
 
@@ -121,6 +122,7 @@ def cli():
     Main function to instantiate and run the ChebaiCLI.
     """
     ChebaiCLI(
+        save_config_callback=CustomSaveConfigCallback,
         save_config_kwargs={"config_filename": "lightning_config.yaml"},
         parser_kwargs={"parser_mode": "omegaconf"},
     )

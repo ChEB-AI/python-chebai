@@ -1,5 +1,6 @@
 import unittest
 
+from chebai.callbacks.save_config import CustomSaveConfigCallback
 from chebai.cli import ChebaiCLI
 
 
@@ -23,6 +24,7 @@ class TestChebaiCLI(unittest.TestCase):
         try:
             ChebaiCLI(
                 args=self.cli_args,
+                save_config_callback=CustomSaveConfigCallback,
                 save_config_kwargs={"config_filename": "lightning_config.yaml"},
                 parser_kwargs={"parser_mode": "omegaconf"},
             )
