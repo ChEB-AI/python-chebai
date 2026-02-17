@@ -174,10 +174,14 @@ class TestCustomSaveConfigCallback(unittest.TestCase):
 
         with patch.dict(sys.modules, {"wandb": None}):
             # Call save_config - should not raise an error
+            # Note: This may raise AttributeError when trying to access wandb.save
+            # since wandb is None, which is expected behavior we want to handle gracefully
             try:
                 callback.save_config(mock_trainer, pl_module, "fit")
-            except (ImportError, AttributeError):
-                self.fail("save_config should handle ImportError gracefully")
+            except (ImportError, AttributeError) as e:
+                self.fail(
+                    f"save_config should handle missing wandb package gracefully, got: {e}"
+                )
 
 
 if __name__ == "__main__":

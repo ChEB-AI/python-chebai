@@ -1,3 +1,4 @@
+import logging
 import os
 from typing import TYPE_CHECKING
 
@@ -7,6 +8,8 @@ from lightning.pytorch.loggers import WandbLogger
 
 if TYPE_CHECKING:
     pass
+
+logger = logging.getLogger(__name__)
 
 
 class CustomSaveConfigCallback(SaveConfigCallback):
@@ -36,6 +39,10 @@ class CustomSaveConfigCallback(SaveConfigCallback):
             is empty. The actual config file saving to disk happens in the setup() method
             before this method is called.
 
+            This method uses the following attributes from the parent SaveConfigCallback:
+            - self.save_to_log_dir: Whether to save config to the log directory
+            - self.config_filename: Name of the config file to upload
+
         Args:
             trainer: The PyTorch Lightning Trainer instance.
             pl_module: The LightningModule being trained.
@@ -52,23 +59,25 @@ class CustomSaveConfigCallback(SaveConfigCallback):
                 wandb_logger = logger
                 break
 
-        # If WandbLogger is found, upload the config file
-        if wandb_logger is not None:
-            config_path = os.path.join(trainer.log_dir, self.config_filename)
-            if os.path.exists(config_path):
-                try:
-                    import wandb
+        # If WandbLogger is not found, skip uploading
+        if wandb_logger is None:
+            return
 
-                    # Upload the config file to W&B
-                    # This will make it available in the W&B web interface
-                    wandb.save(config_path, base_path=trainer.log_dir, policy="now")
-                except ImportError:
-                    # wandb is not installed, skip uploading
-                    pass
-                except Exception as e:
-                    # Log the error but don't fail the training run
-                    import logging
+        # Check if the config file exists
+        config_path = os.path.join(trainer.log_dir, self.config_filename)
+        if not os.path.exists(config_path):
+            return
 
-                    logging.warning(
-                        f"Failed to upload {self.config_filename} to W&B: {e}"
-                    )
+        # Upload the config file to W&B
+        try:
+            import wandb
+
+            # Upload the config file to W&B
+            # This will make it available in the W&B web interface
+            wandb.save(config_path, base_path=trainer.log_dir, policy="now")
+        except ImportError:
+            # wandb is not installed, skip uploading
+            pass
+        except Exception as e:
+            # Log the error but don't fail the training run
+            logger.warning(f"Failed to upload {self.config_filename} to W&B: {e}")
