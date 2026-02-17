@@ -31,6 +31,68 @@ class ChebaiCLI(LightningCLI):
         """
         super().__init__(trainer_class=CustomTrainer, *args, **kwargs)
 
+    def before_instantiate_classes(self) -> None:
+        """
+        Hook called before instantiating classes (Lightning 2.6+ compatible).
+        Instantiate the datamodule early to compute num_labels and feature_vector_size.
+        """
+        # Get the current subcommand config (fit, test, validate, predict, etc.)
+        subcommand = self.config.get(self.config["subcommand"])
+        
+        if subcommand and "data" in subcommand:
+            # Instantiate datamodule to get num_labels and feature_vector_size
+            data_config = subcommand["data"]
+            
+            if "class_path" in data_config:
+                # Import and instantiate the datamodule class
+                module_path, class_name = data_config["class_path"].rsplit(".", 1)
+                import importlib
+                module = importlib.import_module(module_path)
+                data_class = getattr(module, class_name)
+                
+                # Instantiate with init_args
+                init_args = data_config.get("init_args", {})
+                data_instance = data_class(**init_args)
+                
+                # Call prepare_data and setup to initialize dynamic properties
+                if hasattr(data_instance, "_num_of_labels") and data_instance._num_of_labels is None:
+                    data_instance.prepare_data()
+                    data_instance.setup()
+                
+                num_labels = data_instance.num_of_labels
+                feature_vector_size = data_instance.feature_vector_size
+                
+                # Update config with the computed values if not already set
+                if "model" in subcommand and "init_args" in subcommand["model"]:
+                    model_init_args = subcommand["model"]["init_args"]
+                    if model_init_args.get("out_dim") is None:
+                        model_init_args["out_dim"] = num_labels
+                    if model_init_args.get("input_dim") is None:
+                        model_init_args["input_dim"] = feature_vector_size
+                    
+                    # Update metrics num_labels in all metrics configurations
+                    for kind in ("train", "val", "test"):
+                        metrics_key = f"{kind}_metrics"
+                        if metrics_key in model_init_args and model_init_args[metrics_key]:
+                            metrics_config = model_init_args[metrics_key]
+                            if "init_args" in metrics_config and "metrics" in metrics_config["init_args"]:
+                                for metric_name, metric_config in metrics_config["init_args"]["metrics"].items():
+                                    if "init_args" in metric_config and "num_labels" in metric_config["init_args"]:
+                                        if metric_config["init_args"]["num_labels"] is None:
+                                            metric_config["init_args"]["num_labels"] = num_labels
+                
+                # Update trainer callbacks num_labels
+                if "trainer" in subcommand and "callbacks" in subcommand["trainer"]:
+                    callbacks = subcommand["trainer"]["callbacks"]
+                    if isinstance(callbacks, list):
+                        for callback in callbacks:
+                            if "init_args" in callback and "num_labels" in callback["init_args"]:
+                                if callback["init_args"]["num_labels"] is None:
+                                    callback["init_args"]["num_labels"] = num_labels
+                    elif "init_args" in callbacks and "num_labels" in callbacks["init_args"]:
+                        if callbacks["init_args"]["num_labels"] is None:
+                            callbacks["init_args"]["num_labels"] = num_labels
+
     def add_arguments_to_parser(self, parser: LightningArgumentParser):
         """
         Link input parameters that are used by different classes (e.g. number of labels)
@@ -40,25 +102,8 @@ class ChebaiCLI(LightningCLI):
             parser (LightningArgumentParser): Argument parser instance.
         """
 
-        def call_data_methods(data: Type[XYBaseDataModule]):
-            if data._num_of_labels is None:
-                data.prepare_data()
-                data.setup()
-            return data.num_of_labels
-
-        parser.link_arguments(
-            "data",
-            "model.init_args.out_dim",
-            apply_on="instantiate",
-            compute_fn=call_data_methods,
-        )
-
-        parser.link_arguments(
-            "data.feature_vector_size",
-            "model.init_args.input_dim",
-            apply_on="instantiate",
-        )
-
+        # Link num_labels to metrics configurations
+        # These links use the values set in before_instantiate_classes()
         for kind in ("train", "val", "test"):
             for average in (
                 "micro-f1",
@@ -70,30 +115,14 @@ class ChebaiCLI(LightningCLI):
                 "rmse",
                 "r2",
             ):
-                # When using lightning > 2.5.1 then need to uncomment all metrics that are not used
-                # for average in ("mse", "rmse","r2"): # for regression
-                # for average in ("f1", "roc-auc"): # for binary classification
-                # for average in ("micro-f1", "macro-f1", "roc-auc"): # for multilabel classification
-                # for average in ("micro-f1", "macro-f1", "balanced-accuracy", "roc-auc"): # for multilabel classification using balanced-accuracy
                 parser.link_arguments(
-                    "data.num_of_labels",
+                    "model.init_args.out_dim",
                     f"model.init_args.{kind}_metrics.init_args.metrics.{average}.init_args.num_labels",
-                    apply_on="instantiate",
                 )
 
         parser.link_arguments(
-            "data.num_of_labels", "trainer.callbacks.init_args.num_labels"
+            "model.init_args.out_dim", "trainer.callbacks.init_args.num_labels"
         )
-        # parser.link_arguments(
-        #     "model.init_args.out_dim", "trainer.callbacks.init_args.num_labels"
-        # )
-        # parser.link_arguments(
-        #     "data", "model.init_args.criterion.init_args.data_extractor"
-        # )
-        # parser.link_arguments(
-        #     "data.init_args.chebi_version",
-        #     "model.init_args.criterion.init_args.data_extractor.init_args.chebi_version",
-        # )
 
         parser.link_arguments(
             "data", "model.init_args.criterion.init_args.data_extractor"
