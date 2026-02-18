@@ -2,7 +2,7 @@ class_path: chebai.models.ElectraPre
 init_args:
   out_dim: null
   optimizer_kwargs:
-    lr: 1e-4
+    lr: 1e-3
   config:
     generator:
       vocab_size: 1400
