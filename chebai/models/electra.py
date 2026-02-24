@@ -203,6 +203,7 @@ class Electra(ChebaiBaseNet):
             )
             * CLS_TOKEN
         )
+        model_kwargs["output_attentions"] = True
         return dict(
             features=torch.cat((cls_tokens, batch.x), dim=1),
             labels=batch.y,
