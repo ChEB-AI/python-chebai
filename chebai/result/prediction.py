@@ -58,9 +58,18 @@ class Predictor:
         self._model_hparams = ckpt_file["hyper_parameters"]
         self._model_hparams.pop("_instantiator", None)
         self._model_hparams.pop("classes_txt_file_path", None)
-        self._model = ChebaiBaseNet.load_from_checkpoint(
-            checkpoint_path, map_location=self.device
-        )
+        try:
+            self._model = ChebaiBaseNet.load_from_checkpoint(
+                checkpoint_path,
+                map_location=self.device,
+            )
+        except Exception:
+            # models trained on a pretrained checkpoint have an additional path argument that we need to set to None
+            self._model = ChebaiBaseNet.load_from_checkpoint(
+                checkpoint_path,
+                map_location=self.device,
+                pretrained_checkpoint=None,
+            )
         assert (
             isinstance(self._model, ChebaiBaseNet)
             and type(self._model) is not ChebaiBaseNet
