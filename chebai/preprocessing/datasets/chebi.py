@@ -253,12 +253,7 @@ class _ChEBIDataExtractor(_DynamicDataset, ABC):
             ):
                 term_dict = term_callback(term_doc)
                 if term_dict and (
-                    not self.subset
-                    or (
-                        "subset" in term_dict
-                        and term_dict["subset"] is not None
-                        and term_dict["subset"][0] == self.subset[0]
-                    )  # match 3:STAR to 3_STAR, 3star, 3_star, etc.
+                    not self.subset or term_dict["subset"] == self.subset
                 ):
                     elements.append(term_dict)
 
@@ -1073,6 +1068,6 @@ def term_callback(doc: "fastobo.term.TermFrame") -> Union[Dict, bool]:
 
 
 if __name__ == "__main__":
-    dataset = ChEBIOver50(chebi_version=248, subset="3_STAR")
-    dataset.prepare_data()
+    dataset = ChEBIOver50(chebi_version=246)
+    # dataset.prepare_data()
     dataset.setup()
