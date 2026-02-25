@@ -310,7 +310,6 @@ class _ChEBIDataExtractor(_DynamicDataset, ABC):
         # # `mol` (RDKit Mol object) column at index 3
         from chembl_structure_pipeline.standardizer import (
             parse_molblock,
-            update_mol_valences,
         )
 
         with open(
@@ -329,17 +328,7 @@ class _ChEBIDataExtractor(_DynamicDataset, ABC):
             if mol is None:
                 print(f"Failed to parse molfile for CHEBI:{ident}")
                 continue
-            mol = update_mol_valences(mol)
-            Chem.SanitizeMol(
-                mol,
-                sanitizeOps=Chem.SanitizeFlags.SANITIZE_FINDRADICALS
-                | Chem.SanitizeFlags.SANITIZE_KEKULIZE
-                | Chem.SanitizeFlags.SANITIZE_SETAROMATICITY
-                | Chem.SanitizeFlags.SANITIZE_SETCONJUGATION
-                | Chem.SanitizeFlags.SANITIZE_SETHYBRIDIZATION
-                | Chem.SanitizeFlags.SANITIZE_SYMMRINGS,
-                catchErrors=True,
-            )
+            mol = sanitize_molecule(mol)
             id_to_mol[ident] = mol
         data["mol"] = [id_to_mol.get(node) for node in molecules]
 
@@ -1070,6 +1059,24 @@ def term_callback(doc: "fastobo.term.TermFrame") -> Union[Dict, bool]:
         "smiles": smiles,
         "subset": subset,
     }
+
+
+def sanitize_molecule(mol: Chem.Mol) -> Chem.Mol:
+    # mirror ChEBI molecule processing
+    from chembl_structure_pipeline.standardizer import update_mol_valences
+
+    mol = update_mol_valences(mol)
+    Chem.SanitizeMol(
+        mol,
+        sanitizeOps=Chem.SanitizeFlags.SANITIZE_FINDRADICALS
+        | Chem.SanitizeFlags.SANITIZE_KEKULIZE
+        | Chem.SanitizeFlags.SANITIZE_SETAROMATICITY
+        | Chem.SanitizeFlags.SANITIZE_SETCONJUGATION
+        | Chem.SanitizeFlags.SANITIZE_SETHYBRIDIZATION
+        | Chem.SanitizeFlags.SANITIZE_SYMMRINGS,
+        catchErrors=True,
+    )
+    return mol
 
 
 if __name__ == "__main__":
