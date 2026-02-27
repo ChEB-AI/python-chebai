@@ -3,6 +3,7 @@ from unittest.mock import MagicMock, PropertyMock, mock_open, patch
 
 import networkx as nx
 import pandas as pd
+from rdkit import Chem
 
 from chebai.preprocessing.datasets.chebi import _ChEBIDataExtractor
 from tests.unit.mock_data.ontology_mock_data import ChebiMockOntology
@@ -34,7 +35,7 @@ class TestChEBIDataExtractor(unittest.TestCase):
 
         # Create an instance of the dataset
         cls.extractor: _ChEBIDataExtractor = _ChEBIDataExtractor(
-            chebi_version=231, chebi_version_train=200
+            chebi_version=247, chebi_version_train=200
         )
 
         # Mock instance for _chebi_version_train_obj
@@ -88,24 +89,32 @@ class TestChEBIDataExtractor(unittest.TestCase):
             "The number of transitive edges should match the actual number of transitive edges in the graph.",
         )
 
-    @patch(
-        "builtins.open",
-        new_callable=mock_open,
-        read_data=ChebiMockOntology.get_raw_data(),
-    )
+    @patch("builtins.open", new_callable=mock_open)
     @patch.object(
         _ChEBIDataExtractor,
         "select_classes",
         return_value=ChebiMockOntology.get_nodes(),
     )
     def test_graph_to_raw_dataset(
-        self, mock_select_classes: PropertyMock, mock_open: mock_open
+        self, mock_select_classes: PropertyMock, mock_open_file: mock_open
     ) -> None:
         """
         Test conversion of a graph to a raw dataset and compare it with the expected DataFrame.
         """
+        # Mock the OBO file (for _extract_class_hierarchy) and SDF file (for _graph_to_raw_dataset)
+        mock_obo_data = ChebiMockOntology.get_raw_data()
+        mock_sdf_data = ChebiMockOntology.get_sdf_data()
+
+        mock_open_file.side_effect = [
+            mock_open(read_data=mock_obo_data).return_value,
+            mock_open(read_data=mock_sdf_data).return_value,
+        ]
+
         graph = self.extractor._extract_class_hierarchy("fake_path")
         data_df = self.extractor._graph_to_raw_dataset(graph)
+        for row in data_df.itertuples():
+            self.assertIsInstance(row.mol, Chem.Mol, f"No Mol object in row: {row}")
+        data_df["mol"] = data_df["mol"].apply(lambda x: "mol_placeholder")
 
         pd.testing.assert_frame_equal(
             data_df,
@@ -129,6 +138,7 @@ class TestChEBIDataExtractor(unittest.TestCase):
                 "id": [12345, 67890, 11111, 54321],  # Corrected ID
                 "name": ["A", "B", "C", "D"],
                 "SMILES": ["C1CCCCC1", "O=C=O", "C1CC=CC1", "C[Mg+]"],
+                "mol": ["mol1", "mol2", "mol3", "mol4"],
                 12345: [True, False, False, True],
                 67890: [False, True, True, False],
                 11111: [True, False, True, False],
@@ -145,10 +155,10 @@ class TestChEBIDataExtractor(unittest.TestCase):
 
         # Expected output for comparison
         expected_result = [
-            {"features": "C1CCCCC1", "labels": [True, False, True], "ident": 12345},
-            {"features": "O=C=O", "labels": [False, True, False], "ident": 67890},
-            {"features": "C1CC=CC1", "labels": [False, True, True], "ident": 11111},
-            {"features": "C[Mg+]", "labels": [True, False, False], "ident": 54321},
+            {"features": "mol1", "labels": [True, False, True], "ident": 12345},
+            {"features": "mol2", "labels": [False, True, False], "ident": 67890},
+            {"features": "mol3", "labels": [False, True, True], "ident": 11111},
+            {"features": "mol4", "labels": [True, False, False], "ident": 54321},
         ]
 
         # Assert if the result matches the expected output

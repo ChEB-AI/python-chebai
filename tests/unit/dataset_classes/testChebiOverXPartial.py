@@ -2,6 +2,7 @@ import unittest
 from unittest.mock import mock_open, patch
 
 import networkx as nx
+from rdkit import Chem
 
 from chebai.preprocessing.datasets.chebi import ChEBIOverXPartial
 from tests.unit.mock_data.ontology_mock_data import ChebiMockOntology
@@ -106,16 +107,14 @@ class TestChEBIOverX(unittest.TestCase):
         )
 
     @patch("pandas.DataFrame.to_csv")
-    @patch("pandas.read_pickle")
     @patch.object(ChEBIOverXPartial, "_get_data_size", return_value=4.0)
     @patch("torch.load")
     @patch(
         "builtins.open",
         new_callable=mock_open,
-        read_data=ChebiMockOntology.get_raw_data(),
     )
     def test_single_label_data_split(
-        self, mock_open, mock_load, mock_get_data_size, mock_read_pickle, mock_to_csv
+        self, mock_open_file: mock_open, mock_load, mock_get_data_size, mock_to_csv
     ) -> None:
         """
         Test the single-label data splitting functionality of the ChebiExtractor class.
@@ -126,18 +125,46 @@ class TestChEBIOverX(unittest.TestCase):
 
         It also verifies that there is no overlap between training, validation, and test sets.
         """
+        mock_open_file.side_effect = [
+            mock_open(read_data=ChebiMockOntology.get_raw_data()).return_value,
+            mock_open(read_data=ChebiMockOntology.get_sdf_data()).return_value,
+            mock_open(read_data="").return_value,
+        ]
         self.chebi_extractor.top_class_id = 11111
         self.chebi_extractor.THRESHOLD = 3
         self.chebi_extractor.chebi_version_train = None
 
         graph: nx.DiGraph = self.chebi_extractor._extract_class_hierarchy("fake_path")
         data_df = self.chebi_extractor._graph_to_raw_dataset(graph)
+        self.assertEqual(
+            type([row for _, row in data_df.iterrows()][0]["mol"]),
+            Chem.Mol,
+            f"No Mol objects in DataFrame: {data_df}",
+        )
 
-        mock_read_pickle.return_value = data_df
-        data_pt = self.chebi_extractor._load_data_from_file("fake/path")
+        # Mock _load_dict to return the expected data structure
+        def mock_load_dict_generator(path):
+            for _, row in data_df.iterrows():
+                yield {
+                    "features": row["mol"],
+                    "labels": row.iloc[4:].to_numpy(
+                        dtype=bool
+                    ),  # Labels start at index 4
+                    "ident": row["id"],
+                }
 
+        with patch.object(
+            self.chebi_extractor, "_load_dict", side_effect=mock_load_dict_generator
+        ):
+            data_pt = self.chebi_extractor._load_data_from_file("fake/path")
         # Verify that the data contains only 1 label
-        self.assertEqual(len(data_pt[0]["labels"]), 1)
+        self.assertEqual(
+            type(data_pt), list, f"Data_pt should be a list, got {type(data_pt)}"
+        )
+        self.assertEqual(
+            len(data_pt), 4, f"Data_pt should contain 4 items, got {len(data_pt)}"
+        )
+        self.assertEqual(len(data_pt[0]["labels"]), 1, f"Data_pt: {data_pt}")
 
         mock_load.return_value = data_pt
 

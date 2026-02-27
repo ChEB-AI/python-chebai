@@ -189,34 +189,52 @@ class ChemDataReader(TokenIndexerReader):
         """Returns the name of the data reader."""
         return "smiles_token"
 
-    def _read_data(self, raw_data: str) -> List[int]:
+    def _read_data(self, raw_data: str | Chem.Mol) -> Optional[List[int]]:
         """
-        Reads and tokenizes raw SMILES data into a list of token indices. Canonicalizes the SMILES string using RDKit.
+        Reads and tokenizes SMILES strings (or SMILES strings generated from Chem.Mol objects) into a list of token indices. Optionally canonicalizes the SMILES string using RDKit.
 
         Args:
-            raw_data (str): The raw SMILES string to be tokenized.
+            raw_data (str|Chem.Mol): The raw SMILES string or Chem.Mol object to be tokenized.
 
         Returns:
             List[int]: A list of integers representing the indices of the SMILES tokens.
         """
         try:
-            mol = Chem.MolFromSmiles(raw_data.strip())
+            if isinstance(raw_data, str):
+                mol = Chem.MolFromSmiles(raw_data.strip())
+            else:
+                mol = raw_data
             if mol is None:
-                raise ValueError(f"Invalid SMILES: {raw_data}")
+                raise ValueError(f"Invalid input: {raw_data}")
         except ValueError as e:
-            print(f"could not process {raw_data}")
+            print(f"Could not process {raw_data}")
             print(f"\tError: {e}")
             return None
 
         if self.canonicalize_smiles:
             try:
-                raw_data = Chem.MolToSmiles(mol, canonical=True)
+                smiles = Chem.MolToSmiles(mol, canonical=True)
             except Exception as e:
                 print(f"RDKit failed to canonicalize the SMILES: {raw_data}")
                 print(f"\t{e}")
                 return None
+        elif not isinstance(raw_data, str):
+            try:
+                smiles = Chem.MolToSmiles(mol)
+            except Exception as e:
+                print(f"RDKit failed to convert Mol object to SMILES: {raw_data}")
+                print(f"\t{e}")
+                return None
+        else:
+            smiles = raw_data
 
-        return [self._get_token_index(v[1]) for v in _tokenize(raw_data)]
+        try:
+            tokenized = [self._get_token_index(v[1]) for v in _tokenize(smiles)]
+        except ValueError as e:
+            print(f"Could not tokenize SMILES: {smiles}")
+            print(f"\tError: {e}")
+            return None
+        return tokenized
 
     def _back_to_smiles(self, smiles_encoded):
         token_file = self.reader.token_path
