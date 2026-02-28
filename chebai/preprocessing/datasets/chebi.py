@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING, Any, Generator, List, Literal, Optional
 import numpy as np
 import pandas as pd
 from rdkit import Chem
+from tqdm import tqdm
 
 from chebai.preprocessing import reader as dr
 from chebai.preprocessing.datasets.base import _DynamicDataset
@@ -155,6 +156,9 @@ class _ChEBIDataExtractor(_DynamicDataset, ABC):
         Returns:
             str: The file path of the loaded ChEBI ontology.
         """
+        if version is None:
+            version = self.chebi_version
+
         if version is None:
             version = self.chebi_version
 
