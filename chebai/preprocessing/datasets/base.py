@@ -514,11 +514,13 @@ class XYBaseDataModule(LightningDataModule):
 
         rank_zero_info(f"Check for processed data in {self.processed_dir}")
         rank_zero_info(f"Cross-validation enabled: {self.use_inner_cross_validation}")
-        rank_zero_info(f"Looking for files: {self.processed_file_names}")
         if any(
             not os.path.isfile(os.path.join(self.processed_dir, f))
             for f in self.processed_file_names
         ):
+            rank_zero_info(
+                f"Did not find one of: {', '.join(self.processed_file_names)} in {self.processed_dir}"
+            )
             self.setup_processed()
 
         self._after_setup(**kwargs)
@@ -627,17 +629,17 @@ class XYBaseDataModule(LightningDataModule):
         raise NotImplementedError
 
     @property
-    def classes_txt_file_path(self) -> str:
+    def classes_txt_file_path(self) -> Optional[str]:
         """
-        Returns the filename for the classes text file.
+        Returns the filename for the classes text file (for labeled datasets that produce a list of labels).
 
         Returns:
-            str: The filename for the classes text file.
+            Optional[str]: The filename for the classes text file.
         """
         # This property also used in following places:
         #   - chebai/result/prediction.py: to load class names for csv columns names
         #   - chebai/cli.py: to link this property to `model.init_args.classes_txt_file_path`
-        return os.path.join(self.processed_dir_main, "classes.txt")
+        return None
 
 
 class MergedDataset(XYBaseDataModule):
@@ -1406,3 +1408,16 @@ class _DynamicDataset(XYBaseDataModule, ABC):
         if self.n_token_limit is not None:
             return {"data": f"data_maxlen{self.n_token_limit}.pt"}
         return {"data": "data.pt"}
+
+    @property
+    def classes_txt_file_path(self) -> str:
+        """
+        Returns the filename for the classes text file.
+
+        Returns:
+            str: The filename for the classes text file.
+        """
+        # This property also used in following places:
+        #   - chebai/result/prediction.py: to load class names for csv columns names
+        #   - chebai/cli.py: to link this property to `model.init_args.classes_txt_file_path`
+        return os.path.join(self.processed_dir_main, "classes.txt")
