@@ -907,7 +907,9 @@ class _DynamicDataset(XYBaseDataModule, ABC):
             print(f"Missing processed data file (`{processed_name}` file)")
             os.makedirs(self.processed_dir_main, exist_ok=True)
             data_path = self._download_required_data()
-            g = self._extract_class_hierarchy(data_path)
+            from chebi_utils import build_chebi_graph
+
+            g = build_chebi_graph(data_path)
             data_df = self._graph_to_raw_dataset(g)
             self.save_processed(data_df, processed_name)
 
@@ -918,21 +920,6 @@ class _DynamicDataset(XYBaseDataModule, ABC):
 
         Returns:
             str: Path to the downloaded data.
-        """
-        pass
-
-    @abstractmethod
-    def _extract_class_hierarchy(self, data_path: str) -> "nx.DiGraph":
-        """
-        Extracts the class hierarchy from the data.
-        Constructs a directed graph (DiGraph) using NetworkX, where nodes are annotated with fields/terms from
-        the term documents.
-
-        Args:
-            data_path (str): Path to the data.
-
-        Returns:
-            nx.DiGraph: The class hierarchy graph.
         """
         pass
 

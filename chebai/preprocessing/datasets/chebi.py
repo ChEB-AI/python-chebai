@@ -12,7 +12,6 @@ from typing import TYPE_CHECKING, Any, Generator, List, Literal, Optional
 import numpy as np
 import pandas as pd
 from rdkit import Chem
-from tqdm import tqdm
 
 from chebai.preprocessing import reader as dr
 from chebai.preprocessing.datasets.base import _DynamicDataset
@@ -195,39 +194,10 @@ class _ChEBIDataExtractor(_DynamicDataset, ABC):
             download_chebi_sdf(version, dest_dir=self.raw_dir, filename=sdf_name)
         return sdf_path
 
-    def _extract_class_hierarchy(self, data_path: str) -> "nx.DiGraph":
-        """
-        Extracts the class hierarchy from the ChEBI ontology.
-        Constructs a directed graph (DiGraph) using NetworkX, where nodes are annotated with fields/terms from
-        the chebi term documents from `.obo` file.
-
-        Uses :func:`chebi_utils.build_chebi_graph` for OBO parsing and graph construction.
-
-        Args:
-            data_path (str): The path to the ChEBI ontology.
-
-        Returns:
-            nx.DiGraph: The class hierarchy (transitive closure, edges directed parent → child).
-        """
-        from chebi_utils import build_chebi_graph, get_hierarchy_subgraph
-
-        full_graph = get_hierarchy_subgraph(build_chebi_graph(data_path))
-
-        # Filter by subset if specified
-        if self.subset:
-            nodes_to_keep = [
-                n
-                for n, d in full_graph.nodes(data=True)
-                if d.get("subset") is not None and d["subset"][0] == self.subset[0]
-                # match 3:STAR to 3_STAR, 3star, 3_star, etc.
-            ]
-            full_graph = full_graph.subgraph(nodes_to_keep).copy()
-        return full_graph
-
     def _graph_to_raw_dataset(self, g: "nx.DiGraph") -> pd.DataFrame:
         """
         Converts the graph to a raw dataset.
-        Uses the graph created by `_extract_class_hierarchy` method to extract the
+        Uses the graph to extract the
         raw data in Dataframe format with additional columns corresponding to each multi-label class.
 
         Uses :func:`chebi_utils.sdf_extractor.extract_molecules` for SDF parsing.
@@ -244,6 +214,7 @@ class _ChEBIDataExtractor(_DynamicDataset, ABC):
 
         sdf_path = os.path.join(self.raw_dir, self.raw_file_names_dict["sdf"])
         mol_df = extract_molecules(sdf_path)
+        mol_df = mol_df[mol_df["STAR"] == self.subset[0]] if self.subset else mol_df
         data, labels = build_labeled_dataset(g, mol_df, self.THRESHOLD)
 
         filename = "classes.txt"
@@ -708,6 +679,8 @@ class ChEBIOverXPartial(ChEBIOverX):
             nx.DiGraph: The extracted class hierarchy as a directed graph, limited to the
             descendants of the top class ID.
         """
+        # todo - this implmentation is broken since the extract_class_hierarchy method does not exist anymore
+        # find an alternative if you want to use this class
         g = super()._extract_class_hierarchy(chebi_path)
         top_class_successors = list(g.successors(self.top_class_id)) + [
             self.top_class_id
