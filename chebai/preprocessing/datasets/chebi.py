@@ -95,6 +95,10 @@ class _ChEBIDataExtractor(_DynamicDataset, ABC):
                 **_init_kwargs,
             )
 
+        from rdkit import RDLogger
+
+        RDLogger.DisableLog("rdApp.*")
+
     # ------------------------------ Phase: Prepare data -----------------------------------
     def _perform_data_preparation(self, *args: Any, **kwargs: Any) -> None:
         """
