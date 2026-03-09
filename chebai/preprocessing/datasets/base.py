@@ -1132,6 +1132,7 @@ class _DynamicDataset(XYBaseDataModule, ABC):
             new_labels = old_labels[:, label_mapping]
             df_data["labels"] = list(new_labels)
 
+        splits_df["id"] = splits_df["id"].astype(str)
         train_ids = splits_df[splits_df["split"] == "train"]["id"]
         validation_ids = splits_df[splits_df["split"] == "validation"]["id"]
         test_ids = splits_df[splits_df["split"] == "test"]["id"]
