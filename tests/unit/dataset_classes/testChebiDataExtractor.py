@@ -1,12 +1,9 @@
 import unittest
 from unittest.mock import MagicMock, PropertyMock, mock_open, patch
 
-import networkx as nx
 import pandas as pd
-from rdkit import Chem
 
 from chebai.preprocessing.datasets.chebi import _ChEBIDataExtractor
-from tests.unit.mock_data.ontology_mock_data import ChebiMockOntology
 
 
 class TestChEBIDataExtractor(unittest.TestCase):
@@ -44,85 +41,6 @@ class TestChEBIDataExtractor(unittest.TestCase):
         cls.extractor._chebi_version_train_obj = mock_train_obj
 
     @patch(
-        "builtins.open",
-        new_callable=mock_open,
-        read_data=ChebiMockOntology.get_raw_data(),
-    )
-    def test_extract_class_hierarchy(self, mock_open: mock_open) -> None:
-        """
-        Test the extraction of class hierarchy and validate the structure of the resulting graph.
-        """
-        # Mock the output of fastobo.loads
-        graph = self.extractor._extract_class_hierarchy("fake_path")
-
-        # Validate the graph structure
-        self.assertIsInstance(
-            graph, nx.DiGraph, "The result should be a directed graph."
-        )
-
-        # Check nodes
-        actual_nodes = set(graph.nodes)
-        self.assertEqual(
-            set(ChebiMockOntology.get_nodes()),
-            actual_nodes,
-            "The graph nodes do not match the expected nodes.",
-        )
-
-        # Check edges
-        actual_edges = set(graph.edges)
-        self.assertEqual(
-            ChebiMockOntology.get_edges_of_transitive_closure_graph(),
-            actual_edges,
-            "The graph edges do not match the expected edges.",
-        )
-
-        # Check number of nodes and edges
-        self.assertEqual(
-            ChebiMockOntology.get_number_of_nodes(),
-            len(actual_nodes),
-            "The number of nodes should match the actual number of nodes in the graph.",
-        )
-
-        self.assertEqual(
-            ChebiMockOntology.get_number_of_transitive_edges(),
-            len(actual_edges),
-            "The number of transitive edges should match the actual number of transitive edges in the graph.",
-        )
-
-    @patch("builtins.open", new_callable=mock_open)
-    @patch.object(
-        _ChEBIDataExtractor,
-        "select_classes",
-        return_value=ChebiMockOntology.get_nodes(),
-    )
-    def test_graph_to_raw_dataset(
-        self, mock_select_classes: PropertyMock, mock_open_file: mock_open
-    ) -> None:
-        """
-        Test conversion of a graph to a raw dataset and compare it with the expected DataFrame.
-        """
-        # Mock the OBO file (for _extract_class_hierarchy) and SDF file (for _graph_to_raw_dataset)
-        mock_obo_data = ChebiMockOntology.get_raw_data()
-        mock_sdf_data = ChebiMockOntology.get_sdf_data()
-
-        mock_open_file.side_effect = [
-            mock_open(read_data=mock_obo_data).return_value,
-            mock_open(read_data=mock_sdf_data).return_value,
-        ]
-
-        graph = self.extractor._extract_class_hierarchy("fake_path")
-        data_df = self.extractor._graph_to_raw_dataset(graph)
-        for row in data_df.itertuples():
-            self.assertIsInstance(row.mol, Chem.Mol, f"No Mol object in row: {row}")
-        data_df["mol"] = data_df["mol"].apply(lambda x: "mol_placeholder")
-
-        pd.testing.assert_frame_equal(
-            data_df,
-            ChebiMockOntology.get_data_in_dataframe(),
-            obj="The DataFrame should match the expected structure.",
-        )
-
-    @patch(
         "builtins.open", new_callable=mock_open, read_data=b"Mocktestdata"
     )  # Mocking open as a binary file
     @patch("pandas.read_pickle")
@@ -136,8 +54,8 @@ class TestChEBIDataExtractor(unittest.TestCase):
         mock_df = pd.DataFrame(
             {
                 "id": [12345, 67890, 11111, 54321],  # Corrected ID
-                "name": ["A", "B", "C", "D"],
-                "SMILES": ["C1CCCCC1", "O=C=O", "C1CC=CC1", "C[Mg+]"],
+                # "name": ["A", "B", "C", "D"],
+                # "SMILES": ["C1CCCCC1", "O=C=O", "C1CC=CC1", "C[Mg+]"],
                 "mol": ["mol1", "mol2", "mol3", "mol4"],
                 12345: [True, False, False, True],
                 67890: [False, True, True, False],

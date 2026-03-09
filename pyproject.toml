@@ -35,13 +35,12 @@ dev = [
     "requests",
     "scikit-learn",
     "scipy",
-    "fastobo",
     "selfies",
     "jsonargparse[signatures]>=4.17",
     "omegaconf",
     "deepsmiles",
-    "iterative-stratification",
     "torchmetrics",
+    "chebi-utils>=0.1.1",
 ]
 
 linters = [
