@@ -7,7 +7,7 @@ import os
 import random
 from abc import ABC
 from itertools import cycle, permutations, product
-from typing import TYPE_CHECKING, Any, Generator, List, Literal, Optional
+from typing import TYPE_CHECKING, Any, Generator, Literal, Optional
 
 import numpy as np
 import pandas as pd
@@ -221,8 +221,7 @@ class _ChEBIDataExtractor(_DynamicDataset, ABC):
         mol_df = mol_df[mol_df["STAR"] == self.subset[0]] if self.subset else mol_df
         data, labels = build_labeled_dataset(g, mol_df, self.THRESHOLD)
 
-        filename = "classes.txt"
-        with open(os.path.join(self.processed_dir_main, filename), "wt") as fout:
+        with open(os.path.join(self.classes_txt_file_path), "wt") as fout:
             fout.writelines(str(label) + "\n" for label in labels)
 
         return data
@@ -407,15 +406,11 @@ class _ChEBIDataExtractor(_DynamicDataset, ABC):
         Returns:
             pd.DataFrame: The pruned test dataset.
         """
-        classes_file_name = "classes.txt"
-
         # Load original and new classes
-        with open(os.path.join(self.processed_dir_main, classes_file_name), "r") as f:
+        with open(os.path.join(self.classes_txt_file_path), "r") as f:
             orig_classes = f.readlines()
         with open(
-            os.path.join(
-                self._chebi_version_train_obj.processed_dir_main, classes_file_name
-            ),
+            os.path.join(self._chebi_version_train_obj.classes_txt_file_path),
             "r",
         ) as f:
             new_classes = f.readlines()
@@ -634,12 +629,12 @@ class ChEBIOverXPartial(ChEBIOverX):
         top_class_id (int): The ID of the top class from which to extract subclasses.
     """
 
-    def __init__(self, top_class_id: int, external_data_ratio: float, **kwargs):
+    def __init__(self, top_class_id: str, external_data_ratio: float, **kwargs):
         """
         Initializes the ChEBIOverXPartial dataset.
 
         Args:
-            top_class_id (int): The ID of the top class from which to extract subclasses.
+            top_class_id (str): The ID of the top class from which to extract subclasses.
             **kwargs: Additional keyword arguments passed to the superclass initializer.
             external_data_ratio (float): How much external data (i.e., samples where top_class_id
             is no positive label) to include in the dataset. 0 means no external data, 1 means
@@ -650,7 +645,7 @@ class ChEBIOverXPartial(ChEBIOverX):
         if "external_data_ratio" not in kwargs:
             kwargs["external_data_ratio"] = external_data_ratio
 
-        self.top_class_id: int = top_class_id
+        self.top_class_id: str = top_class_id
         self.external_data_ratio: float = external_data_ratio
         super().__init__(**kwargs)
 
@@ -669,71 +664,63 @@ class ChEBIOverXPartial(ChEBIOverX):
             "processed",
         )
 
-    def _extract_class_hierarchy(self, chebi_path: str) -> "nx.DiGraph":
+    def _graph_to_raw_dataset(self, g: "nx.DiGraph") -> pd.DataFrame:
         """
-        Extracts a subset of ChEBI based on subclasses of the top class ID.
+        Converts the graph to a raw dataset.
+        Uses the graph to extract the
+        raw data in Dataframe format with additional columns corresponding to each multi-label class.
 
-        This method calls the superclass method to extract the full class hierarchy,
-        then extracts the subgraph containing only the descendants of the top class ID, including itself.
+        Uses :func:`chebi_utils.sdf_extractor.extract_molecules` for SDF parsing.
 
         Args:
-            chebi_path (str): The file path to the ChEBI ontology file.
+            g (nx.DiGraph): The class hierarchy graph.
 
         Returns:
-            nx.DiGraph: The extracted class hierarchy as a directed graph, limited to the
-            descendants of the top class ID.
+            pd.DataFrame: The raw dataset created from the graph.
         """
-        # todo - this implmentation is broken since the extract_class_hierarchy method does not exist anymore
-        # find an alternative if you want to use this class
-        g = super()._extract_class_hierarchy(chebi_path)
-        top_class_successors = list(g.successors(self.top_class_id)) + [
-            self.top_class_id
-        ]
-        external_nodes = list(set(n for n in g.nodes if n not in top_class_successors))
+
+        # Extract mol objects from SDF using chebi-utils
+        from chebi_utils import (
+            build_labeled_dataset,
+            extract_molecules,
+            get_hierarchy_subgraph,
+        )
+        import networkx as nx
+
+        sdf_path = os.path.join(self.raw_dir, self.raw_file_names_dict["sdf"])
+        mol_df = extract_molecules(sdf_path)
+        mol_df = mol_df[mol_df["STAR"] == self.subset[0]] if self.subset else mol_df
+
+        # take only molecules that are subclasses of the top class ID, and a certain ratio of external nodes (nodes that are not subclasses of the top class ID)
+        transitive_closure = nx.transitive_closure_dag(get_hierarchy_subgraph(g))
+        top_class_successors = list(
+            transitive_closure.predecessors(self.top_class_id)
+        ) + [self.top_class_id]
+        top_class_molecules = mol_df[mol_df["chebi_id"].isin(top_class_successors)]
+        external_molecules = mol_df[~mol_df["chebi_id"].isin(top_class_successors)]
         if 0 < self.external_data_ratio < 1:
             n_external_nodes = int(
-                len(top_class_successors)
+                len(top_class_molecules)
                 * self.external_data_ratio
                 / (1 - self.external_data_ratio)
             )
-            print(
-                f"Extracting {n_external_nodes} external nodes from the ChEBI dataset (ratio: {self.external_data_ratio:.2f})"
+            external_molecules = external_molecules.sample(
+                n=min(n_external_nodes, len(external_molecules)),
+                random_state=self.dynamic_data_split_seed,
             )
-            external_nodes = external_nodes[: int(n_external_nodes)]
         elif self.external_data_ratio == 0:
-            external_nodes = []
+            external_molecules = mol_df.iloc[0:0]
+        mol_df = pd.concat([top_class_molecules, external_molecules], ignore_index=True)
 
-        g = g.subgraph(top_class_successors + external_nodes)
-        print(
-            f"Subgraph contains {len(g.nodes)} nodes, of which {len(top_class_successors)} are subclasses of the top class ID {self.top_class_id}."
-        )
-        return g
+        data, labels = build_labeled_dataset(g, mol_df, self.THRESHOLD)
+        # the dataset might contain classes that are not subclasses of the top class ID
+        labels_top_class = [label for label in labels if label in top_class_successors]
+        data = data[["chebi_id", "mol"] + labels_top_class]
 
-    def select_classes(self, g: "nx.DiGraph", *args, **kwargs) -> List:
-        """Only selects classes that meet the threshold AND are subclasses of the top class ID (including itself)."""
-        import networkx as nx
+        with open(os.path.join(self.classes_txt_file_path), "wt") as fout:
+            fout.writelines(str(label) + "\n" for label in labels_top_class)
 
-        smiles = nx.get_node_attributes(g, "smiles")
-        nodes = list(
-            sorted(
-                {
-                    node
-                    for node in g.nodes
-                    if sum(
-                        1 if smiles[s] is not None else 0 for s in g.successors(node)
-                    )
-                    >= self.THRESHOLD
-                    and (
-                        self.top_class_id in g.predecessors(node)
-                        or node == self.top_class_id
-                    )
-                }
-            )
-        )
-        filename = "classes.txt"
-        with open(os.path.join(self.processed_dir_main, filename), "wt") as fout:
-            fout.writelines(str(node) + "\n" for node in nodes)
-        return nodes
+        return data
 
 
 class ChEBIOver50Partial(ChEBIOverXPartial, ChEBIOver50):
@@ -764,6 +751,11 @@ class ChEBIOver100Fingerprints(ChEBIOverXFingerprints, ChEBIOver100):
 
 
 if __name__ == "__main__":
-    dataset = ChEBIOver50(chebi_version=248, subset="3_STAR")
+    dataset = ChEBIOver50Partial(
+        chebi_version=247,
+        subset="3_STAR",
+        top_class_id="36700",
+        external_data_ratio=0.5,
+    )
     dataset.prepare_data()
     dataset.setup()
