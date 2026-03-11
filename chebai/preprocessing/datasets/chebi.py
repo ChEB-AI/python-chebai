@@ -598,7 +598,7 @@ class ChEBIOver50(ChEBIOverX):
     THRESHOLD: int = 50
 
 
-class ChEBI50Resampled(ChEBIOver50, _ResampledDynamicDataset):
+class ChEBI50Resampled(_ResampledDynamicDataset, ChEBIOver50):
     """
     A class for extracting data from the ChEBI dataset with a threshold of 50 for selecting classes.
 
