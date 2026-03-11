@@ -12,13 +12,6 @@ class _ResampledDynamicDataset(_DynamicDataset):
     """
     A dataset class that extends _DynamicDataset with an additional resampled data file.
 
-    This class produces two pickle files during data preparation:
-        - ``data_standard.pkl``: The standard dataset created by the regular pipeline.
-        - ``data_resampled.pkl``: A resampled version of the standard dataset, produced by
-          :meth:`_resample_data`.
-
-    Subclasses must implement :meth:`_resample_data` to define the resampling strategy.
-
     Args:
         **kwargs: Additional keyword arguments passed to :class:`_DynamicDataset`.
     """
@@ -80,10 +73,7 @@ class _ResampledDynamicDataset(_DynamicDataset):
         self, data: pd.DataFrame, train_instances: list[str]
     ) -> pd.DataFrame:
         """
-        Resample the standard ChEBI dataset.
-
-        Subclasses must implement this method to define a resampling strategy
-        (e.g., oversampling minority classes, undersampling majority classes).
+        Resample the standard ChEBI dataset with REMEDIAL.
 
         Args:
             data (pd.DataFrame): The standard dataset as produced by the regular
@@ -223,12 +213,12 @@ class _ResampledDynamicDataset(_DynamicDataset):
         )
 
 
-class ChEBI50ResampledDataset(_ResampledDynamicDataset, ChEBIOver50):
+class ChEBI50Resampled(ChEBIOver50, _ResampledDynamicDataset):
     pass
 
 
 if __name__ == "__main__":
-    dataset = ChEBI50ResampledDataset(
+    dataset = ChEBI50Resampled(
         chebi_version="248",
         splits_file_path=os.path.join(
             "data", "chebi_v248", "ChEBI50", "processed", "splits_chebi50_v248.csv"
