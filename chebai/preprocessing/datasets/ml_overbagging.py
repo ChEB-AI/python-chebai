@@ -5,7 +5,6 @@ import pandas as pd
 import tqdm
 
 from chebai.preprocessing.datasets.base import _DynamicDataset
-from chebai.preprocessing.datasets.chebi import ChEBIOver50
 
 
 class _ResampledDynamicDataset(_DynamicDataset):
@@ -17,14 +16,6 @@ class _ResampledDynamicDataset(_DynamicDataset):
     """
 
     _RESAMPLED_PKL_FILENAME: str = "data_resampled.pkl"
-
-    def __init__(self, **kwargs):
-        # splits_file_path has to be provided
-        if "splits_file_path" not in kwargs:
-            raise ValueError(
-                "`splits_file_path` must be provided for resampled datasets. To generate a new dataset, use the regular dataset classes"
-            )
-        super().__init__(**kwargs)
 
     # ------------------------------ Phase: Prepare data -----------------------------------
     def _perform_data_preparation(self, *args: Any, **kwargs: Any) -> None:
@@ -211,18 +202,3 @@ class _ResampledDynamicDataset(_DynamicDataset):
             ),
             os.path.join(self.processed_dir, transformed_file_name),
         )
-
-
-class ChEBI50Resampled(ChEBIOver50, _ResampledDynamicDataset):
-    pass
-
-
-if __name__ == "__main__":
-    dataset = ChEBI50Resampled(
-        chebi_version="248",
-        splits_file_path=os.path.join(
-            "data", "chebi_v248", "ChEBI50", "processed", "splits_chebi50_v248.csv"
-        ),
-    )
-    dataset.prepare_data()
-    dataset.setup()
