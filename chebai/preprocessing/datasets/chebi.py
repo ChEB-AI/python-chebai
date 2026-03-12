@@ -15,7 +15,11 @@ from rdkit import Chem
 
 from chebai.preprocessing import reader as dr
 from chebai.preprocessing.datasets.base import _DynamicDataset
-from chebai.preprocessing.datasets.ml_overbagging import _ResampledDynamicDataset
+from chebai.preprocessing.datasets.ml_overbagging import (
+    _BootstrapDynamicDataset,
+    _MLROSDynamicDataset,
+    _ResampledDynamicDataset,
+)
 
 if TYPE_CHECKING:
     import networkx as nx
@@ -598,19 +602,6 @@ class ChEBIOver50(ChEBIOverX):
     THRESHOLD: int = 50
 
 
-class ChEBI50Resampled(_ResampledDynamicDataset, ChEBIOver50):
-    """
-    A class for extracting data from the ChEBI dataset with a threshold of 50 for selecting classes.
-
-    Inherits from ChEBIOverX.
-
-    Attributes:
-        THRESHOLD (int): The threshold for selecting classes (50).
-    """
-
-    THRESHOLD: int = 50
-
-
 class ChEBIOver100DeepSMILES(ChEBIOverXDeepSMILES, ChEBIOver100):
     """
     A class for extracting data from the ChEBI dataset with DeepChem SMILES reader and a threshold of 100.
@@ -764,12 +755,26 @@ class ChEBIOver100Fingerprints(ChEBIOverXFingerprints, ChEBIOver100):
     pass
 
 
+class ChEBI50Resampled(_ResampledDynamicDataset, ChEBIOver50):
+    pass
+
+
+class ChEBI50Boostrapped(_BootstrapDynamicDataset, ChEBIOver50):
+    pass
+
+
+class ChEBI50MLROS(_MLROSDynamicDataset, ChEBIOver50):
+    pass
+
+
 if __name__ == "__main__":
-    dataset = ChEBI50Resampled(
+    dataset = ChEBI50MLROS(
         chebi_version="248",
         splits_file_path=os.path.join(
             "data", "chebi_v248", "ChEBI50", "processed", "splits_chebi50_v248.csv"
         ),
+        take_from_file="data_resampled.pkl",
+        add_to_file="data_bag1_standard.pkl",
         batch_size=32,
     )
     dataset.prepare_data()
