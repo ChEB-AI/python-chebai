@@ -7,6 +7,8 @@ import tqdm
 
 from chebai.preprocessing.datasets.base import _DynamicDataset
 
+CHEBI_ID_KEY = "id"
+
 
 class _ResampledDynamicDataset(_DynamicDataset):
     """
@@ -102,15 +104,15 @@ class _ResampledDynamicDataset(_DynamicDataset):
             for label, ir in irlbl.items():
                 f.write(f"{label},{ir}\n")
 
-        train_data = data[data["chebi_id"].isin(train_instances)]
+        train_data = data[data[CHEBI_ID_KEY].isin(train_instances)]
         if os.path.isfile(os.path.join(self.processed_dir_main, "data_scumble.csv")):
             print("Scumble scores already calculated, loading from file...")
             scumble_df = pd.read_csv(
                 os.path.join(self.processed_dir_main, "data_scumble.csv")
             )
-            scumble_df["chebi_id"] = scumble_df["chebi_id"].astype(str)
-            scumble_dict = dict(zip(scumble_df["chebi_id"], scumble_df["scumble"]))
-            train_data["scumble"] = train_data["chebi_id"].map(scumble_dict)
+            scumble_df[CHEBI_ID_KEY] = scumble_df[CHEBI_ID_KEY].astype(str)
+            scumble_dict = dict(zip(scumble_df[CHEBI_ID_KEY], scumble_df["scumble"]))
+            train_data["scumble"] = train_data[CHEBI_ID_KEY].map(scumble_dict)
         else:
             for row in tqdm.tqdm(
                 train_data.itertuples(),
@@ -126,7 +128,9 @@ class _ResampledDynamicDataset(_DynamicDataset):
             ) as f:
                 f.write("chebi_id,scumble\n")
                 for row in train_data.itertuples():
-                    f.write(f"{row.chebi_id},{row.scumble}\n")
+                    f.write(
+                        f"{row.id if CHEBI_ID_KEY == 'id' else row.chebi_id},{row.scumble}\n"
+                    )
         scumble_mean = train_data["scumble"].mean()
         print(f"Mean scumble score: {scumble_mean}")
 
@@ -228,12 +232,12 @@ def bootstrap_data(data: pd.DataFrame, train_instances: list[str]) -> pd.DataFra
         pd.DataFrame: The bootstrapped dataset.
     """
     print("Bootstrapping data...")
-    train_data = data[data["chebi_id"].isin(train_instances)]
+    train_data = data[data[CHEBI_ID_KEY].isin(train_instances)]
     bootstrapped_data = train_data.sample(
         n=len(train_data), replace=True, random_state=42
     )
     # Add non-train instances back to the bootstrapped data
-    non_train_data = data[~data["chebi_id"].isin(train_instances)]
+    non_train_data = data[~data[CHEBI_ID_KEY].isin(train_instances)]
     bootstrapped_data = pd.concat(
         [bootstrapped_data, non_train_data], ignore_index=True
     )
