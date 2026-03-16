@@ -153,9 +153,13 @@ class _ResampledDynamicDataset(_DynamicDataset):
 
         # Build majority and minority copies of high-scumble rows with zeroed-out labels
         majority_rows = high_scumble[data.columns].copy()
+        for col in majority_rows.columns[3:]:
+            majority_rows[col] = majority_rows[col].astype(bool)
         majority_rows[minority_labels] = None
 
         minority_rows = high_scumble[data.columns].copy()
+        for col in minority_rows.columns[3:]:
+            minority_rows[col] = minority_rows[col].astype(bool)
         minority_rows[majority_labels] = None
 
         # Indices to remove from the original data: NaN-scumble rows + rows that were split
@@ -164,6 +168,8 @@ class _ResampledDynamicDataset(_DynamicDataset):
         print(
             f"Number of majority rows to add: {len(majority_rows)}, number of minority rows to add: {len(minority_rows)}, number of original rows to drop: {len(indices_to_drop)}"
         )
+        for col in data.columns[3:]:
+            data[col] = data[col].astype(bool)
 
         resampled_data = pd.concat(
             [
@@ -173,8 +179,6 @@ class _ResampledDynamicDataset(_DynamicDataset):
             ],
             ignore_index=True,
         )
-        for col in resampled_data.columns[3:]:
-            resampled_data[col] = resampled_data[col].astype(bool)
 
         print(
             "Data resampling completed, dataset size after resampling:",
