@@ -24,6 +24,11 @@ from rdkit import Chem
 
 from chebai.preprocessing import reader as dr
 from chebai.preprocessing.datasets.base import XYBaseDataModule, _DynamicDataset
+from chebai.preprocessing.datasets.ml_overbagging import (
+    _BootstrapDynamicDataset,
+    _MLROSDynamicDataset,
+    _ResampledDynamicDataset,
+)
 
 if TYPE_CHECKING:
     import fastobo
@@ -1708,14 +1713,28 @@ JCI_500_COLUMNS = [
 
 JCI_500_COLUMNS_INT = [int(n.split(":")[-1]) for n in JCI_500_COLUMNS]
 
+
+class ChEBI50Resampled(_ResampledDynamicDataset, ChEBIOver50):
+    pass
+
+
+class ChEBI50Boostrapped(_BootstrapDynamicDataset, ChEBIOver50):
+    pass
+
+
+class ChEBI50MLROS(_MLROSDynamicDataset, ChEBIOver50):
+    pass
+
+
 if __name__ == "__main__":
-    data_module_05 = ChEBIOver50Partial(
-        chebi_version=241,
+    dataset = ChEBI50MLROS(
+        chebi_version="248",
         splits_file_path=os.path.join(
-            "data", "chebi_v241", "ChEBI50", "splits_80_10_10.csv"
+            "data", "chebi_v248", "ChEBI50", "processed", "splits_chebi50_v248.csv"
         ),
-        top_class_id=22712,
-        external_data_ratio=0.5,
+        take_from_file="data_resampled.pkl",
+        add_to_file="data_bag1_standard.pkl",
+        batch_size=32,
     )
-    data_module_05.prepare_data()
-    data_module_05.setup()
+    dataset.prepare_data()
+    dataset.setup()
