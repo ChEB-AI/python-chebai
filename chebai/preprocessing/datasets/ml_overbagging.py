@@ -84,6 +84,7 @@ class _ResampledDynamicDataset(_DynamicDataset):
         Returns:
             pd.DataFrame: The resampled dataset.
         """
+        train_instances = [int(id) for id in train_instances]
         print("Resampling with REMEDIAL...")
         print(data.head())
         labels = data.columns[3:]
@@ -119,14 +120,14 @@ class _ResampledDynamicDataset(_DynamicDataset):
                 total=len(train_data),
                 desc="Calculating scumble scores",
             ):
-                label_values = row[3:]
+                label_values = row[4:]
                 label_imbalance_ratios = irlbl[[v == 1 for v in label_values]]
                 scumble_score = self.scumble(label_imbalance_ratios)
-                train_data.at[row[0], "scumble"] = scumble_score
+                train_data.loc[row[0], "scumble"] = scumble_score
             with open(
                 os.path.join(self.processed_dir_main, "data_scumble.csv"), "w"
             ) as f:
-                f.write("chebi_id,scumble\n")
+                f.write(f"{CHEBI_ID_KEY},scumble\n")
                 for row in train_data.itertuples():
                     f.write(
                         f"{row.id if CHEBI_ID_KEY == 'id' else row.chebi_id},{row.scumble}\n"
@@ -159,6 +160,10 @@ class _ResampledDynamicDataset(_DynamicDataset):
 
         # Indices to remove from the original data: NaN-scumble rows + rows that were split
         indices_to_drop = nan_scumble_idx.union(high_scumble.index)
+
+        print(
+            f"Number of majority rows to add: {len(majority_rows)}, number of minority rows to add: {len(minority_rows)}, number of original rows to drop: {len(indices_to_drop)}"
+        )
 
         resampled_data = pd.concat(
             [
