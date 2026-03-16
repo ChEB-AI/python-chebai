@@ -333,7 +333,7 @@ def oversample(
     samples_to_add = sampling_rate * len(train_instances)
     print(f"Need to add {samples_to_add} samples to data")
     # calculate label imbalance ratios
-    labels = data.columns[2:]
+    labels = data.columns[3:]
     label_frequencies = data[labels].sum()
     max_freq = label_frequencies.max()
     irlbl = max_freq / label_frequencies
