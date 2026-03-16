@@ -84,7 +84,7 @@ class _ResampledDynamicDataset(_DynamicDataset):
         """
         print("Resampling with REMEDIAL...")
         print(data.head())
-        labels = data.columns[2:]
+        labels = data.columns[3:]
         print(f"Number of labels: {len(labels)}, first 10 labels: {labels[:10]}")
         label_frequencies = data[labels].sum()
         print("Label frequencies before resampling:")
@@ -164,7 +164,7 @@ class _ResampledDynamicDataset(_DynamicDataset):
             ],
             ignore_index=True,
         )
-        for col in resampled_data.columns[2:]:
+        for col in resampled_data.columns[3:]:
             resampled_data[col] = resampled_data[col].astype(bool)
 
         print(
