@@ -89,12 +89,15 @@ class RaggedCollator(Collator):
             missing_labels = [
                 d.get("missing_labels", [False for _ in y[0]]) for d in data
             ]
+        raw_labels = y
+        selected_label_indices = list(range(len(y)))
 
         if any(x is not None for x in y):
             # If any label is not None: (None, None, `1`, None)
             if any(x is None for x in y):
                 # If any label is None: (`None`, `None`, 1, `None`)
                 non_null_labels = [i for i, r in enumerate(y) if r is not None]
+                selected_label_indices = non_null_labels
                 y = self.process_label_rows(
                     tuple(ye for i, ye in enumerate(y) if i in non_null_labels)
                 )
@@ -106,9 +109,30 @@ class RaggedCollator(Collator):
         else:
             # If all labels are None : (`None`, `None`, `None`, `None`)
             y = None
+            selected_label_indices = []
             loss_kwargs["non_null_labels"] = []
 
-        loss_kwargs["missing_labels"] = torch.tensor(missing_labels)
+        if missing_labels is not None and selected_label_indices:
+            normalized_missing_labels = []
+            has_any_missing = False
+            for idx in selected_label_indices:
+                row_missing = missing_labels[idx]
+                if row_missing is None:
+                    row_missing = [label is None for label in raw_labels[idx]]
+                row_missing = [bool(v) for v in row_missing]
+                has_any_missing = has_any_missing or any(row_missing)
+                normalized_missing_labels.append(row_missing)
+
+            if has_any_missing:
+                loss_kwargs["missing_labels"] = pad_sequence(
+                    [
+                        torch.tensor(row, dtype=torch.bool)
+                        for row in normalized_missing_labels
+                    ],
+                    batch_first=True,
+                    padding_value=False,
+                )
+
         # Calculate the lengths of each sequence, create a binary mask for valid (non-padded) positions
         lens = torch.tensor(list(map(len, x)))
         model_kwargs["mask"] = torch.arange(max(lens))[None, :] < lens[:, None]

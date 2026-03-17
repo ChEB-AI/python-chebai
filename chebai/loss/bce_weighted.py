@@ -2,9 +2,52 @@ import os
 from typing import Optional
 
 import torch
+import torch.nn.functional as F
 
 from chebai.preprocessing.datasets.base import XYBaseDataModule
 from chebai.preprocessing.datasets.chebi import _ChEBIDataExtractor
+
+
+def _masked_bce_with_logits(
+    input: torch.Tensor,
+    target: torch.Tensor,
+    missing_labels: torch.Tensor,
+    *,
+    weight: Optional[torch.Tensor],
+    pos_weight: Optional[torch.Tensor],
+    reduction: str,
+) -> torch.Tensor:
+    """Compute BCEWithLogits while excluding positions marked as missing."""
+    missing_mask = torch.as_tensor(
+        missing_labels, dtype=torch.bool, device=input.device
+    )
+    if missing_mask.shape != target.shape:
+        raise ValueError(
+            f"missing_labels shape {missing_mask.shape} must match target shape {target.shape}"
+        )
+
+    valid_mask = ~missing_mask
+    per_entry_loss = F.binary_cross_entropy_with_logits(
+        input,
+        target,
+        weight=weight,
+        reduction="none",
+        pos_weight=pos_weight,
+    )
+    masked_loss = per_entry_loss * valid_mask.to(per_entry_loss.dtype)
+
+    if reduction == "none":
+        return masked_loss
+    if reduction == "sum":
+        return masked_loss.sum()
+    if reduction == "mean":
+        valid_count = valid_mask.sum().to(masked_loss.dtype)
+        if valid_count.item() == 0:
+            # Keep graph/device/dtype and return a neutral scalar if a batch is fully missing.
+            return masked_loss.sum() * 0.0
+        return masked_loss.sum() / valid_count
+
+    raise ValueError(f"Unsupported reduction mode '{reduction}'")
 
 
 class BCEWeighted(torch.nn.BCEWithLogitsLoss):
@@ -104,10 +147,30 @@ class BCEWeighted(torch.nn.BCEWithLogitsLoss):
             torch.Tensor: The computed loss.
         """
         self.set_pos_weight(input)
-        return super().forward(input, target)
+        missing_labels = kwargs.get("missing_labels")
+        if missing_labels is None:
+            return super().forward(input, target)
+        return _masked_bce_with_logits(
+            input,
+            target,
+            missing_labels,
+            weight=self.weight,
+            pos_weight=self.pos_weight,
+            reduction=self.reduction,
+        )
 
 
 class UnWeightedBCEWithLogitsLoss(torch.nn.BCEWithLogitsLoss):
     def forward(self, input, target, **kwargs):
-        # As the custom passed kwargs are not used in BCEWithLogitsLoss, we can ignore them
-        return super().forward(input, target)
+        missing_labels = kwargs.get("missing_labels")
+        if missing_labels is None:
+            # As the custom passed kwargs are not used in BCEWithLogitsLoss, we can ignore them
+            return super().forward(input, target)
+        return _masked_bce_with_logits(
+            input,
+            target,
+            missing_labels,
+            weight=self.weight,
+            pos_weight=self.pos_weight,
+            reduction=self.reduction,
+        )

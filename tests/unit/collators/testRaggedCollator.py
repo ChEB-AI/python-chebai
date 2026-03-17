@@ -140,6 +140,9 @@ class TestRaggedCollator(unittest.TestCase):
         expected_y = torch.tensor(
             [[False, True], [True, False], [True, False]]
         )  # None -> False
+        expected_missing_labels = torch.tensor(
+            [[True, False], [False, False], [False, False]]
+        )
         expected_mask_for_x = torch.tensor(
             [[True, True, False], [True, True, True], [True, False, False]]
         )
@@ -164,6 +167,18 @@ class TestRaggedCollator(unittest.TestCase):
                 result.additional_fields["model_kwargs"]["lens"], expected_lens_for_x
             ),
             "The lens tensor does not match the expected output when labels contain None.",
+        )
+        self.assertIn(
+            "missing_labels",
+            result.additional_fields["loss_kwargs"],
+            "Expected missing_labels in loss kwargs when labels contain None.",
+        )
+        self.assertTrue(
+            torch.equal(
+                result.additional_fields["loss_kwargs"]["missing_labels"],
+                expected_missing_labels,
+            ),
+            "The missing_labels tensor does not match the expected output when labels contain None.",
         )
         self.assertEqual(
             result.additional_fields["idents"],

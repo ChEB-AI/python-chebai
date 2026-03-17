@@ -1,6 +1,6 @@
 import os
 import random
-from typing import Any
+from typing import Any, Dict, Generator
 
 import pandas as pd
 import tqdm
@@ -153,13 +153,9 @@ class _ResampledDynamicDataset(_DynamicDataset):
 
         # Build majority and minority copies of high-scumble rows with zeroed-out labels
         majority_rows = high_scumble[data.columns].copy()
-        for col in majority_rows.columns[3:]:
-            majority_rows[col] = majority_rows[col].astype(bool)
         majority_rows[minority_labels] = None
 
         minority_rows = high_scumble[data.columns].copy()
-        for col in minority_rows.columns[3:]:
-            minority_rows[col] = minority_rows[col].astype(bool)
         minority_rows[majority_labels] = None
 
         # Indices to remove from the original data: NaN-scumble rows + rows that were split
@@ -168,8 +164,6 @@ class _ResampledDynamicDataset(_DynamicDataset):
         print(
             f"Number of majority rows to add: {len(majority_rows)}, number of minority rows to add: {len(minority_rows)}, number of original rows to drop: {len(indices_to_drop)}"
         )
-        for col in data.columns[3:]:
-            data[col] = data[col].astype(bool)
 
         resampled_data = pd.concat(
             [
@@ -180,12 +174,41 @@ class _ResampledDynamicDataset(_DynamicDataset):
             ignore_index=True,
         )
 
+        # Keep REMEDIAL-separated labels as None so the loss can mask them out later.
+
         print(
             "Data resampling completed, dataset size after resampling:",
             len(resampled_data),
         )
         print(resampled_data.head())
         return resampled_data
+
+    def _load_dict(self, input_file_path: str) -> Generator[Dict[str, Any], None, None]:
+        """
+        Load processed rows while preserving missing labels (`None`) introduced by REMEDIAL.
+
+        This mirrors the ChEBI loader but intentionally avoids forcing labels to bool,
+        because `None` labels must stay distinguishable from explicit negatives.
+        """
+        with open(input_file_path, "rb") as input_file:
+            df = pd.read_pickle(input_file)
+            single_class = getattr(self, "single_class", None)
+
+            if single_class is None:
+                labels_df = df.iloc[:, self._LABELS_START_IDX :]
+            else:
+                single_cls_index = df.columns.get_loc(int(single_class))
+                labels_df = df.iloc[:, [single_cls_index]]
+
+            features = df.iloc[:, self._DATA_REPRESENTATION_IDX].to_numpy()
+            idents = df.iloc[:, self._ID_IDX].to_numpy()
+            all_labels = labels_df.to_numpy(dtype=object)
+
+            for feat, labels, ident in zip(features, all_labels, idents):
+                normalized_labels = [
+                    None if pd.isna(label) else bool(label) for label in labels
+                ]
+                yield dict(features=feat, labels=normalized_labels, ident=ident)
 
     # ------------------------------ Properties -----------------------------------
     @property
