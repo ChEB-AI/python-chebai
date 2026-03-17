@@ -86,9 +86,9 @@ class RaggedCollator(Collator):
             x, y, idents = zip(
                 *((d["features"], d["labels"], d.get("ident")) for d in data)
             )
-            missing_labels = [
-                d.get("missing_labels", [False for _ in y[0]]) for d in data
-            ]
+            # Some historical processed files may store scalar NaN/float values
+            # for `missing_labels`; normalize those later per row.
+            missing_labels = [d.get("missing_labels") for d in data]
         raw_labels = y
         selected_label_indices = list(range(len(y)))
 
@@ -117,7 +117,14 @@ class RaggedCollator(Collator):
             has_any_missing = False
             for idx in selected_label_indices:
                 row_missing = missing_labels[idx]
-                if row_missing is None:
+                if isinstance(row_missing, torch.Tensor):
+                    row_missing = row_missing.tolist()
+                elif hasattr(row_missing, "tolist") and not isinstance(
+                    row_missing, (list, tuple)
+                ):
+                    row_missing = row_missing.tolist()
+
+                if not isinstance(row_missing, (list, tuple)):
                     row_missing = [label is None for label in raw_labels[idx]]
                 row_missing = [bool(v) for v in row_missing]
                 has_any_missing = has_any_missing or any(row_missing)

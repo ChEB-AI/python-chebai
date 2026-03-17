@@ -186,6 +186,41 @@ class TestRaggedCollator(unittest.TestCase):
             "The identifiers do not match the expected output when labels contain None.",
         )
 
+    def test_call_with_float_missing_labels_entry(self) -> None:
+        """
+        Test that scalar/NaN-like missing_labels entries are safely handled.
+        """
+        data: List[Dict] = [
+            {
+                "features": [1, 2],
+                "labels": [None, True],
+                "ident": "sample1",
+                "missing_labels": float("nan"),
+            },
+            {
+                "features": [3, 4, 5],
+                "labels": [True, False],
+                "ident": "sample2",
+                "missing_labels": [False, False],
+            },
+        ]
+
+        result: XYData = self.collator(data)
+        expected_missing_labels = torch.tensor([[True, False], [False, False]])
+
+        self.assertIn(
+            "missing_labels",
+            result.additional_fields["loss_kwargs"],
+            "Expected missing_labels in loss kwargs when labels contain None.",
+        )
+        self.assertTrue(
+            torch.equal(
+                result.additional_fields["loss_kwargs"]["missing_labels"],
+                expected_missing_labels,
+            ),
+            "Scalar missing_labels entries should be normalized by inferring from labels.",
+        )
+
     def test_call_with_empty_data(self) -> None:
         """
         Test the __call__ method with an empty list to ensure it raises an error.
