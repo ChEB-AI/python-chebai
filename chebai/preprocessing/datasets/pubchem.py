@@ -106,6 +106,7 @@ class PubChem(XYBaseDataModule):
         Yields:
             dict: Dictionary containing 'features', 'labels' (None), and 'ident' fields.
         """
+        # pubchem IDs are here
         with open(input_file_path, "r") as input_file:
             for row in input_file:
                 ident, smiles = row.split("\t")
@@ -195,8 +196,9 @@ class PubChem(XYBaseDataModule):
         self._num_of_labels = 0
         self._feature_vector_size = 0
 
-        print(f"Number of labels for loaded data: {self._num_of_labels}")
-        print(f"Feature vector size: {self._feature_vector_size}")
+        print(
+            f"Number of labels and feature vector size set to: {self._num_of_labels} / {self._feature_vector_size} (default values, not used for self-supervised learning)"
+        )
 
     def _perform_data_preparation(self, *args, **kwargs):
         """

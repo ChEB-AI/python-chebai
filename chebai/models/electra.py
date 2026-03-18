@@ -39,8 +39,8 @@ class ElectraPre(ChebaiBaseNet):
         replace_p (float): Probability of replacing tokens during training.
     """
 
-    def __init__(self, config: Dict[str, Any] = None, **kwargs: Any):
-        super().__init__(config=config, **kwargs)
+    def __init__(self, config: Dict[str, Any], **kwargs: Any):
+        super().__init__(**kwargs)
 
         self.generator_config = ElectraConfig(**config["generator"])
         self.generator = ElectraForMaskedLM(self.generator_config)
@@ -203,6 +203,7 @@ class Electra(ChebaiBaseNet):
             )
             * CLS_TOKEN
         )
+        model_kwargs["output_attentions"] = True
         return dict(
             features=torch.cat((cls_tokens, batch.x), dim=1),
             labels=batch.y,
