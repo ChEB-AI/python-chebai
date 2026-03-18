@@ -98,8 +98,9 @@ class DataReader:
         under the additional `missing_labels` keyword."""
         labels = self._get_raw_label(row)
         additional_kwargs = self._get_additional_kwargs(row)
-        if any(label is None for label in labels):
-            additional_kwargs["missing_labels"] = [label is None for label in labels]
+        if labels is not None:
+            if any(label is None for label in labels):
+                additional_kwargs["missing_labels"] = [label is None for label in labels]
         return dict(
             features=self._get_raw_data(row),
             labels=labels,

@@ -106,6 +106,7 @@ class PubChem(XYBaseDataModule):
         Yields:
             dict: Dictionary containing 'features', 'labels' (None), and 'ident' fields.
         """
+        # pubchem IDs are here
         with open(input_file_path, "r") as input_file:
             for row in input_file:
                 ident, smiles = row.split("\t")
