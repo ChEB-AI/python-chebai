@@ -4,16 +4,16 @@ init_args:
     class_path: chebai.loss.pretraining.ElectraPreLoss
   out_dim: null
   optimizer_kwargs:
-    lr: 1e-4
+    lr: 1e-3
   config:
     generator:
-      vocab_size: 1400
+      vocab_size: 4400
       max_position_embeddings: 1800
       num_attention_heads: 8
       num_hidden_layers: 6
       type_vocab_size: 1
     discriminator:
-      vocab_size: 1400
+      vocab_size: 4400
       max_position_embeddings: 1800
       num_attention_heads: 8
       num_hidden_layers: 6

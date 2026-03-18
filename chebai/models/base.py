@@ -40,6 +40,7 @@ class ChebaiBaseNet(LightningModule, ABC):
         pass_loss_kwargs: bool = True,
         optimizer_kwargs: Optional[Dict[str, Any]] = None,
         exclude_hyperparameter_logging: Optional[Iterable[str]] = None,
+        classes_txt_file_path: Optional[str] = None,
         **kwargs,
     ):
         super().__init__(**kwargs)
@@ -62,6 +63,7 @@ class ChebaiBaseNet(LightningModule, ABC):
                 "train_metrics",
                 "val_metrics",
                 "test_metrics",
+                "classes_txt_file_path",
                 *exclude_hyperparameter_logging,
             ]
         )
@@ -77,6 +79,23 @@ class ChebaiBaseNet(LightningModule, ABC):
         self.validation_metrics = val_metrics
         self.test_metrics = test_metrics
         self.pass_loss_kwargs = pass_loss_kwargs
+
+        self.classes_txt_file_path = classes_txt_file_path
+
+        # During prediction `classes_txt_file_path` is set to None
+        if classes_txt_file_path is not None:
+            with open(classes_txt_file_path, "r") as f:
+                self.labels_list = [cls.strip() for cls in f.readlines()]
+            assert len(self.labels_list) > 0, "Class labels list is empty."
+            assert len(self.labels_list) == out_dim, (
+                f"Number of class labels ({len(self.labels_list)}) does not match "
+                f"the model output dimension ({out_dim})."
+            )
+
+    def on_save_checkpoint(self, checkpoint):
+        if self.classes_txt_file_path is not None:
+            # https://lightning.ai/docs/pytorch/stable/common/checkpointing_intermediate.html#modify-a-checkpoint-anywhere
+            checkpoint["classification_labels"] = self.labels_list
 
     def on_load_checkpoint(self, checkpoint: Dict[str, Any]) -> None:
         # avoid errors due to unexpected keys (e.g., if loading checkpoint from a bce model and using it with a
@@ -100,7 +119,7 @@ class ChebaiBaseNet(LightningModule, ABC):
 
     def _get_prediction_and_labels(
         self, data: Dict[str, Any], labels: torch.Tensor, output: torch.Tensor
-    ) -> (torch.Tensor, torch.Tensor):
+    ) -> tuple[torch.Tensor, torch.Tensor]:
         """
         Gets the predictions and labels from the model output.
 
@@ -151,7 +170,7 @@ class ChebaiBaseNet(LightningModule, ABC):
         model_output: torch.Tensor,
         labels: torch.Tensor,
         loss_kwargs: Dict[str, Any],
-    ) -> (torch.Tensor, torch.Tensor, Dict[str, Any]):
+    ) -> tuple[torch.Tensor, torch.Tensor, Dict[str, Any]]:
         """
         Processes the data for loss computation.
 
@@ -237,7 +256,7 @@ class ChebaiBaseNet(LightningModule, ABC):
         Returns:
             Dict[str, Union[torch.Tensor, Any]]: The result of the prediction step.
         """
-        return self._execute(batch, batch_idx, self.test_metrics, prefix="", log=False)
+        return self._execute(batch, batch_idx, log=False)
 
     def _execute(
         self,
@@ -324,8 +343,6 @@ class ChebaiBaseNet(LightningModule, ABC):
                 for metric_name, metric in metrics.items():
                     metric.update(pr, tar)
                 self._log_metrics(prefix, metrics, len(batch))
-        if isinstance(d, dict) and "loss" not in d:
-            print(f"d has keys {d.keys()}, log={log}, criterion={self.criterion}")
         return d
 
     def _log_metrics(self, prefix: str, metrics: torch.nn.Module, batch_size: int):
