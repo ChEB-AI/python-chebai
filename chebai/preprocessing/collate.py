@@ -141,7 +141,9 @@ class RaggedCollator(Collator):
         """
         return pad_sequence(
             [
-                torch.tensor([bool(v) if v is not None else False for v in row])
+                # torch.tensor([bool(v) if v is not None else False for v in row])
+                # todo: change logic for classification/regression
+                torch.tensor([(v) if v is not None else False for v in row])
                 for row in labels
             ],
             batch_first=True,
