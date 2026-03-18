@@ -2,7 +2,7 @@ class_path: chebai.models.Electra
 init_args:
   model_type: classification
   optimizer_kwargs:
-    lr: 1e-4
+    lr: 1e-3 # we recommend  1e-4 for OPT finetuning, however, 1e-3 is the default
   config:
     vocab_size: 1400
     max_position_embeddings: 1800
