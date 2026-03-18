@@ -15,6 +15,11 @@ from rdkit import Chem
 
 from chebai.preprocessing import reader as dr
 from chebai.preprocessing.datasets.base import _DynamicDataset
+from chebai.preprocessing.datasets.ml_overbagging import (
+    _BootstrapDynamicDataset,
+    _MLROSDynamicDataset,
+    _ResampledDynamicDataset,
+)
 
 if TYPE_CHECKING:
     import networkx as nx
@@ -750,12 +755,27 @@ class ChEBIOver100Fingerprints(ChEBIOverXFingerprints, ChEBIOver100):
     pass
 
 
+class ChEBI50Resampled(_ResampledDynamicDataset, ChEBIOver50):
+    pass
+
+
+class ChEBI50Boostrapped(_BootstrapDynamicDataset, ChEBIOver50):
+    pass
+
+
+class ChEBI50MLROS(_MLROSDynamicDataset, ChEBIOver50):
+    pass
+
+
 if __name__ == "__main__":
-    dataset = ChEBIOver50Partial(
-        chebi_version=247,
-        subset="3_STAR",
-        top_class_id="36700",
-        external_data_ratio=0.5,
+    dataset = ChEBI50MLROS(
+        chebi_version="248",
+        splits_file_path=os.path.join(
+            "data", "chebi_v248", "ChEBI50", "processed", "splits_chebi50_v248.csv"
+        ),
+        take_from_file="data_resampled.pkl",
+        add_to_file="data_bag1_standard.pkl",
+        batch_size=32,
     )
     dataset.prepare_data()
     dataset.setup()
