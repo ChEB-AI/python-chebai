@@ -1714,26 +1714,45 @@ JCI_500_COLUMNS = [
 JCI_500_COLUMNS_INT = [int(n.split(":")[-1]) for n in JCI_500_COLUMNS]
 
 
-class ChEBI50Resampled(_ResampledDynamicDataset, ChEBIOver50):
+class ChEBI50REMEDIALReady(ChEBIOver50):
+    def _load_dict(self, input_file_path: str) -> Generator[dict[str, Any], None, None]:
+        """
+        Adaption of ChEBI's load_dict method that does not convert labels to bool, since the REMEDIAL algorithm needs to be able to distinguish between 0 (negative), 1 (positive) and None (no label).
+        """
+        with open(input_file_path, "rb") as input_file:
+            df = pd.read_pickle(input_file)
+
+            if self.single_class is None:
+                all_labels = df.iloc[:, self._LABELS_START_IDX :].to_numpy()
+            else:
+                single_cls_index = df.columns.get_loc(int(self.single_class))
+                all_labels = df.iloc[:, [single_cls_index]].to_numpy()
+
+            features = df.iloc[:, self._DATA_REPRESENTATION_IDX].to_numpy()
+            idents = df.iloc[:, self._ID_IDX].to_numpy()
+
+            for feat, labels, ident in zip(features, all_labels, idents):
+                yield dict(features=feat, labels=labels, ident=ident)
+
+
+class ChEBI50Resampled(_ResampledDynamicDataset, ChEBI50REMEDIALReady):
     pass
 
 
-class ChEBI50Boostrapped(_BootstrapDynamicDataset, ChEBIOver50):
+class ChEBI50Boostrapped(_BootstrapDynamicDataset, ChEBI50REMEDIALReady):
     pass
 
 
-class ChEBI50MLROS(_MLROSDynamicDataset, ChEBIOver50):
+class ChEBI50MLROS(_MLROSDynamicDataset, ChEBI50REMEDIALReady):
     pass
 
 
 if __name__ == "__main__":
-    dataset = ChEBI50MLROS(
-        chebi_version="248",
+    dataset = ChEBI50Resampled(
+        chebi_version="241",
         splits_file_path=os.path.join(
             "data", "chebi_v248", "ChEBI50", "processed", "splits_chebi50_v248.csv"
         ),
-        take_from_file="data_resampled.pkl",
-        add_to_file="data_bag1_standard.pkl",
         batch_size=32,
     )
     dataset.prepare_data()

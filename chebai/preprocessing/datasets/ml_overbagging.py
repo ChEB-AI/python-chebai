@@ -351,7 +351,7 @@ def oversample(
         minority_bags[label] = list(data[data[label] == 1].index)
     new_samples = []
     round_idx = 1
-    while samples_to_add > 0:
+    while samples_to_add > 0 and len(minority_bags) > 0:
         minority_bags_next_round = dict()
         for label, bag in minority_bags.items():
             new_sample = bag[random.randint(0, len(bag) - 1)]
