@@ -1,3 +1,4 @@
+import math
 from typing import Dict, List, Tuple, Union
 
 import torch
@@ -87,7 +88,10 @@ class RaggedCollator(Collator):
                 *((d["features"], d["labels"], d.get("ident")) for d in data)
             )
             missing_labels = [
-                d.get("missing_labels", [False for _ in y[0]]) for d in data
+                d.get("missing_labels", [False for _ in y[0]])
+                if not math.isnan(data[0]["missing_labels"])
+                else [False for _ in y[0]]
+                for d in data
             ]
 
         if any(x is not None for x in y):

@@ -302,7 +302,7 @@ class Electra(ChebaiBaseNet):
 
     def _get_prediction_and_labels(
         self, data: Dict[str, Any], labels: Tensor, model_output: Dict[str, Tensor]
-    ) -> Tuple[Tensor, Tensor]:
+    ) -> Tuple[Tensor, Optional[Tensor]]:
         """
         Get the predictions and labels from the model output. Applies a sigmoid to the model output.
 
@@ -320,7 +320,6 @@ class Electra(ChebaiBaseNet):
             n = loss_kwargs["non_null_labels"]
             d = d[n]
         if self.model_type == "classification":
-            # print(self.model_type, ' in electra 324')
             # for mulitclass here softmax instead of sigmoid
             d = torch.sigmoid(
                 d
