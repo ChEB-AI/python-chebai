@@ -87,9 +87,15 @@ class RaggedCollator(Collator):
                 *((d["features"], d["labels"], d.get("ident")) for d in data)
             )
             missing_labels = [
-                d.get("missing_labels", [False for _ in y[0]]) for d in data
+                d["missing_labels"]
+                if (
+                    "missing_labels" in d
+                    and hasattr(d["missing_labels"], "len")
+                    and len(d["missing_labels"]) == len(y[0])
+                )
+                else [False for _ in y[0]]
+                for d in data
             ]
-            assert len(missing_labels[0]) == len(y[0])
 
         if any(x is not None for x in y):
             # If any label is not None: (None, None, `1`, None)
