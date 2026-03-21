@@ -229,7 +229,9 @@ class _ResampledDynamicDataset(_DynamicDataset):
         )
 
 
-def bootstrap_data(data: pd.DataFrame, train_instances: list[str]) -> pd.DataFrame:
+def bootstrap_data(
+    data: pd.DataFrame, train_instances: list[str], seed: int = 42
+) -> pd.DataFrame:
     """
     Bootstrap the training instances in the dataset.
 
@@ -243,7 +245,7 @@ def bootstrap_data(data: pd.DataFrame, train_instances: list[str]) -> pd.DataFra
     print("Bootstrapping data...")
     train_data = data[data[CHEBI_ID_KEY].isin(train_instances)]
     bootstrapped_data = train_data.sample(
-        n=len(train_data), replace=True, random_state=42
+        n=len(train_data), replace=True, random_state=seed
     )
     # Add non-train instances back to the bootstrapped data
     non_train_data = data[~data[CHEBI_ID_KEY].isin(train_instances)]
@@ -300,7 +302,9 @@ class _BootstrapDynamicDataset(_DynamicDataset):
             splits_df["id"] = splits_df["id"].astype(str)
             train_ids = splits_df[splits_df["split"] == "train"]["id"].values
 
-            bag_df = bootstrap_data(standard_df, train_ids)
+            bag_df = bootstrap_data(
+                standard_df, train_ids, self.dynamic_data_split_seed
+            )
             self.save_processed(bag_df, self.processed_main_file_names_dict["data"])
 
     @property
