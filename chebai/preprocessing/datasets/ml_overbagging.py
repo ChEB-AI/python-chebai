@@ -243,12 +243,16 @@ def bootstrap_data(
         pd.DataFrame: The bootstrapped dataset.
     """
     print("Bootstrapping data...")
-    train_data = data[data[CHEBI_ID_KEY].isin(train_instances)]
+    train_data = data[
+        data[CHEBI_ID_KEY].isin([int(ident) for ident in train_instances])
+    ]
     bootstrapped_data = train_data.sample(
         n=len(train_data), replace=True, random_state=seed
     )
     # Add non-train instances back to the bootstrapped data
-    non_train_data = data[~data[CHEBI_ID_KEY].isin(train_instances)]
+    non_train_data = data[
+        ~data[CHEBI_ID_KEY].isin([int(ident) for ident in train_instances])
+    ]
     bootstrapped_data = pd.concat(
         [bootstrapped_data, non_train_data], ignore_index=True
     )
