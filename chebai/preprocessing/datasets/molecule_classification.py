@@ -181,7 +181,7 @@ class ClinTox(XYBaseDataModule):
 
 
 class BBBP(XYBaseDataModule):
-    """Data module for ClinTox MoleculeNet dataset."""
+    """Data module for BBBP MoleculeNet dataset."""
 
     HEADERS = [
         "p_np",
@@ -342,7 +342,7 @@ class BBBP(XYBaseDataModule):
 
 
 class Sider(XYBaseDataModule):
-    """Data module for ClinTox MoleculeNet dataset."""
+    """Data module for SIDER MoleculeNet dataset."""
 
     HEADERS = [
         "Hepatobiliary disorders",
@@ -534,7 +534,7 @@ class Sider(XYBaseDataModule):
 
 
 class Bace(XYBaseDataModule):
-    """Data module for ClinTox MoleculeNet dataset."""
+    """Data module for BACE MoleculeNet dataset."""
 
     HEADERS = [
         "class",
@@ -682,7 +682,7 @@ class Bace(XYBaseDataModule):
 
 
 class HIV(XYBaseDataModule):
-    """Data module for ClinTox MoleculeNet dataset."""
+    """Data module for HIV MoleculeNet dataset."""
 
     HEADERS = [
         "HIV_active",
@@ -840,7 +840,7 @@ class HIV(XYBaseDataModule):
 
 
 class MUV(XYBaseDataModule):
-    """Data module for ClinTox MoleculeNet dataset."""
+    """Data module for MUV MoleculeNet dataset."""
 
     HEADERS = [
         "MUV-466",
