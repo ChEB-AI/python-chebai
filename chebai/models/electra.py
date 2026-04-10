@@ -42,6 +42,19 @@ class ElectraPre(ChebaiBaseNet):
     def __init__(self, config: Dict[str, Any], **kwargs: Any):
         super().__init__(**kwargs)
 
+        # if pretrained_checkpoint:
+        #     with open(pretrained_checkpoint, "rb") as fin:
+        #         model_dict = torch.load(
+        #             fin, map_location=self.device, weights_only=False
+        #         )
+        #         if load_prefix:
+        #             state_dict = filter_dict(model_dict["state_dict"], load_prefix)
+        #         else:
+        #             state_dict = model_dict["state_dict"]
+        #         self.electra = ElectraModel.from_pretrained(
+        #             None, state_dict=state_dict, config=self.config
+        #         )
+        # else:
         self.generator_config = ElectraConfig(**config["generator"])
         self.generator = ElectraForMaskedLM(self.generator_config)
         self.discriminator_config = ElectraConfig(**config["discriminator"])
@@ -293,11 +306,11 @@ class Electra(ChebaiBaseNet):
         output = model_output["logits"]
         if labels is not None:
             labels = labels.float()
-        if "missing_labels" in kwargs_copy:
+        if "missing_labels" in kwargs_copy and labels is not None:
             missing_labels = kwargs_copy.pop("missing_labels")
             output = output * (~missing_labels).int() - 10000 * missing_labels.int()
             labels = labels * (~missing_labels).int()
-        if self.model_type == "classification":
+        if self.model_type == "classification" and labels is not None:
             assert ((labels <= torch.tensor(1.0)) & (labels >= torch.tensor(0.0))).all()
         return output, labels, kwargs_copy
 
@@ -326,7 +339,7 @@ class Electra(ChebaiBaseNet):
             d = torch.sigmoid(
                 d
             )  # changing this made a difference for the roc-auc but not the f1, why?
-            if "missing_labels" in loss_kwargs:
+            if "missing_labels" in loss_kwargs and d.size(dim=1) > 0:
                 missing_labels = loss_kwargs["missing_labels"]
                 d = d * (~missing_labels).int().to(
                     device=d.device
