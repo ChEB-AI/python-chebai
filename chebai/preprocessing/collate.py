@@ -86,11 +86,12 @@ class RaggedCollator(Collator):
             x, y, idents = zip(
                 *((d["features"], d["labels"], d.get("ident")) for d in data)
             )
+
             missing_labels = [
                 d["missing_labels"]
                 if (
                     "missing_labels" in d
-                    and hasattr(d["missing_labels"], "len")
+                    and hasattr(d["missing_labels"], "__len__")
                     and len(d["missing_labels"]) == len(y[0])
                 )
                 else [False for _ in y[0]]
