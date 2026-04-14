@@ -35,7 +35,7 @@ class ClinTox(XYBaseDataModule):
     @property
     def raw_file_names(self) -> List[str]:
         """Returns a list of raw file names."""
-        return ["clintox.csv"]
+        return ["clintox_groups4.csv"]
 
     # @property
     # def processed_file_names(self) -> List[str]:
@@ -65,7 +65,7 @@ class ClinTox(XYBaseDataModule):
         """Processes and splits the dataset."""
         print("Create splits")
         data = list(
-            self._load_data_from_file(os.path.join(self.raw_dir, "clintox.csv"))
+            self._load_data_from_file(os.path.join(self.raw_dir, "clintox_groups4.csv"))
         )
         groups = np.array([d["group"] for d in data])
         if not all(g is None for g in groups):
