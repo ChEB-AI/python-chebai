@@ -340,13 +340,15 @@ def oversample(
     Returns:
         pd.DataFrame: The oversampled dataset.
     """
-    data = data.reset_index(drop=True)
+    train_data = data[
+        data[CHEBI_ID_KEY].isin([int(ident) for ident in train_instances])
+    ].reset_index(drop=True)
     # Implementation for oversampling logic
     samples_to_add = sampling_rate * len(train_instances)
     print(f"Need to add {samples_to_add} samples to data")
     # calculate label imbalance ratios
-    labels = data.columns[3:]
-    label_frequencies = data[labels].sum()
+    labels = train_data.columns[3:]
+    label_frequencies = train_data[labels].sum()
     max_freq = label_frequencies.max()
     irlbl = max_freq / label_frequencies
     meanir = irlbl.mean()
@@ -356,7 +358,7 @@ def oversample(
     print(f"Oversampling {len(minority_labels)} minority labels")
     minority_bags = dict()
     for label in minority_labels:
-        minority_bags[label] = list(data[data[label] == 1].index)
+        minority_bags[label] = list(train_data[train_data[label] == 1].index)
     new_samples = []
     round_idx = 1
     while samples_to_add > 0 and len(minority_bags) > 0:
@@ -376,7 +378,7 @@ def oversample(
             )
         round_idx += 1
 
-    new_samples_df = data.iloc[new_samples]
+    new_samples_df = train_data.iloc[new_samples]
     print(f"Adding {len(new_samples_df)} samples to data")
     return new_samples_df
 
