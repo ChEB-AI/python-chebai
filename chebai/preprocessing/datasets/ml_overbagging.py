@@ -165,11 +165,11 @@ class _ResampledDynamicDataset(_DynamicDataset):
             split_indices.append(row.name)
 
             majority_row = row[data.columns].copy()
-            majority_row.loc[minority_labels] = False
+            majority_row.loc[minority_labels] = None
             majority_rows.append(majority_row)
 
             minority_row = row[data.columns].copy()
-            minority_row.loc[majority_labels] = False
+            minority_row.loc[majority_labels] = None
             minority_rows.append(minority_row)
 
         majority_rows = pd.DataFrame(majority_rows, columns=data.columns)
