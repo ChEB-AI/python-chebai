@@ -88,17 +88,19 @@ class _ResampledDynamicDataset(_DynamicDataset):
         print("Resampling with REMEDIAL...")
         print(data.head())
         labels = data.columns[3:]
-        print(f"Number of labels: {len(labels)}, first 10 labels: {labels[:10]}")
+        print(f"Number of labels: {len(labels)}, first 5 labels: {labels[:5]}")
         label_frequencies = data[labels].sum()
-        print("Label frequencies before resampling:")
-        print(len(label_frequencies), label_frequencies[:10])
+        print(
+            f"{len(label_frequencies)} label frequencies before resampling, starting with: "
+        )
+        print(label_frequencies[:5])
         max_freq = label_frequencies.max()
         print(f"Maximum label frequency: {max_freq}")
         irlbl = max_freq / label_frequencies
-        print("Imbalance ratio per label:")
-        print(len(irlbl), irlbl[:10])
+        print(f"{len(irlbl)} imbalance ratios per label, starting with: ")
+        print(irlbl[:5])
         meanir = irlbl.mean()
-        print(f"Mean imbalance ratio: {meanir}")
+        print(f"Mean imbalance ratio: {meanir:.2f}")
         with open(
             os.path.join(self.processed_dir_main, "label_imbalance_ratios.csv"), "w"
         ) as f:
@@ -145,25 +147,36 @@ class _ResampledDynamicDataset(_DynamicDataset):
             f"Minority labels: {len(minority_labels)}, first 10: {minority_labels[:10]}"
         )
 
-        # split instances where scumble > mean into two copies, one with only majority labels and one with only minority labels
-        # Drop train instances with NaN scumble (no labels)
+        # Split only rows whose positive labels span both label groups.
+        # Rows with labels from just one side stay unchanged.
         nan_scumble_idx = train_data.index[train_data["scumble"].isna()]
-        # Identify train instances to split
         high_scumble = train_data[train_data["scumble"] > scumble_mean]
 
-        # Build majority and minority copies of high-scumble rows with zeroed-out labels
-        majority_rows = high_scumble[data.columns].copy()
-        for col in majority_rows.columns[3:]:
-            majority_rows[col] = majority_rows[col].astype(bool)
-        majority_rows[minority_labels] = None
+        split_indices = []
+        majority_rows = []
+        minority_rows = []
 
-        minority_rows = high_scumble[data.columns].copy()
-        for col in minority_rows.columns[3:]:
-            minority_rows[col] = minority_rows[col].astype(bool)
-        minority_rows[majority_labels] = None
+        for _, row in high_scumble.iterrows():
+            has_majority = bool(row[majority_labels].fillna(False).any())
+            has_minority = bool(row[minority_labels].fillna(False).any())
+            if not (has_majority and has_minority):
+                continue
 
-        # Indices to remove from the original data: NaN-scumble rows + rows that were split
-        indices_to_drop = nan_scumble_idx.union(high_scumble.index)
+            split_indices.append(row.name)
+
+            majority_row = row[data.columns].copy()
+            majority_row.loc[minority_labels] = False
+            majority_rows.append(majority_row)
+
+            minority_row = row[data.columns].copy()
+            minority_row.loc[majority_labels] = False
+            minority_rows.append(minority_row)
+
+        majority_rows = pd.DataFrame(majority_rows, columns=data.columns)
+        minority_rows = pd.DataFrame(minority_rows, columns=data.columns)
+
+        # Drop only rows that were actually split; keep all other high-scumble rows unchanged.
+        indices_to_drop = nan_scumble_idx.union(pd.Index(split_indices))
 
         print(
             f"Number of majority rows to add: {len(majority_rows)}, number of minority rows to add: {len(minority_rows)}, number of original rows to drop: {len(indices_to_drop)}"
