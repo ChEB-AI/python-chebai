@@ -19,6 +19,7 @@ class _ResampledDynamicDataset(_DynamicDataset):
     """
 
     _RESAMPLED_PKL_FILENAME: str = "data_resampled.pkl"
+    INTEGER_IDS: bool = True
 
     def __init__(self, **kwargs):
         # splits_file_path has to be provided
@@ -84,10 +85,13 @@ class _ResampledDynamicDataset(_DynamicDataset):
         Returns:
             pd.DataFrame: The resampled dataset.
         """
-        train_instances = [int(id) for id in train_instances]
+        print(self.INTEGER_IDS)
+        train_instances = [
+            int(id) if self.INTEGER_IDS else id for id in train_instances
+        ]
         print("Resampling with REMEDIAL...")
         print(data.head())
-        labels = data.columns[3:]
+        labels = data.columns[self._LABELS_START_IDX :]
         print(f"Number of labels: {len(labels)}, first 5 labels: {labels[:5]}")
         label_frequencies = data[labels].sum()
         print(
@@ -107,33 +111,36 @@ class _ResampledDynamicDataset(_DynamicDataset):
             for label, ir in irlbl.items():
                 f.write(f"{label},{ir}\n")
 
-        train_data = data[data[CHEBI_ID_KEY].isin(train_instances)]
+        train_data = data[data.iloc[:, self._ID_IDX].isin(train_instances)]
         if os.path.isfile(os.path.join(self.processed_dir_main, "data_scumble.csv")):
             print("Scumble scores already calculated, loading from file...")
             scumble_df = pd.read_csv(
                 os.path.join(self.processed_dir_main, "data_scumble.csv")
             )
-            scumble_df[CHEBI_ID_KEY] = scumble_df[CHEBI_ID_KEY].astype(str)
-            scumble_dict = dict(zip(scumble_df[CHEBI_ID_KEY], scumble_df["scumble"]))
-            train_data["scumble"] = train_data[CHEBI_ID_KEY].map(scumble_dict)
+            scumble_df.iloc[:, self._ID_IDX] = scumble_df.iloc[:, self._ID_IDX].astype(
+                str
+            )
+            scumble_dict = dict(
+                zip(scumble_df.iloc[:, self._ID_IDX], scumble_df["scumble"])
+            )
+            train_data["scumble"] = train_data.iloc[:, self._ID_IDX].map(scumble_dict)
         else:
             for row in tqdm.tqdm(
                 train_data.itertuples(),
                 total=len(train_data),
                 desc="Calculating scumble scores",
             ):
-                label_values = row[4:]
+                # index is now part of the row, so label values start at _LABELS_START_IDX + 1
+                label_values = row[self._LABELS_START_IDX + 1 :]
                 label_imbalance_ratios = irlbl[[v == 1 for v in label_values]]
                 scumble_score = self.scumble(label_imbalance_ratios)
                 train_data.loc[row[0], "scumble"] = scumble_score
             with open(
                 os.path.join(self.processed_dir_main, "data_scumble.csv"), "w"
             ) as f:
-                f.write(f"{CHEBI_ID_KEY},scumble\n")
+                f.write("id,scumble\n")
                 for row in train_data.itertuples():
-                    f.write(
-                        f"{row.id if CHEBI_ID_KEY == 'id' else row.chebi_id},{row.scumble}\n"
-                    )
+                    f.write(f"{row[self._ID_IDX]},{row.scumble}\n")
         scumble_mean = train_data["scumble"].mean()
         print(f"Mean scumble score: {scumble_mean}")
 
@@ -243,7 +250,11 @@ class _ResampledDynamicDataset(_DynamicDataset):
 
 
 def bootstrap_data(
-    data: pd.DataFrame, train_instances: list[str], seed: int = 42
+    data: pd.DataFrame,
+    train_instances: list[str],
+    seed: int = 42,
+    id_idx: int = 0,
+    integer_ids: bool = True,
 ) -> pd.DataFrame:
     """
     Bootstrap the training instances in the dataset.
@@ -257,14 +268,18 @@ def bootstrap_data(
     """
     print("Bootstrapping data...")
     train_data = data[
-        data[CHEBI_ID_KEY].isin([int(ident) for ident in train_instances])
+        data.iloc[:, id_idx].isin(
+            [int(ident) if integer_ids else ident for ident in train_instances]
+        )
     ]
     bootstrapped_data = train_data.sample(
         n=len(train_data), replace=True, random_state=seed
     )
     # Add non-train instances back to the bootstrapped data
     non_train_data = data[
-        ~data[CHEBI_ID_KEY].isin([int(ident) for ident in train_instances])
+        ~data.iloc[:, id_idx].isin(
+            [int(ident) if integer_ids else ident for ident in train_instances]
+        )
     ]
     bootstrapped_data = pd.concat(
         [bootstrapped_data, non_train_data], ignore_index=True
@@ -279,6 +294,8 @@ class _BootstrapDynamicDataset(_DynamicDataset):
     Args:
         **kwargs: Additional keyword arguments passed to :class:`_DynamicDataset`.
     """
+
+    INTEGER_IDS: bool = True
 
     def __init__(self, bag_name: str, input_data_file: str, **kwargs):
         # splits_file_path has to be provided
@@ -320,7 +337,11 @@ class _BootstrapDynamicDataset(_DynamicDataset):
             train_ids = splits_df[splits_df["split"] == "train"]["id"].values
 
             bag_df = bootstrap_data(
-                standard_df, train_ids, self.dynamic_data_split_seed
+                standard_df,
+                train_ids,
+                self.dynamic_data_split_seed,
+                self._ID_IDX,
+                self.INTEGER_IDS,
             )
             self.save_processed(bag_df, self.processed_main_file_names_dict["data"])
 
@@ -340,7 +361,12 @@ class _BootstrapDynamicDataset(_DynamicDataset):
 
 
 def oversample(
-    data: pd.DataFrame, train_instances: list[str], sampling_rate: float = 0.1
+    data: pd.DataFrame,
+    train_instances: list[str],
+    labels_start_idx,
+    sampling_rate: float = 0.1,
+    id_idx: int = 0,
+    integer_ids: bool = True,
 ) -> pd.DataFrame:
     """
     Oversample the training instances in the dataset using ML-ROS.
@@ -354,13 +380,15 @@ def oversample(
         pd.DataFrame: The oversampled dataset.
     """
     train_data = data[
-        data[CHEBI_ID_KEY].isin([int(ident) for ident in train_instances])
+        data.iloc[:, id_idx].isin(
+            [int(ident) if integer_ids else ident for ident in train_instances]
+        )
     ].reset_index(drop=True)
     # Implementation for oversampling logic
     samples_to_add = sampling_rate * len(train_instances)
     print(f"Need to add {samples_to_add} samples to data")
     # calculate label imbalance ratios
-    labels = train_data.columns[3:]
+    labels = train_data.columns[labels_start_idx:]
     label_frequencies = train_data[labels].sum()
     max_freq = label_frequencies.max()
     irlbl = max_freq / label_frequencies
@@ -406,6 +434,8 @@ class _MLROSDynamicDataset(_DynamicDataset):
         **kwargs: Additional keyword arguments passed to :class:`_DynamicDataset`.
     """
 
+    INTEGER_IDS: bool = True
+
     def __init__(
         self,
         take_from_file: str,
@@ -448,7 +478,14 @@ class _MLROSDynamicDataset(_DynamicDataset):
             splits_df = pd.read_csv(self.splits_file_path)
             splits_df["id"] = splits_df["id"].astype(str)
             train_ids = splits_df[splits_df["split"] == "train"]["id"].values
-            extra_samples = oversample(take_from_df, train_ids, self.sampling_rate)
+            extra_samples = oversample(
+                take_from_df,
+                train_ids,
+                self._LABELS_START_IDX,
+                self.sampling_rate,
+                id_idx=self._ID_IDX,
+                integer_ids=self.INTEGER_IDS,
+            )
             add_to_df = pd.concat([add_to_df, extra_samples], ignore_index=True)
 
             self.save_processed(add_to_df, self.processed_main_file_names_dict["data"])
