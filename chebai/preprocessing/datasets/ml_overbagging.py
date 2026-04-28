@@ -188,7 +188,7 @@ class _ResampledDynamicDataset(_DynamicDataset):
         print(
             f"Number of majority rows to add: {len(majority_rows)}, number of minority rows to add: {len(minority_rows)}, number of original rows to drop: {len(indices_to_drop)}"
         )
-        for col in data.columns[3:]:
+        for col in data.columns[self._LABELS_START_IDX :]:
             data[col] = data[col].astype(bool)
 
         resampled_data = pd.concat(
