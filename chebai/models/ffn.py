@@ -89,9 +89,14 @@ class FFN(ChebaiBaseNet):
             tuple: A tuple containing the processed model output, labels, and loss arguments.
         """
         kwargs_copy = dict(loss_kwargs)
+        output = model_output["logits"]
         if labels is not None:
             labels = labels.float()
-        return model_output["logits"], labels, kwargs_copy
+        if "missing_labels" in kwargs_copy:
+            missing_labels = kwargs_copy.pop("missing_labels")
+            output = output * (~missing_labels).int() - 10000 * missing_labels.int()
+            labels = labels * (~missing_labels).int()
+        return output, labels, kwargs_copy
 
     def forward(self, data, **kwargs):
         x = data["features"]
