@@ -21,12 +21,13 @@ class _ResampledDynamicDataset(_DynamicDataset):
     _RESAMPLED_PKL_FILENAME: str = "data_resampled.pkl"
     INTEGER_IDS: bool = True
 
-    def __init__(self, **kwargs):
+    def __init__(self, split_all_mixed_samples: bool = False, **kwargs):
         # splits_file_path has to be provided
         if "splits_file_path" not in kwargs:
             raise ValueError(
                 "`splits_file_path` must be provided for resampled datasets. To generate a new dataset, use the regular dataset classes"
             )
+        self.split_all_mixed_samples = split_all_mixed_samples
         super().__init__(**kwargs)
 
     # ------------------------------ Phase: Prepare data -----------------------------------
@@ -59,7 +60,11 @@ class _ResampledDynamicDataset(_DynamicDataset):
             splits_df["id"] = splits_df["id"].astype(str)
             train_ids = splits_df[splits_df["split"] == "train"]["id"].values
 
-            resampled_df = self._resample_data(standard_df, train_ids)
+            resampled_df = self._resample_data(
+                standard_df,
+                train_ids,
+                split_all_mixed_samples=self.split_all_mixed_samples,
+            )
             self.save_processed(resampled_df, self._RESAMPLED_PKL_FILENAME)
 
     def scumble(self, label_imbalance_ratios):
@@ -73,7 +78,10 @@ class _ResampledDynamicDataset(_DynamicDataset):
         return scumble_score
 
     def _resample_data(
-        self, data: pd.DataFrame, train_instances: list[str]
+        self,
+        data: pd.DataFrame,
+        train_instances: list[str],
+        split_all_mixed_samples: bool = False,
     ) -> pd.DataFrame:
         """
         Resample the standard ChEBI dataset with REMEDIAL.
@@ -155,15 +163,20 @@ class _ResampledDynamicDataset(_DynamicDataset):
         )
 
         # Split only rows whose positive labels span both label groups.
-        # Rows with labels from just one side stay unchanged.
+        # Rows with labels from just one side stay unchanged unless the caller
+        # explicitly asks to split all mixed-label samples.
         nan_scumble_idx = train_data.index[train_data["scumble"].isna()]
-        high_scumble = train_data[train_data["scumble"] > scumble_mean]
+        candidate_rows = (
+            train_data
+            if split_all_mixed_samples
+            else train_data[train_data["scumble"] > scumble_mean]
+        )
 
         split_indices = []
         majority_rows = []
         minority_rows = []
 
-        for _, row in high_scumble.iterrows():
+        for _, row in candidate_rows.iterrows():
             has_majority = bool(row[majority_labels].fillna(False).any())
             has_minority = bool(row[minority_labels].fillna(False).any())
             if not (has_majority and has_minority):
