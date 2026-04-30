@@ -120,35 +120,20 @@ class _ResampledDynamicDataset(_DynamicDataset):
                 f.write(f"{label},{ir}\n")
 
         train_data = data[data.iloc[:, self._ID_IDX].isin(train_instances)]
-        if os.path.isfile(os.path.join(self.processed_dir_main, "data_scumble.csv")):
-            print("Scumble scores already calculated, loading from file...")
-            scumble_df = pd.read_csv(
-                os.path.join(self.processed_dir_main, "data_scumble.csv")
-            )
-            scumble_df.iloc[:, self._ID_IDX] = scumble_df.iloc[:, self._ID_IDX].astype(
-                str
-            )
-            scumble_dict = dict(
-                zip(scumble_df.iloc[:, self._ID_IDX], scumble_df["scumble"])
-            )
-            train_data["scumble"] = train_data.iloc[:, self._ID_IDX].map(scumble_dict)
-        else:
-            for row in tqdm.tqdm(
-                train_data.itertuples(),
-                total=len(train_data),
-                desc="Calculating scumble scores",
-            ):
-                # index is now part of the row, so label values start at _LABELS_START_IDX + 1
-                label_values = row[self._LABELS_START_IDX + 1 :]
-                label_imbalance_ratios = irlbl[[v == 1 for v in label_values]]
-                scumble_score = self.scumble(label_imbalance_ratios)
-                train_data.loc[row[0], "scumble"] = scumble_score
-            with open(
-                os.path.join(self.processed_dir_main, "data_scumble.csv"), "w"
-            ) as f:
-                f.write("id,scumble\n")
-                for row in train_data.itertuples():
-                    f.write(f"{row[self._ID_IDX]},{row.scumble}\n")
+        for row in tqdm.tqdm(
+            train_data.itertuples(),
+            total=len(train_data),
+            desc="Calculating scumble scores",
+        ):
+            # index is now part of the row, so label values start at _LABELS_START_IDX + 1
+            label_values = row[self._LABELS_START_IDX + 1 :]
+            label_imbalance_ratios = irlbl[[v == 1 for v in label_values]]
+            scumble_score = self.scumble(label_imbalance_ratios)
+            train_data.loc[row[0], "scumble"] = scumble_score
+        with open(os.path.join(self.processed_dir_main, "data_scumble.csv"), "w") as f:
+            f.write("id,scumble\n")
+            for row in train_data.itertuples():
+                f.write(f"{row[self._ID_IDX]},{row.scumble}\n")
         scumble_mean = train_data["scumble"].mean()
         print(f"Mean scumble score: {scumble_mean}")
 
@@ -175,11 +160,17 @@ class _ResampledDynamicDataset(_DynamicDataset):
         split_indices = []
         majority_rows = []
         minority_rows = []
+        only_minority_rows = 0
+        only_majority_rows = 0
 
         for _, row in candidate_rows.iterrows():
             has_majority = bool(row[majority_labels].fillna(False).any())
             has_minority = bool(row[minority_labels].fillna(False).any())
             if not (has_majority and has_minority):
+                if has_majority and not has_minority:
+                    only_majority_rows += 1
+                elif has_minority and not has_majority:
+                    only_minority_rows += 1
                 continue
 
             split_indices.append(row.name)
@@ -200,6 +191,9 @@ class _ResampledDynamicDataset(_DynamicDataset):
 
         print(
             f"Number of majority rows to add: {len(majority_rows)}, number of minority rows to add: {len(minority_rows)}, number of original rows to drop: {len(indices_to_drop)}"
+        )
+        print(
+            f"Number of rows with only majority labels: {only_majority_rows}, number of rows with only minority labels: {only_minority_rows}"
         )
         for col in data.columns[self._LABELS_START_IDX :]:
             data[col] = data[col].astype(bool)

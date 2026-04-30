@@ -1751,9 +1751,10 @@ if __name__ == "__main__":
     dataset = ChEBI50Resampled(
         chebi_version="241",
         splits_file_path=os.path.join(
-            "data", "chebi_v248", "ChEBI50", "processed", "splits_chebi50_v248.csv"
+            "data", "chebi_v241", "ChEBI50", "processed", "splits_chebi50_v241.csv"
         ),
         batch_size=32,
+        split_all_mixed_samples=False,
     )
     dataset.prepare_data()
-    dataset.setup()
+    # dataset.setup()
