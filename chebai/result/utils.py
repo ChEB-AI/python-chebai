@@ -119,7 +119,8 @@ def evaluate_model(
     Returns:
         Tensors with predictions and labels.
     """
-    assert model.model_type == "classification"
+    if hasattr(model, "model_type"):
+        assert model.model_type == "classification"
     model.eval()
     collate = data_module.reader.COLLATOR()
 
@@ -183,7 +184,6 @@ def evaluate_model(
                 _concat_tuple(labels_list),
                 os.path.join(buffer_dir, f"labels{save_ind:03d}.pt"),
             )
-    return torch.cat(preds_list), torch.cat(labels_list)
 
 
 def evaluate_model_regression(
