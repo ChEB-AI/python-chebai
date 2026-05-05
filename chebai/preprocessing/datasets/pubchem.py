@@ -40,14 +40,14 @@ class PubChem(_DynamicDataset):
     _DATA_REPRESENTATION_IDX: int = 1
     _LABELS_START_IDX: int = 2
 
-    def __init__(self, *args, k: Optional[int] = 100000, **kwargs):
+    def __init__(self, *args, n_samples: Optional[int] = 100000, **kwargs):
         """
         Args:
-            k (Optional[int]): Number of samples to use. Set to `PubChem.FULL` for full dataset.
+            n_samples (Optional[int]): Number of samples to use. Set to `PubChem.FULL` for full dataset.
             *args: Additional arguments for superclass initialization.
             **kwargs: Additional keyword arguments for superclass initialization.
         """
-        self._k = k
+        self._n_samples = n_samples
         current_year = datetime.today().year
         current_month = datetime.today().month
         self.pubchem_url = f"https://ftp.ncbi.nlm.nih.gov/pubchem/Compound/Monthly/{current_year}-{current_month:02d}-01/Extras/CID-SMILES.gz"
@@ -86,8 +86,8 @@ class PubChem(_DynamicDataset):
         Returns:
             str: Label indicating the split of the dataset ('full' or a specific number).
         """
-        if self._k and self._k != self.FULL:
-            return str(self._k)
+        if self._n_samples and self._n_samples != self.FULL:
+            return str(self._n_samples)
         else:
             return "full"
 
@@ -148,7 +148,7 @@ class PubChem(_DynamicDataset):
         Downloads PubChem data based on `_k` parameter.
         """
         if not os.path.isfile(os.path.join(self.raw_dir, "smiles.txt")):
-            if self._k == PubChem.FULL:
+            if self._n_samples == PubChem.FULL:
                 print("Download from", self.pubchem_url)
                 r = requests.get(self.pubchem_url, allow_redirects=True)
                 with tempfile.NamedTemporaryFile() as tf:
@@ -161,13 +161,15 @@ class PubChem(_DynamicDataset):
                         ) as f_out:
                             shutil.copyfileobj(f_in, f_out)
             else:
-                full_dataset = self.__class__(k=PubChem.FULL)
+                full_dataset = self.__class__(n_samples=PubChem.FULL)
                 full_dataset.download()
                 with open(
                     os.path.join(full_dataset.raw_dir, "smiles.txt"), "r"
                 ) as f_in:
                     lines = sum(1 for _ in f_in)
-                    selected = frozenset(random.sample(list(range(lines)), k=self._k))
+                    selected = frozenset(
+                        random.sample(list(range(lines)), k=self._n_samples)
+                    )
                     f_in.seek(0)
                     selected_lines = list(
                         filter(
@@ -264,16 +266,16 @@ class PubChemBatched(PubChem):
         super(PubChemBatched, self).__init__(*args, **kwargs)
         self.curr_epoch = 0
         self.train_batch_size = train_batch_size
-        if self._k != self.FULL:
+        if self._n_samples != self.FULL:
             self.val_batch_size = (
                 100_000
-                if self.validation_split * self._k > 100_000
-                else int(self.validation_split * self._k)
+                if self.validation_split * self._n_samples > 100_000
+                else int(self.validation_split * self._n_samples)
             )
             self.test_batch_size = (
                 100_000
-                if self.test_split * self._k > 100_000
-                else int(self.test_split * self._k)
+                if self.test_split * self._n_samples > 100_000
+                else int(self.test_split * self._n_samples)
             )
         else:
             self.val_batch_size = 100_000
@@ -286,7 +288,9 @@ class PubChemBatched(PubChem):
             List[str]: List of processed data file names.
         """
         train_samples = (
-            self._k if self._k != self.FULL else 120_000_000  # estimated PubChem size
+            self._n_samples
+            if self._n_samples != self.FULL
+            else 120_000_000  # estimated PubChem size
         )  # estimate size
         train_samples -= self.val_batch_size + self.test_batch_size
         train_batches = (
@@ -399,19 +403,6 @@ class PubChemBatched(PubChem):
         )
 
 
-class PubchemChem(PubChem):
-    """
-    Subset of PubChem using ChemDataReader for data reading.
-
-    Inherits from PubChem.
-
-    Attributes:
-        READER (type): Data reader type for chemical data (ChemDataReader).
-    """
-
-    READER: Type[dr.ChemDataReader] = dr.ChemDataReader
-
-
 class LabeledUnlabeledMixed(XYBaseDataModule):
     """
     Mixed dataset combining labeled and unlabeled data.
@@ -511,7 +502,7 @@ class PubToxAndChebiX(LabeledUnlabeledMixed):
             **kwargs: Additional keyword arguments.
         """
         super().__init__(
-            self.CHEBI_X(*args, **kwargs), PubchemChem(*args, **kwargs), *args, **kwargs
+            self.CHEBI_X(*args, **kwargs), PubChem(*args, **kwargs), *args, **kwargs
         )
 
     @property
@@ -575,6 +566,6 @@ class PubChemSELFIES(PubChem):
 
 
 if __name__ == "__main__":
-    dataset = PubchemChem(k=10000)
+    dataset = PubChem(k=10000)
     dataset.prepare_data()
     dataset.setup()
