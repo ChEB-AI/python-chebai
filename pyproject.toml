@@ -24,6 +24,7 @@ dependencies = [
     "rdkit==2024.3.6",
     "lightning==2.5.1",
     "jsonargparse[signatures]>=4.17",
+    "chembl_structure_pipeline",
 ]
 
 [project.optional-dependencies]
@@ -35,12 +36,11 @@ dev = [
     "requests",
     "scikit-learn",
     "scipy",
-    "fastobo",
     "selfies",
     "omegaconf",
     "deepsmiles",
-    "iterative-stratification",
     "torchmetrics",
+    "chebi-utils>=0.1.1",
 ]
 
 linters = [

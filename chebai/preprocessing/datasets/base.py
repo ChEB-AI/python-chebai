@@ -340,17 +340,18 @@ class XYBaseDataModule(LightningDataModule):
             for d in tqdm.tqdm(self._load_dict(path), total=lines)
             if d["features"] is not None
         ]
-        # filter for missing features in resulting data, keep features length below token limit
-        data = [
-            val
-            for val in data
-            if val["features"] is not None
-            and (
-                self.n_token_limit is None or len(val["features"]) <= self.n_token_limit
-            )
-        ]
 
+        data = [val for val in data if self._filter_to_token_limit(val)]
         return data
+
+    def _filter_to_token_limit(self, data_instance: dict) -> bool:
+        # filter for missing features in resulting data, keep features length below token limit
+        if data_instance["features"] is not None and (
+            self.n_token_limit is None
+            or len(data_instance["features"]) <= self.n_token_limit
+        ):
+            return True
+        return False
 
     def train_dataloader(self, *args, **kwargs) -> Union[DataLoader, List[DataLoader]]:
         """
@@ -401,22 +402,84 @@ class XYBaseDataModule(LightningDataModule):
         Returns:
             Union[DataLoader, List[DataLoader]]: A DataLoader object for test data.
         """
+
         return self.dataloader("test", shuffle=False, **kwargs)
 
     def predict_dataloader(
-        self, *args, **kwargs
-    ) -> Union[DataLoader, List[DataLoader]]:
+        self,
+        smiles_list: List[str],
+        model_hparams: dict,
+        **kwargs,
+    ) -> tuple[DataLoader, list[int]]:
         """
         Returns the predict DataLoader.
 
         Args:
-            *args: Additional positional arguments (unused).
+            smiles_list (List[str]): List of SMILES strings to predict.
+            model_hparams (Optional[dict]): Model hyperparameters.
+                Some prediction pre-processing pipelines may require these.
             **kwargs: Additional keyword arguments, passed to dataloader().
 
         Returns:
-            Union[DataLoader, List[DataLoader]]: A DataLoader object for prediction data.
+            tuple[DataLoader, list[int]]: A DataLoader object for prediction data and a list of valid indices.
         """
-        return self.dataloader(self.prediction_kind, shuffle=False, **kwargs)
+
+        data, valid_indices = self._process_input_for_prediction(
+            smiles_list, model_hparams
+        )
+        return (
+            DataLoader(
+                data,
+                collate_fn=self.reader.collator,
+                batch_size=self.batch_size,
+                **kwargs,
+            ),
+            valid_indices,
+        )
+
+    def _process_input_for_prediction(
+        self, smiles_list: list[str], model_hparams: dict
+    ) -> tuple[list, list]:
+        """
+        Process input data for prediction.
+
+        Args:
+            smiles_list (List[str]): List of SMILES strings.
+            model_hparams (dict): Model hyperparameters.
+                Some prediction pre-processing pipelines may require these.
+
+        Returns:
+            tuple[list, list]: Processed input data and valid indices.
+        """
+        data, valid_indices = [], []
+        num_of_labels = int(model_hparams["out_dim"])
+        self._dummy_labels: list = list(range(1, num_of_labels + 1))
+
+        for idx, smiles in enumerate(smiles_list):
+            result = self._preprocess_smiles_for_pred(idx, smiles, model_hparams)
+            if result is None or result["features"] is None:
+                continue
+            if not self._filter_to_token_limit(result):
+                continue
+            data.append(result)
+            valid_indices.append(idx)
+
+        return data, valid_indices
+
+    def _preprocess_smiles_for_pred(
+        self, idx: int, smiles: str, model_hparams: Optional[dict] = None
+    ) -> dict:
+        """Preprocess prediction data."""
+        # Add dummy labels because the collate function requires them.
+        # Note: If labels are set to `None`, the collator will insert a `non_null_labels` entry into `loss_kwargs`,
+        # which later causes `_get_prediction_and_labels` method in the prediction pipeline to treat the data as empty.
+        return self.reader.to_data(
+            {
+                "id": f"smiles_{idx}",
+                "features": smiles,
+                "labels": self._dummy_labels,
+            }
+        )
 
     def prepare_data(self, *args, **kwargs) -> None:
         if self._prepare_data_flag != 1:
@@ -451,11 +514,13 @@ class XYBaseDataModule(LightningDataModule):
 
         rank_zero_info(f"Check for processed data in {self.processed_dir}")
         rank_zero_info(f"Cross-validation enabled: {self.use_inner_cross_validation}")
-        rank_zero_info(f"Looking for files: {self.processed_file_names}")
         if any(
             not os.path.isfile(os.path.join(self.processed_dir, f))
             for f in self.processed_file_names
         ):
+            rank_zero_info(
+                f"Did not find one of: {', '.join(self.processed_file_names)} in {self.processed_dir}"
+            )
             self.setup_processed()
 
         self._after_setup(**kwargs)
@@ -562,6 +627,19 @@ class XYBaseDataModule(LightningDataModule):
             dict: The dictionary of raw file names.
         """
         raise NotImplementedError
+
+    @property
+    def classes_txt_file_path(self) -> Optional[str]:
+        """
+        Returns the filename for the classes text file (for labeled datasets that produce a list of labels).
+
+        Returns:
+            Optional[str]: The filename for the classes text file.
+        """
+        # This property also used in following places:
+        #   - chebai/result/prediction.py: to load class names for csv columns names
+        #   - chebai/cli.py: to link this property to `model.init_args.classes_txt_file_path`
+        return None
 
 
 class MergedDataset(XYBaseDataModule):
@@ -831,7 +909,9 @@ class _DynamicDataset(XYBaseDataModule, ABC):
             print(f"Missing processed data file (`{processed_name}` file)")
             os.makedirs(self.processed_dir_main, exist_ok=True)
             data_path = self._download_required_data()
-            g = self._extract_class_hierarchy(data_path)
+            from chebi_utils import build_chebi_graph
+
+            g = build_chebi_graph(data_path)
             data_df = self._graph_to_raw_dataset(g)
             self.save_processed(data_df, processed_name)
 
@@ -846,25 +926,10 @@ class _DynamicDataset(XYBaseDataModule, ABC):
         pass
 
     @abstractmethod
-    def _extract_class_hierarchy(self, data_path: str) -> "nx.DiGraph":
-        """
-        Extracts the class hierarchy from the data.
-        Constructs a directed graph (DiGraph) using NetworkX, where nodes are annotated with fields/terms from
-        the term documents.
-
-        Args:
-            data_path (str): Path to the data.
-
-        Returns:
-            nx.DiGraph: The class hierarchy graph.
-        """
-        pass
-
-    @abstractmethod
     def _graph_to_raw_dataset(self, graph: "nx.DiGraph") -> pd.DataFrame:
         """
         Converts the graph to a raw dataset.
-        Uses the graph created by `_extract_class_hierarchy` method to extract the
+        Uses the graph created by chebi_utils to extract the
         raw data in Dataframe format with additional columns corresponding to each multi-label class.
 
         Args:
@@ -872,21 +937,6 @@ class _DynamicDataset(XYBaseDataModule, ABC):
 
         Returns:
             pd.DataFrame: The raw dataset.
-        """
-        pass
-
-    @abstractmethod
-    def select_classes(self, g: "nx.DiGraph", *args, **kwargs) -> List:
-        """
-        Selects classes from the dataset based on a specified criteria.
-
-        Args:
-            g (nx.Graph): The graph representing the dataset.
-            *args: Additional positional arguments.
-            **kwargs: Additional keyword arguments.
-
-        Returns:
-            List: A sorted list of node IDs that meet the specified criteria.
         """
         pass
 
@@ -1047,120 +1097,6 @@ class _DynamicDataset(XYBaseDataModule, ABC):
         """
         pass
 
-    def get_test_split(
-        self, df: pd.DataFrame, seed: Optional[int] = None
-    ) -> Tuple[pd.DataFrame, pd.DataFrame]:
-        """
-        Split the input DataFrame into training and testing sets based on multilabel stratified sampling.
-
-        This method uses MultilabelStratifiedShuffleSplit to split the data such that the distribution of labels
-        in the training and testing sets is approximately the same. The split is based on the "labels" column
-        in the DataFrame.
-
-        Args:
-            df (pd.DataFrame): The input DataFrame containing the data to be split. It must contain a column
-                               named "labels" with the multilabel data.
-            seed (int, optional): The random seed to be used for reproducibility. Default is None.
-
-        Returns:
-            Tuple[pd.DataFrame, pd.DataFrame]: A tuple containing the training set and testing set DataFrames.
-
-        Raises:
-            ValueError: If the DataFrame does not contain a column named "labels".
-        """
-        from iterstrat.ml_stratifiers import MultilabelStratifiedShuffleSplit
-        from sklearn.model_selection import StratifiedShuffleSplit
-
-        print("Get test data split")
-
-        labels_list = df["labels"].tolist()
-
-        if len(labels_list[0]) > 1:
-            splitter = MultilabelStratifiedShuffleSplit(
-                n_splits=1, test_size=self.test_split, random_state=seed
-            )
-        else:
-            splitter = StratifiedShuffleSplit(
-                n_splits=1, test_size=self.test_split, random_state=seed
-            )
-
-        train_indices, test_indices = next(splitter.split(labels_list, labels_list))
-
-        df_train = df.iloc[train_indices]
-        df_test = df.iloc[test_indices]
-        return df_train, df_test
-
-    def get_train_val_splits_given_test(
-        self, df: pd.DataFrame, test_df: pd.DataFrame, seed: int = None
-    ) -> Union[Dict[str, pd.DataFrame], Tuple[pd.DataFrame, pd.DataFrame]]:
-        """
-        Split the dataset into train and validation sets, given a test set.
-        Use test set (e.g., loaded from another source or generated in get_test_split), to avoid overlap
-
-        Args:
-            df (pd.DataFrame): The original dataset.
-            test_df (pd.DataFrame): The test dataset.
-            seed (int, optional): The random seed to be used for reproducibility. Default is None.
-
-        Returns:
-            Union[Dict[str, pd.DataFrame], Tuple[pd.DataFrame, pd.DataFrame]]: A dictionary containing train and
-                validation sets if self.use_inner_cross_validation is True, otherwise a tuple containing the train
-                and validation DataFrames. The keys are the names of the train and validation sets, and the values
-                are the corresponding DataFrames.
-        """
-        from iterstrat.ml_stratifiers import (
-            MultilabelStratifiedKFold,
-            MultilabelStratifiedShuffleSplit,
-        )
-        from sklearn.model_selection import StratifiedShuffleSplit
-
-        print("Split dataset into train / val with given test set")
-
-        test_ids = test_df["ident"].tolist()
-        df_trainval = df[~df["ident"].isin(test_ids)]
-        labels_list_trainval = df_trainval["labels"].tolist()
-
-        if self.use_inner_cross_validation:
-            folds = {}
-            kfold = MultilabelStratifiedKFold(
-                n_splits=self.inner_k_folds, random_state=seed
-            )
-            for fold, (train_ids, val_ids) in enumerate(
-                kfold.split(
-                    labels_list_trainval,
-                    labels_list_trainval,
-                )
-            ):
-                df_validation = df_trainval.iloc[val_ids]
-                df_train = df_trainval.iloc[train_ids]
-                folds[self.raw_file_names_dict[f"fold_{fold}_train"]] = df_train
-                folds[self.raw_file_names_dict[f"fold_{fold}_validation"]] = (
-                    df_validation
-                )
-
-            return folds
-
-        if len(labels_list_trainval[0]) > 1:
-            splitter = MultilabelStratifiedShuffleSplit(
-                n_splits=1,
-                test_size=self.validation_split / (1 - self.test_split),
-                random_state=seed,
-            )
-        else:
-            splitter = StratifiedShuffleSplit(
-                n_splits=1,
-                test_size=self.validation_split / (1 - self.test_split),
-                random_state=seed,
-            )
-
-        train_indices, validation_indices = next(
-            splitter.split(labels_list_trainval, labels_list_trainval)
-        )
-
-        df_validation = df_trainval.iloc[validation_indices]
-        df_train = df_trainval.iloc[train_indices]
-        return df_train, df_validation
-
     def _retrieve_splits_from_csv(self) -> None:
         """
         Retrieve previously saved data splits from splits.csv file or from provided file path.
@@ -1189,7 +1125,8 @@ class _DynamicDataset(XYBaseDataModule, ABC):
             print(f"Applying label filter from {self.apply_label_filter}...")
             with open(self.apply_label_filter, "r") as f:
                 label_filter = [line.strip() for line in f]
-            with open(os.path.join(self.processed_dir_main, "classes.txt"), "r") as cf:
+
+            with open(self.classes_txt_file_path, "r") as cf:
                 classes = [line.strip() for line in cf]
             # reorder labels
             old_labels = np.stack(df_data["labels"])
@@ -1197,6 +1134,7 @@ class _DynamicDataset(XYBaseDataModule, ABC):
             new_labels = old_labels[:, label_mapping]
             df_data["labels"] = list(new_labels)
 
+        splits_df["id"] = splits_df["id"].astype(str)
         train_ids = splits_df[splits_df["split"] == "train"]["id"]
         validation_ids = splits_df[splits_df["split"] == "validation"]["id"]
         test_ids = splits_df[splits_df["split"] == "test"]["id"]
@@ -1329,3 +1267,16 @@ class _DynamicDataset(XYBaseDataModule, ABC):
         if self.n_token_limit is not None:
             return {"data": f"data_maxlen{self.n_token_limit}.pt"}
         return {"data": "data.pt"}
+
+    @property
+    def classes_txt_file_path(self) -> str:
+        """
+        Returns the filename for the classes text file.
+
+        Returns:
+            str: The filename for the classes text file.
+        """
+        # This property also used in following places:
+        #   - chebai/result/prediction.py: to load class names for csv columns names
+        #   - chebai/cli.py: to link this property to `model.init_args.classes_txt_file_path`
+        return os.path.join(self.processed_dir_main, "classes.txt")

@@ -2,7 +2,7 @@ class_path: chebai.models.Electra
 init_args:
   model_type: classification
   optimizer_kwargs:
-    lr: 1e-4
+    lr: 1e-3
   config:
     vocab_size: 4400
     max_position_embeddings: 1800

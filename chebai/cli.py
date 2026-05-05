@@ -59,6 +59,12 @@ class ChebaiCLI(LightningCLI):
             apply_on="instantiate",
         )
 
+        parser.link_arguments(
+            "data.classes_txt_file_path",
+            "model.init_args.classes_txt_file_path",
+            apply_on="instantiate",
+        )
+
         for kind in ("train", "val", "test"):
             for average in (
                 "micro-f1",
@@ -111,8 +117,6 @@ class ChebaiCLI(LightningCLI):
             "fit": {"model", "train_dataloaders", "val_dataloaders", "datamodule"},
             "validate": {"model", "dataloaders", "datamodule"},
             "test": {"model", "dataloaders", "datamodule"},
-            "predict": {"model", "dataloaders", "datamodule"},
-            "predict_from_file": {"model"},
         }
 
 

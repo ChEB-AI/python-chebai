@@ -175,7 +175,7 @@ chebai.egg-info
 lightning_logs
 logs
 .isort.cfg
-/.vscode
+/.vscode/launch.json
 
 *.out
 *.err
