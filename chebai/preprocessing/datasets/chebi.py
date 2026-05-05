@@ -557,8 +557,8 @@ class ChEBIFromList(_ChEBIDataExtractor):
 
     def select_classes(self, g: DiGraph, *args, **kwargs) -> List:
         return self.class_list
-      
-      
+
+
 class ChEBIOverX(_ChEBIDataExtractor):
     """
     A class for extracting data from the ChEBI dataset with a threshold for selecting classes.
