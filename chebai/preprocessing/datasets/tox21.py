@@ -161,7 +161,7 @@ class Tox21MolNet(XYBaseDataModule):
             for row in reader:
                 smiles = row["smiles"]
                 labels = [
-                    bool(int(float(label))) if len(label) > 1 else None
+                    bool(int(float(label))) if len(label) >= 1 else None
                     for label in (row[k] for k in self.HEADERS)
                 ]
                 # group = int(row["group"])

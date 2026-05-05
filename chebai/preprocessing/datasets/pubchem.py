@@ -23,9 +23,6 @@ import torch
 import tqdm
 from rdkit import Chem, DataStructs
 from rdkit.Chem import AllChem
-from scipy import spatial
-from sklearn.cluster import KMeans
-from sklearn.model_selection import train_test_split
 
 from chebai.preprocessing import reader as dr
 from chebai.preprocessing.datasets.base import DataLoader, XYBaseDataModule
@@ -106,6 +103,7 @@ class PubChem(XYBaseDataModule):
         Yields:
             dict: Dictionary containing 'features', 'labels' (None), and 'ident' fields.
         """
+        # pubchem IDs are here
         with open(input_file_path, "r") as input_file:
             for row in input_file:
                 ident, smiles = row.split("\t")
@@ -150,6 +148,8 @@ class PubChem(XYBaseDataModule):
         """
         Prepares processed data and saves them as Torch tensors.
         """
+        from sklearn.model_selection import train_test_split
+
         filename = os.path.join(self.raw_dir, self.raw_file_names[0])
         print("Load data from file", filename)
         data = self._load_data_from_file(filename)
@@ -295,6 +295,8 @@ class PubChemBatched(PubChem):
         """
         Prepares processed data and saves them as Torch tensors.
         """
+        from sklearn.model_selection import train_test_split
+
         filename = os.path.join(self.raw_dir, self.raw_file_names[0])
         print("Load data from file", filename)
         data_not_tokenized = [entry for entry in self._load_dict(filename)]
@@ -558,6 +560,8 @@ class PubChemKMeans(PubChem):
         Returns:
             tuple: Tuple containing cluster centers DataFrame and clustered fingerprints DataFrame.
         """
+        from sklearn.cluster import KMeans
+
         fingerprints_clustered_path = os.path.join(
             self.raw_dir, "fingerprints_clustered.pkl"
         )
@@ -604,6 +608,8 @@ class PubChemKMeans(PubChem):
         Returns:
             pd.DataFrame: DataFrame of filtered cluster centers.
         """
+        from scipy import spatial
+
         exclusion_data_path = os.path.join(self.raw_dir, "exclusion_data_clustered.pkl")
         cluster_centers_np = np.array(
             [
@@ -702,6 +708,8 @@ class PubChemKMeans(PubChem):
         Returns:
             pd.DataFrame: DataFrame of superclustered cluster centers.
         """
+        from sklearn.cluster import KMeans
+
         cluster_centers_path = os.path.join(
             self.raw_dir, "cluster_centers_superclustered.pkl"
         )
