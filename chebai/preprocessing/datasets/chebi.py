@@ -7,7 +7,7 @@ import os
 import random
 from abc import ABC
 from itertools import cycle, permutations, product
-from typing import TYPE_CHECKING, Any, Generator, Literal, Optional
+from typing import TYPE_CHECKING, Any, Generator, List, Literal, Optional
 
 from networkx import DiGraph
 import numpy as np
