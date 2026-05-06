@@ -33,9 +33,6 @@ def _build_bracket_atoms() -> List[str]:
 
 
 NON_BRACKET_TOKENS = [
-    # organic subset elements (unbracketed form)
-    # "B", "C", "N", "O", "S", "P", "F", "I", "Cl", "Br",
-    # "b", "c", "n", "o", "s", "p",
     # bonds / structure
     "(",
     ")",
@@ -81,6 +78,9 @@ def _build_default_vocab() -> List[str]:
 SMI_REGEX_PATTERN = r"""(\[[^\]]+]|Br?|Cl?|N|O|S|P|F|I|b|c|n|o|s|p|\(|\)|\.|=|#|->|<-|>>?|-|\+|\\|\/|:|~|@@|@|\?|\*|\$|\%[0-9]{2}|[0-9])"""
 EMBEDDING_OFFSET = 10
 UNKNOWN_TOKEN_IDX = 3
+ORGANIC_SUBSET = frozenset(
+    {"B", "C", "N", "O", "P", "S", "F", "Cl", "Br", "I", "b", "c", "n", "o", "s", "p"}
+)
 
 
 class BasicSmilesTokenizer(object):
@@ -215,11 +215,69 @@ class BasicSmilesTokenizer(object):
         tokens = self.tokenize(text)
         return [self.vocab_dict.get(token, UNKNOWN_TOKEN_IDX) for token in tokens]
 
+    def _reassemble_bracket_atom(
+        self, isotope: str, element: str, charge: int, hydrogens: int, stereo: str
+    ) -> str:
+        if (
+            isotope == "None"
+            and charge == 0
+            and stereo == "None"
+            and hydrogens == 0
+            and element in ORGANIC_SUBSET
+        ):
+            return element
+        inner = ""
+        if isotope != "None":
+            inner += isotope
+        inner += element
+        if stereo != "None":
+            inner += stereo
+        if hydrogens > 0:
+            inner += "H"
+            if hydrogens > 1:
+                inner += str(hydrogens)
+        if charge > 0:
+            inner += "+"
+            if charge > 1:
+                inner += str(charge)
+        elif charge < 0:
+            inner += "-"
+            if charge < -1:
+                inner += str(-charge)
+        return f"[{inner}]"
+
     def decode(self, token_ids, skip_special_tokens=False):
         tokens = [self.idx_to_token.get(idx, "[UNK]") for idx in token_ids]
         if skip_special_tokens:
             tokens = [tok for tok in tokens if tok not in self.vocab_dict]
-        return "".join(tokens)
+
+        result = []
+        i = 0
+        while i < len(tokens):
+            tok = tokens[i]
+            if (
+                tok.startswith("isotope_")
+                and i + 4 < len(tokens)
+                and tokens[i + 1].startswith("element_")
+                and tokens[i + 2].startswith("charge_")
+                and tokens[i + 3].startswith("hydrogens_")
+                and tokens[i + 4].startswith("stereo_")
+            ):
+                result.append(
+                    self._reassemble_bracket_atom(
+                        isotope=tok[len("isotope_") :],
+                        element=tokens[i + 1][len("element_") :],
+                        charge=int(tokens[i + 2][len("charge_") :]),
+                        hydrogens=int(tokens[i + 3][len("hydrogens_") :]),
+                        stereo=tokens[i + 4][len("stereo_") :],
+                    )
+                )
+                i += 5
+            else:
+                result.append(tok)
+                i += 1
+
+        return "".join(result)
 
 
 # ---- quick self-test ------------------------------------------------------
