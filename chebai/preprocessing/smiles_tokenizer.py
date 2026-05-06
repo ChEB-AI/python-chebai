@@ -10,13 +10,11 @@ def _build_bracket_atoms() -> List[str]:
     pt = Chem.GetPeriodicTable()
     elements = [pt.GetElementSymbol(i) for i in range(1, 119)]
     # aromatic forms used in SMILES
-    elements += ["c", "n", "o", "s", "p", "b", "te", "se"]
-    charges = range(-5, 8)
+    elements += ["c", "n", "o", "s", "p", "b", "te", "se", "si"]
+    charges = range(-5, 9)
     hydrogens = range(9)
     stereo = ["None", "@", "@@"]
-    isotopes = range(
-        1, 250
-    )  # 228Ra is the heaviest isotope in ChEBI (CHEBI:80505) - leave some space for future additions
+    isotopes = range(1, 300)  # [295Og] is the heaviest isotope in PubChem
 
     tokens = set()
     for el in elements:
@@ -66,7 +64,7 @@ NON_BRACKET_TOKENS = [
 
 
 def _build_default_vocab() -> List[str]:
-    """Special tokens + non-bracket symbols + bracketed atoms."""
+    """non-bracket symbols + bracketed atoms."""
 
     brackets = _build_bracket_atoms()
 
@@ -87,17 +85,6 @@ UNKNOWN_TOKEN_IDX = 3
 
 class BasicSmilesTokenizer(object):
     """
-    Run basic SMILES tokenization using a regex pattern developed by Schwaller et. al.
-    This tokenizer is to be used when a tokenizer that does not require the transformers library by HuggingFace is required.
-
-    Examples
-    --------
-    >>> from deepchem.feat.smiles_tokenizer import BasicSmilesTokenizer
-    >>> tokenizer = BasicSmilesTokenizer()
-    >>> print(tokenizer.tokenize("CC(=O)OC1=CC=CC=C1C(=O)O"))
-    ['C', 'C', '(', '=', 'O', ')', 'O', 'C', '1', '=', 'C', 'C', '=', 'C', 'C', '=', 'C', '1', 'C', '(', '=', 'O', ')', 'O']
-
-
     References
     ----------
     .. [1] Philippe Schwaller, Teodoro Laino, Théophile Gaudin, Peter Bolgar, Christopher A. Hunter, Costas Bekas, and Alpha A. Lee
@@ -242,12 +229,11 @@ if __name__ == "__main__":
     tok = BasicSmilesTokenizer()
     print(f"Vocab size: {len(tok.vocab)}")
     examples = [
-        "->[se]",
-        # "CC(=O)Oc1ccccc1C(=O)O",          # aspirin
-        # "C[C@H](N)C(=O)O",                 # L-alanine
-        # "[13CH3]CO",                       # isotope
-        # "C1CC2(CCCCC2)CC1",                # spiro
-        # "c1ccc2c(c1)[nH]cn2",              # benzimidazole with [nH]
+        "CC(=O)Oc1ccccc1C(=O)O",  # aspirin
+        "C[C@H](N)C(=O)O",  # L-alanine
+        "[13CH3]CO",  # isotope
+        "C1CC2(CCCCC2)CC1",  # spiro
+        "c1ccc2c(c1)[nH]cn2",  # benzimidazole with [nH]
     ]
 
     for s in examples:
