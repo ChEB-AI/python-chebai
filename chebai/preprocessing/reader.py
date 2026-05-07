@@ -276,12 +276,13 @@ class StaticSMILESReader(DataReader):
         """Returns the name of the data reader."""
         return "static_smiles"
 
-    def _read_data(self, raw_data: str) -> Optional[List[int]]:
+    def _read_data(self, raw_data: str | Chem.Mol) -> Optional[List[int]]:
         """Tokenize raw SMILES data using BasicSmilesTokenizer with static vocabulary."""
         try:
-            mol = Chem.MolFromSmiles(raw_data.strip())
-            if mol is None:
-                raise ValueError(f"Invalid SMILES: {raw_data}")
+            if isinstance(raw_data, str):
+                mol = Chem.MolFromSmiles(raw_data.strip())
+            else:
+                mol = raw_data
         except ValueError as e:
             print(f"could not process {raw_data}")
             print(f"\tError: {e}")
