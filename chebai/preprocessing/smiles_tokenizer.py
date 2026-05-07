@@ -11,9 +11,9 @@ def _build_bracket_atoms() -> List[str]:
     elements = [pt.GetElementSymbol(i) for i in range(1, 119)]
     # aromatic forms used in SMILES
     elements += ["c", "n", "o", "s", "p", "b", "te", "se", "si"]
-    charges = range(-5, 9)
-    hydrogens = range(9)
-    stereo = ["None", "@", "@@"]
+    charges = [i for i in range(-5, 9) if i != 0]
+    hydrogens = range(1, 9)
+    stereo = ["@", "@@"]
     isotopes = range(1, 300)  # [295Og] is the heaviest isotope in PubChem
 
     tokens = set()
@@ -27,7 +27,6 @@ def _build_bracket_atoms() -> List[str]:
         tokens.add(f"stereo_{st}")
     for iso in isotopes:
         tokens.add(f"isotope_{iso}")
-    tokens.add("isotope_None")  # for non-isotopic atoms
 
     return list(tokens)
 
@@ -111,9 +110,13 @@ class BasicSmilesTokenizer(object):
 
     def _parse_bracket_atom(self, bracket_token: str) -> List[str]:
         """
-        Parse a bracketed atom token into 5 components: isotope, element, charge, hydrogens, stereo.
+        Parse a bracketed atom token into its components.
 
-        E.g. "[85Kr]" -> ["isotope_85", "element_Kr", "charge_0", "hydrogens_0", "stereo_None"]
+        When all attributes are at their defaults (charge=0, hydrogens=0, isotope=None, stereo=None),
+        only the element token is emitted. Otherwise all 5 tokens are emitted.
+
+        E.g. "[N]"   -> ["element_N"]
+             "[85Kr]" -> ["isotope_85", "element_Kr", "charge_0", "hydrogens_0", "stereo_None"]
         """
         atom_str = bracket_token[1:-1]  # Remove brackets
 
@@ -179,14 +182,17 @@ class BasicSmilesTokenizer(object):
                 else:
                     charge = -1
 
-        # Format and return 5 component tokens
-        return [
-            f"isotope_{isotope if isotope else 'None'}",
-            f"element_{element}",
-            f"charge_{charge}",
-            f"hydrogens_{hydrogens}",
-            f"stereo_{stereo if stereo else 'None'}",
-        ]
+        # return element token and optionally isotope, charge, hydrogens, stereo tokens
+        res = [f"element_{element}"]
+        if isotope is not None:
+            res.append(f"isotope_{isotope}")
+        if charge != 0:
+            res.append(f"charge_{charge}")
+        if hydrogens != 0:
+            res.append(f"hydrogens_{hydrogens}")
+        if stereo is not None:
+            res.append(f"stereo_{stereo}")
+        return res
 
     def tokenize(self, text):
         """Tokenize a SMILES string, breaking bracketed atoms into 5 components.
@@ -216,7 +222,12 @@ class BasicSmilesTokenizer(object):
         return [self.vocab_dict.get(token, UNKNOWN_TOKEN_IDX) for token in tokens]
 
     def _reassemble_bracket_atom(
-        self, isotope: str, element: str, charge: int, hydrogens: int, stereo: str
+        self,
+        element: str,
+        isotope: str = "None",
+        charge: int = 0,
+        hydrogens: int = 0,
+        stereo: str = "None",
     ) -> str:
         if (
             isotope == "None"
@@ -255,24 +266,26 @@ class BasicSmilesTokenizer(object):
         i = 0
         while i < len(tokens):
             tok = tokens[i]
-            if (
-                tok.startswith("isotope_")
-                and i + 4 < len(tokens)
-                and tokens[i + 1].startswith("element_")
-                and tokens[i + 2].startswith("charge_")
-                and tokens[i + 3].startswith("hydrogens_")
-                and tokens[i + 4].startswith("stereo_")
-            ):
+            if tok.startswith("element_"):
+                i += 1
+                add = ["None", 0, 0, "None"]
+                for idx, additional_token in enumerate(
+                    ["isotope_", "charge_", "hydrogens_", "stereo_"]
+                ):
+                    if i >= len(tokens):
+                        break
+                    if tokens[i].startswith(additional_token):
+                        add[idx] = tokens[i][len(additional_token) :]
+                        if additional_token in ["charge_", "hydrogens_"]:
+                            add[idx] = int(add[idx])
+                        i += 1
+
                 result.append(
                     self._reassemble_bracket_atom(
-                        isotope=tok[len("isotope_") :],
-                        element=tokens[i + 1][len("element_") :],
-                        charge=int(tokens[i + 2][len("charge_") :]),
-                        hydrogens=int(tokens[i + 3][len("hydrogens_") :]),
-                        stereo=tokens[i + 4][len("stereo_") :],
+                        tok[len("element_") :],
+                        *add,
                     )
                 )
-                i += 5
             else:
                 result.append(tok)
                 i += 1
@@ -292,6 +305,7 @@ if __name__ == "__main__":
         "[13CH3]CO",  # isotope
         "C1CC2(CCCCC2)CC1",  # spiro
         "c1ccc2c(c1)[nH]cn2",  # benzimidazole with [nH]
+        "CC(=O)N[C@@H]1[C@H](O[C@H]2[C@H](O)[C@@H](NC(C)=O)[C@H](O)O[C@@H]2CO[C@@H]2O[C@@H](C)[C@@H](O)[C@@H](O)[C@@H]2O)O[C@H](CO)[C@@H](O[C@@H]2O[C@H](CO[C@H]3O[C@H](CO[C@@H]4O[C@H](CO)[C@@H](O[C@@H]5O[C@H](CO)[C@H](O)[C@H](O[C@@H]6O[C@H](CO)[C@@H](O[C@@H]7O[C@H](CO)[C@H](O)[C@H](O[C@]8(C(=O)O)C[C@H](O)[C@@H](NC(C)=O)[C@H]([C@H](O)[C@H](O)CO)O8)[C@H]7O)[C@H](O)[C@H]6NC(C)=O)[C@H]5O)[C@H](O)[C@H]4NC(C)=O)[C@@H](O)[C@H](O)[C@@H]3O[C@@H]3O[C@H](CO)[C@@H](O[C@@H]4O[C@H](CO)[C@H](O)[C@H](O[C@@H]5O[C@H](CO)[C@@H](O[C@@H]6O[C@H](CO)[C@H](O)[C@H](O[C@]7(C(=O)O)C[C@H](O)[C@@H](NC(C)=O)[C@H]([C@H](O)[C@H](O)CO)O7)[C@H]6O)[C@H](O)[C@H]5NC(C)=O)[C@H]4O)[C@H](O)[C@H]3NC(C)=O)[C@@H](O)[C@H](O[C@H]3O[C@H](CO)[C@@H](O[C@@H]4O[C@H](CO)[C@@H](O[C@@H]5O[C@H](CO)[C@H](O)[C@H](O[C@]6(C(=O)O)C[C@H](O)[C@@H](NC(C)=O)[C@H]([C@H](O)[C@H](O)CO)O6)[C@H]5O)[C@H](O)[C@H]4NC(C)=O)[C@H](O)[C@@H]3O[C@@H]3O[C@H](CO)[C@@H](O[C@@H]4O[C@H](CO)[C@H](O)[C@H](O)[C@H]4O)[C@H](O)[C@@H]3NC(C)=O)[C@@H]2O)[C@@H]1O",
     ]
 
     for s in examples:
