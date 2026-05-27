@@ -1,8 +1,5 @@
-import os
 import unittest
 from typing import Dict, List, Tuple
-
-import torch
 
 from chebai.preprocessing.datasets.pubchem import PubChem
 
@@ -34,18 +31,11 @@ class TestPubChemData(unittest.TestCase):
         """
         Get the overlap between data splits based on SMILES features and IDs.
         """
-        processed_path = os.path.join(os.getcwd(), cls.pubChem.processed_dir)
-        print(f"Checking Data from - {processed_path}")
+        print(f"Checking Data from - {cls.pubChem.processed_dir}")
 
-        train_set = torch.load(
-            os.path.join(processed_path, "train.pt"), weights_only=False
-        )
-        val_set = torch.load(
-            os.path.join(processed_path, "validation.pt"), weights_only=False
-        )
-        test_set = torch.load(
-            os.path.join(processed_path, "test.pt"), weights_only=False
-        )
+        train_set = cls.pubChem.load_processed_data("train")
+        val_set = cls.pubChem.load_processed_data("validation")
+        test_set = cls.pubChem.load_processed_data("test")
 
         train_smiles, train_smiles_ids = cls.get_features_ids(train_set)
         val_smiles, val_smiles_ids = cls.get_features_ids(val_set)
