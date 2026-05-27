@@ -539,7 +539,7 @@ class ChEBIFromList(_ChEBIDataExtractor):
 
     """
 
-    READER = dr.ChemDataReader
+    READER = dr.StaticSMILESReader
 
     def __init__(
         self,
@@ -585,7 +585,7 @@ class ChEBIOverX(_ChEBIDataExtractor):
         THRESHOLD (None): The threshold for selecting classes.
     """
 
-    READER: dr.ChemDataReader = dr.ChemDataReader
+    READER = dr.StaticSMILESReader
 
     @property
     def _name(self) -> str:
@@ -804,11 +804,8 @@ class ChEBIOver100Fingerprints(ChEBIOverXFingerprints, ChEBIOver100):
 
 
 if __name__ == "__main__":
-    dataset = ChEBIOver50Partial(
-        chebi_version=247,
-        subset="3_STAR",
-        top_class_id="36700",
-        external_data_ratio=0.5,
+    dataset = ChEBIOver50(
+        chebi_version=251,
     )
     dataset.prepare_data()
     dataset.setup()

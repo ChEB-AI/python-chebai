@@ -257,6 +257,52 @@ class ChemDataReader(TokenIndexerReader):
         return smiles_decoded
 
 
+class StaticSMILESReader(DataReader):
+    """
+    Data reader for SMILES tokens with a static token set. Atoms are split into 5 components: isotope, element, charge, hydrogens, stereo.
+    New tokens are not added to the token file, and unknown tokens are mapped to a special index.
+    """
+
+    COLLATOR = RaggedCollator
+
+    def __init__(self, *args, **kwargs) -> None:
+        from chebai.preprocessing.smiles_tokenizer import BasicSmilesTokenizer
+
+        super().__init__(*args, **kwargs)
+        self.tokenizer = BasicSmilesTokenizer()
+
+    @classmethod
+    def name(cls) -> str:
+        """Returns the name of the data reader."""
+        return "static_smiles"
+
+    def _read_data(self, raw_data: str | Chem.Mol) -> Optional[List[int]]:
+        """Tokenize raw SMILES data using BasicSmilesTokenizer with static vocabulary."""
+        try:
+            if isinstance(raw_data, str):
+                mol = Chem.MolFromSmiles(raw_data.strip())
+            else:
+                mol = raw_data
+        except ValueError as e:
+            print(f"could not process {raw_data}")
+            print(f"\tError: {e}")
+            return None
+
+        try:
+            smiles = Chem.MolToSmiles(mol, canonical=True)
+        except Exception as e:
+            print(f"RDKit failed to canonicalize the SMILES: {raw_data}")
+            print(f"\t{e}")
+            return None
+
+        try:
+            return self.tokenizer.encode(smiles)
+        except Exception as e:
+            print(f"could not tokenize {raw_data}")
+            print(f"\tError: {e}")
+            return None
+
+
 class DeepChemDataReader(ChemDataReader):
     """
     Data reader for chemical data using DeepSMILES tokens.

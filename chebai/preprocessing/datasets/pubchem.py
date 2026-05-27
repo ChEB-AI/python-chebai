@@ -33,7 +33,7 @@ class PubChem(_DynamicDataset):
     LABEL_INDEX = 1
     FULL = 0
     UNLABELED = True
-    READER = dr.ChemDataReader
+    READER = dr.StaticSMILESReader
 
     # Column indices in data.pkl
     _ID_IDX: int = 0
@@ -208,7 +208,9 @@ class PubChem(_DynamicDataset):
         """
         Checks for raw data, downloads if necessary, then builds data.pkl.
         """
-        print("Check for raw data in", self.raw_dir)
+        print(
+            f"Check for raw data ({', '.join(self.raw_file_names)}) in {self.raw_dir}..."
+        )
         if any(
             not os.path.isfile(os.path.join(self.raw_dir, f))
             for f in self.raw_file_names
@@ -260,7 +262,7 @@ class PubChem(_DynamicDataset):
 class PubChemBatched(PubChem):
     """Store train data as batches of 10m, validation and test should each be 100k max"""
 
-    READER: Type[dr.ChemDataReader] = dr.ChemDataReader
+    READER: Type[dr.DataReader] = dr.StaticSMILESReader
 
     def __init__(self, train_batch_size=1_000_000, *args, **kwargs):
         super(PubChemBatched, self).__init__(*args, **kwargs)
@@ -566,6 +568,6 @@ class PubChemSELFIES(PubChem):
 
 
 if __name__ == "__main__":
-    dataset = PubChem(k=10000)
+    dataset = PubChem(n_samples=10_000)
     dataset.prepare_data()
     dataset.setup()
