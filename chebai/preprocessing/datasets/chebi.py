@@ -519,6 +519,19 @@ class _ChEBIDataExtractor(_DynamicDataset, ABC):
             }
         return {"data": f"aug_data_var{self.aug_smiles_variations}.pt"}
 
+    @property
+    def classes_txt_file_path(self) -> str:
+        """
+        Returns the filename for the classes text file.
+
+        Returns:
+            str: The filename for the classes text file.
+        """
+        # This property also used in following places:
+        #   - chebai/result/prediction.py: to load class names for csv columns names
+        #   - chebai/cli.py: to link this property to `model.init_args.classes_txt_file_path`
+        return os.path.join(self.processed_dir_main, "classes.txt")
+
 
 class ChEBIFromList(_ChEBIDataExtractor):
     """
