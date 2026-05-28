@@ -4,7 +4,7 @@ import random
 import shutil
 import tempfile
 from datetime import datetime
-from typing import Generator, List, Optional, Tuple, Type, Union
+from typing import Dict, Generator, List, Optional, Tuple, Type, Union
 
 import pandas as pd
 import requests
@@ -284,10 +284,10 @@ class PubChemBatched(PubChem):
             self.test_batch_size = 100_000
 
     @property
-    def processed_file_names_dict(self) -> List[str]:
+    def processed_file_names_dict(self) -> Dict[str, str]:
         """
         Returns:
-            List[str]: List of processed data file names.
+            Dict[str, str]: Dictionary of processed data file names.
         """
         train_samples = (
             self._n_samples
@@ -403,6 +403,29 @@ class PubChemBatched(PubChem):
             persistent_workers=True,
             **kwargs,
         )
+
+    def _get_data_splits(self) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+        """
+        The PubChemBatched dataset comes with pre-split data
+        """
+
+        train = self.load_processed_data_from_file(
+            self.processed_file_names_dict[
+                "train"
+                if "train" in self.processed_file_names_dict
+                else f"train_{self.curr_epoch}"
+            ]
+        )
+        train_df = pd.DataFrame(train)
+        val = self.load_processed_data_from_file(
+            self.processed_file_names_dict["validation"]
+        )
+        val_df = pd.DataFrame(val)
+        test = self.load_processed_data_from_file(
+            self.processed_file_names_dict["test"]
+        )
+        test_df = pd.DataFrame(test)
+        return train_df, val_df, test_df
 
 
 class LabeledUnlabeledMixed(XYBaseDataModule):
