@@ -4,7 +4,7 @@ import random
 import shutil
 import tempfile
 from datetime import datetime
-from typing import Dict, Generator, List, Optional, Tuple, Type, Union
+from typing import Any, Dict, Generator, List, Optional, Tuple, Type, Union
 
 import pandas as pd
 import requests
@@ -404,28 +404,26 @@ class PubChemBatched(PubChem):
             **kwargs,
         )
 
-    def _get_data_splits(self) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+    def load_processed_data(
+        self, kind: Optional[str] = None, filename: Optional[str] = None
+    ) -> List[Dict[str, Any]]:
         """
-        The PubChemBatched dataset comes with pre-split data
+        Loads processed data from a specified dataset type or file. Loads data directly from file instead of
+        using the dynamic_splits_df property. This ensures that a new training batch is loaded for each epoch.
         """
+        if kind is None and filename is None:
+            raise ValueError(
+                "Either kind or filename is required to load the correct dataset, both are None"
+            )
 
-        train = self.load_processed_data_from_file(
-            self.processed_file_names_dict[
-                "train"
-                if "train" in self.processed_file_names_dict
-                else f"train_{self.curr_epoch}"
-            ]
-        )
-        train_df = pd.DataFrame(train)
-        val = self.load_processed_data_from_file(
-            self.processed_file_names_dict["validation"]
-        )
-        val_df = pd.DataFrame(val)
-        test = self.load_processed_data_from_file(
-            self.processed_file_names_dict["test"]
-        )
-        test_df = pd.DataFrame(test)
-        return train_df, val_df, test_df
+        # If both kind and filename are given, use filename
+        if kind is not None and filename is None:
+            return self.load_processed_data_from_file(
+                self.processed_file_names_dict[kind]
+            )
+
+        # If filename is provided
+        return self.load_processed_data_from_file(filename)
 
 
 class LabeledUnlabeledMixed(XYBaseDataModule):
