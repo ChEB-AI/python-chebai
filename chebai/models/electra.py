@@ -204,8 +204,13 @@ class Electra(ChebaiBaseNet):
             * CLS_TOKEN
         )
         model_kwargs["output_attentions"] = True
+
+        x = torch.cat((cls_tokens, batch.x), dim=1)
+        # cut off to max length of max_position_embeddings
+        x = x[:, : self.config.max_position_embeddings]
+
         return dict(
-            features=torch.cat((cls_tokens, batch.x), dim=1),
+            features=x,
             labels=batch.y,
             model_kwargs=model_kwargs,
             loss_kwargs=loss_kwargs,
