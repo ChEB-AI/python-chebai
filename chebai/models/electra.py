@@ -63,10 +63,22 @@ class ElectraPre(ChebaiBaseNet):
         # cut off to max length of max_position_embeddings
         x = batch.x[:, : self.generator_config.max_position_embeddings]
 
+        model_kwargs = batch.additional_fields["model_kwargs"]
+        if "mask" in model_kwargs:
+            try:
+                model_kwargs["mask"] = model_kwargs["mask"][
+                    :, : self.generator_config.max_position_embeddings
+                ]
+            except Exception as e:
+                print(
+                    f"Failed to cut off mask {model_kwargs['mask'].shape} to max_position_embeddings: {e}"
+                )
+                raise e
+
         return dict(
             features=x,
             labels=self._process_labels_in_batch(batch),
-            model_kwargs=batch.additional_fields["model_kwargs"],
+            model_kwargs=model_kwargs,
             loss_kwargs=batch.additional_fields["loss_kwargs"],
             idents=batch.additional_fields["idents"],
         )
