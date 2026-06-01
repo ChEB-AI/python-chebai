@@ -48,6 +48,29 @@ class ElectraPre(ChebaiBaseNet):
         self.discriminator = ElectraForPreTraining(self.discriminator_config)
         self.replace_p = 0.1
 
+    def _process_batch(self, batch: Dict[str, Any], batch_idx: int) -> Dict[str, Any]:
+        """
+        Processes the batch data, cuts off x to max_position_embeddings
+
+        Args:
+            batch (XYData): The input batch of data.
+            batch_idx (int): The index of the current batch.
+
+        Returns:
+            Dict[str, Any]: Processed batch data.
+        """
+
+        # cut off to max length of max_position_embeddings
+        x = batch.x[:, : self.generator_config.max_position_embeddings]
+
+        return dict(
+            features=x,
+            labels=self._process_labels_in_batch(batch),
+            model_kwargs=batch.additional_fields["model_kwargs"],
+            loss_kwargs=batch.additional_fields["loss_kwargs"],
+            idents=batch.additional_fields["idents"],
+        )
+
     @property
     def as_pretrained(self) -> ElectraForPreTraining:
         """
