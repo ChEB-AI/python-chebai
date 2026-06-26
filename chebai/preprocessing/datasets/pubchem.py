@@ -4,7 +4,7 @@ import random
 import shutil
 import tempfile
 from datetime import datetime
-from typing import Generator, List, Optional, Tuple, Type, Union
+from typing import Any, Dict, Generator, List, Optional, Tuple, Type, Union
 
 import pandas as pd
 import requests
@@ -284,10 +284,10 @@ class PubChemBatched(PubChem):
             self.test_batch_size = 100_000
 
     @property
-    def processed_file_names_dict(self) -> List[str]:
+    def processed_file_names_dict(self) -> Dict[str, str]:
         """
         Returns:
-            List[str]: List of processed data file names.
+            Dict[str, str]: Dictionary of processed data file names.
         """
         train_samples = (
             self._n_samples
@@ -403,6 +403,27 @@ class PubChemBatched(PubChem):
             persistent_workers=True,
             **kwargs,
         )
+
+    def load_processed_data(
+        self, kind: Optional[str] = None, filename: Optional[str] = None
+    ) -> List[Dict[str, Any]]:
+        """
+        Loads processed data from a specified dataset type or file. Loads data directly from file instead of
+        using the dynamic_splits_df property. This ensures that a new training batch is loaded for each epoch.
+        """
+        if kind is None and filename is None:
+            raise ValueError(
+                "Either kind or filename is required to load the correct dataset, both are None"
+            )
+
+        # If both kind and filename are given, use filename
+        if kind is not None and filename is None:
+            return self.load_processed_data_from_file(
+                self.processed_file_names_dict[kind]
+            )
+
+        # If filename is provided
+        return self.load_processed_data_from_file(filename)
 
 
 class LabeledUnlabeledMixed(XYBaseDataModule):

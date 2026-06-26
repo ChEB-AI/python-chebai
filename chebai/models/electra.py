@@ -48,6 +48,41 @@ class ElectraPre(ChebaiBaseNet):
         self.discriminator = ElectraForPreTraining(self.discriminator_config)
         self.replace_p = 0.1
 
+    def _process_batch(self, batch: Dict[str, Any], batch_idx: int) -> Dict[str, Any]:
+        """
+        Processes the batch data, cuts off x to max_position_embeddings
+
+        Args:
+            batch (XYData): The input batch of data.
+            batch_idx (int): The index of the current batch.
+
+        Returns:
+            Dict[str, Any]: Processed batch data.
+        """
+
+        # cut off to max length of max_position_embeddings
+        x = batch.x[:, : self.generator_config.max_position_embeddings]
+
+        model_kwargs = batch.additional_fields["model_kwargs"]
+        if "mask" in model_kwargs:
+            try:
+                model_kwargs["mask"] = model_kwargs["mask"][
+                    :, : self.generator_config.max_position_embeddings
+                ]
+            except Exception as e:
+                print(
+                    f"Failed to cut off mask {model_kwargs['mask'].shape} to max_position_embeddings: {e}"
+                )
+                raise e
+
+        return dict(
+            features=x,
+            labels=self._process_labels_in_batch(batch),
+            model_kwargs=model_kwargs,
+            loss_kwargs=batch.additional_fields["loss_kwargs"],
+            idents=batch.additional_fields["idents"],
+        )
+
     @property
     def as_pretrained(self) -> ElectraForPreTraining:
         """
@@ -204,8 +239,13 @@ class Electra(ChebaiBaseNet):
             * CLS_TOKEN
         )
         model_kwargs["output_attentions"] = True
+
+        x = torch.cat((cls_tokens, batch.x), dim=1)
+        # cut off to max length of max_position_embeddings
+        x = x[:, : self.config.max_position_embeddings]
+
         return dict(
-            features=torch.cat((cls_tokens, batch.x), dim=1),
+            features=x,
             labels=batch.y,
             model_kwargs=model_kwargs,
             loss_kwargs=loss_kwargs,
