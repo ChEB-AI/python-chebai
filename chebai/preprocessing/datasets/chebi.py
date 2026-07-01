@@ -650,6 +650,19 @@ class ChEBIOver50(ChEBIOverX):
     THRESHOLD: int = 50
 
 
+class ChEBIOver25(ChEBIOverX):
+    """
+    A class for extracting data from the ChEBI dataset with a threshold of 25 for selecting classes.
+
+    Inherits from ChEBIOverX.
+
+    Attributes:
+        THRESHOLD (int): The threshold for selecting classes (25).
+    """
+
+    THRESHOLD: int = 25
+
+
 class ChEBIOver100DeepSMILES(ChEBIOverXDeepSMILES, ChEBIOver100):
     """
     A class for extracting data from the ChEBI dataset with DeepChem SMILES reader and a threshold of 100.
