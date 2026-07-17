@@ -2,19 +2,54 @@ import csv
 import gzip
 import os
 import shutil
+from abc import ABC
 from tempfile import NamedTemporaryFile
-from typing import Dict, List
+from typing import Any, Dict, Generator, List
 from urllib import request
 
 import numpy as np
+import pandas as pd
 import torch
 from sklearn.model_selection import GroupShuffleSplit, train_test_split
 
 from chebai.preprocessing import reader as dr
-from chebai.preprocessing.datasets.base import XYBaseDataModule
+from chebai.preprocessing.datasets.base import XYBaseDataModule, _DynamicDataset
 
 
-class ClinTox(XYBaseDataModule):
+class MoleculeNetDataExtractor(_DynamicDataset, ABC):
+    LABLES_COLUMNS = []
+    FEATURE_COLUMN_NAME = "smiles"
+    ID_COLUMN_NAME = None
+
+    @property
+    def _name(self) -> str:
+        """Returns the name of the dataset."""
+        return str(self.__class__.__name__)
+
+    def _load_dict(self, input_file_path: str) -> Generator[dict[str, Any]]:
+        """Loads data from a CSV file.
+
+        Args:
+            input_file_path (str): Path to the CSV file.
+
+        Returns:
+            List[Dict]: List of data dictionaries.
+        """
+        with open(input_file_path, "rb") as input_file:
+            df = pd.read_pickle(input_file)
+
+        features = df[self.FEATURE_COLUMN_NAME].to_numpy()
+        if self.ID_COLUMN_NAME is not None and self.ID_COLUMN_NAME in df.columns:
+            idents = df[self.ID_COLUMN_NAME].to_numpy()
+        else:
+            idents = np.arange(len(df))
+        labels = df[self.LABLES_COLUMNS].to_numpy()
+
+        for feat, labels, ident in zip(features, labels, idents):
+            yield dict(features=feat, labels=labels, ident=ident)
+
+
+class ClinTox(MoleculeNetDataExtractor):
     """Data module for ClinTox MoleculeNet dataset."""
 
     HEADERS = [
@@ -23,34 +58,11 @@ class ClinTox(XYBaseDataModule):
     ]
 
     @property
-    def _name(self) -> str:
-        """Returns the name of the dataset."""
-        return "ClinTox"
-
-    @property
-    def label_number(self) -> int:
-        """Returns the number of labels."""
-        return 2
-
-    @property
     def raw_file_names(self) -> List[str]:
         """Returns a list of raw file names."""
         return ["clintox.csv"]
 
-    # @property
-    # def processed_file_names(self) -> List[str]:
-    #     """Returns a list of processed file names."""
-    #     return ["test.pt", "train.pt", "validation.pt"]
-
-    @property
-    def processed_file_names_dict(self) -> dict:
-        return {
-            "test": "test.pt",
-            "train": "train.pt",
-            "validation": "validation.pt",
-        }
-
-    def download(self) -> None:
+    def _download_required_data(self) -> None:
         """Downloads and extracts the dataset."""
         with NamedTemporaryFile("rb") as gout:
             request.urlretrieve(
@@ -60,6 +72,18 @@ class ClinTox(XYBaseDataModule):
             with gzip.open(gout.name) as gfile:
                 with open(os.path.join(self.raw_dir, "clintox.csv"), "wt") as fout:
                     fout.write(gfile.read().decode())
+
+    def _preprocess_data_into_dataframe(self, raw_data_path: str) -> pd.DataFrame:
+        """
+        Preprocesses the raw data into a DataFrame.
+
+        Args:
+            raw_data_path (str): Path to the raw data.
+
+        Returns:
+            pd.DataFrame: The preprocessed data as a DataFrame.
+        """
+        return pd.read_csv(raw_data_path, header=0)
 
     def setup_processed(self) -> None:
         """Processes and splits the dataset."""
@@ -116,21 +140,6 @@ class ClinTox(XYBaseDataModule):
                 os.path.join(self.processed_dir, f"{k}.pt"),
             )
 
-    def setup(self, **kwargs) -> None:
-        """Sets up the dataset by downloading and processing if necessary."""
-        if any(
-            not os.path.isfile(os.path.join(self.raw_dir, f))
-            for f in self.raw_file_names
-        ):
-            self.download()
-        if any(
-            not os.path.isfile(os.path.join(self.processed_dir, f))
-            for f in self.processed_file_names
-        ):
-            self.setup_processed()
-
-        self._after_setup()
-
     def _set_processed_data_props(self):
         """
         Load processed data and extract metadata.
@@ -146,38 +155,6 @@ class ClinTox(XYBaseDataModule):
 
         self._num_of_labels = len(data_pt[0]["labels"])
         self._feature_vector_size = max(len(d["features"]) for d in data_pt)
-
-    def _load_dict(self, input_file_path: str) -> List[Dict]:
-        """Loads data from a CSV file.
-
-        Args:
-            input_file_path (str): Path to the CSV file.
-
-        Returns:
-            List[Dict]: List of data dictionaries.
-        """
-        i = 0
-        with open(input_file_path, "r") as input_file:
-            reader = csv.DictReader(input_file)
-            for row in reader:
-                i += 1
-                smiles = row["smiles"]
-                labels = [
-                    bool(int(label)) if label else None
-                    for label in (row[k] for k in self.HEADERS)
-                ]
-                # group = int(row["group"])
-                yield dict(
-                    features=smiles,
-                    labels=labels,
-                    ident=i,
-                    # group=group
-                )
-                # yield dict(features=smiles, labels=labels, ident=i)
-                # yield self.reader.to_data(dict(features=smiles, labels=labels, ident=i))
-
-    def _perform_data_preparation(self, *args, **kwargs) -> None:
-        pass
 
 
 class BBBP(XYBaseDataModule):

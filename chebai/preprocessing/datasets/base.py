@@ -981,7 +981,7 @@ class _DynamicDataset(XYBaseDataModule, ABC):
         Transforms `data.pkl` into a model input data format (`data.pt`), ensuring that the data is in a format
         compatible for input to the model.
         The transformed data contains the following keys: `ident`, `features`, `labels`, and `group`.
-        This method uses a subclass of Data Reader to perform the transformation.
+        This method uses assigned subclass of `DataReader` to perform the transformation.
 
         Returns:
             None
@@ -1116,6 +1116,7 @@ class _DynamicDataset(XYBaseDataModule, ABC):
         splits.csv to reconstruct the train, validation, and test splits.
         """
         print(f"\nLoading splits from {self.splits_file_path}...")
+        assert self.splits_file_path is not None, "splits_file_path should not be None"
         splits_df = pd.read_csv(self.splits_file_path)
 
         filename = self.processed_file_names_dict["data"]
