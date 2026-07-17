@@ -16,12 +16,13 @@ from rdkit import Chem
 
 from chebai.preprocessing import reader as dr
 from chebai.preprocessing.datasets.base import _DynamicDataset
+from chebai.preprocessing.splitters import MultiLabelSplitter
 
 if TYPE_CHECKING:
     import networkx as nx
 
 
-class _ChEBIDataExtractor(_DynamicDataset, ABC):
+class _ChEBIDataExtractor(MultiLabelSplitter, _DynamicDataset, ABC):
     """
     A class for extracting and processing data from the ChEBI dataset.
 
@@ -388,27 +389,6 @@ class _ChEBIDataExtractor(_DynamicDataset, ABC):
 
             for feat, labels, ident in zip(features, all_labels, idents):
                 yield dict(features=feat, labels=labels, ident=ident)
-
-    def _get_data_splits(self) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
-        """
-        Loads encoded/transformed data and generates training, validation, and test splits.
-        """
-
-        filename = self.processed_file_names_dict["data"]
-        data = self.load_processed_data_from_file(filename)
-        df_data = pd.DataFrame(data)
-
-        from chebi_utils import create_multilabel_splits
-
-        splits = create_multilabel_splits(
-            df_data,
-            self._LABELS_START_IDX,
-            1 - self.validation_split - self.test_split,
-            self.validation_split,
-            self.test_split,
-            self.dynamic_data_split_seed,
-        )
-        return splits["train"], splits["val"], splits["test"]
 
     def _setup_pruned_test_set(
         self, df_test_chebi_version: pd.DataFrame
