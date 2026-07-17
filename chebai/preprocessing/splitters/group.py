@@ -2,7 +2,33 @@
 
 from __future__ import annotations
 
+from abc import ABC
+
 import pandas as pd
+from sklearn.model_selection import GroupShuffleSplit
+
+from chebai.preprocessing.datasets.base import _DynamicDataset
+
+
+class GroupSplitter(_DynamicDataset, ABC):
+    def _get_data_splits(self) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+        """
+        Loads encoded/transformed data and generates training, validation, and test splits.
+        """
+
+        filename = self.processed_file_names_dict["data"]
+        data = self.load_processed_data_from_file(filename)
+        df_data = pd.DataFrame(data)
+
+        splits = create_group_splits(
+            df_data,
+            self._LABELS_START_IDX,
+            1 - self.validation_split - self.test_split,
+            self.validation_split,
+            self.test_split,
+            self.dynamic_data_split_seed,
+        )
+        return splits["train"], splits["val"], splits["test"]
 
 
 def create_group_splits(
@@ -63,26 +89,27 @@ def create_group_splits(
             f"with {len(df.columns)} columns"
         )
 
-    from iterstrat.ml_stratifiers import MultilabelStratifiedShuffleSplit
-    from sklearn.model_selection import StratifiedShuffleSplit
+    if "group" not in df.columns:
+        raise ValueError(
+            "Input DataFrame must contain a 'group' column for group split"
+        )
 
-    labels_matrix = df.iloc[:, label_start_col:].values
-    is_multilabel = labels_matrix.shape[1] > 1
+    if len(df["group"].unique()) < 2:
+        raise ValueError(
+            "Input DataFrame must contain at least 2 unique groups for group split"
+        )
+
+    y = df.iloc[:, label_start_col:].values
     # StratifiedShuffleSplit requires a 1-D label array
-    y = labels_matrix if is_multilabel else labels_matrix[:, 0]
 
     df_reset = df.reset_index(drop=True)
 
     # ── Step 1: carve out the test set ──────────────────────────────────────
-    if is_multilabel:
-        test_splitter = MultilabelStratifiedShuffleSplit(
-            n_splits=1, test_size=test_ratio, random_state=seed
-        )
-    else:
-        test_splitter = StratifiedShuffleSplit(
-            n_splits=1, test_size=test_ratio, random_state=seed
-        )
-    train_val_idx, test_idx = next(test_splitter.split(y, y))
+    test_splitter = GroupShuffleSplit(
+        n_splits=1, test_size=test_ratio, random_state=seed
+    )
+
+    train_val_idx, test_idx = next(test_splitter.split(y, y, groups=df_reset["group"]))
 
     df_test = df_reset.iloc[test_idx]
     df_trainval = df_reset.iloc[train_val_idx]
@@ -91,15 +118,13 @@ def create_group_splits(
     y_trainval = y[train_val_idx]
     val_ratio_adjusted = val_ratio / (1.0 - test_ratio)
 
-    if is_multilabel:
-        val_splitter = MultilabelStratifiedShuffleSplit(
-            n_splits=1, test_size=val_ratio_adjusted, random_state=seed
-        )
-    else:
-        val_splitter = StratifiedShuffleSplit(
-            n_splits=1, test_size=val_ratio_adjusted, random_state=seed
-        )
-    train_idx_inner, val_idx_inner = next(val_splitter.split(y_trainval, y_trainval))
+    val_splitter = GroupShuffleSplit(
+        n_splits=1, test_size=val_ratio_adjusted, random_state=seed
+    )
+
+    train_idx_inner, val_idx_inner = next(
+        val_splitter.split(y_trainval, y_trainval, groups=df_trainval["group"])
+    )
 
     df_train = df_trainval.iloc[train_idx_inner]
     df_val = df_trainval.iloc[val_idx_inner]
