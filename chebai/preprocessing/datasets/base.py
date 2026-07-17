@@ -909,10 +909,7 @@ class _DynamicDataset(XYBaseDataModule, ABC):
             print(f"Missing processed data file (`{processed_name}` file)")
             os.makedirs(self.processed_dir_main, exist_ok=True)
             data_path = self._download_required_data()
-            from chebi_utils import build_chebi_graph
-
-            g = build_chebi_graph(data_path)
-            data_df = self._graph_to_raw_dataset(g)
+            data_df = self._preprocess_data_into_dataframe(data_path)
             self.save_processed(data_df, processed_name)
 
     @abstractmethod
@@ -922,6 +919,19 @@ class _DynamicDataset(XYBaseDataModule, ABC):
 
         Returns:
             str: Path to the downloaded data.
+        """
+        pass
+
+    @abstractmethod
+    def _preprocess_data_into_dataframe(self, raw_data_path: str) -> pd.DataFrame:
+        """
+        Preprocesses the raw data into a DataFrame.
+
+        Args:
+            raw_data_path (str): Path to the raw data.
+
+        Returns:
+            pd.DataFrame: The preprocessed data as a DataFrame.
         """
         pass
 

@@ -9,9 +9,9 @@ from abc import ABC
 from itertools import cycle, permutations, product
 from typing import TYPE_CHECKING, Any, Generator, List, Literal, Optional
 
-from networkx import DiGraph
 import numpy as np
 import pandas as pd
+from networkx import DiGraph
 from rdkit import Chem
 
 from chebai.preprocessing import reader as dr
@@ -149,6 +149,21 @@ class _ChEBIDataExtractor(_DynamicDataset, ABC):
         """
         self._load_sdf()
         return self._load_chebi()
+
+    def _preprocess_data_into_dataframe(self, raw_data_path: str) -> pd.DataFrame:
+        """
+        Preprocesses the raw data into a DataFrame.
+
+        Args:
+            raw_data_path (str): Path to the raw data.
+
+        Returns:
+            pd.DataFrame: The preprocessed data as a DataFrame.
+        """
+        from chebi_utils import build_chebi_graph
+
+        g = build_chebi_graph(raw_data_path)
+        return self._graph_to_raw_dataset(g)
 
     def _load_chebi(self, version: Optional[int] = None) -> str:
         """
@@ -746,12 +761,12 @@ class ChEBIOverXPartial(ChEBIOverX):
         """
 
         # Extract mol objects from SDF using chebi-utils
+        import networkx as nx
         from chebi_utils import (
             build_labeled_dataset,
             extract_molecules,
             get_hierarchy_subgraph,
         )
-        import networkx as nx
 
         sdf_path = os.path.join(self.raw_dir, self.raw_file_names_dict["sdf"])
         mol_df = extract_molecules(sdf_path)
