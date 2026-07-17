@@ -8,12 +8,10 @@ from urllib import request
 
 import numpy as np
 import pandas as pd
-import torch
-from sklearn.model_selection import train_test_split
 
 from chebai.preprocessing import reader as dr
-from chebai.preprocessing.datasets.base import XYBaseDataModule, _DynamicDataset
-from chebai.preprocessing.splitters import GroupSplitter
+from chebai.preprocessing.datasets.base import _DynamicDataset
+from chebai.preprocessing.splitters import GeneralSplitter, GroupSplitter
 
 
 class MoleculeNetDataExtractor(_DynamicDataset, ABC):
@@ -109,7 +107,7 @@ class BBBP(MoleculeNetDataExtractor, GroupSplitter):
                 shutil.copyfileobj(src, dst)
 
 
-class Sider(XYBaseDataModule):
+class Sider(MoleculeNetDataExtractor, GroupSplitter):
     """Data module for ClinTox MoleculeNet dataset."""
 
     LABLES_COLUMNS = [
@@ -159,7 +157,7 @@ class Sider(XYBaseDataModule):
                     fout.write(gfile.read().decode())
 
 
-class Bace(XYBaseDataModule):
+class Bace(MoleculeNetDataExtractor, GeneralSplitter):
     """Data module for ClinTox MoleculeNet dataset."""
 
     LABELS_COLUMNS = [
@@ -178,56 +176,6 @@ class Bace(XYBaseDataModule):
                 "https://deepchemdata.s3-us-west-1.amazonaws.com/datasets/bace.csv",
             ) as src:
                 shutil.copyfileobj(src, dst)
-
-    def setup_processed(self) -> None:
-        """Processes and splits the dataset."""
-        print("Create splits")
-        data = list(self._load_data_from_file(os.path.join(self.raw_dir, "bace.csv")))
-        # groups = np.array([d.get("group") for d in data])
-
-        # if not all(g is None for g in groups):
-        #     split_size = int(len(set(groups)) * (1 - self.test_split - self.validation_split))
-        #     os.makedirs(self.processed_dir, exist_ok=True)
-        #     splitter = GroupShuffleSplit(train_size=split_size, n_splits=1)
-
-        #     train_split_index, temp_split_index = next(
-        #         splitter.split(data, groups=groups)
-        #     )
-
-        #     split_groups = groups[temp_split_index]
-
-        #     splitter = GroupShuffleSplit(
-        #         train_size=int(len(set(split_groups)) * (1 - self.test_split - self.validation_split)), n_splits=1
-        #     )
-        #     test_split_index, validation_split_index = next(
-        #         splitter.split(temp_split_index, groups=split_groups)
-        #     )
-        #     train_split = [data[i] for i in train_split_index]
-        #     test_split = [
-        #         d
-        #         for d in (data[temp_split_index[i]] for i in test_split_index)
-        #     ]
-        #     validation_split = [
-        #         d
-        #         for d in (data[temp_split_index[i]] for i in validation_split_index)
-        #     ]
-        # else:
-        train_split, test_split = train_test_split(
-            data, test_size=self.test_split, shuffle=True
-        )
-        train_split, validation_split = train_test_split(
-            train_split, test_size=self.validation_split, shuffle=True
-        )
-        for k, split in [
-            ("test", test_split),
-            ("train", train_split),
-            ("validation", validation_split),
-        ]:
-            print("transform", k)
-            torch.save(
-                split,
-                os.path.join(self.processed_dir, f"{k}.pt"),
-            )
 
 
 class HIV(MoleculeNetDataExtractor, GroupSplitter):
