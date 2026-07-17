@@ -140,21 +140,26 @@ class ClinTox(MoleculeNetDataExtractor):
                 os.path.join(self.processed_dir, f"{k}.pt"),
             )
 
-    def _set_processed_data_props(self):
+    def _get_data_splits(self) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
         """
-        Load processed data and extract metadata.
+        Loads encoded/transformed data and generates training, validation, and test splits.
+        """
 
-        Sets:
-            - self._num_of_labels: Number of target labels in the dataset.
-            - self._feature_vector_size: Maximum feature vector length across all data points.
-        """
-        pt_file_path = os.path.join(
-            self.processed_dir, self.processed_file_names_dict["train"]
+        filename = self.processed_file_names_dict["data"]
+        data = self.load_processed_data_from_file(filename)
+        df_data = pd.DataFrame(data)
+
+        from chebi_utils import create_multilabel_splits
+
+        splits = create_multilabel_splits(
+            df_data,
+            self._LABELS_START_IDX,
+            1 - self.validation_split - self.test_split,
+            self.validation_split,
+            self.test_split,
+            self.dynamic_data_split_seed,
         )
-        data_pt = torch.load(pt_file_path, weights_only=False)
-
-        self._num_of_labels = len(data_pt[0]["labels"])
-        self._feature_vector_size = max(len(d["features"]) for d in data_pt)
+        return splits["train"], splits["val"], splits["test"]
 
 
 class BBBP(XYBaseDataModule):
