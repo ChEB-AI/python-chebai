@@ -617,6 +617,7 @@ class XYBaseDataModule(LightningDataModule):
         return list(self.raw_file_names_dict.values())
 
     @property
+    @abstractmethod
     def raw_file_names_dict(self) -> dict:
         """
         Returns the dictionary of raw file names (i.e., files that are directly obtained from an external source).
@@ -815,7 +816,7 @@ class _DynamicDataset(XYBaseDataModule, ABC):
         apply_id_filter (Optional[str]): Path to a data.pt file for ID filtering.
     """
 
-    # ---- Index for columns of processed `data.pkl` (should be derived from `_graph_to_raw_dataset` method) ------
+    # ---- Index for columns of processed `data.pkl` (should be derived from `_preprocess_data_into_dataframe` method) ------
     _ID_IDX: int = None
     _DATA_REPRESENTATION_IDX: int = None
     _LABELS_START_IDX: int = None
@@ -932,21 +933,6 @@ class _DynamicDataset(XYBaseDataModule, ABC):
 
         Returns:
             pd.DataFrame: The preprocessed data as a DataFrame.
-        """
-        pass
-
-    @abstractmethod
-    def _graph_to_raw_dataset(self, graph: "nx.DiGraph") -> pd.DataFrame:
-        """
-        Converts the graph to a raw dataset.
-        Uses the graph created by chebi_utils to extract the
-        raw data in Dataframe format with additional columns corresponding to each multi-label class.
-
-        Args:
-            graph (nx.DiGraph): The class hierarchy graph.
-
-        Returns:
-            pd.DataFrame: The raw dataset.
         """
         pass
 

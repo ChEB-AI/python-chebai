@@ -38,7 +38,7 @@ class MoleculeNetDataExtractor(_DynamicDataset, ABC):
         """
         return pd.read_csv(raw_data_path, header=0)
 
-    def _load_dict(self, input_file_path: str) -> Generator[dict[str, Any]]:
+    def _load_dict(self, input_file_path: str) -> Generator[dict[str, Any], None, None]:
         """Loads data from a CSV file.
 
         Args:
@@ -60,6 +60,16 @@ class MoleculeNetDataExtractor(_DynamicDataset, ABC):
         for feat, labels, ident in zip(features, labels, idents):
             yield dict(features=feat, labels=labels, ident=ident)
 
+    @property
+    def base_dir(self) -> str:
+        """
+        Return the base directory path for data.
+
+        Returns:
+            str: The base directory path for data.
+        """
+        return os.path.join("data", "MoleculeNetClassification")
+
 
 class ClinTox(MoleculeNetDataExtractor, GroupSplitter):
     """Data module for ClinTox MoleculeNet dataset."""
@@ -70,11 +80,11 @@ class ClinTox(MoleculeNetDataExtractor, GroupSplitter):
     ]
 
     @property
-    def raw_file_names(self) -> List[str]:
-        """Returns a list of raw file names."""
-        return ["clintox.csv"]
+    def raw_file_names_dict(self) -> dict:
+        """Returns a dictionary of raw file names."""
+        return {"clintox": "clintox.csv"}
 
-    def _download_required_data(self) -> None:
+    def _download_required_data(self) -> str:
         """Downloads and extracts the dataset."""
         with NamedTemporaryFile("rb") as gout:
             request.urlretrieve(
@@ -82,8 +92,12 @@ class ClinTox(MoleculeNetDataExtractor, GroupSplitter):
                 gout.name,
             )
             with gzip.open(gout.name) as gfile:
-                with open(os.path.join(self.raw_dir, "clintox.csv"), "wt") as fout:
+                with open(
+                    os.path.join(self.raw_dir, self.raw_file_names_dict["clintox"]),
+                    "wt",
+                ) as fout:
                     fout.write(gfile.read().decode())
+        return os.path.join(self.raw_dir, self.raw_file_names_dict["clintox"])
 
 
 class BBBP(MoleculeNetDataExtractor, GroupSplitter):
@@ -94,17 +108,20 @@ class BBBP(MoleculeNetDataExtractor, GroupSplitter):
     ]
 
     @property
-    def raw_file_names(self) -> List[str]:
-        """Returns a list of raw file names."""
-        return ["bbbp.csv"]
+    def raw_file_names_dict(self) -> dict:
+        """Returns a dictionary of raw file names."""
+        return {"bbbp": "bbbp.csv"}
 
-    def _download_required_data(self) -> None:
+    def _download_required_data(self) -> str:
         """Downloads and extracts the dataset."""
-        with open(os.path.join(self.raw_dir, "bbbp.csv"), "ab") as dst:
+        with open(
+            os.path.join(self.raw_dir, self.raw_file_names_dict["bbbp"]), "ab"
+        ) as dst:
             with request.urlopen(
                 "https://deepchemdata.s3-us-west-1.amazonaws.com/datasets/BBBP.csv",
             ) as src:
                 shutil.copyfileobj(src, dst)
+        return os.path.join(self.raw_dir, self.raw_file_names_dict["bbbp"])
 
 
 class Sider(MoleculeNetDataExtractor, GroupSplitter):
@@ -141,11 +158,11 @@ class Sider(MoleculeNetDataExtractor, GroupSplitter):
     ]
 
     @property
-    def raw_file_names(self) -> List[str]:
-        """Returns a list of raw file names."""
-        return ["sider.csv"]
+    def raw_file_names_dict(self) -> dict:
+        """Returns a dictionary of raw file names."""
+        return {"sider": "sider.csv"}
 
-    def _download_required_data(self) -> None:
+    def _download_required_data(self) -> str:
         """Downloads and extracts the dataset."""
         with NamedTemporaryFile("rb") as gout:
             request.urlretrieve(
@@ -153,8 +170,11 @@ class Sider(MoleculeNetDataExtractor, GroupSplitter):
                 gout.name,
             )
             with gzip.open(gout.name) as gfile:
-                with open(os.path.join(self.raw_dir, "sider.csv"), "wt") as fout:
+                with open(
+                    os.path.join(self.raw_dir, self.raw_file_names_dict["sider"]), "wt"
+                ) as fout:
                     fout.write(gfile.read().decode())
+        return os.path.join(self.raw_dir, self.raw_file_names_dict["sider"])
 
 
 class Bace(MoleculeNetDataExtractor, GeneralSplitter):
@@ -165,17 +185,20 @@ class Bace(MoleculeNetDataExtractor, GeneralSplitter):
     ]
 
     @property
-    def raw_file_names(self) -> List[str]:
-        """Returns a list of raw file names."""
-        return ["bace.csv"]
+    def raw_file_names_dict(self) -> dict:
+        """Returns a dictionary of raw file names."""
+        return {"bace": "bace.csv"}
 
-    def download(self) -> None:
+    def _download_required_data(self) -> str:
         """Downloads and extracts the dataset."""
-        with open(os.path.join(self.raw_dir, "bace.csv"), "ab") as dst:
+        with open(
+            os.path.join(self.raw_dir, self.raw_file_names_dict["bace"]), "ab"
+        ) as dst:
             with request.urlopen(
                 "https://deepchemdata.s3-us-west-1.amazonaws.com/datasets/bace.csv",
             ) as src:
                 shutil.copyfileobj(src, dst)
+        return os.path.join(self.raw_dir, self.raw_file_names_dict["bace"])
 
 
 class HIV(MoleculeNetDataExtractor, GroupSplitter):
@@ -186,17 +209,20 @@ class HIV(MoleculeNetDataExtractor, GroupSplitter):
     ]
 
     @property
-    def raw_file_names(self) -> List[str]:
-        """Returns a list of raw file names."""
-        return ["hiv.csv"]
+    def raw_file_names_dict(self) -> dict:
+        """Returns a dictionary of raw file names."""
+        return {"hiv": "hiv.csv"}
 
-    def _download_required_data(self) -> None:
+    def _download_required_data(self) -> str:
         """Downloads and extracts the dataset."""
-        with open(os.path.join(self.raw_dir, "hiv.csv"), "ab") as dst:
+        with open(
+            os.path.join(self.raw_dir, self.raw_file_names_dict["hiv"]), "ab"
+        ) as dst:
             with request.urlopen(
                 "https://deepchemdata.s3-us-west-1.amazonaws.com/datasets/HIV.csv",
             ) as src:
                 shutil.copyfileobj(src, dst)
+        return os.path.join(self.raw_dir, self.raw_file_names_dict["hiv"])
 
 
 class MUV(MoleculeNetDataExtractor, GroupSplitter):
@@ -223,11 +249,11 @@ class MUV(MoleculeNetDataExtractor, GroupSplitter):
     ]
 
     @property
-    def raw_file_names(self) -> List[str]:
-        """Returns a list of raw file names."""
-        return ["muv.csv"]
+    def raw_file_names_dict(self) -> dict:
+        """Returns a dictionary of raw file names."""
+        return {"muv": "muv.csv"}
 
-    def download(self) -> None:
+    def _download_required_data(self) -> str:
         """Downloads and extracts the dataset."""
         with NamedTemporaryFile("rb") as gout:
             request.urlretrieve(
@@ -235,5 +261,16 @@ class MUV(MoleculeNetDataExtractor, GroupSplitter):
                 gout.name,
             )
             with gzip.open(gout.name) as gfile:
-                with open(os.path.join(self.raw_dir, "muv.csv"), "wt") as fout:
+                with open(
+                    os.path.join(self.raw_dir, self.raw_file_names_dict["muv"]), "wt"
+                ) as fout:
                     fout.write(gfile.read().decode())
+
+        return os.path.join(self.raw_dir, self.raw_file_names_dict["muv"])
+
+
+if __name__ == "__main__":
+    # Example usage
+    dataset = ClinTox()
+    dataset.prepare_data()
+    dataset.setup()
