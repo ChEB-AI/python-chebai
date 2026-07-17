@@ -20,6 +20,7 @@ class MoleculeNetDataExtractor(_DynamicDataset, ABC):
     LABLES_COLUMNS = []
     FEATURE_COLUMN_NAME = "smiles"
     ID_COLUMN_NAME = None
+    GROUP_COLUMN_NAME = "group"
 
     @property
     def _name(self) -> str:
@@ -57,8 +58,13 @@ class MoleculeNetDataExtractor(_DynamicDataset, ABC):
             idents = np.arange(len(df))
         labels = df[self.LABLES_COLUMNS].to_numpy()
 
-        for feat, labels, ident in zip(features, labels, idents):
-            yield dict(features=feat, labels=labels, ident=ident)
+        if self.GROUP_COLUMN_NAME in df.columns:
+            groups = df[self.GROUP_COLUMN_NAME].to_numpy()
+            for feat, labels, ident, group in zip(features, labels, idents, groups):
+                yield dict(features=feat, labels=labels, ident=ident, group=group)
+        else:
+            for feat, labels, ident in zip(features, labels, idents):
+                yield dict(features=feat, labels=labels, ident=ident)
 
     @property
     def base_dir(self) -> str:
@@ -68,7 +74,7 @@ class MoleculeNetDataExtractor(_DynamicDataset, ABC):
         Returns:
             str: The base directory path for data.
         """
-        return os.path.join("data", "MoleculeNetClassification")
+        return os.path.join("data", f"{self._name}:MNClassification")
 
 
 class ClinTox(MoleculeNetDataExtractor, GroupSplitter):
@@ -101,8 +107,9 @@ class ClinTox(MoleculeNetDataExtractor, GroupSplitter):
 
 
 class BBBP(MoleculeNetDataExtractor, GroupSplitter):
-    """Data module for ClinTox MoleculeNet dataset."""
+    """Data module for BBBP MoleculeNet dataset."""
 
+    ID_COLUMN_NAME = "num"
     LABLES_COLUMNS = [
         "p_np",
     ]
@@ -125,7 +132,7 @@ class BBBP(MoleculeNetDataExtractor, GroupSplitter):
 
 
 class Sider(MoleculeNetDataExtractor, GroupSplitter):
-    """Data module for ClinTox MoleculeNet dataset."""
+    """Data module for Sider MoleculeNet dataset."""
 
     LABLES_COLUMNS = [
         "Hepatobiliary disorders",
@@ -178,10 +185,12 @@ class Sider(MoleculeNetDataExtractor, GroupSplitter):
 
 
 class Bace(MoleculeNetDataExtractor, GeneralSplitter):
-    """Data module for ClinTox MoleculeNet dataset."""
+    """Data module for Bace MoleculeNet dataset."""
 
+    ID_COLUMN_NAME = "CID"
+    FEATURE_COLUMN_NAME = "mol"
     LABELS_COLUMNS = [
-        "class",
+        "Class",
     ]
 
     @property
@@ -202,7 +211,7 @@ class Bace(MoleculeNetDataExtractor, GeneralSplitter):
 
 
 class HIV(MoleculeNetDataExtractor, GroupSplitter):
-    """Data module for ClinTox MoleculeNet dataset."""
+    """Data module for HIV MoleculeNet dataset."""
 
     LABELS_COLUMNS = [
         "HIV_active",
@@ -226,8 +235,9 @@ class HIV(MoleculeNetDataExtractor, GroupSplitter):
 
 
 class MUV(MoleculeNetDataExtractor, GroupSplitter):
-    """Data module for ClinTox MoleculeNet dataset."""
+    """Data module for MUV MoleculeNet dataset."""
 
+    ID_COLUMN_NAME = "mol_id"
     LABELS_COLUMNS = [
         "MUV-466",
         "MUV-548",
@@ -271,6 +281,6 @@ class MUV(MoleculeNetDataExtractor, GroupSplitter):
 
 if __name__ == "__main__":
     # Example usage
-    dataset = ClinTox()
+    dataset = Sider()
     dataset.prepare_data()
-    dataset.setup()
+    # dataset.setup()
