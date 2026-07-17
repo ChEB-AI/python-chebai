@@ -2,7 +2,7 @@ import os
 import random
 from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Dict, Generator, List, Optional, Tuple, Union
+from typing import Any, Dict, Generator, List, Optional, Tuple, Union
 
 import lightning as pl
 import numpy as np
@@ -14,9 +14,6 @@ from lightning_utilities.core.rank_zero import rank_zero_info
 from torch.utils.data import DataLoader
 
 from chebai.preprocessing import reader as dr
-
-if TYPE_CHECKING:
-    import networkx as nx
 
 
 class XYBaseDataModule(LightningDataModule):

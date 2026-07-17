@@ -3,7 +3,7 @@ import os
 import shutil
 from abc import ABC
 from tempfile import NamedTemporaryFile
-from typing import Any, Generator, List
+from typing import Any, Generator
 from urllib import request
 
 import numpy as np
