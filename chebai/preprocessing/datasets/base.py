@@ -280,6 +280,13 @@ class XYBaseDataModule(LightningDataModule):
             random.shuffle(dataset)
         if self.data_limit is not None:
             dataset = dataset[: self.data_limit]
+
+        if len(dataset) == 0:
+            raise ValueError(
+                f"Dataset is empty for {kind} data.",
+                "Please check the data preparation and filtering steps.",
+            )
+
         return DataLoader(
             dataset,
             collate_fn=self.reader.collator,
