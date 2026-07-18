@@ -1,12 +1,12 @@
 import gzip
 import os
 import shutil
-from abc import ABC
+from abc import ABC, abstractmethod
 from tempfile import NamedTemporaryFile
 from typing import Any, Generator
 from urllib import request
 
-import numpy as np
+import deepchem as dc
 import pandas as pd
 
 from chebai.preprocessing import reader as dr
@@ -17,29 +17,36 @@ from chebai.preprocessing.splitters import GeneralSplitter, GroupSplitter
 class MoleculeNetDataExtractor(_DynamicDataset, ABC):
     READER = dr.ChemDataReader
 
-    LABLES_COLUMNS = []
-    FEATURE_COLUMN_NAME = "smiles"
-    ID_COLUMN_NAME = None
-    GROUP_COLUMN_NAME = "group"
-
     @property
     def _name(self) -> str:
         """Returns the name of the dataset."""
         return str(self.__class__.__name__)
 
-    def _preprocess_data_into_dataframe(self, raw_data_path: str) -> pd.DataFrame:
+    def _preprocess_data_into_dataframe(self, raw_data_path: str) -> None:
+        pass
+
+    def _download_required_data(self) -> None:
+        pass
+
+    def save_processed(self, data: pd.DataFrame, filename: str) -> None:
         """
-        Preprocesses the raw data into a DataFrame.
+        Save the processed dataset to a pickle file.
 
         Args:
-            raw_data_path (str): Path to the raw data.
-
-        Returns:
-            pd.DataFrame: The preprocessed data as a DataFrame.
+            data (pd.DataFrame): The processed dataset to be saved.
+            filename (str): The filename for the pickle file.
         """
-        return pd.read_csv(raw_data_path, header=0)
+        if data is not None:
+            data.to_pickle(open(os.path.join(self.processed_dir_main, filename), "wb"))
 
-    def _load_dict(self, input_file_path: str) -> Generator[dict[str, Any], None, None]:
+    def _get_data_size(self, input_file_path: str) -> None:
+        pass
+
+    @abstractmethod
+    def _load_dict(
+        self,
+        input_file_path: str,
+    ) -> Generator[dict[str, Any], None, None]:
         """Loads data from a CSV file.
 
         Args:
@@ -48,23 +55,10 @@ class MoleculeNetDataExtractor(_DynamicDataset, ABC):
         Returns:
             List[Dict]: List of data dictionaries.
         """
-        with open(input_file_path, "rb") as input_file:
-            df = pd.read_pickle(input_file)
+        pass
 
-        features = df[self.FEATURE_COLUMN_NAME].to_numpy()
-        if self.ID_COLUMN_NAME is not None and self.ID_COLUMN_NAME in df.columns:
-            idents = df[self.ID_COLUMN_NAME].to_numpy()
-        else:
-            idents = np.arange(len(df))
-        labels = df[self.LABLES_COLUMNS].to_numpy()
-
-        if self.GROUP_COLUMN_NAME in df.columns:
-            groups = df[self.GROUP_COLUMN_NAME].to_numpy()
-            for feat, labels, ident, group in zip(features, labels, idents, groups):
-                yield dict(features=feat, labels=labels, ident=ident, group=group)
-        else:
-            for feat, labels, ident in zip(features, labels, idents):
-                yield dict(features=feat, labels=labels, ident=ident)
+    def _get_data_splits(self) -> None:
+        pass
 
     @property
     def base_dir(self) -> str:
@@ -76,10 +70,17 @@ class MoleculeNetDataExtractor(_DynamicDataset, ABC):
         """
         return os.path.join("data", f"{self._name}:MNClassification")
 
+    @property
+    def raw_file_names_dict(self) -> None:
+        """Returns a dictionary of raw file names."""
+        pass
+
 
 class ClinTox(MoleculeNetDataExtractor, GroupSplitter):
     """Data module for ClinTox MoleculeNet dataset."""
 
+    # Total: 1484, FDA_APPROVE is 1: 1390; CT_TOX is 1: 112
+    # Multilabel splits?, stratified splits?
     LABLES_COLUMNS = [
         "FDA_APPROVED",
         "CT_TOX",
@@ -90,50 +91,53 @@ class ClinTox(MoleculeNetDataExtractor, GroupSplitter):
         """Returns a dictionary of raw file names."""
         return {"clintox": "clintox.csv"}
 
-    def _download_required_data(self) -> str:
-        """Downloads and extracts the dataset."""
-        with NamedTemporaryFile("rb") as gout:
-            request.urlretrieve(
-                "https://deepchemdata.s3-us-west-1.amazonaws.com/datasets/clintox.csv.gz",
-                gout.name,
-            )
-            with gzip.open(gout.name) as gfile:
-                with open(
-                    os.path.join(self.raw_dir, self.raw_file_names_dict["clintox"]),
-                    "wt",
-                ) as fout:
-                    fout.write(gfile.read().decode())
-        return os.path.join(self.raw_dir, self.raw_file_names_dict["clintox"])
-
 
 class BBBP(MoleculeNetDataExtractor, GroupSplitter):
     """Data module for BBBP MoleculeNet dataset."""
 
-    ID_COLUMN_NAME = "num"
-    LABLES_COLUMNS = [
-        "p_np",
-    ]
+    def _load_dict(self, input_file_path: str) -> Generator[dict[str, Any], None, None]:
+        """Loads data from a CSV file.
 
-    @property
-    def raw_file_names_dict(self) -> dict:
-        """Returns a dictionary of raw file names."""
-        return {"bbbp": "bbbp.csv"}
+        Args:
+            input_file_path (str): Path to the CSV file.
 
-    def _download_required_data(self) -> str:
-        """Downloads and extracts the dataset."""
-        with open(
-            os.path.join(self.raw_dir, self.raw_file_names_dict["bbbp"]), "ab"
-        ) as dst:
-            with request.urlopen(
-                "https://deepchemdata.s3-us-west-1.amazonaws.com/datasets/BBBP.csv",
-            ) as src:
-                shutil.copyfileobj(src, dst)
-        return os.path.join(self.raw_dir, self.raw_file_names_dict["bbbp"])
+        Returns:
+            List[Dict]: List of data dictionaries.
+        """
+        splits = []
+        tasks, datasets, transformers = dc.molnet.load_bbbp(
+            featurizer="Raw", splitter="scaffold"
+        )
+        train: dc.data.DiskDataset = datasets[0]
+        valid: dc.data.DiskDataset = datasets[1]
+        test: dc.data.DiskDataset = datasets[2]
+        for split_name, data in [
+            ("train", train),
+            ("valid", valid),
+            ("test", test),
+        ]:
+            for idx, (mol, labels, wi, smiles) in enumerate(data.itersamples()):
+                yield dict(
+                    features=smiles,
+                    labels=labels,
+                    ident=idx,
+                )
+                splits.append(
+                    {
+                        "id": idx,
+                        "split": split_name,
+                    }
+                )
+        splits_df = pd.DataFrame(splits)
+        splits_df.to_csv(
+            os.path.join(self.processed_dir_main, "splits.csv"), index=False
+        )
 
 
 class Sider(MoleculeNetDataExtractor, GroupSplitter):
     """Data module for Sider MoleculeNet dataset."""
 
+    # Total 1427, multilabel splits, stratified splits?
     LABLES_COLUMNS = [
         "Hepatobiliary disorders",
         "Metabolism and nutrition disorders",
@@ -187,6 +191,10 @@ class Sider(MoleculeNetDataExtractor, GroupSplitter):
 class Bace(MoleculeNetDataExtractor, GeneralSplitter):
     """Data module for Bace MoleculeNet dataset."""
 
+    # Scaffold?
+    # TODO: Train, val, test split already marked in data, which to use?
+    # BINARY CLASSIFICATION task, total 1513, Class 1: 691
+    # what are other columns?
     ID_COLUMN_NAME = "CID"
     FEATURE_COLUMN_NAME = "mol"
     LABELS_COLUMNS = [
@@ -213,6 +221,9 @@ class Bace(MoleculeNetDataExtractor, GeneralSplitter):
 class HIV(MoleculeNetDataExtractor, GroupSplitter):
     """Data module for HIV MoleculeNet dataset."""
 
+    # Scaffold?
+    # HIV: 82255, HIV_active is 1: 1443
+    # Why activity not used CI: 39684, CM:1039, CA:404 columns? What are they?
     LABELS_COLUMNS = [
         "HIV_active",
     ]
@@ -237,6 +248,26 @@ class HIV(MoleculeNetDataExtractor, GroupSplitter):
 class MUV(MoleculeNetDataExtractor, GroupSplitter):
     """Data module for MUV MoleculeNet dataset."""
 
+    # remove row where all nan, or zeros ?
+    # To much Nan values, Total: 186175
+    # 27.0
+    # 29.0
+    # 30.0
+    # 30.0
+    # 29.0
+    # 29.0
+    # 30.0
+    # 28.0
+    # 29.0
+    # 28.0
+    # 29.0
+    # 29.0
+    # 30.0
+    # 30.0
+    # 29.0
+    # 29.0
+    # 24.0
+    # Multilabel splits
     ID_COLUMN_NAME = "mol_id"
     LABELS_COLUMNS = [
         "MUV-466",
@@ -281,6 +312,32 @@ class MUV(MoleculeNetDataExtractor, GroupSplitter):
 
 if __name__ == "__main__":
     # Example usage
-    dataset = Sider()
+    dataset = BBBP()
     dataset.prepare_data()
-    # dataset.setup()
+    dataset.setup()
+    # TODO: add TOX 21, TOX CAST, PCBA, ToxChallenge
+    # import deepchem as dc
+
+    # # https://deepchem.readthedocs.io/en/latest/api_reference/moleculenet.html
+    # tasks, datasets, transformers = dc.molnet.load_bbbp(
+    #     featurizer="Raw", splitter="scaffold"
+    # )
+    # # train, valid, test = datasets
+    # train: dc.data.DiskDataset = datasets[0]
+    # valid: dc.data.DiskDataset = datasets[1]
+    # test: dc.data.DiskDataset = datasets[2]
+    # for data in [train, valid, test]:
+    #     for xi, yi, wi, idi in data.itersamples():
+    #         print(
+    #             f"features={xi}",  # SMILES
+    #             f"labels={yi}",  # label (0/1)
+    #             f"ident={idi}",  # molecule ID
+    #         )
+
+    # dc.molnet.load_hiv()
+    # dc.molnet.load_bace_classification()
+    # dc.molnet.load_tox21()
+    # dc.molnet.load_toxcast()
+    # dc.molnet.load_sider()
+    # dc.molnet.load_clintox()
+    # dc.molnet.load_muv()
