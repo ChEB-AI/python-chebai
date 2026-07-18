@@ -14,7 +14,11 @@ class MoleculeNetDataExtractor(_DynamicDataset, ABC):
     """
     Base class for MoleculeNet dataset extraction and preprocessing.
 
-    Reference: https://deepchem.readthedocs.io/en/latest/api_reference/moleculenet.html
+    Reference:
+        - https://deepchem.readthedocs.io/en/latest/api_reference/moleculenet.html
+        - Zhenqin Wu, Bharath Ramsundar, Evan N. Feinberg, Joseph Gomes, Caleb Geniesse,
+            Aneesh S. Pappu, Karl Leswing, Vijay Pande; MoleculeNet: a benchmark for molecular
+            machine learning. Chem. Sci. 2018; 9 (2): 513–530. https://doi.org/10.1039/c7sc02664a
     """
 
     READER = dr.ChemDataReader
@@ -173,8 +177,47 @@ class MUV(MoleculeNetDataExtractor):
     def _deep_chem_data_loader_api(
         self,
     ) -> tuple[DiskDataset, DiskDataset, DiskDataset]:
-        # Random splitting is recommended for this dataset.
+        # Scaffold splitting is recommended for this dataset.
         tasks, datasets, transformers = dc.molnet.load_muv(
+            featurizer="Raw", splitter="scaffold"
+        )
+        return datasets
+
+
+class Tox21MolNet(MoleculeNetDataExtractor):
+    """Data module for Tox21MolNet dataset."""
+
+    def _deep_chem_data_loader_api(
+        self,
+    ) -> tuple[DiskDataset, DiskDataset, DiskDataset]:
+        # Random splitting is recommended for this dataset.
+        tasks, datasets, transformers = dc.molnet.load_tox21(
+            featurizer="Raw", splitter="random"
+        )
+        return datasets
+
+
+class ToxCast(MoleculeNetDataExtractor):
+    """Data module for ToxCast MoleculeNet dataset."""
+
+    def _deep_chem_data_loader_api(
+        self,
+    ) -> tuple[DiskDataset, DiskDataset, DiskDataset]:
+        # Random splitting is recommended for this dataset.
+        tasks, datasets, transformers = dc.molnet.load_toxcast(
+            featurizer="Raw", splitter="random"
+        )
+        return datasets
+
+
+class PCBA(MoleculeNetDataExtractor):
+    """Data module for PCBA MoleculeNet dataset."""
+
+    def _deep_chem_data_loader_api(
+        self,
+    ) -> tuple[DiskDataset, DiskDataset, DiskDataset]:
+        # Random splitting is recommended for this dataset.
+        tasks, datasets, transformers = dc.molnet.load_pcba(
             featurizer="Raw", splitter="random"
         )
         return datasets
