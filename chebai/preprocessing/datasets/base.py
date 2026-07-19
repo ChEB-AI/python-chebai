@@ -66,8 +66,8 @@ class XYBaseDataModule(LightningDataModule):
     def __init__(
         self,
         batch_size: int = 1,
-        test_split: Optional[float] = 0.1,
-        validation_split: Optional[float] = 0.05,
+        test_split: float = 0.1,
+        validation_split: float = 0.05,
         reader_kwargs: Optional[dict] = None,
         prediction_kind: str = "test",
         data_limit: Optional[int] = None,

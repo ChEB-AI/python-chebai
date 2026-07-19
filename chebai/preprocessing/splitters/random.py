@@ -10,7 +10,7 @@ from sklearn.model_selection import train_test_split
 from chebai.preprocessing.datasets.base import _DynamicDataset
 
 
-class GeneralSplitter(_DynamicDataset, ABC):
+class RandomSplitter(_DynamicDataset, ABC):
     def _get_data_splits(self) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
         """
         Loads encoded/transformed data and generates training, validation, and test splits.
@@ -20,9 +20,8 @@ class GeneralSplitter(_DynamicDataset, ABC):
         data = self.load_processed_data_from_file(filename)
         df_data = pd.DataFrame(data)
 
-        splits = create_general_splits(
+        splits = create_random_splits(
             df_data,
-            self._LABELS_START_IDX,
             1 - self.validation_split - self.test_split,
             self.validation_split,
             self.test_split,
@@ -31,32 +30,25 @@ class GeneralSplitter(_DynamicDataset, ABC):
         return splits["train"], splits["val"], splits["test"]
 
 
-def create_general_splits(
+def create_random_splits(
     df: pd.DataFrame,
-    label_start_col: int = 2,
     train_ratio: float = 0.8,
     val_ratio: float = 0.1,
     test_ratio: float = 0.1,
+    seed: int | None = 42,
 ) -> dict[str, pd.DataFrame]:
-    """Create stratified train/validation/test splits for multilabel DataFrames.
+    """Create random (non-stratified) train/validation/test splits.
 
-    Columns from index *label_start_col* onwards are treated as binary label
-    columns (one boolean column per label).  The stratification strategy is
-    chosen automatically based on the number of label columns:
-
-    - More than one label column: ``MultilabelStratifiedShuffleSplit`` from
-      the ``iterative-stratification`` package.
-    - Single label column: ``StratifiedShuffleSplit`` from ``scikit-learn``.
+    Rows are split purely at random using ``train_test_split`` from
+    scikit-learn, with no regard to label distribution or grouping.
 
     Parameters
     ----------
     df : pd.DataFrame
-        Input data.  Columns ``0`` to ``label_start_col - 1`` are treated as
-        feature/metadata columns; all remaining columns are boolean label
-        columns.  A typical ChEBI DataFrame has columns
-        ``["chebi_id", "mol", "label1", "label2", ...]``.
+        Input data.
     label_start_col : int
-        Index of the first label column (default 2).
+        Index of the first label column (default 2). Unused by this
+        function; retained for consistency with related split functions.
     train_ratio : float
         Fraction of data for training (default 0.8).
     val_ratio : float
@@ -82,17 +74,12 @@ def create_general_splits(
         raise ValueError("train_ratio + val_ratio + test_ratio must equal 1.0")
     if any(r < 0 or r > 1 for r in [train_ratio, val_ratio, test_ratio]):
         raise ValueError("All ratios must be between 0 and 1")
-    if label_start_col >= len(df.columns):
-        raise ValueError(
-            f"label_start_col={label_start_col} is out of range for a DataFrame "
-            f"with {len(df.columns)} columns"
-        )
 
     df_reset = df.reset_index(drop=True)
 
     # ── Step 1: carve out the test set ──────────────────────────────────────
     df_trainval, df_test = train_test_split(
-        df_reset, test_size=test_ratio, shuffle=True
+        df_reset, test_size=test_ratio, shuffle=True, random_state=seed
     )
 
     # ── Step 2: split train/val from the remaining data ─────────────────────
@@ -102,6 +89,7 @@ def create_general_splits(
         df_trainval,
         test_size=val_ratio_adjusted,
         shuffle=True,
+        random_state=seed,
     )
 
     return {

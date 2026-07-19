@@ -39,15 +39,15 @@ def create_group_splits(
     test_ratio: float = 0.1,
     seed: int | None = 42,
 ) -> dict[str, pd.DataFrame]:
-    """Create stratified train/validation/test splits for multilabel DataFrames.
+    """Create group-based train/validation/test splits for DataFrames.
 
-    Columns from index *label_start_col* onwards are treated as binary label
-    columns (one boolean column per label).  The stratification strategy is
-    chosen automatically based on the number of label columns:
-
-    - More than one label column: ``MultilabelStratifiedShuffleSplit`` from
-      the ``iterative-stratification`` package.
-    - Single label column: ``StratifiedShuffleSplit`` from ``scikit-learn``.
+    Splitting is done with ``GroupShuffleSplit`` using the ``group`` column,
+    so that all rows sharing the same group value are assigned to the same
+    split (no group leaks across train/val/test). This is **not** a
+    stratified split: label balance across splits is not guaranteed, even
+    though label columns are used to build the ``y`` array passed to the
+    splitter (``GroupShuffleSplit`` ignores label values and only inspects
+    the ``groups`` argument).
 
     Parameters
     ----------
@@ -55,7 +55,8 @@ def create_group_splits(
         Input data.  Columns ``0`` to ``label_start_col - 1`` are treated as
         feature/metadata columns; all remaining columns are boolean label
         columns.  A typical ChEBI DataFrame has columns
-        ``["chebi_id", "mol", "label1", "label2", ...]``.
+        ``["chebi_id", "mol", "label1", "label2", ...]``. A ``group`` column
+        must also be present and is used to keep related rows together.
     label_start_col : int
         Index of the first label column (default 2).
     train_ratio : float
@@ -76,8 +77,9 @@ def create_group_splits(
     Raises
     ------
     ValueError
-        If the ratios do not sum to 1, any ratio is outside ``[0, 1]``, or
-        *label_start_col* is out of range.
+        If the ratios do not sum to 1, any ratio is outside ``[0, 1]``,
+        *label_start_col* is out of range, the ``group`` column is missing,
+        or fewer than 2 unique groups are present.
     """
     if abs(train_ratio + val_ratio + test_ratio - 1.0) > 1e-6:
         raise ValueError("train_ratio + val_ratio + test_ratio must equal 1.0")
