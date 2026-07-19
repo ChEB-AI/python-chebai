@@ -114,7 +114,10 @@ class ClinTox(MoleculeNetDataExtractor):
     ) -> tuple[DiskDataset, DiskDataset, DiskDataset]:
         # Random splitting is recommended for this dataset.
         tasks, datasets, transformers = dc.molnet.load_clintox(
-            featurizer="Raw", splitter="random"
+            featurizer="Raw",
+            splitter="random",
+            data_dir=self.raw_dir,
+            save_dir=self.processed_dir_main,
         )
         return datasets
 
@@ -127,7 +130,10 @@ class BBBP(MoleculeNetDataExtractor):
     ) -> tuple[DiskDataset, DiskDataset, DiskDataset]:
         # Scaffold splitting is recommended for this dataset.
         tasks, datasets, transformers = dc.molnet.load_bbbp(
-            featurizer="Raw", splitter="scaffold"
+            featurizer="Raw",
+            splitter="scaffold",
+            data_dir=self.raw_dir,
+            save_dir=self.processed_dir_main,
         )
         return datasets
 
@@ -140,7 +146,10 @@ class Sider(MoleculeNetDataExtractor):
     ) -> tuple[DiskDataset, DiskDataset, DiskDataset]:
         # Random splitting is recommended for this dataset.
         tasks, datasets, transformers = dc.molnet.load_sider(
-            featurizer="Raw", splitter="random"
+            featurizer="Raw",
+            splitter="random",
+            data_dir=self.raw_dir,
+            save_dir=self.processed_dir_main,
         )
         return datasets
 
@@ -153,7 +162,10 @@ class Bace(MoleculeNetDataExtractor):
     ) -> tuple[DiskDataset, DiskDataset, DiskDataset]:
         # Scaffold splitting is recommended for this dataset.
         tasks, datasets, transformers = dc.molnet.load_bace_classification(
-            featurizer="Raw", splitter="scaffold"
+            featurizer="Raw",
+            splitter="scaffold",
+            data_dir=self.raw_dir,
+            save_dir=self.processed_dir_main,
         )
         return datasets
 
@@ -166,7 +178,10 @@ class HIV(MoleculeNetDataExtractor):
     ) -> tuple[DiskDataset, DiskDataset, DiskDataset]:
         # Scaffold splitting is recommended for this dataset.
         tasks, datasets, transformers = dc.molnet.load_hiv(
-            featurizer="Raw", splitter="scaffold"
+            featurizer="Raw",
+            splitter="scaffold",
+            data_dir=self.raw_dir,
+            save_dir=self.processed_dir_main,
         )
         return datasets
 
@@ -179,7 +194,10 @@ class MUV(MoleculeNetDataExtractor):
     ) -> tuple[DiskDataset, DiskDataset, DiskDataset]:
         # Scaffold splitting is recommended for this dataset.
         tasks, datasets, transformers = dc.molnet.load_muv(
-            featurizer="Raw", splitter="scaffold"
+            featurizer="Raw",
+            splitter="scaffold",
+            data_dir=self.raw_dir,
+            save_dir=self.processed_dir_main,
         )
         return datasets
 
@@ -192,7 +210,10 @@ class Tox21MolNet(MoleculeNetDataExtractor):
     ) -> tuple[DiskDataset, DiskDataset, DiskDataset]:
         # Random splitting is recommended for this dataset.
         tasks, datasets, transformers = dc.molnet.load_tox21(
-            featurizer="Raw", splitter="random"
+            featurizer="Raw",
+            splitter="random",
+            data_dir=self.raw_dir,
+            save_dir=self.processed_dir_main,
         )
         return datasets
 
@@ -205,7 +226,10 @@ class ToxCast(MoleculeNetDataExtractor):
     ) -> tuple[DiskDataset, DiskDataset, DiskDataset]:
         # Random splitting is recommended for this dataset.
         tasks, datasets, transformers = dc.molnet.load_toxcast(
-            featurizer="Raw", splitter="random"
+            featurizer="Raw",
+            splitter="random",
+            data_dir=self.raw_dir,
+            save_dir=self.processed_dir_main,
         )
         return datasets
 
@@ -218,7 +242,10 @@ class PCBA(MoleculeNetDataExtractor):
     ) -> tuple[DiskDataset, DiskDataset, DiskDataset]:
         # Random splitting is recommended for this dataset.
         tasks, datasets, transformers = dc.molnet.load_pcba(
-            featurizer="Raw", splitter="random"
+            featurizer="Raw",
+            splitter="random",
+            data_dir=self.raw_dir,
+            save_dir=self.processed_dir_main,
         )
         return datasets
 
