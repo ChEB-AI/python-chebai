@@ -66,7 +66,7 @@ class MoleculeNetDataExtractor(_DynamicDataset, ABC):
         ]:
             for idx, (mol, labels, wi, smiles) in enumerate(data.itersamples()):
                 yield dict(
-                    features=smiles,
+                    features=mol,
                     labels=labels,
                     ident=idx,
                 )

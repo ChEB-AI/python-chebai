@@ -205,8 +205,12 @@ class ChemDataReader(TokenIndexerReader):
         try:
             if isinstance(raw_data, str):
                 mol = Chem.MolFromSmiles(raw_data.strip())
-            else:
+            elif isinstance(raw_data, Chem.Mol):
                 mol = raw_data
+            else:
+                raise ValueError(
+                    f"Invalid input type: {type(raw_data)}. Expected str or Chem.Mol."
+                )
             if mol is None:
                 raise ValueError(f"Invalid input: {raw_data}")
         except ValueError as e:
