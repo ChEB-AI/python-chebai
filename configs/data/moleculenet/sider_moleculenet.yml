@@ -1,4 +1,4 @@
-class_path: chebai.preprocessing.datasets.molecule_classification.Sider
+class_path: chebai.preprocessing.datasets.molNet_classification.Sider
 init_args:
   batch_size: 10
   validation_split: 0.05

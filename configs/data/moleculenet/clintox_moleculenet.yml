@@ -1,4 +1,4 @@
-class_path: chebai.preprocessing.datasets.molecule_classification.ClinTox
+class_path: chebai.preprocessing.datasets.molNet_classification.ClinTox
 init_args:
   batch_size: 32
   validation_split: 0.05
