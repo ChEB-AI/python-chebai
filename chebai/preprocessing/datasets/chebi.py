@@ -60,6 +60,7 @@ class _ChEBIDataExtractor(MultiLabelSplitter, _DynamicDataset, ABC):
         aug_smiles_variations: Optional[int] = None,
         **kwargs,
     ):
+        self.chebi_version = chebi_version
         if bool(augment_smiles):
             assert int(aug_smiles_variations) > 0, (
                 "Number of variations must be greater than 0"
@@ -82,7 +83,6 @@ class _ChEBIDataExtractor(MultiLabelSplitter, _DynamicDataset, ABC):
         self.subset = subset
 
         super(_ChEBIDataExtractor, self).__init__(**kwargs)
-        self.chebi_version = chebi_version
 
         # use different version of chebi for training and validation (if not None)
         # (still uses self.chebi_version for test set)
