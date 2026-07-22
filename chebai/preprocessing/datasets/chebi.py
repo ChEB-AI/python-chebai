@@ -52,6 +52,7 @@ class _ChEBIDataExtractor(MultiLabelSplitter, _DynamicDataset, ABC):
 
     def __init__(
         self,
+        chebi_version: int = 241,
         chebi_version_train: Optional[int] = None,
         single_class: Optional[int] = None,
         subset: Optional[Literal["2_STAR", "3_STAR"]] = None,
@@ -81,6 +82,8 @@ class _ChEBIDataExtractor(MultiLabelSplitter, _DynamicDataset, ABC):
         self.subset = subset
 
         super(_ChEBIDataExtractor, self).__init__(**kwargs)
+        self.chebi_version = chebi_version
+
         # use different version of chebi for training and validation (if not None)
         # (still uses self.chebi_version for test set)
         self.chebi_version_train = chebi_version_train

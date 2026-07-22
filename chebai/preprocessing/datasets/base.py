@@ -33,7 +33,6 @@ class XYBaseDataModule(LightningDataModule):
         label_filter (Optional[int]): The index of the label to filter. Default is None.
         balance_after_filter (Optional[float]): The ratio of negative samples to positive samples after filtering. Default is None.
         num_workers (int): The number of worker processes for data loading. Default is 1.
-        chebi_version (int): The version of ChEBI to use. Default is 200.
         inner_k_folds (int): The number of folds for inner cross-validation. Use -1 to disable inner cross-validation. Default is -1.
         fold_index (Optional[int]): The index of the fold to use for training and validation. Default is None.
         base_dir (Optional[str]): The base directory for storing processed and raw data. Default is None.
@@ -50,7 +49,6 @@ class XYBaseDataModule(LightningDataModule):
         label_filter (Optional[int]): The index of the label to filter.
         balance_after_filter (Optional[float]): The ratio of negative samples to positive samples after filtering.
         num_workers (int): The number of worker processes for data loading.
-        chebi_version (int): The version of ChEBI to use.
         inner_k_folds (int): The number of folds for inner cross-validation. If it is less than to, no cross-validation will be performed.
         fold_index (Optional[int]): The index of the fold to use for training and validation (only relevant for cross-validation).
         _base_dir (Optional[str]): The base directory for storing processed and raw data.
@@ -75,7 +73,6 @@ class XYBaseDataModule(LightningDataModule):
         balance_after_filter: Optional[float] = None,
         num_workers: int = 1,
         persistent_workers: bool = True,
-        chebi_version: int = 200,
         inner_k_folds: int = -1,  # use inner cross-validation if > 1
         fold_index: Optional[int] = None,
         base_dir: Optional[str] = None,
@@ -99,7 +96,6 @@ class XYBaseDataModule(LightningDataModule):
         self.balance_after_filter = balance_after_filter
         self.num_workers = num_workers
         self.persistent_workers: bool = bool(persistent_workers)
-        self.chebi_version = chebi_version
         assert type(inner_k_folds) is int
         self.inner_k_folds = inner_k_folds
         self.use_inner_cross_validation = (
