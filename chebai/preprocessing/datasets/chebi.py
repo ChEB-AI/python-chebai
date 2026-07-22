@@ -393,7 +393,7 @@ class _ChEBIDataExtractor(_DynamicDataset, ABC):
             self.test_split,
             self.dynamic_data_split_seed,
         )
-        return splits["train"], splits["val"], splits["test"]
+        return splits["train"], splits["validation"], splits["test"]
 
     def _setup_pruned_test_set(
         self, df_test_chebi_version: pd.DataFrame
