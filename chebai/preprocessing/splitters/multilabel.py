@@ -29,4 +29,4 @@ class MultiLabelSplitter(_DynamicDataset, ABC):
             self.test_split,
             self.dynamic_data_split_seed,
         )
-        return splits["train"], splits["val"], splits["test"]
+        return splits["train"], splits["validation"], splits["test"]

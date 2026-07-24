@@ -28,7 +28,7 @@ class GroupSplitter(_DynamicDataset, ABC):
             self.test_split,
             self.dynamic_data_split_seed,
         )
-        return splits["train"], splits["val"], splits["test"]
+        return splits["train"], splits["validation"], splits["test"]
 
 
 def create_group_splits(
@@ -71,7 +71,7 @@ def create_group_splits(
     Returns
     -------
     dict
-        Dictionary with keys ``'train'``, ``'val'``, ``'test'``, each
+        Dictionary with keys ``'train'``, ``'validation'``, ``'test'``, each
         containing a DataFrame.
 
     Raises
@@ -133,6 +133,6 @@ def create_group_splits(
 
     return {
         "train": df_train.reset_index(drop=True),
-        "val": df_val.reset_index(drop=True),
+        "validation": df_val.reset_index(drop=True),
         "test": df_test.reset_index(drop=True),
     }
