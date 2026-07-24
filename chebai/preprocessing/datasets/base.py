@@ -1139,6 +1139,15 @@ class _DynamicDataset(XYBaseDataModule, ABC):
         self._dynamic_df_train = df_data[df_data["ident"].isin(train_ids)]
         self._dynamic_df_val = df_data[df_data["ident"].isin(validation_ids)]
         self._dynamic_df_test = df_data[df_data["ident"].isin(test_ids)]
+        assert len(self._dynamic_df_train) > 0, (
+            "No training data found after applying splits"
+        )
+        assert len(self._dynamic_df_val) > 0, (
+            "No validation data found after applying splits"
+        )
+        assert len(self._dynamic_df_test) > 0, (
+            "No test data found after applying splits"
+        )
 
     # ------------------------------ Phase: DataLoaders -----------------------------------
     def load_processed_data(
