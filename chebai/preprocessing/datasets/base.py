@@ -1111,6 +1111,7 @@ class _DynamicDataset(XYBaseDataModule, ABC):
         filename = self.processed_file_names_dict["data"]
         data = self.load_processed_data_from_file(filename)
         df_data = pd.DataFrame(data)
+        df_data["ident"] = df_data["ident"].astype(str)
 
         if self.apply_id_filter:
             print(f"Applying ID filter from {self.apply_id_filter}...")
