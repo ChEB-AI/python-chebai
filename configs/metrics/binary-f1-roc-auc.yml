@@ -1,6 +1,6 @@
 class_path: torchmetrics.MetricCollection
 init_args:
-  metrics:
+  metrics: # Use this for: BACE, BBBP, HIV
     f1:
       class_path: torchmetrics.classification.BinaryF1Score
     roc-auc:
