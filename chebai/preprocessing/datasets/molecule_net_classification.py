@@ -202,7 +202,7 @@ class MUV(MoleculeNetDataExtractor):
         return datasets
 
 
-class Tox21MolNet(MoleculeNetDataExtractor):
+class Tox21(MoleculeNetDataExtractor):
     """Data module for Tox21MolNet dataset."""
 
     def _deep_chem_data_loader_api(
