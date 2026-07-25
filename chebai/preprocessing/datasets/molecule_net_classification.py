@@ -138,7 +138,7 @@ class BBBP(MoleculeNetDataExtractor):
         return datasets
 
 
-class Sider(MoleculeNetDataExtractor):
+class SIDER(MoleculeNetDataExtractor):
     """Data module for Sider MoleculeNet dataset."""
 
     def _deep_chem_data_loader_api(
@@ -154,7 +154,7 @@ class Sider(MoleculeNetDataExtractor):
         return datasets
 
 
-class Bace(MoleculeNetDataExtractor):
+class BACE(MoleculeNetDataExtractor):
     """Data module for Bace MoleculeNet dataset."""
 
     def _deep_chem_data_loader_api(
