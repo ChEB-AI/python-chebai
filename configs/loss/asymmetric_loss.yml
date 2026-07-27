@@ -1,0 +1,7 @@
+class_path: chebai.loss.asymmetric_loss.AsymmetricLoss
+init_args:
+  # Best-performing configuration for ChEBI classification: probability margin clipping
+  # only, without asymmetric focusing.
+  gamma_pos: 0.0
+  gamma_neg: 0.0
+  clip: 0.15
