@@ -1,0 +1,3 @@
+class_path: chebai.loss.asymmetric_loss.AsymmetricLoss
+init_args:
+  task_type: multi-label                   # 'multi-label' or 'single-label'
