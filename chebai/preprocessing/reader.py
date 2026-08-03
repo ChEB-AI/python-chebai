@@ -5,6 +5,7 @@ from abc import ABC
 from itertools import islice
 from typing import Any, Dict, List, Optional
 
+from chebi_utils.read_molecule import smiles_or_inchi_to_mol
 from pysmiles.read_smiles import _tokenize
 from rdkit import Chem
 
@@ -194,17 +195,18 @@ class ChemDataReader(TokenIndexerReader):
 
     def _read_data(self, raw_data: str | Chem.Mol) -> Optional[List[int]]:
         """
-        Reads and tokenizes SMILES strings (or SMILES strings generated from Chem.Mol objects) into a list of token indices. Optionally canonicalizes the SMILES string using RDKit.
+        Reads and tokenizes SMILES strings (or SMILES strings generated from Chem.Mol objects / InChI strings) into a list of token indices.
+        Optionally canonicalizes the SMILES string using RDKit (if the input is a mol object or InChI, the SMILES will always be canonicalized).
 
         Args:
-            raw_data (str|Chem.Mol): The raw SMILES string or Chem.Mol object to be tokenized.
+            raw_data (str|Chem.Mol): The raw SMILES / InChI string or Chem.Mol object to be tokenized.
 
         Returns:
             List[int]: A list of integers representing the indices of the SMILES tokens.
         """
         try:
             if isinstance(raw_data, str):
-                mol = Chem.MolFromSmiles(raw_data.strip())
+                mol = smiles_or_inchi_to_mol(raw_data.strip())
             else:
                 mol = raw_data
             if mol is None:
@@ -221,15 +223,17 @@ class ChemDataReader(TokenIndexerReader):
                 print(f"RDKit failed to canonicalize the SMILES: {raw_data}")
                 print(f"\t{e}")
                 return None
-        elif not isinstance(raw_data, str):
+        elif isinstance(raw_data, str) and not raw_data.startswith("InChI="):
+            # only a raw SMILES string can be tokenized as-is
+            smiles = raw_data.strip()
+        else:
+            # Chem.Mol input, or an InChI string that has to be serialized first
             try:
                 smiles = Chem.MolToSmiles(mol)
             except Exception as e:
-                print(f"RDKit failed to convert Mol object to SMILES: {raw_data}")
+                print(f"RDKit failed to convert input to SMILES: {raw_data}")
                 print(f"\t{e}")
                 return None
-        else:
-            smiles = raw_data
 
         try:
             tokenized = [self._get_token_index(v[1]) for v in _tokenize(smiles)]
@@ -277,12 +281,14 @@ class StaticSMILESReader(DataReader):
         return "static_smiles"
 
     def _read_data(self, raw_data: str | Chem.Mol) -> Optional[List[int]]:
-        """Tokenize raw SMILES data using BasicSmilesTokenizer with static vocabulary."""
+        """Tokenize SMILES / InChI / Mol object using BasicSmilesTokenizer with static vocabulary."""
         try:
             if isinstance(raw_data, str):
-                mol = Chem.MolFromSmiles(raw_data.strip())
+                mol = smiles_or_inchi_to_mol(raw_data.strip())
             else:
                 mol = raw_data
+            if mol is None:
+                raise ValueError(f"Invalid input: {raw_data}")
         except ValueError as e:
             print(f"could not process {raw_data}")
             print(f"\tError: {e}")
