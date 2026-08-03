@@ -40,7 +40,7 @@ dev = [
     "omegaconf",
     "deepsmiles",
     "torchmetrics",
-    "chebi-utils>=0.3",
+    "chebi-utils>=0.4",
 ]
 
 linters = [
