@@ -1,3 +1,5 @@
+from contextlib import nullcontext
+
 import torch
 import torch.nn as nn
 
@@ -114,7 +116,6 @@ class AsymmetricLoss(nn.Module):
         "input" dimensions: - (batch_size, number_classes)
         "target" dimensions: - (batch_size)
         """
-        num_classes = inputs.size()[-1]
         log_preds = self.logsoftmax(inputs)
         self.targets_classes = torch.zeros_like(inputs).scatter_(1, target.long().unsqueeze(1), 1)
 
