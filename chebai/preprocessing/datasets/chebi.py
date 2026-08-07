@@ -530,6 +530,14 @@ class _ChEBIDataExtractor(MultiLabelSplitter, _DynamicDataset, ABC):
         #   - chebai/cli.py: to link this property to `model.init_args.classes_txt_file_path`
         return os.path.join(self.processed_dir_main, "classes.txt")
 
+    @property
+    def data_type(self) -> str:
+        """
+        Returns the type of data (e.g., chebi, protein, HIV, Tox21, etc.) that the dataset represents.
+        This property is used to create a separate tokens directory for each data type.
+        """
+        return "chebi"
+
 
 class ChEBIFromList(_ChEBIDataExtractor):
     """
@@ -644,6 +652,21 @@ class ChEBIOver50(ChEBIOverX):
     Attributes:
         THRESHOLD (int): The threshold for selecting classes (50).
     """
+
+    THRESHOLD: int = 50
+
+
+class ChEBIOver50_ChemDataReader(ChEBIOverX):
+    """
+    A class for extracting data from the ChEBI dataset with a threshold of 50 for selecting classes.
+
+    Inherits from ChEBIOverX.
+
+    Attributes:
+        THRESHOLD (int): The threshold for selecting classes (50).
+    """
+
+    READER = dr.ChemDataReader
 
     THRESHOLD: int = 50
 

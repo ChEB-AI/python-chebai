@@ -105,6 +105,14 @@ class MoleculeNetDataExtractor(_DynamicDataset, ABC):
         """Returns a dictionary of raw file names."""
         pass
 
+    @property
+    def data_type(self) -> str:
+        """
+        Returns the type of data (e.g., chebi, protein, HIV, Tox21, etc.) that the dataset represents.
+        This property is used to create a separate tokens directory for each data type.
+        """
+        return self.__class__.__name__
+
 
 class ClinTox(MoleculeNetDataExtractor):
     """Data module for ClinTox MoleculeNet dataset."""
