@@ -7,6 +7,7 @@ from typing import Any, Dict, Generator, List, Optional, Tuple, Union
 import lightning as pl
 import numpy as np
 import pandas as pd
+from rdkit import Chem
 import torch
 import tqdm
 from lightning.pytorch.core.datamodule import LightningDataModule
@@ -407,7 +408,7 @@ class XYBaseDataModule(LightningDataModule):
 
     def predict_dataloader(
         self,
-        smiles_list: List[str],
+        molecule_list: List[str | Chem.Mol],
         model_hparams: dict,
         **kwargs,
     ) -> tuple[DataLoader, list[int]]:
@@ -415,7 +416,7 @@ class XYBaseDataModule(LightningDataModule):
         Returns the predict DataLoader.
 
         Args:
-            smiles_list (List[str]): List of SMILES strings to predict.
+            molecule_list (List[str|Chem.Mol]): List of molecules (SMILES / InChI strings or RDKit molecule objects) to predict.
             model_hparams (Optional[dict]): Model hyperparameters.
                 Some prediction pre-processing pipelines may require these.
             **kwargs: Additional keyword arguments, passed to dataloader().
@@ -425,7 +426,7 @@ class XYBaseDataModule(LightningDataModule):
         """
 
         data, valid_indices = self._process_input_for_prediction(
-            smiles_list, model_hparams
+            molecule_list, model_hparams
         )
         return (
             DataLoader(
@@ -438,13 +439,13 @@ class XYBaseDataModule(LightningDataModule):
         )
 
     def _process_input_for_prediction(
-        self, smiles_list: list[str], model_hparams: dict
+        self, molecule_list: list[str | Chem.Mol], model_hparams: dict
     ) -> tuple[list, list]:
         """
         Process input data for prediction.
 
         Args:
-            smiles_list (List[str]): List of SMILES strings.
+            molecule_list (List[str|Chem.Mol]): List of molecules (SMILES / InChI strings or RDKit molecule objects) to predict.
             model_hparams (dict): Model hyperparameters.
                 Some prediction pre-processing pipelines may require these.
 
@@ -455,8 +456,8 @@ class XYBaseDataModule(LightningDataModule):
         num_of_labels = int(model_hparams["out_dim"])
         self._dummy_labels: list = list(range(1, num_of_labels + 1))
 
-        for idx, smiles in enumerate(smiles_list):
-            result = self._preprocess_smiles_for_pred(idx, smiles, model_hparams)
+        for idx, molecule in enumerate(molecule_list):
+            result = self._preprocess_molecule_for_pred(idx, molecule, model_hparams)
             if result is None or result["features"] is None:
                 continue
             if not self._filter_to_token_limit(result):
@@ -466,8 +467,8 @@ class XYBaseDataModule(LightningDataModule):
 
         return data, valid_indices
 
-    def _preprocess_smiles_for_pred(
-        self, idx: int, smiles: str, model_hparams: Optional[dict] = None
+    def _preprocess_molecule_for_pred(
+        self, idx: int, molecule: str | Chem.Mol, model_hparams: Optional[dict] = None
     ) -> dict:
         """Preprocess prediction data."""
         # Add dummy labels because the collate function requires them.
@@ -476,7 +477,7 @@ class XYBaseDataModule(LightningDataModule):
         return self.reader.to_data(
             {
                 "id": f"smiles_{idx}",
-                "features": smiles,
+                "features": molecule,
                 "labels": self._dummy_labels,
             }
         )
@@ -1116,6 +1117,7 @@ class _DynamicDataset(XYBaseDataModule, ABC):
         filename = self.processed_file_names_dict["data"]
         data = self.load_processed_data_from_file(filename)
         df_data = pd.DataFrame(data)
+        df_data["ident"] = df_data["ident"].astype(str)
 
         if self.apply_id_filter:
             print(f"Applying ID filter from {self.apply_id_filter}...")

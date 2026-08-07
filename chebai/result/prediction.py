@@ -1,6 +1,7 @@
 from typing import List, Optional
 
 import pandas as pd
+from rdkit import Chem
 import torch
 from jsonargparse import CLI
 from lightning.fabric.utilities.types import _PATH
@@ -104,20 +105,22 @@ class Predictor:
 
     def predict_from_file(
         self,
-        smiles_file_path: _PATH,
+        file_path: _PATH,
         save_to: _PATH = "predictions.csv",
     ) -> None:
         """
         Loads a model from a checkpoint and makes predictions on input data from a file.
 
         Args:
-            smiles_file_path: Path to the input file containing SMILES strings.
+            file_path: Path to the input file containing SMILES / InChI strings.
             save_to: Path to save the predictions CSV file.
         """
-        with open(smiles_file_path, "r") as input:
-            smiles_strings = [inp.strip() for inp in input.readlines()]
+        with open(file_path, "r") as input:
+            input_strings = [inp.strip() for inp in input.readlines()]
 
-        preds: list[torch.Tensor | None] = self.predict_smiles(smiles=smiles_strings)
+        preds: list[torch.Tensor | None] = self.predict_molecules(
+            molecules=input_strings
+        )
         if all(pred is None for pred in preds):
             print("No valid predictions were made. (All predictions are None.)")
             return
@@ -128,32 +131,32 @@ class Predictor:
             for pred in preds
         ]
         predictions_df = pd.DataFrame(
-            rows, columns=self._classification_labels, index=smiles_strings
+            rows, columns=self._classification_labels, index=input_strings
         )
 
         predictions_df.to_csv(save_to)
         print(f"Predictions saved to: {save_to}")
 
     @torch.inference_mode()
-    def predict_smiles(
+    def predict_molecules(
         self,
-        smiles: List[str],
+        molecules: List[str | Chem.Mol],
     ) -> list[torch.Tensor | None]:
         """
-        Predicts the output for a list of SMILES strings using the model.
+        Predicts the output for a list of molecules using the model.
 
         Args:
-            smiles: A list of SMILES strings.
+            molecules: A list of SMILES / InChI strings or RDKit molecule objects.
 
         Returns:
             A tensor containing the predictions.
         """
         # For certain data prediction pipelines, we may need model hyperparameters
         pred_dl, valid_indices = self._dm.predict_dataloader(
-            smiles_list=smiles, model_hparams=self._model_hparams
+            molecule_list=molecules, model_hparams=self._model_hparams
         )
         if valid_indices is None or len(valid_indices) == 0:
-            return [None] * len(smiles)
+            return [None] * len(molecules)
 
         preds = []
         for batch_idx, batch in enumerate(pred_dl):
@@ -165,7 +168,7 @@ class Predictor:
         preds = torch.cat(preds)
 
         # Initialize output with None
-        output: list[torch.Tensor | None] = [None] * len(smiles)
+        output: list[torch.Tensor | None] = [None] * len(molecules)
 
         # Scatter predictions back
         for pred, idx in zip(preds, valid_indices):
@@ -178,27 +181,27 @@ class MainPredictor:
     @staticmethod
     def predict_from_file(
         checkpoint_path: _PATH,
-        smiles_file_path: _PATH,
+        file_path: _PATH,
         save_to: _PATH = "predictions.csv",
         batch_size: Optional[int] = None,
     ) -> None:
         predictor = Predictor(checkpoint_path, batch_size)
         predictor.predict_from_file(
-            smiles_file_path,
+            file_path,
             save_to,
         )
 
     @staticmethod
-    def predict_smiles(
+    def predict(
         checkpoint_path: _PATH,
-        smiles: List[str],
+        molecules: List[str | Chem.Mol],
         batch_size: Optional[int] = None,
     ) -> list[torch.Tensor | None]:
         predictor = Predictor(checkpoint_path, batch_size)
-        return predictor.predict_smiles(smiles)
+        return predictor.predict_molecules(molecules=molecules)
 
 
 if __name__ == "__main__":
     # python chebai/result/prediction.py  predict_from_file --help
-    # python chebai/result/prediction.py  predict_smiles --help
+    # python chebai/result/prediction.py  predict --help
     CLI(MainPredictor, as_positional=False)

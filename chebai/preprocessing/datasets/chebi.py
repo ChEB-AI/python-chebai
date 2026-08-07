@@ -238,7 +238,14 @@ class _ChEBIDataExtractor(MultiLabelSplitter, _DynamicDataset, ABC):
 
         sdf_path = os.path.join(self.raw_dir, self.raw_file_names_dict["sdf"])
         mol_df = extract_molecules(sdf_path)
-        mol_df = mol_df[mol_df["STAR"] == self.subset[0]] if self.subset else mol_df
+        mol_df["star"] = (
+            mol_df["STAR"]
+            if "STAR" in mol_df.columns
+            else mol_df["Star"]
+            if "Star" in mol_df.columns
+            else None
+        )
+        mol_df = mol_df[mol_df["star"] == self.subset[0]] if self.subset else mol_df
         data, labels = build_labeled_dataset(g, mol_df, self.THRESHOLD)
 
         with open(os.path.join(self.classes_txt_file_path), "wt") as fout:
@@ -839,7 +846,7 @@ class ChEBIOver100Fingerprints(ChEBIOverXFingerprints, ChEBIOver100):
 
 if __name__ == "__main__":
     dataset = ChEBIOver50(
-        chebi_version=251,
+        chebi_version=237,
     )
     dataset.prepare_data()
     dataset.setup()

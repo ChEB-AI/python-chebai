@@ -40,7 +40,7 @@ dev = [
     "omegaconf",
     "deepsmiles",
     "torchmetrics",
-    "chebi-utils>=0.3",
+    "chebi-utils>=0.4",
     # In case of urllib.error.URLError: <urlopen error [SSL: CERTIFICATE_VERIFY_FAILED]
     # `export SSL_CERT_FILE=$(python -m certifi)`
     "certifi",
