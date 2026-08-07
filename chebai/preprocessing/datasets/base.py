@@ -7,11 +7,11 @@ from typing import Any, Dict, Generator, List, Optional, Tuple, Union
 import lightning as pl
 import numpy as np
 import pandas as pd
-from rdkit import Chem
 import torch
 import tqdm
 from lightning.pytorch.core.datamodule import LightningDataModule
 from lightning_utilities.core.rank_zero import rank_zero_info
+from rdkit import Chem
 from torch.utils.data import DataLoader
 
 from chebai.preprocessing import reader as dr
@@ -280,8 +280,7 @@ class XYBaseDataModule(LightningDataModule):
 
         if len(dataset) == 0:
             raise ValueError(
-                f"Dataset is empty for {kind} data.",
-                "Please check the data preparation and filtering steps.",
+                f"Dataset is empty for {kind} data.\nPlease check the data preparation and filtering steps.",
             )
 
         return DataLoader(
@@ -618,7 +617,6 @@ class XYBaseDataModule(LightningDataModule):
         return list(self.raw_file_names_dict.values())
 
     @property
-    @abstractmethod
     def raw_file_names_dict(self) -> dict:
         """
         Returns the dictionary of raw file names (i.e., files that are directly obtained from an external source).
@@ -953,7 +951,7 @@ class _DynamicDataset(XYBaseDataModule, ABC):
             data (pd.DataFrame): The processed dataset to be saved.
             filename (str): The filename for the pickle file.
         """
-        data.to_pickle(open(os.path.join(self.processed_dir_main, filename), "wb"))
+        data.to_pickle(os.path.join(self.processed_dir_main, filename))
 
     def get_processed_pickled_df_file(self, filename: str) -> Optional[pd.DataFrame]:
         """

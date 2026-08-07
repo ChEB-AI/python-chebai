@@ -1,4 +1,4 @@
-"""Generate stratified train/validation/test splits from ChEBI DataFrames."""
+ """Generate random (non-stratified) train/validation/test splits from DataFrames."""
 
 from __future__ import annotations
 

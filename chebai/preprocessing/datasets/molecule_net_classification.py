@@ -43,7 +43,7 @@ class MoleculeNetDataExtractor(_DynamicDataset, ABC):
             filename (str): The filename for the pickle file.
         """
         if data is not None:
-            data.to_pickle(open(os.path.join(self.processed_dir_main, filename), "wb"))
+            data.to_pickle(os.path.join(self.processed_dir_main, filename))
 
     def _get_data_size(self, input_file_path: str) -> None:
         pass
@@ -61,7 +61,7 @@ class MoleculeNetDataExtractor(_DynamicDataset, ABC):
         train, valid, test = self._deep_chem_data_loader_api()
         for split_name, data in [
             ("train", train),
-            ("valid", valid),
+            ("validation", valid),
             ("test", test),
         ]:
             for idx, (mol, labels, wi, smiles) in enumerate(data.itersamples()):
