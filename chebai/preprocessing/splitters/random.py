@@ -1,4 +1,4 @@
- """Generate random (non-stratified) train/validation/test splits from DataFrames."""
+"""Generate random (non-stratified) train/validation/test splits from DataFrames."""
 
 from __future__ import annotations
 
