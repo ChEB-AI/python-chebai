@@ -105,14 +105,6 @@ class MoleculeNetDataExtractor(_DynamicDataset, ABC):
         """Returns a dictionary of raw file names."""
         pass
 
-    @property
-    def data_type(self) -> str:
-        """
-        Returns the type of data (e.g., chebi, protein, HIV, Tox21, etc.) that the dataset represents.
-        This property is used to create a separate tokens directory for each data type.
-        """
-        return self.__class__.__name__
-
 
 class ClinTox(MoleculeNetDataExtractor):
     """Data module for ClinTox MoleculeNet dataset."""
@@ -128,6 +120,10 @@ class ClinTox(MoleculeNetDataExtractor):
             save_dir=self.processed_dir_main,
         )
         return datasets
+
+    @property
+    def data_type(self) -> str:
+        return "clin_tox"
 
 
 class BBBP(MoleculeNetDataExtractor):
@@ -145,6 +141,10 @@ class BBBP(MoleculeNetDataExtractor):
         )
         return datasets
 
+    @property
+    def data_type(self) -> str:
+        return "bbbp"
+
 
 class SIDER(MoleculeNetDataExtractor):
     """Data module for Sider MoleculeNet dataset."""
@@ -160,6 +160,10 @@ class SIDER(MoleculeNetDataExtractor):
             save_dir=self.processed_dir_main,
         )
         return datasets
+
+    @property
+    def data_type(self) -> str:
+        return "sider"
 
 
 class BACE(MoleculeNetDataExtractor):
@@ -177,6 +181,10 @@ class BACE(MoleculeNetDataExtractor):
         )
         return datasets
 
+    @property
+    def data_type(self) -> str:
+        return "bace"
+
 
 class HIV(MoleculeNetDataExtractor):
     """Data module for HIV MoleculeNet dataset."""
@@ -192,6 +200,10 @@ class HIV(MoleculeNetDataExtractor):
             save_dir=self.processed_dir_main,
         )
         return datasets
+
+    @property
+    def data_type(self) -> str:
+        return "hiv"
 
 
 class MUV(MoleculeNetDataExtractor):
@@ -209,6 +221,10 @@ class MUV(MoleculeNetDataExtractor):
         )
         return datasets
 
+    @property
+    def data_type(self) -> str:
+        return "muv"
+
 
 class Tox21(MoleculeNetDataExtractor):
     """Data module for Tox21MolNet dataset."""
@@ -224,6 +240,10 @@ class Tox21(MoleculeNetDataExtractor):
             save_dir=self.processed_dir_main,
         )
         return datasets
+
+    @property
+    def data_type(self) -> str:
+        return "tox21"
 
 
 class ToxCast(MoleculeNetDataExtractor):
@@ -241,6 +261,9 @@ class ToxCast(MoleculeNetDataExtractor):
         )
         return datasets
 
+    def data_type(self) -> str:
+        return "toxcast"
+
 
 class PCBA(MoleculeNetDataExtractor):
     """Data module for PCBA MoleculeNet dataset."""
@@ -256,6 +279,10 @@ class PCBA(MoleculeNetDataExtractor):
             save_dir=self.processed_dir_main,
         )
         return datasets
+
+    @property
+    def data_type(self) -> str:
+        return "pcba"
 
 
 if __name__ == "__main__":
