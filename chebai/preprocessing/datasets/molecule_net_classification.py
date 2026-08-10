@@ -23,11 +23,6 @@ class MoleculeNetDataExtractor(_DynamicDataset, ABC):
 
     READER = dr.ChemDataReader
 
-    @property
-    def _name(self) -> str:
-        """Returns the name of the dataset."""
-        return str(self.__class__.__name__)
-
     def _preprocess_data_into_dataframe(self, raw_data_path: str) -> None:
         pass
 
@@ -125,6 +120,10 @@ class ClinTox(MoleculeNetDataExtractor):
     def data_type(self) -> str:
         return "clin_tox"
 
+    @property
+    def _name(self) -> str:
+        return "ClinTox"
+
 
 class BBBP(MoleculeNetDataExtractor):
     """Data module for BBBP MoleculeNet dataset."""
@@ -144,6 +143,10 @@ class BBBP(MoleculeNetDataExtractor):
     @property
     def data_type(self) -> str:
         return "bbbp"
+
+    @property
+    def _name(self) -> str:
+        return "BBBP"
 
 
 class SIDER(MoleculeNetDataExtractor):
@@ -165,6 +168,10 @@ class SIDER(MoleculeNetDataExtractor):
     def data_type(self) -> str:
         return "sider"
 
+    @property
+    def _name(self) -> str:
+        return "SIDER"
+
 
 class BACE(MoleculeNetDataExtractor):
     """Data module for Bace MoleculeNet dataset."""
@@ -184,6 +191,10 @@ class BACE(MoleculeNetDataExtractor):
     @property
     def data_type(self) -> str:
         return "bace"
+
+    @property
+    def _name(self) -> str:
+        return "BACE"
 
 
 class HIV(MoleculeNetDataExtractor):
@@ -205,6 +216,10 @@ class HIV(MoleculeNetDataExtractor):
     def data_type(self) -> str:
         return "hiv"
 
+    @property
+    def _name(self) -> str:
+        return "HIV"
+
 
 class MUV(MoleculeNetDataExtractor):
     """Data module for MUV MoleculeNet dataset."""
@@ -224,6 +239,10 @@ class MUV(MoleculeNetDataExtractor):
     @property
     def data_type(self) -> str:
         return "muv"
+
+    @property
+    def _name(self) -> str:
+        return "MUV"
 
 
 class Tox21(MoleculeNetDataExtractor):
@@ -245,6 +264,10 @@ class Tox21(MoleculeNetDataExtractor):
     def data_type(self) -> str:
         return "tox21"
 
+    @property
+    def _name(self) -> str:
+        return "Tox21"
+
 
 class ToxCast(MoleculeNetDataExtractor):
     """Data module for ToxCast MoleculeNet dataset."""
@@ -261,8 +284,13 @@ class ToxCast(MoleculeNetDataExtractor):
         )
         return datasets
 
+    @property
     def data_type(self) -> str:
         return "toxcast"
+
+    @property
+    def _name(self) -> str:
+        return "ToxCast"
 
 
 class PCBA(MoleculeNetDataExtractor):
@@ -284,9 +312,13 @@ class PCBA(MoleculeNetDataExtractor):
     def data_type(self) -> str:
         return "pcba"
 
+    @property
+    def _name(self) -> str:
+        return "PCBA"
+
 
 if __name__ == "__main__":
     # Example usage
-    dataset = BBBP()
+    dataset = BACE()
     dataset.prepare_data()
     dataset.setup()
