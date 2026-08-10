@@ -951,7 +951,8 @@ class _DynamicDataset(XYBaseDataModule, ABC):
             data (pd.DataFrame): The processed dataset to be saved.
             filename (str): The filename for the pickle file.
         """
-        data.to_pickle(os.path.join(self.processed_dir_main, filename))
+        if data is not None and not data.empty:
+            data.to_pickle(os.path.join(self.processed_dir_main, filename))
 
     def get_processed_pickled_df_file(self, filename: str) -> Optional[pd.DataFrame]:
         """

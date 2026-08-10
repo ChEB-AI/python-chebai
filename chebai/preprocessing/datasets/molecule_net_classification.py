@@ -21,6 +21,22 @@ class MoleculeNetDataExtractor(_DynamicDataset, ABC):
             machine learning. Chem. Sci. 2018; 9 (2): 513–530. https://doi.org/10.1039/c7sc02664a
     """
 
+    def __init__(
+        self,
+        test_split: float | None = None,
+        validation_split: float | None = None,
+        **kwargs,
+    ):
+        if test_split is not None or validation_split is not None:
+            raise ValueError(
+                "Custom splits are not supported for MoleculeNet datasets. "
+                "Please use the predefined splits provided by the deepchem community"
+                "by using `--splits_file_path=<path/to/splits.csv>`"
+            )
+        super().__init__(
+            test_split=test_split, validation_split=validation_split, **kwargs
+        )
+
     READER = dr.ChemDataReader
 
     def _preprocess_data_into_dataframe(self, raw_data_path: str) -> None:
@@ -71,10 +87,10 @@ class MoleculeNetDataExtractor(_DynamicDataset, ABC):
                         "split": split_name,
                     }
                 )
-        splits_df = pd.DataFrame(splits)
-        splits_df.to_csv(
-            os.path.join(self.processed_dir_main, "splits.csv"), index=False
-        )
+        splits_file_path = os.path.join(self.processed_dir_main, "splits.csv")
+        if not os.path.exists(splits_file_path):
+            splits_df = pd.DataFrame(splits)
+            splits_df.to_csv(splits_file_path, index=False)
 
     @abstractmethod
     def _deep_chem_data_loader_api(
@@ -84,6 +100,13 @@ class MoleculeNetDataExtractor(_DynamicDataset, ABC):
 
     def _get_data_splits(self) -> None:
         pass
+
+    def _generate_dynamic_splits(self) -> None:
+        raise ValueError(
+            "Custom splits are not supported for MoleculeNet datasets. "
+            "Please use the predefined splits provided by the deepchem community"
+            "by using `--splits_file_path=<path/to/splits.csv>`"
+        )
 
     @property
     def base_dir(self) -> str:
