@@ -341,6 +341,13 @@ class XYBaseDataModule(LightningDataModule):
             if d["features"] is not None
         ]
 
+        number_of_unique_ids = len(set(d["ident"] for d in data))
+        assert len(data) == number_of_unique_ids, (
+            "Duplicate entries found in the dataset. "
+            f"Unique entries {number_of_unique_ids}. "
+            f"Total entries {len(data)}. "
+        )
+
         data = [val for val in data if self._filter_to_token_limit(val)]
         return data
 

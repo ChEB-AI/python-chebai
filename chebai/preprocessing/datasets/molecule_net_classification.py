@@ -70,12 +70,13 @@ class MoleculeNetDataExtractor(_DynamicDataset, ABC):
         """
         splits = []
         train, valid, test = self._deep_chem_data_loader_api()
+        idx = 0
         for split_name, data in [
             ("train", train),
             ("validation", valid),
             ("test", test),
         ]:
-            for idx, (mol, labels, wi, smiles) in enumerate(data.itersamples()):
+            for mol, labels, wi, smiles in data.itersamples():
                 yield dict(
                     features=mol,
                     labels=labels,
@@ -87,6 +88,7 @@ class MoleculeNetDataExtractor(_DynamicDataset, ABC):
                         "split": split_name,
                     }
                 )
+                idx += 1
         splits_file_path = os.path.join(self.processed_dir_main, "splits.csv")
         if not os.path.exists(splits_file_path):
             splits_df = pd.DataFrame(splits)
