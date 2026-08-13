@@ -77,17 +77,8 @@ class MoleculeNetDataExtractor(_DynamicDataset, ABC):
             ("test", test),
         ]:
             for mol, labels, wi, smiles in data.itersamples():
-                yield dict(
-                    features=mol,
-                    labels=labels,
-                    ident=idx,
-                )
-                splits.append(
-                    {
-                        "id": idx,
-                        "split": split_name,
-                    }
-                )
+                yield dict(features=mol, labels=labels.astype(bool), ident=idx)
+                splits.append({"id": idx, "split": split_name})
                 idx += 1
         splits_file_path = os.path.join(self.processed_dir_main, "splits.csv")
         if not os.path.exists(splits_file_path):
