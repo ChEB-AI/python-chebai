@@ -76,8 +76,19 @@ class MoleculeNetDataExtractor(_DynamicDataset, ABC):
             ("validation", valid),
             ("test", test),
         ]:
-            for mol, labels, wi, smiles in data.itersamples():
-                yield dict(features=mol, labels=labels.astype(bool), ident=idx)
+            for mol, labels, w, smiles in data.itersamples():
+                # https://deepchem.readthedocs.io/en/latest/api_reference/moleculenet.html
+                # Note that the “w” matrix represents the weight of each sample. Some assays may have missing values, in which case the weight is 0.
+                # Otherwise, the weight is 1. This is when `transformers` are set to `[]` in the deepchem data loader API.
+                # By default `transformers` is set to ['balancing'], which doesn't hand you the raw 0/1 weight matrix.
+                # Instead meaning DeepChem automatically applies a BalancingTransformer before returning the dataset.
+                # That transformer reweights the observed labels per task so positive and negative examples end up with equal total weight — it upweights the rarer class.
+                # Currently, transformers are set to `[]` in the deepchem data loader API, so we can get the raw 0/1 weight matrix.
+                labels = [
+                    bool(label) if weight != 0 else None
+                    for label, weight in zip(labels, w)
+                ]
+                yield dict(features=mol, labels=labels, ident=idx)
                 splits.append({"id": idx, "split": split_name})
                 idx += 1
         splits_file_path = os.path.join(self.processed_dir_main, "splits.csv")
@@ -129,6 +140,7 @@ class ClinTox(MoleculeNetDataExtractor):
             splitter="random",
             data_dir=self.raw_dir,
             save_dir=self.processed_dir_main,
+            transformers=[],
         )
         return datasets
 
@@ -153,6 +165,7 @@ class BBBP(MoleculeNetDataExtractor):
             splitter="scaffold",
             data_dir=self.raw_dir,
             save_dir=self.processed_dir_main,
+            transformers=[],
         )
         return datasets
 
@@ -177,6 +190,7 @@ class SIDER(MoleculeNetDataExtractor):
             splitter="random",
             data_dir=self.raw_dir,
             save_dir=self.processed_dir_main,
+            transformers=[],
         )
         return datasets
 
@@ -201,6 +215,7 @@ class BACE(MoleculeNetDataExtractor):
             splitter="scaffold",
             data_dir=self.raw_dir,
             save_dir=self.processed_dir_main,
+            transformers=[],
         )
         return datasets
 
@@ -225,6 +240,7 @@ class HIV(MoleculeNetDataExtractor):
             splitter="scaffold",
             data_dir=self.raw_dir,
             save_dir=self.processed_dir_main,
+            transformers=[],
         )
         return datasets
 
@@ -249,6 +265,7 @@ class MUV(MoleculeNetDataExtractor):
             splitter="scaffold",
             data_dir=self.raw_dir,
             save_dir=self.processed_dir_main,
+            transformers=[],
         )
         return datasets
 
@@ -273,6 +290,7 @@ class Tox21(MoleculeNetDataExtractor):
             splitter="random",
             data_dir=self.raw_dir,
             save_dir=self.processed_dir_main,
+            transformers=[],
         )
         return datasets
 
@@ -297,6 +315,7 @@ class ToxCast(MoleculeNetDataExtractor):
             splitter="random",
             data_dir=self.raw_dir,
             save_dir=self.processed_dir_main,
+            transformers=[],
         )
         return datasets
 
@@ -321,6 +340,7 @@ class PCBA(MoleculeNetDataExtractor):
             splitter="random",
             data_dir=self.raw_dir,
             save_dir=self.processed_dir_main,
+            transformers=[],
         )
         return datasets
 
@@ -335,6 +355,6 @@ class PCBA(MoleculeNetDataExtractor):
 
 if __name__ == "__main__":
     # Example usage
-    dataset = BACE()
+    dataset = SIDER()
     dataset.prepare_data()
     dataset.setup()
