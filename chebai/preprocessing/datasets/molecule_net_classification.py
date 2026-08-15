@@ -85,7 +85,7 @@ class MoleculeNetDataExtractor(_DynamicDataset, ABC):
                 # That transformer reweights the observed labels per task so positive and negative examples end up with equal total weight — it upweights the rarer class.
                 # Currently, transformers are set to `[]` in the deepchem data loader API, so we can get the raw 0/1 weight matrix.
                 labels = [
-                    bool(label) if weight != 0 else None
+                    bool(label) if int(weight) != 0 else None
                     for label, weight in zip(labels, w)
                 ]
                 yield dict(features=mol, labels=labels, ident=idx)
@@ -355,6 +355,20 @@ class PCBA(MoleculeNetDataExtractor):
 
 if __name__ == "__main__":
     # Example usage
-    dataset = SIDER()
-    dataset.prepare_data()
-    dataset.setup()
+    for dataset_class in [
+        ClinTox,
+        BBBP,
+        SIDER,
+        BACE,
+        Tox21,
+        ToxCast,
+        # PCBA,
+        # HIV,
+        # MUV,
+    ]:
+        dataset = dataset_class()
+        dataset.prepare_data()
+        dataset.setup()
+    # dataset = SIDER()
+    # dataset.prepare_data()
+    # dataset.setup()
