@@ -88,8 +88,7 @@ def get_epoch(row, epoch_key=None):
 def process_file(path, macro_metric, micro_metric, epoch_key, max_epoch):
     rows = list(iter_history_rows(str(path)))
     if not rows:
-        print(f"  [!] No history records found in {path}, skipping.")
-        return None
+        raise ValueError(f"  [!] No history records found in {path}, skipping.")
 
     all_keys = set()
     for row in rows:
@@ -97,9 +96,9 @@ def process_file(path, macro_metric, micro_metric, epoch_key, max_epoch):
 
     macro_key = detect_metric_key(all_keys, ("f1", "macro"), macro_metric)
     if macro_key is None:
-        print(f"  [!] Could not find a macro-F1 metric in {path}. Available keys:")
-        print("      " + ", ".join(sorted(all_keys)))
-        return None
+        raise ValueError(
+            f"  [!] Could not find a macro-F1 metric in {path}. Available keys: {', '.join(sorted(all_keys))}"
+        )
 
     micro_key = detect_metric_key(all_keys, ("f1", "micro"), micro_metric)
 
@@ -122,10 +121,9 @@ def process_file(path, macro_metric, micro_metric, epoch_key, max_epoch):
             best_epoch = epoch
 
     if best_row is None:
-        print(
+        raise ValueError(
             f"  [!] No numeric values for '{macro_key}' within epoch <= {max_epoch} in {path}."
         )
-        return None
 
     return {
         "file": str(path),
@@ -161,7 +159,7 @@ def print_result(result):
     elif micro_key:
         print(f"  {micro_key} (corresponding): N/A")
     else:
-        print("  (no micro-F1 metric found)")
+        raise ValueError(f"  [!] No micro-F1 metric found in {result['file']}.")
 
     shown = {macro_key, micro_key, "epoch", "_step"}
     other_keys = sorted(
@@ -224,7 +222,7 @@ def main():
         file_path = matches[0].resolve()
         path = Path(file_path)
         if not path.exists():
-            raise FileNotFoundError(f"  [!] File not found: {path}, skipping.")
+            raise FileNotFoundError(f"  [!] File not found: {path}.")
 
         print(f"Processing {path.name} ...")
         result = process_file(
@@ -237,9 +235,13 @@ def main():
     if not results:
         sys.exit("No valid results across the given files.")
 
-    if len(results) < len(args.wandb_run_ids):
+    if len(results) == len(args.wandb_run_ids):
         print(
             f"({len(results)}/{len(args.wandb_run_ids)} files produced a valid result)\n"
+        )
+    else:
+        raise ValueError(
+            f"({len(results)} and {len(args.wandb_run_ids)} do not match)\n"
         )
 
     print("=" * 50)
