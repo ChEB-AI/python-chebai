@@ -2,8 +2,9 @@
 For each of one or more local W&B run files (run-*.wandb), find the step
 with the best validation macro-F1 score, print that score along with the
 corresponding validation micro-F1 (and any other metrics logged at that
-same step). At the end, print the average of the best macro-F1 (and its
-corresponding metrics) across all the given files.
+same step). At the end, print the average +/- sample standard deviation
+(ddof=1, the standard convention for reporting results across seeds) of
+the best macro-F1 and its corresponding metrics across all the given files.
 
 Usage:
     python find_best_f1.py run1.wandb run2.wandb run3.wandb
@@ -19,7 +20,7 @@ import argparse
 import json
 import sys
 from pathlib import Path
-from statistics import mean
+from statistics import mean, stdev
 
 try:
     # Newer wandb versions (>=0.16 or so)
@@ -135,6 +136,17 @@ def process_file(path, macro_metric, micro_metric, epoch_key, max_epoch):
     }
 
 
+def format_mean_std(vals):
+    """Mean +/- sample standard deviation (ddof=1), the convention used in
+    research for reporting performance across seeds/runs. Falls back to
+    'no tolerance' when only one value is available (stdev is undefined)."""
+    m = mean(vals)
+    if len(vals) > 1:
+        s = stdev(vals)  # sample std (n-1 denominator)
+        return f"{m:.4f} \u00b1 {s:.4f}"
+    return f"{m:.4f} (n=1, no std)"
+
+
 def print_result(result):
     row = result["row"]
     macro_key = result["macro_key"]
@@ -219,11 +231,11 @@ def main():
     print("=" * 50)
     print(f"Average across {len(results)} file(s):")
 
-    # Average the macro-F1 across files
+    # Average (+/- sample std) the macro-F1 across files
     macro_vals = [r["row"][r["macro_key"]] for r in results]
-    print(f"  Average best macro-F1: {mean(macro_vals):.4f}  (n={len(macro_vals)})")
+    print(f"  Best macro-F1: {format_mean_std(macro_vals)}  (n={len(macro_vals)})")
 
-    # Average the corresponding micro-F1 across files (where present)
+    # Average (+/- sample std) the corresponding micro-F1 across files (where present)
     micro_vals = [
         r["row"][r["micro_key"]]
         for r in results
@@ -233,7 +245,7 @@ def main():
     ]
     if micro_vals:
         print(
-            f"  Average corresponding micro-F1: {mean(micro_vals):.4f}  (n={len(micro_vals)}/{len(results)})"
+            f"  Corresponding micro-F1: {format_mean_std(micro_vals)}  (n={len(micro_vals)}/{len(results)})"
         )
 
     # Average every other numeric key found in the best rows (union across files)
@@ -252,7 +264,7 @@ def main():
 
     for k in sorted(other_key_values):
         vals = other_key_values[k]
-        print(f"  Average {k}: {mean(vals):.4f}  (n={len(vals)}/{len(results)})")
+        print(f"  {k}: {format_mean_std(vals)}  (n={len(vals)}/{len(results)})")
 
 
 if __name__ == "__main__":
