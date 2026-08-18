@@ -7,7 +7,7 @@ same step). At the end, print the average +/- sample standard deviation
 the best macro-F1 and its corresponding metrics across all the given files.
 
 Usage:
-    python find_best_f1.py run1.wandb run2.wandb run3.wandb
+    python find_best_f1.py 2cb51q4o 0nwo7wrt s4w2w2cx
     python find_best_f1.py *.wandb --macro-metric val/macro_f1 --micro-metric val/micro_f1
     python find_best_f1.py *.wandb --max-epoch 200
 
@@ -185,7 +185,9 @@ def main():
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
     )
     parser.add_argument(
-        "wandb_files", nargs="+", help="Paths to one or more run-*.wandb files"
+        "wandb_run_ids",
+        nargs="+",
+        help="Identifiers of local W&B run files (run-*.wandb) to process",
     )
     parser.add_argument(
         "--macro-metric", default=None, help="Exact key for macro-F1 (skip auto-detect)"
@@ -207,11 +209,23 @@ def main():
     args = parser.parse_args()
 
     results = []
-    for f in args.wandb_files:
-        path = Path(f)
+    for wandb_id in args.wandb_run_ids:
+        file_name = f"run-{wandb_id}.wandb"
+        matches = list(Path(".").rglob(file_name))
+
+        if len(matches) == 0:
+            raise FileNotFoundError(f"Could not find {file_name}")
+
+        if len(matches) > 1:
+            raise RuntimeError(
+                f"Found multiple files named {file_name}:\n"
+                + "\n".join(str(p.resolve()) for p in matches)
+            )
+        file_path = matches[0].resolve()
+        path = Path(file_path)
         if not path.exists():
-            print(f"  [!] File not found: {path}, skipping.")
-            continue
+            raise FileNotFoundError(f"  [!] File not found: {path}, skipping.")
+
         print(f"Processing {path.name} ...")
         result = process_file(
             path, args.macro_metric, args.micro_metric, args.epoch_key, args.max_epoch
@@ -223,9 +237,9 @@ def main():
     if not results:
         sys.exit("No valid results across the given files.")
 
-    if len(results) < len(args.wandb_files):
+    if len(results) < len(args.wandb_run_ids):
         print(
-            f"({len(results)}/{len(args.wandb_files)} files produced a valid result)\n"
+            f"({len(results)}/{len(args.wandb_run_ids)} files produced a valid result)\n"
         )
 
     print("=" * 50)
