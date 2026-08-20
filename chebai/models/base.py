@@ -295,6 +295,9 @@ class ChebaiBaseNet(LightningModule, ABC):
                     model_output, labels, data.get("loss_kwargs", dict())
                 )
                 loss_kwargs = dict()
+                loss_kwargs["valid_label_mask"] = loss_kwargs_candidates[
+                    "valid_label_mask"
+                ]
                 if self.pass_loss_kwargs:
                     loss_kwargs = loss_kwargs_candidates
                     loss_kwargs["current_epoch"] = self.trainer.current_epoch
