@@ -89,23 +89,7 @@ class RaggedCollator(Collator):
                 *((d["features"], d["labels"], d.get("ident")) for d in data)
             )
 
-        # Compute the per-sample, per-label-position boolean mask for unknown entries
-        # (e.g., the None in [1, None, 0]) on the *original* labels, before any
-        # filtering/padding is applied to `y`. Rows whose entire label is None are
-        # represented as all-False rows of the maximum label length.
-        if any(labels is not None for labels in y):
-            max_label_len = max(len(labels) for labels in y if labels is not None)
-            valid_label_mask = pad_sequence(
-                [
-                    torch.tensor([label is not None for label in labels])
-                    if labels is not None
-                    else torch.zeros(max_label_len, dtype=torch.bool)
-                    for labels in y
-                ],
-                batch_first=True,
-            )
-        else:
-            valid_label_mask = None
+        valid_label_mask = self._get_valid_label_mask(y)
 
         # Typical y: ([True, False], None, [True, None], [True])
         if any(x is not None for x in y):
@@ -160,3 +144,22 @@ class RaggedCollator(Collator):
             ],
             batch_first=True,
         )
+
+    def _get_valid_label_mask(self, y: Tuple) -> torch.Tensor | None:
+        # Compute the per-sample, per-label-position boolean mask for unknown entries
+        # (e.g., the None in [1, None, 0]) on the *original* labels, before any
+        # filtering/padding is applied to `y`. Rows whose entire label is None are
+        # represented as all-False rows of the maximum label length.
+        if any(labels is not None for labels in y):
+            max_label_len = max(len(labels) for labels in y if labels is not None)
+            return pad_sequence(
+                [
+                    torch.tensor([label is not None for label in labels])
+                    if labels is not None
+                    else torch.zeros(max_label_len, dtype=torch.bool)
+                    for labels in y
+                ],
+                batch_first=True,
+            )
+
+        return None
