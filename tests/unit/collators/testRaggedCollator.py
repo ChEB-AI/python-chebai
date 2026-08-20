@@ -108,13 +108,13 @@ class TestRaggedCollator(unittest.TestCase):
             ]
         )
         expected_lens_for_x = torch.tensor([2, 3, 1, 1, 2])
-        expected_missing_labels = torch.tensor(
+        expected_valid_label_mask = torch.tensor(
             [
-                [False, False],  # sample1 has no missing labels
+                [True, True],  # sample1 has no missing labels
                 [False, False],  # sample2 has no missing labels (entire label is None)
-                [False, True],  # sample3 has a missing label at index 1
-                [False, False],  # sample4 has no missing labels
-                [True, True],  # sample5 has missing labels at both indices
+                [True, False],  # sample3 has a missing label at index 1
+                [True, False],  # sample4 has no missing labels
+                [False, False],  # sample5 has missing labels at both indices
             ]
         )
 
@@ -155,10 +155,10 @@ class TestRaggedCollator(unittest.TestCase):
         )
         self.assertTrue(
             torch.equal(
-                result.additional_fields["loss_kwargs"]["missing_labels"],
-                expected_missing_labels,
+                result.additional_fields["loss_kwargs"]["valid_label_mask"],
+                expected_valid_label_mask,
             ),
-            "The missing labels tensor does not match the expected output when labels are missing.",
+            "The valid label mask tensor does not match the expected output when labels are missing.",
         )
 
     def test_call_with_none_in_labels(self) -> None:
@@ -187,12 +187,12 @@ class TestRaggedCollator(unittest.TestCase):
             ]
         )
         expected_lens_for_x = torch.tensor([2, 3, 1, 2])
-        expected_missing_labels = torch.tensor(
+        expected_valid_label_mask = torch.tensor(
             [
-                [True, False],  # sample1 has a missing label at index 0
-                [False, False],  # sample2 has no missing labels
-                [False, False],  # sample3 has no missing labels
-                [True, True],  # sample4 has missing labels at both indices
+                [False, True],  # sample1 has a missing label at index 0
+                [True, True],  # sample2 has no missing labels
+                [True, False],  # sample3 has no missing labels
+                [False, False],  # sample4 has missing labels at both indices
             ]
         )
 
@@ -223,10 +223,10 @@ class TestRaggedCollator(unittest.TestCase):
         )
         self.assertTrue(
             torch.equal(
-                result.additional_fields["loss_kwargs"]["missing_labels"],
-                expected_missing_labels,
+                result.additional_fields["loss_kwargs"]["valid_label_mask"],
+                expected_valid_label_mask,
             ),
-            "The missing labels tensor does not match the expected output when labels contain None.",
+            "The valid label mask tensor does not match the expected output when labels contain None.",
         )
 
     def test_call_with_empty_data(self) -> None:

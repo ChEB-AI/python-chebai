@@ -67,7 +67,7 @@ class RaggedCollator(Collator):
             - Example: [[True, False], None, [False, None]] would result in `non_null_labels` = [0, 2].
             - This is used to filter out predictions for unlabeled samples during evaluation.
 
-        `missing_labels`: Stores a per-sample, per-label-position boolean mask for unknown entries inside a label row, like the None in [1, None, 0].
+        `valid_label_mask`: Stores a per-sample, per-label-position boolean mask for valid entries inside a label row, like the True in [1, None, 0].
 
         Args:
             data (List[Union[Dict, Tuple]]): List of ragged data samples. Each sample can be a dictionary or tuple
@@ -95,9 +95,9 @@ class RaggedCollator(Collator):
         # represented as all-False rows of the maximum label length.
         if any(labels is not None for labels in y):
             max_label_len = max(len(labels) for labels in y if labels is not None)
-            missing_labels = pad_sequence(
+            valid_label_mask = pad_sequence(
                 [
-                    torch.tensor([label is None for label in labels])
+                    torch.tensor([label is not None for label in labels])
                     if labels is not None
                     else torch.zeros(max_label_len, dtype=torch.bool)
                     for labels in y
@@ -105,7 +105,7 @@ class RaggedCollator(Collator):
                 batch_first=True,
             )
         else:
-            missing_labels = torch.tensor([])
+            valid_label_mask = None
 
         # Typical y: ([True, False], None, [True, None], [True])
         if any(x is not None for x in y):
@@ -126,7 +126,7 @@ class RaggedCollator(Collator):
             y = None
             loss_kwargs["non_null_labels"] = []
 
-        loss_kwargs["missing_labels"] = missing_labels
+        loss_kwargs["valid_label_mask"] = valid_label_mask
         # Calculate the lengths of each sequence, create a binary mask for valid (non-padded) positions
         lens = torch.tensor(list(map(len, x)))
         model_kwargs["mask"] = torch.arange(max(lens))[None, :] < lens[:, None]
