@@ -9,5 +9,13 @@ init_args:
       class_path: chebai.callbacks.epoch_metrics.MacroF1
     roc-auc:
       class_path: torchmetrics.classification.MultilabelAUROC
+      init_args:
+        ignore_index: -1
     pr-auc: # Especially used for MUV, PCBA
       class_path: torchmetrics.classification.MultilabelAveragePrecision
+      init_args:
+        ignore_index: -1
+    himol-marco-roc-auc:
+      class_path: chebai.callbacks.epoch_metrics.HiMolMacroAUROC
+      init_args:
+        ignore_index: -1
