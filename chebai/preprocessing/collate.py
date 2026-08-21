@@ -152,7 +152,7 @@ class RaggedCollator(Collator):
         # represented as all-False rows of the maximum label length.
         if any(labels is not None for labels in y):
             max_label_len = max(len(labels) for labels in y if labels is not None)
-            return pad_sequence(
+            valid_label_mask = pad_sequence(
                 [
                     torch.tensor([label is not None for label in labels])
                     if labels is not None
@@ -161,5 +161,9 @@ class RaggedCollator(Collator):
                 ],
                 batch_first=True,
             )
+            if (~valid_label_mask).sum() != 0:
+                # If there are any invalid labels, return the valid_label_mask
+                # Else, return None to indicate that all labels are valid (no None entries).
+                return valid_label_mask
 
         return None
