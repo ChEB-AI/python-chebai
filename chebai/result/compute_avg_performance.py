@@ -9,6 +9,7 @@ the best macro-F1 and its corresponding metrics across all the given files.
 Usage:
     python find_best_f1.py 2cb51q4o 0nwo7wrt s4w2w2cx
     python find_best_f1.py *.wandb --macro-metric val/macro_f1 --micro-metric val/micro_f1
+    python find_best_f1.py *.wandb --metric val/auc
     python find_best_f1.py *.wandb --max-epoch 200
 
 If --macro-metric / --micro-metric aren't given, the script auto-detects
@@ -85,7 +86,7 @@ def get_epoch(row, epoch_key=None):
     return row.get("_step")
 
 
-def process_file(path, macro_metric, micro_metric, epoch_key, max_epoch):
+def process_file(path, macro_metric, micro_metric, metric, epoch_key, max_epoch):
     rows = list(iter_history_rows(str(path)))
     if not rows:
         raise ValueError(f"  [!] No history records found in {path}, skipping.")
@@ -94,10 +95,20 @@ def process_file(path, macro_metric, micro_metric, epoch_key, max_epoch):
     for row in rows:
         all_keys.update(row.keys())
 
-    macro_key = detect_metric_key(all_keys, ("f1", "macro"), macro_metric)
-    if macro_key is None:
+    if metric:
+        selection_key = metric
+        if not any(selection_key == key for key in all_keys):
+            raise ValueError(
+                f"  [!] Could not find metric '{selection_key}' in {path}. Available keys: {', '.join(sorted(all_keys))}"
+            )
+        macro_key = None
+    else:
+        macro_key = detect_metric_key(all_keys, ("f1", "macro"), macro_metric)
+        selection_key = macro_key
+
+    if selection_key is None:
         raise ValueError(
-            f"  [!] Could not find a macro-F1 metric in {path}. Available keys: {', '.join(sorted(all_keys))}"
+            f"  [!] Could not find a metric to optimize in {path}. Available keys: {', '.join(sorted(all_keys))}"
         )
 
     micro_key = detect_metric_key(all_keys, ("f1", "micro"), micro_metric)
@@ -106,13 +117,13 @@ def process_file(path, macro_metric, micro_metric, epoch_key, max_epoch):
     best_epoch = None
     best_val = None
     for row in rows:
-        if macro_key not in row or row[macro_key] is None:
+        if selection_key not in row or row[selection_key] is None:
             continue
         epoch = get_epoch(row, epoch_key)
         if epoch is not None and max_epoch is not None and epoch > max_epoch:
             continue
         try:
-            val = float(row[macro_key])
+            val = float(row[selection_key])
         except (TypeError, ValueError):
             continue
         if best_val is None or val > best_val:
@@ -122,13 +133,15 @@ def process_file(path, macro_metric, micro_metric, epoch_key, max_epoch):
 
     if best_row is None:
         raise ValueError(
-            f"  [!] No numeric values for '{macro_key}' within epoch <= {max_epoch} in {path}."
+            f"  [!] No numeric values for '{selection_key}' within epoch <= {max_epoch} in {path}."
         )
 
     return {
         "file": str(path),
+        "metric_key": selection_key,
         "macro_key": macro_key,
         "micro_key": micro_key,
+        "require_micro": metric is None,
         "epoch": best_epoch,
         "row": best_row,
     }
@@ -147,21 +160,21 @@ def format_mean_std(vals):
 
 def print_result(result):
     row = result["row"]
-    macro_key = result["macro_key"]
+    metric_key = result["metric_key"]
     micro_key = result["micro_key"]
 
     print(f"File: {result['file']}")
     print(f"  Best epoch/step: {result['epoch']}")
-    print(f"  {macro_key}: {row[macro_key]:.4f}")
+    print(f"  {metric_key}: {row[metric_key]:.4f}")
 
     if micro_key and micro_key in row and row[micro_key] is not None:
         print(f"  {micro_key} (corresponding): {row[micro_key]:.4f}")
     elif micro_key:
         print(f"  {micro_key} (corresponding): N/A")
-    else:
+    elif result["require_micro"]:
         raise ValueError(f"  [!] No micro-F1 metric found in {result['file']}.")
 
-    shown = {macro_key, micro_key, "epoch", "_step"}
+    shown = {metric_key, micro_key, "epoch", "_step"}
     other_keys = sorted(
         k
         for k in row.keys()
@@ -189,6 +202,11 @@ def main():
     )
     parser.add_argument(
         "--macro-metric", default=None, help="Exact key for macro-F1 (skip auto-detect)"
+    )
+    parser.add_argument(
+        "--metric",
+        default=None,
+        help="Exact metric key to maximize instead of macro-F1 (for example, auc)",
     )
     parser.add_argument(
         "--micro-metric", default=None, help="Exact key for micro-F1 (skip auto-detect)"
@@ -226,7 +244,12 @@ def main():
 
         print(f"Processing {path.name} ...")
         result = process_file(
-            path, args.macro_metric, args.micro_metric, args.epoch_key, args.max_epoch
+            path,
+            args.macro_metric,
+            args.micro_metric,
+            args.metric,
+            args.epoch_key,
+            args.max_epoch,
         )
         if result:
             print_result(result)
@@ -248,8 +271,9 @@ def main():
     print(f"Average across {len(results)} file(s):")
 
     # Average (+/- sample std) the macro-F1 across files
-    macro_vals = [r["row"][r["macro_key"]] for r in results]
-    print(f"  Best macro-F1: {format_mean_std(macro_vals)}  (n={len(macro_vals)})")
+    metric_vals = [r["row"][r["metric_key"]] for r in results]
+    metric_label = "Best macro-F1" if not args.metric else f"Best {args.metric}"
+    print(f"  {metric_label}: {format_mean_std(metric_vals)}  (n={len(metric_vals)})")
 
     # Average (+/- sample std) the corresponding micro-F1 across files (where present)
     micro_vals = [
@@ -267,7 +291,8 @@ def main():
     # Average every other numeric key found in the best rows (union across files)
     shown = (
         {"epoch", "_step"}
-        | {r["macro_key"] for r in results}
+        | {r["metric_key"] for r in results}
+        | {r["macro_key"] for r in results if r["macro_key"]}
         | {r["micro_key"] for r in results if r["micro_key"]}
     )
     other_key_values = {}
