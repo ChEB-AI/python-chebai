@@ -2,22 +2,19 @@ import os
 import random
 from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Dict, Generator, List, Optional, Tuple, Union
+from typing import Any, Dict, Generator, List, Optional, Tuple, Union
 
 import lightning as pl
 import numpy as np
 import pandas as pd
-from rdkit import Chem
 import torch
 import tqdm
 from lightning.pytorch.core.datamodule import LightningDataModule
 from lightning_utilities.core.rank_zero import rank_zero_info
+from rdkit import Chem
 from torch.utils.data import DataLoader
 
 from chebai.preprocessing import reader as dr
-
-if TYPE_CHECKING:
-    import networkx as nx
 
 
 class XYBaseDataModule(LightningDataModule):
@@ -37,7 +34,6 @@ class XYBaseDataModule(LightningDataModule):
         label_filter (Optional[int]): The index of the label to filter. Default is None.
         balance_after_filter (Optional[float]): The ratio of negative samples to positive samples after filtering. Default is None.
         num_workers (int): The number of worker processes for data loading. Default is 1.
-        chebi_version (int): The version of ChEBI to use. Default is 200.
         inner_k_folds (int): The number of folds for inner cross-validation. Use -1 to disable inner cross-validation. Default is -1.
         fold_index (Optional[int]): The index of the fold to use for training and validation. Default is None.
         base_dir (Optional[str]): The base directory for storing processed and raw data. Default is None.
@@ -54,7 +50,6 @@ class XYBaseDataModule(LightningDataModule):
         label_filter (Optional[int]): The index of the label to filter.
         balance_after_filter (Optional[float]): The ratio of negative samples to positive samples after filtering.
         num_workers (int): The number of worker processes for data loading.
-        chebi_version (int): The version of ChEBI to use.
         inner_k_folds (int): The number of folds for inner cross-validation. If it is less than to, no cross-validation will be performed.
         fold_index (Optional[int]): The index of the fold to use for training and validation (only relevant for cross-validation).
         _base_dir (Optional[str]): The base directory for storing processed and raw data.
@@ -70,8 +65,8 @@ class XYBaseDataModule(LightningDataModule):
     def __init__(
         self,
         batch_size: int = 1,
-        test_split: Optional[float] = 0.1,
-        validation_split: Optional[float] = 0.05,
+        test_split: float = 0.1,
+        validation_split: float = 0.05,
         reader_kwargs: Optional[dict] = None,
         prediction_kind: str = "test",
         data_limit: Optional[int] = None,
@@ -79,7 +74,6 @@ class XYBaseDataModule(LightningDataModule):
         balance_after_filter: Optional[float] = None,
         num_workers: int = 1,
         persistent_workers: bool = True,
-        chebi_version: int = 200,
         inner_k_folds: int = -1,  # use inner cross-validation if > 1
         fold_index: Optional[int] = None,
         base_dir: Optional[str] = None,
@@ -103,7 +97,6 @@ class XYBaseDataModule(LightningDataModule):
         self.balance_after_filter = balance_after_filter
         self.num_workers = num_workers
         self.persistent_workers: bool = bool(persistent_workers)
-        self.chebi_version = chebi_version
         assert type(inner_k_folds) is int
         self.inner_k_folds = inner_k_folds
         self.use_inner_cross_validation = (
@@ -284,6 +277,12 @@ class XYBaseDataModule(LightningDataModule):
             random.shuffle(dataset)
         if self.data_limit is not None:
             dataset = dataset[: self.data_limit]
+
+        if len(dataset) == 0:
+            raise ValueError(
+                f"Dataset is empty for {kind} data.\nPlease check the data preparation and filtering steps.",
+            )
+
         return DataLoader(
             dataset,
             collate_fn=self.reader.collator,
@@ -341,6 +340,13 @@ class XYBaseDataModule(LightningDataModule):
             for d in tqdm.tqdm(self._load_dict(path), total=lines)
             if d["features"] is not None
         ]
+
+        number_of_unique_ids = len(set(d["ident"] for d in data))
+        assert len(data) == number_of_unique_ids, (
+            "Duplicate entries found in the dataset. "
+            f"Unique entries {number_of_unique_ids}. "
+            f"Total entries {len(data)}. "
+        )
 
         data = [val for val in data if self._filter_to_token_limit(val)]
         return data
@@ -642,6 +648,14 @@ class XYBaseDataModule(LightningDataModule):
         #   - chebai/cli.py: to link this property to `model.init_args.classes_txt_file_path`
         return None
 
+    @property
+    def data_type(self) -> str:
+        """
+        Returns the type of data (e.g., chebi, protein, HIV, Tox21, etc.) that the dataset represents.
+        This property is used to create a separate tokens directory for each data type.
+        """
+        raise NotImplementedError
+
 
 class MergedDataset(XYBaseDataModule):
     MERGED = []
@@ -816,7 +830,7 @@ class _DynamicDataset(XYBaseDataModule, ABC):
         apply_id_filter (Optional[str]): Path to a data.pt file for ID filtering.
     """
 
-    # ---- Index for columns of processed `data.pkl` (should be derived from `_graph_to_raw_dataset` method) ------
+    # ---- Index for columns of processed `data.pkl` (should be derived from `_preprocess_data_into_dataframe` method) ------
     _ID_IDX: int = None
     _DATA_REPRESENTATION_IDX: int = None
     _LABELS_START_IDX: int = None
@@ -910,10 +924,7 @@ class _DynamicDataset(XYBaseDataModule, ABC):
             print(f"Missing processed data file (`{processed_name}` file)")
             os.makedirs(self.processed_dir_main, exist_ok=True)
             data_path = self._download_required_data()
-            from chebi_utils import build_chebi_graph
-
-            g = build_chebi_graph(data_path)
-            data_df = self._graph_to_raw_dataset(g)
+            data_df = self._preprocess_data_into_dataframe(data_path)
             self.save_processed(data_df, processed_name)
 
     @abstractmethod
@@ -927,17 +938,15 @@ class _DynamicDataset(XYBaseDataModule, ABC):
         pass
 
     @abstractmethod
-    def _graph_to_raw_dataset(self, graph: "nx.DiGraph") -> pd.DataFrame:
+    def _preprocess_data_into_dataframe(self, raw_data_path: str) -> pd.DataFrame:
         """
-        Converts the graph to a raw dataset.
-        Uses the graph created by chebi_utils to extract the
-        raw data in Dataframe format with additional columns corresponding to each multi-label class.
+        Preprocesses the raw data into a DataFrame.
 
         Args:
-            graph (nx.DiGraph): The class hierarchy graph.
+            raw_data_path (str): Path to the raw data.
 
         Returns:
-            pd.DataFrame: The raw dataset.
+            pd.DataFrame: The preprocessed data as a DataFrame.
         """
         pass
 
@@ -949,7 +958,8 @@ class _DynamicDataset(XYBaseDataModule, ABC):
             data (pd.DataFrame): The processed dataset to be saved.
             filename (str): The filename for the pickle file.
         """
-        pd.to_pickle(data, open(os.path.join(self.processed_dir_main, filename), "wb"))
+        if data is not None and not data.empty:
+            data.to_pickle(os.path.join(self.processed_dir_main, filename))
 
     def get_processed_pickled_df_file(self, filename: str) -> Optional[pd.DataFrame]:
         """
@@ -972,7 +982,7 @@ class _DynamicDataset(XYBaseDataModule, ABC):
         Transforms `data.pkl` into a model input data format (`data.pt`), ensuring that the data is in a format
         compatible for input to the model.
         The transformed data contains the following keys: `ident`, `features`, `labels`, and `group`.
-        This method uses a subclass of Data Reader to perform the transformation.
+        This method uses assigned subclass of `DataReader` to perform the transformation.
 
         Returns:
             None
@@ -1107,6 +1117,7 @@ class _DynamicDataset(XYBaseDataModule, ABC):
         splits.csv to reconstruct the train, validation, and test splits.
         """
         print(f"\nLoading splits from {self.splits_file_path}...")
+        assert self.splits_file_path is not None, "splits_file_path should not be None"
         splits_df = pd.read_csv(self.splits_file_path)
 
         filename = self.processed_file_names_dict["data"]
@@ -1144,6 +1155,15 @@ class _DynamicDataset(XYBaseDataModule, ABC):
         self._dynamic_df_train = df_data[df_data["ident"].isin(train_ids)]
         self._dynamic_df_val = df_data[df_data["ident"].isin(validation_ids)]
         self._dynamic_df_test = df_data[df_data["ident"].isin(test_ids)]
+        assert len(self._dynamic_df_train) > 0, (
+            "No training data found after applying splits"
+        )
+        assert len(self._dynamic_df_val) > 0, (
+            "No validation data found after applying splits"
+        )
+        assert len(self._dynamic_df_test) > 0, (
+            "No test data found after applying splits"
+        )
 
     # ------------------------------ Phase: DataLoaders -----------------------------------
     def load_processed_data(
