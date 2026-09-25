@@ -3,6 +3,7 @@ from abc import ABC, abstractmethod
 from typing import Any, Generator
 
 import deepchem as dc
+import numpy as np
 import pandas as pd
 from deepchem.data import DiskDataset
 
@@ -69,7 +70,7 @@ class MoleculeNetDataExtractor(_DynamicDataset, ABC):
             List[Dict]: List of data dictionaries.
         """
         splits = []
-        train, valid, test = self._deep_chem_data_loader_api()
+        train, valid, test = self.dc_loader_api()
         idx = 0
         for split_name, data in [
             ("train", train),
@@ -95,6 +96,20 @@ class MoleculeNetDataExtractor(_DynamicDataset, ABC):
         if not os.path.exists(splits_file_path):
             splits_df = pd.DataFrame(splits)
             splits_df.to_csv(splits_file_path, index=False)
+
+    def dc_loader_api(self) -> tuple[DiskDataset, DiskDataset, DiskDataset]:
+        """
+        Load the dataset using DeepChem's MoleculeNet API.
+
+        Returns:
+            tuple: A tuple containing the train, validation, and test datasets.
+        """
+        old_state = np.random.get_state()
+        np.random.seed(self.dynamic_data_split_seed)
+        try:
+            return self._deep_chem_data_loader_api()
+        finally:
+            np.random.set_state(old_state)
 
     @abstractmethod
     def _deep_chem_data_loader_api(
