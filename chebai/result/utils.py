@@ -56,6 +56,7 @@ def get_checkpoint_from_wandb(
     return None
 
 
+@torch.no_grad()
 def _run_batch(batch, model, collate):
     collated = collate(batch)
     collated.x = collated.to_x(model.device)
@@ -70,6 +71,7 @@ def _run_batch(batch, model, collate):
     return preds, labels
 
 
+@torch.no_grad()
 def _run_batch_give_attention(batch, model, collate):
     collated = collate(batch)
     collated.x = collated.to_x(model.device)
