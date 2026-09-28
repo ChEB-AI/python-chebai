@@ -1,23 +1,36 @@
 import os
+import random
 from typing import Any
 
 import pandas as pd
 import tqdm
 
 from chebai.preprocessing.datasets.base import _DynamicDataset
-from chebai.preprocessing.datasets.chebi import ChEBIOver50
+
+CHEBI_ID_KEY = "id"
+
+
+def _load_train_ids(splits_file_path: str) -> list[str]:
+    """Returns the IDs assigned to the train split in the given splits file (as strings)."""
+    splits_df = pd.read_csv(splits_file_path)
+    splits_df["id"] = splits_df["id"].astype(str)
+    return list(splits_df[splits_df["split"] == "train"]["id"].values)
+
+
+def _is_train_instance(
+    data: pd.DataFrame, train_instances: list[str], id_idx: int = 0
+) -> pd.Series:
+    """
+    Boolean mask for rows of `data` whose ID is in `train_instances`.
+    IDs are compared as strings, so this works for both integer and string IDs.
+    """
+    train_ids = set(str(ident) for ident in train_instances)
+    return data.iloc[:, id_idx].astype(str).isin(train_ids)
 
 
 class _ResampledDynamicDataset(_DynamicDataset):
     """
-    A dataset class that extends _DynamicDataset with an additional resampled data file.
-
-    This class produces two pickle files during data preparation:
-        - ``data_standard.pkl``: The standard dataset created by the regular pipeline.
-        - ``data_resampled.pkl``: A resampled version of the standard dataset, produced by
-          :meth:`_resample_data`.
-
-    Subclasses must implement :meth:`_resample_data` to define the resampling strategy.
+    A dataset class that extends _DynamicDataset with an additional resampled data file (using the REMEDIAL algorithm).
 
     Args:
         **kwargs: Additional keyword arguments passed to :class:`_DynamicDataset`.
@@ -25,12 +38,13 @@ class _ResampledDynamicDataset(_DynamicDataset):
 
     _RESAMPLED_PKL_FILENAME: str = "data_resampled.pkl"
 
-    def __init__(self, **kwargs):
+    def __init__(self, split_all_mixed_samples: bool = False, **kwargs):
         # splits_file_path has to be provided
         if "splits_file_path" not in kwargs:
             raise ValueError(
                 "`splits_file_path` must be provided for resampled datasets. To generate a new dataset, use the regular dataset classes"
             )
+        self.split_all_mixed_samples = split_all_mixed_samples
         super().__init__(**kwargs)
 
     # ------------------------------ Phase: Prepare data -----------------------------------
@@ -38,10 +52,12 @@ class _ResampledDynamicDataset(_DynamicDataset):
         """
         Prepares both the standard and resampled data files.
 
-        First runs the regular data preparation pipeline (producing ``data_standard.pkl``),
+        First runs the regular data preparation pipeline (producing ``data.pkl``),
         then generates ``data_resampled.pkl`` by applying :meth:`_resample_data` to the
         standard data.
         """
+        # make sure that data.pkl exists
+        super()._perform_data_preparation(*args, **kwargs)
 
         resampled_path = os.path.join(
             self.processed_dir_main, self._RESAMPLED_PKL_FILENAME
@@ -53,17 +69,18 @@ class _ResampledDynamicDataset(_DynamicDataset):
             standard_pkl_path = os.path.join(
                 self.processed_dir_main, self.processed_main_file_names_dict["data"]
             )
-            if standard_pkl_path is None:
+            if not os.path.isfile(standard_pkl_path):
                 raise FileNotFoundError(
-                    f"Standard data file `{self._STANDARD_PKL_FILENAME}` not found "
-                    f"in {self.processed_dir_main}"
+                    f"Standard data file `{standard_pkl_path}` not found"
                 )
             standard_df = pd.read_pickle(standard_pkl_path)
-            splits_df = pd.read_csv(self.splits_file_path)
-            splits_df["id"] = splits_df["id"].astype(str)
-            train_ids = splits_df[splits_df["split"] == "train"]["id"].values
+            train_ids = _load_train_ids(self.splits_file_path)
 
-            resampled_df = self._resample_data(standard_df, train_ids)
+            resampled_df = self._resample_data(
+                standard_df,
+                train_ids,
+                split_all_mixed_samples=self.split_all_mixed_samples,
+            )
             self.save_processed(resampled_df, self._RESAMPLED_PKL_FILENAME)
 
     def scumble(self, label_imbalance_ratios):
@@ -77,13 +94,13 @@ class _ResampledDynamicDataset(_DynamicDataset):
         return scumble_score
 
     def _resample_data(
-        self, data: pd.DataFrame, train_instances: list[str]
+        self,
+        data: pd.DataFrame,
+        train_instances: list[str],
+        split_all_mixed_samples: bool = False,
     ) -> pd.DataFrame:
         """
-        Resample the standard ChEBI dataset.
-
-        Subclasses must implement this method to define a resampling strategy
-        (e.g., oversampling minority classes, undersampling majority classes).
+        Resample the standard ChEBI dataset with REMEDIAL.
 
         Args:
             data (pd.DataFrame): The standard dataset as produced by the regular
@@ -93,50 +110,44 @@ class _ResampledDynamicDataset(_DynamicDataset):
             pd.DataFrame: The resampled dataset.
         """
         print("Resampling with REMEDIAL...")
-        print(data.head())
-        labels = data.columns[2:]
-        print(f"Number of labels: {len(labels)}, first 10 labels: {labels[:10]}")
+        labels = data.columns[self._LABELS_START_IDX :]
+        print(f"Number of labels: {len(labels)}, first 5 labels: {labels[:5]}")
         label_frequencies = data[labels].sum()
-        print("Label frequencies before resampling:")
-        print(len(label_frequencies), label_frequencies[:10])
+        print(
+            f"{len(label_frequencies)} label frequencies before resampling, starting with: "
+        )
+        print(label_frequencies[:5])
         max_freq = label_frequencies.max()
         print(f"Maximum label frequency: {max_freq}")
         irlbl = max_freq / label_frequencies
-        print("Imbalance ratio per label:")
-        print(len(irlbl), irlbl[:10])
+        print(f"{len(irlbl)} imbalance ratios per label, starting with: ")
+        print(irlbl[:5])
         meanir = irlbl.mean()
-        print(f"Mean imbalance ratio: {meanir}")
+        print(f"Mean imbalance ratio: {meanir:.2f}")
         with open(
             os.path.join(self.processed_dir_main, "label_imbalance_ratios.csv"), "w"
         ) as f:
             for label, ir in irlbl.items():
                 f.write(f"{label},{ir}\n")
 
-        train_data = data[data["chebi_id"].isin(train_instances)]
-        if os.path.isfile(os.path.join(self.processed_dir_main, "data_scumble.csv")):
-            print("Scumble scores already calculated, loading from file...")
-            scumble_df = pd.read_csv(
-                os.path.join(self.processed_dir_main, "data_scumble.csv")
-            )
-            scumble_df["chebi_id"] = scumble_df["chebi_id"].astype(str)
-            scumble_dict = dict(zip(scumble_df["chebi_id"], scumble_df["scumble"]))
-            train_data["scumble"] = train_data["chebi_id"].map(scumble_dict)
-        else:
-            for row in tqdm.tqdm(
-                train_data.itertuples(),
-                total=len(train_data),
-                desc="Calculating scumble scores",
-            ):
-                label_values = row[3:]
-                label_imbalance_ratios = irlbl[[v == 1 for v in label_values]]
-                scumble_score = self.scumble(label_imbalance_ratios)
-                train_data.at[row[0], "scumble"] = scumble_score
-            with open(
-                os.path.join(self.processed_dir_main, "data_scumble.csv"), "w"
-            ) as f:
-                f.write("chebi_id,scumble\n")
-                for row in train_data.itertuples():
-                    f.write(f"{row.chebi_id},{row.scumble}\n")
+        train_data = data[
+            _is_train_instance(data, train_instances, self._ID_IDX)
+        ].copy()
+        for row in tqdm.tqdm(
+            train_data.itertuples(),
+            total=len(train_data),
+            desc="Calculating scumble scores",
+        ):
+            # index is now part of the row, so label values start at _LABELS_START_IDX + 1
+            label_values = row[self._LABELS_START_IDX + 1 :]
+            label_imbalance_ratios = irlbl[[v == 1 for v in label_values]]
+            scumble_score = self.scumble(label_imbalance_ratios)
+            train_data.loc[row[0], "scumble"] = scumble_score
+        with open(os.path.join(self.processed_dir_main, "data_scumble.csv"), "w") as f:
+            f.write("id,scumble\n")
+            for row in train_data.itertuples():
+                # itertuples puts the index at position 0, so columns are shifted by 1
+                f.write(f"{row[self._ID_IDX + 1]},{row.scumble}\n")
         scumble_mean = train_data["scumble"].mean()
         print(f"Mean scumble score: {scumble_mean}")
 
@@ -150,21 +161,61 @@ class _ResampledDynamicDataset(_DynamicDataset):
             f"Minority labels: {len(minority_labels)}, first 10: {minority_labels[:10]}"
         )
 
-        # split instances where scumble > mean into two copies, one with only majority labels and one with only minority labels
-        # Drop train instances with NaN scumble (no labels)
+        # Split only rows whose positive labels span both label groups.
+        # Rows with labels from just one side stay unchanged unless the caller
+        # explicitly asks to split all mixed-label samples.
         nan_scumble_idx = train_data.index[train_data["scumble"].isna()]
-        # Identify train instances to split
-        high_scumble = train_data[train_data["scumble"] > scumble_mean]
+        if len(nan_scumble_idx) == len(train_data):
+            raise ValueError(
+                "No scumble score could be computed for any training instance. "
+                "Resampling would drop the whole training set."
+            )
+        candidate_rows = (
+            train_data
+            if split_all_mixed_samples
+            else train_data[train_data["scumble"] > scumble_mean]
+        )
 
-        # Build majority and minority copies of high-scumble rows with zeroed-out labels
-        majority_rows = high_scumble[data.columns].copy()
-        majority_rows[minority_labels] = 0
+        split_indices = []
+        majority_rows = []
+        minority_rows = []
+        only_minority_rows = 0
+        only_majority_rows = 0
 
-        minority_rows = high_scumble[data.columns].copy()
-        minority_rows[majority_labels] = 0
+        for _, row in candidate_rows.iterrows():
+            has_majority = bool(row[majority_labels].fillna(False).any())
+            has_minority = bool(row[minority_labels].fillna(False).any())
+            if not (has_majority and has_minority):
+                if has_majority and not has_minority:
+                    only_majority_rows += 1
+                elif has_minority and not has_majority:
+                    only_minority_rows += 1
+                continue
 
-        # Indices to remove from the original data: NaN-scumble rows + rows that were split
-        indices_to_drop = nan_scumble_idx.union(high_scumble.index)
+            split_indices.append(row.name)
+
+            majority_row = row[data.columns].copy()
+            majority_row.loc[minority_labels] = None
+            majority_rows.append(majority_row)
+
+            minority_row = row[data.columns].copy()
+            minority_row.loc[majority_labels] = None
+            minority_rows.append(minority_row)
+
+        majority_rows = pd.DataFrame(majority_rows, columns=data.columns)
+        minority_rows = pd.DataFrame(minority_rows, columns=data.columns)
+
+        # Drop only rows that were actually split; keep all other high-scumble rows unchanged.
+        indices_to_drop = nan_scumble_idx.union(pd.Index(split_indices))
+
+        print(
+            f"Number of majority rows to add: {len(majority_rows)}, number of minority rows to add: {len(minority_rows)}, number of original rows to drop: {len(indices_to_drop)}"
+        )
+        print(
+            f"Number of rows with only majority labels: {only_majority_rows}, number of rows with only minority labels: {only_minority_rows}"
+        )
+        for col in data.columns[self._LABELS_START_IDX :]:
+            data[col] = data[col].astype(bool)
 
         resampled_data = pd.concat(
             [
@@ -174,11 +225,11 @@ class _ResampledDynamicDataset(_DynamicDataset):
             ],
             ignore_index=True,
         )
+
         print(
             "Data resampling completed, dataset size after resampling:",
             len(resampled_data),
         )
-        print(resampled_data.head())
         return resampled_data
 
     # ------------------------------ Properties -----------------------------------
@@ -223,16 +274,241 @@ class _ResampledDynamicDataset(_DynamicDataset):
         )
 
 
-class ChEBI50ResampledDataset(_ResampledDynamicDataset, ChEBIOver50):
-    pass
+def bootstrap_data(
+    data: pd.DataFrame,
+    train_instances: list[str],
+    seed: int = 42,
+    id_idx: int = 0,
+) -> pd.DataFrame:
+    """
+    Bootstrap the training instances in the dataset.
 
+    Args:
+        data (pd.DataFrame): The standard dataset as produced by the regular
+            data preparation pipeline.
 
-if __name__ == "__main__":
-    dataset = ChEBI50ResampledDataset(
-        chebi_version="248",
-        splits_file_path=os.path.join(
-            "data", "chebi_v248", "ChEBI50", "processed", "splits_chebi50_v248.csv"
-        ),
+    Returns:
+        pd.DataFrame: The bootstrapped dataset.
+    """
+    print("Bootstrapping data...")
+    is_train = _is_train_instance(data, train_instances, id_idx)
+    train_data = data[is_train]
+    bootstrapped_data = train_data.sample(
+        n=len(train_data), replace=True, random_state=seed
     )
-    dataset.prepare_data()
-    dataset.setup()
+    # Add non-train instances back to the bootstrapped data
+    non_train_data = data[~is_train]
+    bootstrapped_data = pd.concat(
+        [bootstrapped_data, non_train_data], ignore_index=True
+    )
+    return bootstrapped_data
+
+
+class _BootstrapDynamicDataset(_DynamicDataset):
+    """
+    A dataset class that extends _DynamicDataset by bootstrapping the base dataset.
+
+    Args:
+        **kwargs: Additional keyword arguments passed to :class:`_DynamicDataset`.
+    """
+
+    def __init__(self, bag_name: str, input_data_file: str, **kwargs):
+        # splits_file_path has to be provided
+        if "splits_file_path" not in kwargs:
+            raise ValueError(
+                "`splits_file_path` must be provided for bootstrapping datasets. To generate a new dataset, use the regular dataset classes"
+            )
+        super().__init__(**kwargs)
+        self.bag_name = bag_name
+        self.input_data_file = input_data_file  # filename in processed_dir_main to use as input for bootstrapping
+
+    # ------------------------------ Phase: Prepare data -----------------------------------
+    def _perform_data_preparation(self, *args: Any, **kwargs: Any) -> None:
+        """
+        Prepares both the base data file and a bag.
+
+        First runs the regular data preparation pipeline,
+        then generates bags` by applying :meth:`_bootstrap_data` to the
+        standard data.
+        """
+
+        bag_path = os.path.join(
+            self.processed_dir_main, self.processed_main_file_names_dict["data"]
+        )
+        if not os.path.isfile(bag_path):
+            print(
+                f"Missing bag file (`{self.processed_main_file_names_dict['data']}`). Generating..."
+            )
+            standard_pkl_path = os.path.join(
+                self.processed_dir_main, self.input_data_file
+            )
+            if not os.path.isfile(standard_pkl_path):
+                raise FileNotFoundError(
+                    f"Input data file `{standard_pkl_path}` not found"
+                )
+            standard_df = pd.read_pickle(standard_pkl_path)
+            train_ids = _load_train_ids(self.splits_file_path)
+
+            bag_df = bootstrap_data(
+                standard_df,
+                train_ids,
+                self.dynamic_data_split_seed,
+                self._ID_IDX,
+            )
+            self.save_processed(bag_df, self.processed_main_file_names_dict["data"])
+
+    @property
+    def processed_main_file_names_dict(self) -> dict:
+        """
+        Returns a dictionary of all main processed file names.
+        """
+        d = {"data": f"data_{self.bag_name}.pkl"}
+        return d
+
+    @property
+    def processed_file_names_dict(self) -> dict:
+        return {
+            "data": f"data_{self.bag_name}.pt",
+        }
+
+
+def oversample(
+    data: pd.DataFrame,
+    train_instances: list[str],
+    labels_start_idx,
+    sampling_rate: float = 0.1,
+    id_idx: int = 0,
+    seed: int | None = None,
+) -> pd.DataFrame:
+    """
+    Oversample the training instances in the dataset using ML-ROS.
+
+    Args:
+        data (pd.DataFrame): The standard dataset as produced by the regular dataset classes.
+        train_instances (list[str]): A list of instance IDs to oversample.
+        sampling_rate (float): The rate at which to oversample the training instances.
+        seed (int, optional): Seed for the random selection of oversampled instances.
+
+    Returns:
+        pd.DataFrame: The oversampled dataset.
+    """
+    rng = random.Random(seed)
+    train_data = data[_is_train_instance(data, train_instances, id_idx)].reset_index(
+        drop=True
+    )
+    # Implementation for oversampling logic
+    samples_to_add = sampling_rate * len(train_instances)
+    print(f"Need to add {samples_to_add} samples to data")
+    # calculate label imbalance ratios
+    labels = train_data.columns[labels_start_idx:]
+    label_frequencies = train_data[labels].sum()
+    max_freq = label_frequencies.max()
+    irlbl = max_freq / label_frequencies
+    meanir = irlbl.mean()
+    print(f"Mean imbalance ratio: {meanir:.2f}")
+    # get bags for all labels where irlbl > meanir
+    minority_labels = irlbl[irlbl > meanir].index
+    print(f"Oversampling {len(minority_labels)} minority labels")
+    minority_bags = dict()
+    for label in minority_labels:
+        minority_bags[label] = list(train_data[train_data[label] == 1].index)
+    new_samples = []
+    round_idx = 1
+    while samples_to_add > 0 and len(minority_bags) > 0:
+        minority_bags_next_round = dict()
+        for label, bag in minority_bags.items():
+            new_sample = bag[rng.randint(0, len(bag) - 1)]
+            bag.append(new_sample)
+            new_samples.append(new_sample)
+            samples_to_add -= 1
+            irlbl_bag = max_freq / len(bag)
+            if irlbl_bag > meanir:
+                minority_bags_next_round[label] = bag
+        minority_bags = minority_bags_next_round
+        if round_idx % 5 == 0:
+            print(
+                f"Round {round_idx} finished, {samples_to_add} samples to go, {len(minority_bags)} minority bags left"
+            )
+        round_idx += 1
+
+    new_samples_df = train_data.iloc[new_samples]
+    print(f"Adding {len(new_samples_df)} samples to data")
+    return new_samples_df
+
+
+class _MLROSDynamicDataset(_DynamicDataset):
+    """
+    A dataset class that extends _DynamicDataset by applying ML-ROS to the base dataset.
+    Takes a dataset from which to oversample and a dataset to which to add the oversampled data as inputs
+    (might be the same or different, e.g. sample from REMEDIAL dataset, add data to bags).
+
+    Args:
+        **kwargs: Additional keyword arguments passed to :class:`_DynamicDataset`.
+    """
+
+    def __init__(
+        self,
+        take_from_file: str,
+        add_to_file: str,
+        sampling_rate: float = 0.1,
+        **kwargs,
+    ):
+        # splits_file_path has to be provided
+        if "splits_file_path" not in kwargs:
+            raise ValueError(
+                "`splits_file_path` must be provided for ML-ROS datasets. To generate a new dataset, use the regular dataset classes"
+            )
+        super().__init__(**kwargs)
+        self.take_from_file = take_from_file
+        self.add_to_file = add_to_file
+        self.sampling_rate = sampling_rate
+
+    def _perform_data_preparation(self, *args: Any, **kwargs: Any) -> None:
+        """
+        Prepares the oversampled dataset.
+        """
+
+        oversampled_path = os.path.join(
+            self.processed_dir_main, self.processed_main_file_names_dict["data"]
+        )
+        if not os.path.isfile(oversampled_path):
+            print(
+                f"Missing oversampled file (`{self.processed_main_file_names_dict['data']}`). Generating..."
+            )
+            take_from_pkl_path = os.path.join(
+                self.processed_dir_main, self.take_from_file
+            )
+            add_to_pkl_path = os.path.join(self.processed_dir_main, self.add_to_file)
+            for path in (take_from_pkl_path, add_to_pkl_path):
+                if not os.path.isfile(path):
+                    raise FileNotFoundError(f"File `{path}` not found")
+            take_from_df = pd.read_pickle(take_from_pkl_path)
+            add_to_df = pd.read_pickle(add_to_pkl_path)
+            train_ids = _load_train_ids(self.splits_file_path)
+            extra_samples = oversample(
+                take_from_df,
+                train_ids,
+                self._LABELS_START_IDX,
+                self.sampling_rate,
+                id_idx=self._ID_IDX,
+                seed=self.dynamic_data_split_seed,
+            )
+            add_to_df = pd.concat([add_to_df, extra_samples], ignore_index=True)
+
+            self.save_processed(add_to_df, self.processed_main_file_names_dict["data"])
+
+    @property
+    def processed_main_file_names_dict(self) -> dict:
+        """
+        Returns a dictionary of all main processed file names.
+        """
+        d = {
+            "data": f"{self.add_to_file[:-4]}_oversampled_with_{self.sampling_rate:.1f}_from_{self.take_from_file[:-4]}.pkl"
+        }
+        return d
+
+    @property
+    def processed_file_names_dict(self) -> dict:
+        return {
+            "data": f"{self.add_to_file[:-4]}_oversampled_with_{self.sampling_rate:.1f}_from_{self.take_from_file[:-4]}.pt",
+        }

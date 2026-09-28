@@ -642,6 +642,14 @@ class XYBaseDataModule(LightningDataModule):
         #   - chebai/cli.py: to link this property to `model.init_args.classes_txt_file_path`
         return None
 
+    @property
+    def data_type(self) -> str:
+        """
+        Returns the type of data (e.g., chebi, protein, HIV, Tox21, etc.) that the dataset represents.
+        This property is used to create a separate tokens directory for each data type.
+        """
+        raise NotImplementedError
+
 
 class MergedDataset(XYBaseDataModule):
     MERGED = []

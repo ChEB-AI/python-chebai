@@ -16,6 +16,11 @@ from rdkit import Chem
 
 from chebai.preprocessing import reader as dr
 from chebai.preprocessing.datasets.base import _DynamicDataset
+from chebai.preprocessing.datasets.ml_overbagging import (
+    _BootstrapDynamicDataset,
+    _MLROSDynamicDataset,
+    _ResampledDynamicDataset,
+)
 
 if TYPE_CHECKING:
     import networkx as nx
@@ -370,10 +375,20 @@ class _ChEBIDataExtractor(_DynamicDataset, ABC):
             df = pd.read_pickle(input_file)
 
             if self.single_class is None:
-                all_labels = df.iloc[:, self._LABELS_START_IDX :].to_numpy(dtype=bool)
+                labels_df = df.iloc[:, self._LABELS_START_IDX :]
             else:
                 single_cls_index = df.columns.get_loc(int(self.single_class))
-                all_labels = df.iloc[:, [single_cls_index]].to_numpy(dtype=bool)
+                labels_df = df.iloc[:, [single_cls_index]]
+            all_labels = labels_df.to_numpy(dtype=bool, na_value=False)
+            missing = labels_df.isna().to_numpy()
+            if missing.any():
+                # keep missing labels (e.g. masked by REMEDIAL resampling) as None, so the reader can mark them
+                all_labels = [
+                    np.where(row_missing, None, row_labels)
+                    if row_missing.any()
+                    else row_labels
+                    for row_labels, row_missing in zip(all_labels, missing)
+                ]
 
             features = df.iloc[:, self._DATA_REPRESENTATION_IDX].to_numpy()
             idents = df.iloc[:, self._ID_IDX].to_numpy()
@@ -538,6 +553,14 @@ class _ChEBIDataExtractor(_DynamicDataset, ABC):
         #   - chebai/result/prediction.py: to load class names for csv columns names
         #   - chebai/cli.py: to link this property to `model.init_args.classes_txt_file_path`
         return os.path.join(self.processed_dir_main, "classes.txt")
+
+    @property
+    def data_type(self) -> str:
+        """
+        Returns the type of data (e.g., chebi, protein, HIV, Tox21, etc.) that the dataset represents.
+        This property is used to create a separate tokens directory for each data type.
+        """
+        return "chebi"
 
 
 class ChEBIFromList(_ChEBIDataExtractor):
@@ -820,6 +843,19 @@ class ChEBIOver100Fingerprints(ChEBIOverXFingerprints, ChEBIOver100):
     Inherits from ChEBIOverXFingerprints and ChEBIOver100.
     """
 
+    pass
+
+
+# ------------------------------ Overbagging (REMEDIAL / Bagging / ML-ROS) -----------------------------------
+class ChEBI50Resampled(_ResampledDynamicDataset, ChEBIOver50):
+    pass
+
+
+class ChEBI50Boostrapped(_BootstrapDynamicDataset, ChEBIOver50):
+    pass
+
+
+class ChEBI50MLROS(_MLROSDynamicDataset, ChEBIOver50):
     pass
 
 

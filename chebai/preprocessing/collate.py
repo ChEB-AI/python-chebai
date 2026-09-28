@@ -6,6 +6,23 @@ from torch.nn.utils.rnn import pad_sequence
 from chebai.preprocessing.structures import XYData
 
 
+def get_missing_labels(data: List[Dict], y: Tuple) -> List[List[bool]]:
+    """
+    Collect the `missing_labels` mask of each sample. Samples without a valid mask (no entry, or e.g. NaN after
+    being loaded from a DataFrame in which only some rows have missing labels) get an all-False mask.
+    """
+    n_labels = next((len(ye) for ye in y if ye is not None), 1)
+    return [
+        (
+            list(d["missing_labels"])
+            if hasattr(d.get("missing_labels"), "__len__")
+            and len(d["missing_labels"]) == n_labels
+            else [False] * n_labels
+        )
+        for d in data
+    ]
+
+
 class Collator:
     """Base class for collating data samples into a batch."""
 
@@ -86,13 +103,7 @@ class RaggedCollator(Collator):
             x, y, idents = zip(
                 *((d["features"], d["labels"], d.get("ident")) for d in data)
             )
-            missing_labels = [
-                d.get(
-                    "missing_labels",
-                    [False for _ in y[0]] if y[0] is not None else [False],
-                )
-                for d in data
-            ]
+            missing_labels = get_missing_labels(data, y)
 
         if any(x is not None for x in y):
             # If any label is not None: (None, None, `1`, None)
