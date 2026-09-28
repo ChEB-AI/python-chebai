@@ -133,7 +133,8 @@ class _ResampledDynamicDataset(_DynamicDataset):
         with open(os.path.join(self.processed_dir_main, "data_scumble.csv"), "w") as f:
             f.write("id,scumble\n")
             for row in train_data.itertuples():
-                f.write(f"{row[self._ID_IDX]},{row.scumble}\n")
+                # itertuples puts the index at position 0, so columns are shifted by 1
+                f.write(f"{row[self._ID_IDX + 1]},{row.scumble}\n")
         scumble_mean = train_data["scumble"].mean()
         print(f"Mean scumble score: {scumble_mean}")
 
@@ -151,6 +152,11 @@ class _ResampledDynamicDataset(_DynamicDataset):
         # Rows with labels from just one side stay unchanged unless the caller
         # explicitly asks to split all mixed-label samples.
         nan_scumble_idx = train_data.index[train_data["scumble"].isna()]
+        if len(nan_scumble_idx) == len(train_data):
+            raise ValueError(
+                "No scumble score could be computed for any training instance. "
+                "Resampling would drop the whole training set."
+            )
         candidate_rows = (
             train_data
             if split_all_mixed_samples
