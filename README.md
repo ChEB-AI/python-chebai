@@ -1,4 +1,19 @@
-# ChEBai
+# ChEBai - MOSES feature branch
+
+This is the MOSES feature branch of ChEBai, used in the paper
+
+_Cappellani et al., 2026: MOSES: Combining Masked Oversampling with Ensemble Learning for Hierarchical Multi-label Classification in ChEBI_ (in submission).
+
+If you want to get the latest version of ChEBai, switch to the dev branch or get the latest released version from pypi (`pip install chebai`).
+
+## MOSES
+Masked Oversampling Ensemble (MOSES) is designed to curb label imbalance with 3 steps: Masked REMEDIAL (which splits instance based on minority and majority labels), oversampling with ML-ROS and Ensemble learning with Bagging. 
+The algorithms are implemented in https://github.com/ChEB-AI/python-chebai/blob/feature/resampling3/chebai/preprocessing/datasets/ml_overbagging.py. Corresponding ChEBI50 classes are implemented in ....
+
+To train your own checkpoints, replace the standard ChEBI50 class in the configuration file with one of `ChEBI50Resampled|ChEBI50MLROS|ChEBI50Boostrapped` and proceed per the instructions below. 
+The pretrained model used in the publication can be found on [Hugging Face](https://huggingface.co/chebai/electra_pretrained_118m).
+
+# General ChEBai instructions
 
 ChEBai is a deep learning library designed for the integration of deep learning methods with chemical ontologies, particularly ChEBI.
 The library emphasizes the incorporation of the semantic qualities of the ontology into the learning process.
