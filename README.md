@@ -8,7 +8,7 @@ If you want to get the latest version of ChEBai, switch to the dev branch or get
 
 ## MOSES
 Masked Oversampling Ensemble (MOSES) is designed to curb label imbalance with 3 steps: Masked REMEDIAL (which splits instance based on minority and majority labels), oversampling with ML-ROS and Ensemble learning with Bagging. 
-The algorithms are implemented in https://github.com/ChEB-AI/python-chebai/blob/feature/resampling3/chebai/preprocessing/datasets/ml_overbagging.py. Corresponding ChEBI50 classes are implemented in ....
+The algorithms are implemented in https://github.com/ChEB-AI/python-chebai/blob/feature/resampling3/chebai/preprocessing/datasets/ml_overbagging.py. Corresponding ChEBI50 classes are implemented in https://github.com/ChEB-AI/python-chebai/blob/feature/resampling3/chebai/preprocessing/datasets/chebi.py
 
 To train your own checkpoints, replace the standard ChEBI50 class in the configuration file with one of `ChEBI50Resampled|ChEBI50MLROS|ChEBI50Boostrapped` and proceed per the instructions below. 
 The pretrained model used in the publication can be found on [Hugging Face](https://huggingface.co/chebai/electra_pretrained_118m).
