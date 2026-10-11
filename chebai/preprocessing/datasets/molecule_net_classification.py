@@ -150,7 +150,7 @@ class ClinTox(MoleculeNetDataExtractor):
         self,
     ) -> tuple[DiskDataset, DiskDataset, DiskDataset]:
         # Random splitting is recommended for this dataset.
-        tasks, datasets, transformers = dc.molnet.load_clintox(
+        tasks, datasets, transformers = dc.molnet.load_clintox(  # type: ignore
             featurizer="Raw",
             splitter="random",
             data_dir=self.raw_dir,
@@ -175,7 +175,7 @@ class BBBP(MoleculeNetDataExtractor):
         self,
     ) -> tuple[DiskDataset, DiskDataset, DiskDataset]:
         # Scaffold splitting is recommended for this dataset.
-        tasks, datasets, transformers = dc.molnet.load_bbbp(
+        tasks, datasets, transformers = dc.molnet.load_bbbp(  # type: ignore
             featurizer="Raw",
             splitter="scaffold",
             data_dir=self.raw_dir,
@@ -200,7 +200,7 @@ class SIDER(MoleculeNetDataExtractor):
         self,
     ) -> tuple[DiskDataset, DiskDataset, DiskDataset]:
         # Random splitting is recommended for this dataset.
-        tasks, datasets, transformers = dc.molnet.load_sider(
+        tasks, datasets, transformers = dc.molnet.load_sider(  # type: ignore
             featurizer="Raw",
             splitter="random",
             data_dir=self.raw_dir,
@@ -225,7 +225,7 @@ class BACE(MoleculeNetDataExtractor):
         self,
     ) -> tuple[DiskDataset, DiskDataset, DiskDataset]:
         # Scaffold splitting is recommended for this dataset.
-        tasks, datasets, transformers = dc.molnet.load_bace_classification(
+        tasks, datasets, transformers = dc.molnet.load_bace_classification(  # type: ignore
             featurizer="Raw",
             splitter="scaffold",
             data_dir=self.raw_dir,
@@ -250,7 +250,7 @@ class HIV(MoleculeNetDataExtractor):
         self,
     ) -> tuple[DiskDataset, DiskDataset, DiskDataset]:
         # Scaffold splitting is recommended for this dataset.
-        tasks, datasets, transformers = dc.molnet.load_hiv(
+        tasks, datasets, transformers = dc.molnet.load_hiv(  # type: ignore
             featurizer="Raw",
             splitter="scaffold",
             data_dir=self.raw_dir,
@@ -275,7 +275,7 @@ class MUV(MoleculeNetDataExtractor):
         self,
     ) -> tuple[DiskDataset, DiskDataset, DiskDataset]:
         # Scaffold splitting is recommended for this dataset.
-        tasks, datasets, transformers = dc.molnet.load_muv(
+        tasks, datasets, transformers = dc.molnet.load_muv(  # type: ignore
             featurizer="Raw",
             splitter="scaffold",
             data_dir=self.raw_dir,
@@ -300,7 +300,7 @@ class Tox21(MoleculeNetDataExtractor):
         self,
     ) -> tuple[DiskDataset, DiskDataset, DiskDataset]:
         # Random splitting is recommended for this dataset.
-        tasks, datasets, transformers = dc.molnet.load_tox21(
+        tasks, datasets, transformers = dc.molnet.load_tox21(  # type: ignore
             featurizer="Raw",
             splitter="random",
             data_dir=self.raw_dir,
@@ -325,7 +325,7 @@ class ToxCast(MoleculeNetDataExtractor):
         self,
     ) -> tuple[DiskDataset, DiskDataset, DiskDataset]:
         # Random splitting is recommended for this dataset.
-        tasks, datasets, transformers = dc.molnet.load_toxcast(
+        tasks, datasets, transformers = dc.molnet.load_toxcast(  # type: ignore
             featurizer="Raw",
             splitter="random",
             data_dir=self.raw_dir,
@@ -350,7 +350,7 @@ class PCBA(MoleculeNetDataExtractor):
         self,
     ) -> tuple[DiskDataset, DiskDataset, DiskDataset]:
         # Random splitting is recommended for this dataset.
-        tasks, datasets, transformers = dc.molnet.load_pcba(
+        tasks, datasets, transformers = dc.molnet.load_pcba(  # type: ignore
             featurizer="Raw",
             splitter="random",
             data_dir=self.raw_dir,
