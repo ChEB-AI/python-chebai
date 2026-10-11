@@ -1,5 +1,8 @@
+import warnings
+
 import torch
 import torchmetrics
+from sklearn.metrics import roc_auc_score
 
 
 def custom_reduce_fx(input: torch.Tensor) -> torch.Tensor:
@@ -179,3 +182,83 @@ class BalancedAccuracy(torchmetrics.Metric):
 
         balanced_acc = (tpr + tnr) / 2
         return torch.mean(balanced_acc)
+
+
+class HiMolMacroAUROC(torchmetrics.Metric):
+    """
+    Macro-averaged multilabel AUROC that exactly replicates HiMol's eval():
+      - missing labels (== ignore_index) are excluded per-task before scoring
+      - any task that, after exclusion, has only one class present is
+        dropped from BOTH the sum and the divisor of the macro average
+        (instead of being scored as 0.0 and diluting the mean, which is
+        torchmetrics' default MultilabelAUROC behavior)
+
+    Assumes preds/target are shape (N, num_labels), target values in {0, 1},
+    with `ignore_index` marking missing/unlabeled entries.
+
+    References:
+        https://github.com/ZangXuan/HiMol/blob/ffdcb247b361a1f85ddb741862cff25e4a3b3341/finetune/optimization.py#L95-L104
+    """
+
+    full_state_update = False
+    is_differentiable = False
+    higher_is_better = True
+
+    def __init__(self, num_labels: int, ignore_index: int = 0, **kwargs):
+        super().__init__(**kwargs)
+        self.num_labels = num_labels
+        self.ignore_index = ignore_index
+
+        self.add_state("preds", default=[], dist_reduce_fx="cat")
+        self.add_state("target", default=[], dist_reduce_fx="cat")
+
+    def update(self, preds: torch.Tensor, target: torch.Tensor) -> None:
+        if preds.shape != target.shape:
+            raise ValueError(
+                f"preds/target shape mismatch: {preds.shape} vs {target.shape}"
+            )
+        if preds.ndim != 2 or preds.shape[1] != self.num_labels:
+            raise ValueError(
+                f"expected shape (N, {self.num_labels}), got {tuple(preds.shape)}"
+            )
+
+        self.preds.append(preds.detach().cpu())
+        self.target.append(target.detach().cpu())
+
+    def compute(self) -> torch.Tensor:
+        preds = torch.cat(self.preds, dim=0).cpu().numpy()
+        target = torch.cat(self.target, dim=0).cpu().numpy()
+
+        roc_list = []
+        n_skipped = 0
+
+        for i in range(self.num_labels):
+            col_target = target[:, i]
+            col_preds = preds[:, i]
+
+            valid = col_target != self.ignore_index
+            col_target = col_target[valid]
+            col_preds = col_preds[valid]
+
+            # need at least one of each class to define AUC
+            if (
+                len(col_target) == 0
+                or (col_target == 0).sum() == 0
+                or (col_target == 1).sum() == 0
+            ):
+                n_skipped += 1
+                continue
+
+            roc_list.append(roc_auc_score(col_target, col_preds))
+
+        if n_skipped > 0:
+            warnings.warn(
+                f"{n_skipped}/{self.num_labels} labels skipped (missing or single-class "
+                f"after masking). Macro AUROC computed over {len(roc_list)} labels.",
+                stacklevel=2,
+            )
+
+        if len(roc_list) == 0:
+            return torch.tensor(float("nan"))
+
+        return torch.tensor(sum(roc_list) / len(roc_list))

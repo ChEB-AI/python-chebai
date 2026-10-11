@@ -9,19 +9,20 @@ from abc import ABC
 from itertools import cycle, permutations, product
 from typing import TYPE_CHECKING, Any, Generator, List, Literal, Optional
 
-from networkx import DiGraph
 import numpy as np
 import pandas as pd
+from networkx import DiGraph
 from rdkit import Chem
 
 from chebai.preprocessing import reader as dr
 from chebai.preprocessing.datasets.base import _DynamicDataset
+from chebai.preprocessing.splitters import MultiLabelSplitter
 
 if TYPE_CHECKING:
     import networkx as nx
 
 
-class _ChEBIDataExtractor(_DynamicDataset, ABC):
+class _ChEBIDataExtractor(MultiLabelSplitter, _DynamicDataset, ABC):
     """
     A class for extracting and processing data from the ChEBI dataset.
 
@@ -51,6 +52,7 @@ class _ChEBIDataExtractor(_DynamicDataset, ABC):
 
     def __init__(
         self,
+        chebi_version: int = 241,
         chebi_version_train: Optional[int] = None,
         single_class: Optional[int] = None,
         subset: Optional[Literal["2_STAR", "3_STAR"]] = None,
@@ -58,6 +60,7 @@ class _ChEBIDataExtractor(_DynamicDataset, ABC):
         aug_smiles_variations: Optional[int] = None,
         **kwargs,
     ):
+        self.chebi_version = chebi_version
         if bool(augment_smiles):
             assert int(aug_smiles_variations) > 0, (
                 "Number of variations must be greater than 0"
@@ -80,6 +83,7 @@ class _ChEBIDataExtractor(_DynamicDataset, ABC):
         self.subset = subset
 
         super(_ChEBIDataExtractor, self).__init__(**kwargs)
+
         # use different version of chebi for training and validation (if not None)
         # (still uses self.chebi_version for test set)
         self.chebi_version_train = chebi_version_train
@@ -149,6 +153,21 @@ class _ChEBIDataExtractor(_DynamicDataset, ABC):
         """
         self._load_sdf()
         return self._load_chebi()
+
+    def _preprocess_data_into_dataframe(self, raw_data_path: str) -> pd.DataFrame:
+        """
+        Preprocesses the raw data into a DataFrame.
+
+        Args:
+            raw_data_path (str): Path to the raw data.
+
+        Returns:
+            pd.DataFrame: The preprocessed data as a DataFrame.
+        """
+        from chebi_utils import build_chebi_graph
+
+        g = build_chebi_graph(raw_data_path)
+        return self._graph_to_raw_dataset(g)
 
     def _load_chebi(self, version: Optional[int] = None) -> str:
         """
@@ -381,27 +400,6 @@ class _ChEBIDataExtractor(_DynamicDataset, ABC):
             for feat, labels, ident in zip(features, all_labels, idents):
                 yield dict(features=feat, labels=labels, ident=ident)
 
-    def _get_data_splits(self) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
-        """
-        Loads encoded/transformed data and generates training, validation, and test splits.
-        """
-
-        filename = self.processed_file_names_dict["data"]
-        data = self.load_processed_data_from_file(filename)
-        df_data = pd.DataFrame(data)
-
-        from chebi_utils import create_multilabel_splits
-
-        splits = create_multilabel_splits(
-            df_data,
-            self._LABELS_START_IDX,
-            1 - self.validation_split - self.test_split,
-            self.validation_split,
-            self.test_split,
-            self.dynamic_data_split_seed,
-        )
-        return splits["train"], splits["validation"], splits["test"]
-
     def _setup_pruned_test_set(
         self, df_test_chebi_version: pd.DataFrame
     ) -> pd.DataFrame:
@@ -539,6 +537,14 @@ class _ChEBIDataExtractor(_DynamicDataset, ABC):
         #   - chebai/cli.py: to link this property to `model.init_args.classes_txt_file_path`
         return os.path.join(self.processed_dir_main, "classes.txt")
 
+    @property
+    def data_type(self) -> str:
+        """
+        Returns the type of data (e.g., chebi, protein, HIV, Tox21, etc.) that the dataset represents.
+        This property is used to create a separate tokens directory for each data type.
+        """
+        return "chebi"
+
 
 class ChEBIFromList(_ChEBIDataExtractor):
     """
@@ -657,6 +663,21 @@ class ChEBIOver50(ChEBIOverX):
     THRESHOLD: int = 50
 
 
+class ChEBIOver50_ChemDataReader(ChEBIOverX):
+    """
+    A class for extracting data from the ChEBI dataset with a threshold of 50 for selecting classes.
+
+    Inherits from ChEBIOverX.
+
+    Attributes:
+        THRESHOLD (int): The threshold for selecting classes (50).
+    """
+
+    READER = dr.ChemDataReader
+
+    THRESHOLD: int = 50
+
+
 class ChEBIOver25(ChEBIOverX):
     """
     A class for extracting data from the ChEBI dataset with a threshold of 25 for selecting classes.
@@ -753,12 +774,12 @@ class ChEBIOverXPartial(ChEBIOverX):
         """
 
         # Extract mol objects from SDF using chebi-utils
+        import networkx as nx
         from chebi_utils import (
             build_labeled_dataset,
             extract_molecules,
             get_hierarchy_subgraph,
         )
-        import networkx as nx
 
         sdf_path = os.path.join(self.raw_dir, self.raw_file_names_dict["sdf"])
         mol_df = extract_molecules(sdf_path)

@@ -61,10 +61,13 @@ class RaggedCollator(Collator):
         """
         Collate ragged data samples (i.e., samples of unequal size, such as molecular sequences) into a batch.
 
-        Handles both fully and partially labeled data, where some samples may have `None` as their label. The indices
-        of non-null labels are stored in the `non_null_labels` field, which is used to filter out predictions for
-        unlabeled data during evaluation (e.g., F1, MSE). For models supporting partially labeled data, this method
-        ensures alignment between features and labels. Missing labels are passed as a loss keyword.
+        Handles both fully and partially labeled data by use of the following fields in the returned XYData:
+
+        `non_null_labels`: Stores batch row indices of samples where the whole `labels` field is not None, like [0, 2].
+            - Example: [[True, False], None, [False, None]] would result in `non_null_labels` = [0, 2].
+            - This is used to filter out predictions for unlabeled samples during evaluation.
+
+        `valid_label_mask`: Stores a per-sample, per-label-position boolean mask for valid entries inside a label row, like the True in [1, None, 0].
 
         Args:
             data (List[Union[Dict, Tuple]]): List of ragged data samples. Each sample can be a dictionary or tuple
@@ -81,30 +84,25 @@ class RaggedCollator(Collator):
         if isinstance(data[0], tuple):
             # For legacy data
             x, y, idents = zip(*data)
-            missing_labels = None
         else:
             x, y, idents = zip(
                 *((d["features"], d["labels"], d.get("ident")) for d in data)
             )
-            missing_labels = [
-                d.get(
-                    "missing_labels",
-                    [False for _ in y[0]] if y[0] is not None else [False],
-                )
-                for d in data
-            ]
 
+        valid_label_mask = self._get_valid_label_mask(y)
+
+        # Typical y: ([True, False], None, [True, None], [True])
         if any(x is not None for x in y):
-            # If any label is not None: (None, None, `1`, None)
+            # If any label is not None: (None, None, `[True, None]`, None)
             if any(x is None for x in y):
-                # If any label is None: (`None`, `None`, 1, `None`)
+                # If any label is None: (`None`, [True, False], [True], [False])
                 non_null_labels = [i for i, r in enumerate(y) if r is not None]
                 y = self.process_label_rows(
                     tuple(ye for i, ye in enumerate(y) if i in non_null_labels)
                 )
                 loss_kwargs["non_null_labels"] = non_null_labels
             else:
-                # If all labels are not None: (`0`, `2`, `1`, `3`)
+                # If all labels are not None: (`[True, False]`, `[False, True, True]`, `[False]`, `[True]`)
                 y = self.process_label_rows(y)
 
         else:
@@ -112,7 +110,7 @@ class RaggedCollator(Collator):
             y = None
             loss_kwargs["non_null_labels"] = []
 
-        loss_kwargs["missing_labels"] = torch.tensor(missing_labels)
+        loss_kwargs["valid_label_mask"] = valid_label_mask
         # Calculate the lengths of each sequence, create a binary mask for valid (non-padded) positions
         lens = torch.tensor(list(map(len, x)))
         model_kwargs["mask"] = torch.arange(max(lens))[None, :] < lens[:, None]
@@ -146,3 +144,26 @@ class RaggedCollator(Collator):
             ],
             batch_first=True,
         )
+
+    def _get_valid_label_mask(self, y: Tuple) -> torch.Tensor | None:
+        # Compute the per-sample, per-label-position boolean mask for unknown entries
+        # (e.g., the None in [1, None, 0]) on the *original* labels, before any
+        # filtering/padding is applied to `y`. Rows whose entire label is None are
+        # represented as all-False rows of the maximum label length.
+        if any(labels is not None for labels in y):
+            max_label_len = max(len(labels) for labels in y if labels is not None)
+            valid_label_mask = pad_sequence(
+                [
+                    torch.tensor([label is not None for label in labels])
+                    if labels is not None
+                    else torch.zeros(max_label_len, dtype=torch.bool)
+                    for labels in y
+                ],
+                batch_first=True,
+            )
+            if (~valid_label_mask).sum() != 0:
+                # If there are any invalid labels, return the valid_label_mask
+                # Else, return None to indicate that all labels are valid (no None entries).
+                return valid_label_mask
+
+        return None
