@@ -5,7 +5,6 @@ import deepchem as dc
 import numpy as np
 import pandas as pd
 from deepchem.data import DiskDataset
-from torch.utils.data import DataLoader
 
 from chebai.preprocessing import reader as dr
 from chebai.preprocessing.datasets.base import _DynamicDataset

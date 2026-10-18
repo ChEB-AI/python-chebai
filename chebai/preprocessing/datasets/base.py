@@ -83,6 +83,7 @@ class XYBaseDataModule(LightningDataModule):
         super().__init__()
         if reader_kwargs is None:
             reader_kwargs = dict()
+        self._tokens_directory = kwargs.get("tokens_directory", None)
         self.reader = self.READER(**reader_kwargs)
         self.test_split = test_split
         self.validation_split = validation_split
@@ -653,6 +654,20 @@ class XYBaseDataModule(LightningDataModule):
         """
         Returns the type of data (e.g., chebi, protein, HIV, Tox21, etc.) that the dataset represents.
         This property is used to create a separate tokens directory for each data type.
+        """
+        if self._tokens_directory is not None:
+            print(f"Using tokens directory: {self._tokens_directory}")
+            return self._tokens_directory
+        print(f"Using default tokens directory: {self.token_dir_name}")
+        return self.token_dir_name
+
+    @property
+    def token_dir_name(self) -> str:
+        """
+        Returns the name of the directory where the tokenized data is stored.
+
+        Returns:
+            str: The name of the tokenized data directory.
         """
         raise NotImplementedError
 

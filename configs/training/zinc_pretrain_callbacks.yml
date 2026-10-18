@@ -1,0 +1,11 @@
+- class_path: chebai.callbacks.model_checkpoint.CustomModelCheckpoint
+  init_args:
+    monitor: train_loss
+    mode: 'min'
+    filename: 'best_{epoch}_{train_loss:.4f}'
+    every_n_epochs: 1
+    save_top_k: 1
+- class_path: chebai.callbacks.model_checkpoint.CustomModelCheckpoint
+  init_args:
+    filename: 'per_{epoch}_{train_loss:.4f}'
+    save_top_k: -1
