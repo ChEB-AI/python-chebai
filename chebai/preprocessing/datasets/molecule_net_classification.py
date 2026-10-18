@@ -160,7 +160,7 @@ class ClinTox(MoleculeNetDataExtractor):
         return datasets
 
     @property
-    def data_type(self) -> str:
+    def tokens_directory(self) -> str:
         return "clin_tox"
 
     @property
@@ -185,7 +185,7 @@ class BBBP(MoleculeNetDataExtractor):
         return datasets
 
     @property
-    def data_type(self) -> str:
+    def tokens_directory(self) -> str:
         return "bbbp"
 
     @property
@@ -210,7 +210,7 @@ class SIDER(MoleculeNetDataExtractor):
         return datasets
 
     @property
-    def data_type(self) -> str:
+    def tokens_directory(self) -> str:
         return "sider"
 
     @property
@@ -235,7 +235,7 @@ class BACE(MoleculeNetDataExtractor):
         return datasets
 
     @property
-    def data_type(self) -> str:
+    def tokens_directory(self) -> str:
         return "bace"
 
     @property
@@ -260,7 +260,7 @@ class HIV(MoleculeNetDataExtractor):
         return datasets
 
     @property
-    def data_type(self) -> str:
+    def tokens_directory(self) -> str:
         return "hiv"
 
     @property
@@ -285,7 +285,7 @@ class MUV(MoleculeNetDataExtractor):
         return datasets
 
     @property
-    def data_type(self) -> str:
+    def tokens_directory(self) -> str:
         return "muv"
 
     @property
@@ -310,7 +310,7 @@ class Tox21(MoleculeNetDataExtractor):
         return datasets
 
     @property
-    def data_type(self) -> str:
+    def tokens_directory(self) -> str:
         return "tox21"
 
     @property
@@ -335,7 +335,7 @@ class ToxCast(MoleculeNetDataExtractor):
         return datasets
 
     @property
-    def data_type(self) -> str:
+    def tokens_directory(self) -> str:
         return "toxcast"
 
     @property
@@ -360,7 +360,7 @@ class PCBA(MoleculeNetDataExtractor):
         return datasets
 
     @property
-    def data_type(self) -> str:
+    def tokens_directory(self) -> str:
         return "pcba"
 
     @property

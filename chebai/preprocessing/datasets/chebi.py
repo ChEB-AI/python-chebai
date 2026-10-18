@@ -538,7 +538,7 @@ class _ChEBIDataExtractor(MultiLabelSplitter, _DynamicDataset, ABC):
         return os.path.join(self.processed_dir_main, "classes.txt")
 
     @property
-    def data_type(self) -> str:
+    def tokens_directory(self) -> str:
         """
         Returns the type of data (e.g., chebi, protein, HIV, Tox21, etc.) that the dataset represents.
         This property is used to create a separate tokens directory for each data type.

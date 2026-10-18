@@ -153,8 +153,8 @@ class Zinc15Pretrain(_DynamicDataset):
         return datasets[0]
 
     @property
-    def data_type(self) -> str:
-        return "zinc15"
+    def tokens_directory(self) -> str:
+        return "_shared"
 
     @property
     def _name(self) -> str:

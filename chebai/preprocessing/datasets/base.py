@@ -649,7 +649,7 @@ class XYBaseDataModule(LightningDataModule):
         return None
 
     @property
-    def data_type(self) -> str:
+    def tokens_directory(self) -> str:
         """
         Returns the type of data (e.g., chebi, protein, HIV, Tox21, etc.) that the dataset represents.
         This property is used to create a separate tokens directory for each data type.
