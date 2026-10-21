@@ -7,5 +7,6 @@
     save_top_k: 1
 - class_path: chebai.callbacks.model_checkpoint.CustomModelCheckpoint
   init_args:
-    filename: 'per_{epoch}_{train_loss:.4f}'
-    save_top_k: -1
+    filename: 'last_{epoch}_{train_loss:.4f}'
+    save_top_k: 0
+    save_last: true
