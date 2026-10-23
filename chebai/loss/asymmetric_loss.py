@@ -9,10 +9,10 @@ class AsymmetricLoss(nn.Module):
     Asymmetric Loss for multi-label and single-label classification tasks.
 
     Implementation adapted from: https://github.com/Alibaba-MIIL/ASL
-    
+
     Asymmetric Loss from: "Asymmetric Loss For Multi-Label Classification"
     https://openaccess.thecvf.com/content/ICCV2021/papers/Ben-Baruch_Asymmetric_Loss_For_Multi-Label_Classification_ICCV_2021_paper.pdf
-    
+
     Args:
         gamma_neg (float): Negative focusing parameter. Default is 1.
         gamma_pos (float): Positive focusing parameter. Default is 1.
@@ -47,12 +47,12 @@ class AsymmetricLoss(nn.Module):
     def forward(self, inputs, targets, **kwargs):
         """
         Forward pass to compute the Asymmetric Loss.
-        
+
         Args:
             inputs: Predictions (logits) from the model.
             targets: Ground truth labels.
             **kwargs: Additional keyword arguments (for compatibility with training framework).
-        
+
         Returns:
             Loss tensor with the reduction option applied.
         """
@@ -68,7 +68,7 @@ class AsymmetricLoss(nn.Module):
     def _multi_label_asymmetric_loss(self, x, y):
         """
         Standard asymmetric loss for multi-label classification.
-        
+
         Parameters
         ----------
         x: input logits
@@ -112,12 +112,14 @@ class AsymmetricLoss(nn.Module):
     def _single_label_asymmetric_loss(self, inputs, target):
         """
         Asymmetric loss for single-label classification problems.
-        
+
         "input" dimensions: - (batch_size, number_classes)
         "target" dimensions: - (batch_size)
         """
         log_preds = self.logsoftmax(inputs)
-        self.targets_classes = torch.zeros_like(inputs).scatter_(1, target.long().unsqueeze(1), 1)
+        self.targets_classes = torch.zeros_like(inputs).scatter_(
+            1, target.long().unsqueeze(1), 1
+        )
 
         # ASL weights
         targets = self.targets_classes
@@ -125,13 +127,15 @@ class AsymmetricLoss(nn.Module):
         xs_pos = torch.exp(log_preds)
         xs_neg = 1 - xs_pos
         grad_ctx = (
-                torch.no_grad() if self.disable_torch_grad_focal_loss else nullcontext()
-            )
+            torch.no_grad() if self.disable_torch_grad_focal_loss else nullcontext()
+        )
         with grad_ctx:
             xs_pos = xs_pos * targets
             xs_neg = xs_neg * anti_targets
-            asymmetric_w = torch.pow(1 - xs_pos - xs_neg,
-                                 self.gamma_pos * targets + self.gamma_neg * anti_targets)
+            asymmetric_w = torch.pow(
+                1 - xs_pos - xs_neg,
+                self.gamma_pos * targets + self.gamma_neg * anti_targets,
+            )
             log_preds = log_preds * asymmetric_w
 
             # loss calculation

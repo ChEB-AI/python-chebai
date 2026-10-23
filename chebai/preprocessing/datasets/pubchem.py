@@ -138,11 +138,6 @@ class PubChem(_DynamicDataset):
         self.download()
         return self._raw_data_source_path
 
-    def _graph_to_raw_dataset(self, graph):
-        raise NotImplementedError(
-            "PubChem does not use a graph-based data preparation pipeline."
-        )
-
     def download(self):
         """
         Downloads PubChem data based on `_k` parameter.

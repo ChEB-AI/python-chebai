@@ -169,7 +169,7 @@ class ChebaiBaseNet(LightningModule, ABC):
         self,
         model_output: torch.Tensor,
         labels: torch.Tensor,
-        loss_kwargs: Dict[str, Any],
+        data: Dict[str, Any],
     ) -> tuple[torch.Tensor, torch.Tensor, Dict[str, Any]]:
         """
         Processes the data for loss computation.
@@ -177,11 +177,12 @@ class ChebaiBaseNet(LightningModule, ABC):
         Args:
             model_output (torch.Tensor): The model output.
             labels (torch.Tensor): The true labels.
-            loss_kwargs (Dict[str, Any]): Additional keyword arguments for the loss function.
+            data (Dict[str, Any]): The processed batch data.
 
         Returns:
             Tuple[torch.Tensor, torch.Tensor, Dict[str, Any]]: Model output, labels, and loss kwargs.
         """
+        loss_kwargs = data.get("loss_kwargs", dict())
         return model_output, labels, loss_kwargs
 
     def on_train_epoch_start(self) -> None:
@@ -292,9 +293,12 @@ class ChebaiBaseNet(LightningModule, ABC):
         if log:
             if self.criterion is not None:
                 loss_data, loss_labels, loss_kwargs_candidates = self._process_for_loss(
-                    model_output, labels, data.get("loss_kwargs", dict())
+                    model_output, labels, data
                 )
                 loss_kwargs = dict()
+                loss_kwargs["valid_label_mask"] = loss_kwargs_candidates[
+                    "valid_label_mask"
+                ]
                 if self.pass_loss_kwargs:
                     loss_kwargs = loss_kwargs_candidates
                     loss_kwargs["current_epoch"] = self.trainer.current_epoch

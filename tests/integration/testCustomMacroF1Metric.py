@@ -112,7 +112,9 @@ class TestCustomMacroF1Metric(unittest.TestCase):
         """
         Test the custom metric against the standard on realistic data.
         """
-        directory_path = os.path.join("tests", "test_data", "CheBIOver100_test")
+        directory_path = os.path.join(
+            "tests", "integration", "test_data", "ChEBIOver100_test"
+        )
         abs_path = os.path.join(os.getcwd(), directory_path)
         print(f"Checking data from - {abs_path}")
         num_of_files = len(os.listdir(abs_path)) // 2
@@ -191,6 +193,28 @@ class TestCustomMacroF1Metric(unittest.TestCase):
         self.assertNotAlmostEqual(
             macro_f1_custom_score, macro_f1_standard_score, places=4
         )
+
+    def test_ignore_index_excludes_label_positions(self) -> None:
+        """
+        Test that ignored multilabel positions do not contribute to any class counts.
+        """
+        preds = torch.tensor([[1.0, 0.0], [1.0, 1.0]])
+        labels = torch.tensor([[1, -1], [0, 1]])
+
+        metric = MacroF1(num_labels=2, ignore_index=-1)
+
+        self.assertAlmostEqual(metric(preds, labels).item(), 5 / 6)
+
+    def test_ignore_index_returns_zero_when_all_positions_are_ignored(self) -> None:
+        """
+        Test that an input containing only ignored positions has a defined score.
+        """
+        preds = torch.tensor([[1.0, 0.0]])
+        labels = torch.full((1, 2), -1)
+
+        metric = MacroF1(num_labels=2, ignore_index=-1)
+
+        self.assertEqual(metric(preds, labels).item(), 0.0)
 
     @staticmethod
     def __get_custom_and_standard_metric_scores(
