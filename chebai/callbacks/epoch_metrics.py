@@ -32,10 +32,16 @@ class MacroF1(torchmetrics.Metric):
             before returning the value at the step. Default: False.
         threshold (float, optional): Threshold for converting predicted probabilities to binary (0, 1) predictions.
             Default: 0.5.
+        ignore_index (int, optional): Label value to exclude from the metric. Ignored values are masked
+            element-wise before updating the per-label counts. Default: None.
     """
 
     def __init__(
-        self, num_labels: int, dist_sync_on_step: bool = False, threshold: float = 0.5
+        self,
+        num_labels: int,
+        dist_sync_on_step: bool = False,
+        threshold: float = 0.5,
+        ignore_index: int | None = None,
     ):
         super().__init__(dist_sync_on_step=dist_sync_on_step)
 
@@ -55,6 +61,7 @@ class MacroF1(torchmetrics.Metric):
             dist_reduce_fx="sum",
         )
         self.threshold = threshold
+        self.ignore_index = ignore_index
 
     def update(self, preds: torch.Tensor, labels: torch.Tensor) -> None:
         """
@@ -64,13 +71,18 @@ class MacroF1(torchmetrics.Metric):
             preds (torch.Tensor): Predictions from the model.
             labels (torch.Tensor): Ground truth labels.
         """
-        tps = torch.sum(
-            torch.logical_and(preds > self.threshold, labels.to(torch.bool)),
-            dim=0,
-        )
+        predicted_positive = preds > self.threshold
+        actual_positive = labels.to(torch.bool)
+
+        if self.ignore_index is not None:
+            valid = labels != self.ignore_index
+            predicted_positive = predicted_positive & valid
+            actual_positive = actual_positive & valid
+
+        tps = torch.sum(torch.logical_and(predicted_positive, actual_positive), dim=0)
         self.true_positives += tps
-        self.positive_predictions += torch.sum(preds > self.threshold, dim=0)
-        self.positive_labels += torch.sum(labels, dim=0)
+        self.positive_predictions += torch.sum(predicted_positive, dim=0)
+        self.positive_labels += torch.sum(actual_positive, dim=0)
 
     def compute(self) -> torch.Tensor:
         """
@@ -84,6 +96,9 @@ class MacroF1(torchmetrics.Metric):
         # classes with positive labels, but no positive predictions will get a precision of "nan" (0 divided by 0),
         # which is propagated to the classwise_f1 and then turned into 0
         mask = self.positive_labels != 0
+        if not mask.any():
+            return torch.zeros((), device=self.positive_labels.device)
+
         precision = self.true_positives[mask] / self.positive_predictions[mask]
         recall = self.true_positives[mask] / self.positive_labels[mask]
         classwise_f1 = 2 * precision * recall / (precision + recall)
