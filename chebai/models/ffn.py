@@ -75,7 +75,7 @@ class FFN(ChebaiBaseNet):
         self,
         model_output: Dict[str, Tensor],
         labels: Tensor,
-        loss_kwargs: Dict[str, Any],
+        data: Dict[str, Any],
     ) -> Tuple[Tensor, Tensor, Dict[str, Any]]:
         """
         Process the model output for calculating the loss.
@@ -83,11 +83,12 @@ class FFN(ChebaiBaseNet):
         Args:
             model_output (Dict[str, Tensor]): The output of the model.
             labels (Tensor): The target labels.
-            loss_kwargs (Dict[str, Any]): Additional loss arguments.
+            data (Dict[str, Any]): The processed batch data.
 
         Returns:
             tuple: A tuple containing the processed model output, labels, and loss arguments.
         """
+        loss_kwargs = data.get("loss_kwargs", dict())
         kwargs_copy = dict(loss_kwargs)
         if labels is not None:
             labels = labels.float()
