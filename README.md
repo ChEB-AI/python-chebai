@@ -7,6 +7,11 @@ The library emphasizes the incorporation of the semantic qualities of the ontolo
 
 Starting in version 1.1, we support regression tasks!
 
+From v1.5.0 release, we have updated model checkpointing for classification runs:
+only the best model according to validation macro-F1 will be retained. This
+replaces saving checkpoints every 25 epochs and retaining the top three models
+according to validation micro-F1, followed until previous release.
+
 ## Installation
 
 To install ChEBai, follow these steps:
