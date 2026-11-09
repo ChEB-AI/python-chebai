@@ -219,7 +219,7 @@ class HiMolMacroAUROC(torchmetrics.Metric):
     is_differentiable = False
     higher_is_better = True
 
-    def __init__(self, num_labels: int, ignore_index: int = 0, **kwargs):
+    def __init__(self, num_labels: int, ignore_index: int = -1, **kwargs):
         super().__init__(**kwargs)
         self.num_labels = num_labels
         self.ignore_index = ignore_index
