@@ -41,6 +41,11 @@ dev = [
     "deepsmiles",
     "torchmetrics",
     "chebi-utils>=0.4",
+    # In case of urllib.error.URLError: <urlopen error [SSL: CERTIFICATE_VERIFY_FAILED]
+    # `export SSL_CERT_FILE=$(python -m certifi)`
+    "certifi",
+    # deepchem==2.8.0 is only supported for python versions < 3.12
+    "deepchem>=2.8.0"
 ]
 
 linters = [

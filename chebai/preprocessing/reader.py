@@ -95,15 +95,10 @@ class DataReader:
         return raw
 
     def _read_components(self, row: Dict[str, Any]) -> Dict[str, Any]:
-        """Read and return components from the row. If the data contains any missing labels (`None`), they are tracked
-        under the additional `missing_labels` keyword."""
+        """Read and return components from the row. Missing labels (`None`) are kept as-is and turned into a
+        `valid_label_mask` by the collator."""
         labels = self._get_raw_label(row)
         additional_kwargs = self._get_additional_kwargs(row)
-        if labels is not None:
-            if any(label is None for label in labels):
-                additional_kwargs["missing_labels"] = [
-                    label is None for label in labels
-                ]
         return dict(
             features=self._get_raw_data(row),
             labels=labels,
@@ -207,8 +202,12 @@ class ChemDataReader(TokenIndexerReader):
         try:
             if isinstance(raw_data, str):
                 mol = smiles_or_inchi_to_mol(raw_data.strip())
-            else:
+            elif isinstance(raw_data, Chem.Mol):
                 mol = raw_data
+            else:
+                raise ValueError(
+                    f"Invalid input type: {type(raw_data)}. Expected str or Chem.Mol."
+                )
             if mol is None:
                 raise ValueError(f"Invalid input: {raw_data}")
         except ValueError as e:
