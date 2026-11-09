@@ -584,13 +584,11 @@ class ChEBIFromList(_ChEBIDataExtractor):
 class ChEBIOverX(_ChEBIDataExtractor):
     """
     A class for extracting data from the ChEBI dataset with a threshold for selecting classes.
-    This class is designed to filter Chebi classes based on a specified threshold, selecting only those classes
+    This class is designed to filter ChEBI classes based on a specified threshold, selecting only those classes
     which have a certain number of subclasses in the hierarchy.
 
     Attributes:
-        LABEL_INDEX (int): The index of the label in the dataset.
-        SMILES_INDEX (int): The index of the SMILES string in the dataset.
-        READER (ChemDataReader): The reader used for reading the dataset.
+        READER (StaticSMILESReader): The reader used for reading the dataset.
         THRESHOLD (None): The threshold for selecting classes.
     """
 
@@ -659,11 +657,11 @@ class ChEBIOver50(ChEBIOverX):
     THRESHOLD: int = 50
 
 
-class ChEBIOver50_ChemDataReader(ChEBIOverX):
+class ChEBIOver50_ChemDataReader(ChEBIOver50):
     """
-    A class for extracting data from the ChEBI dataset with a threshold of 50 for selecting classes.
+    Uses the ChemDataReader (based on a dynamic token list) for the ChEBIOver50 dataset.
 
-    Inherits from ChEBIOverX.
+    Inherits from ChEBIOver50.
 
     Attributes:
         THRESHOLD (int): The threshold for selecting classes (50).

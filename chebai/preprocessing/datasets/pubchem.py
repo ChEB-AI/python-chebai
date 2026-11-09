@@ -29,8 +29,6 @@ class PubChem(_DynamicDataset):
     Dataset module for PubChem compounds.
     """
 
-    SMILES_INDEX = 0
-    LABEL_INDEX = 1
     FULL = 0
     UNLABELED = True
     READER = dr.StaticSMILESReader
