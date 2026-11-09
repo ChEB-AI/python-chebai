@@ -111,10 +111,16 @@ class TestRaggedCollator(unittest.TestCase):
         expected_valid_label_mask = torch.tensor(
             [
                 [True, True],  # sample1 has no missing labels
-                [False, False],  # sample2 has no missing labels (entire label is None)
+                [
+                    False,
+                    False,
+                ],  # sample 2 has entire label field as None ("labels": None)
                 [True, False],  # sample3 has a missing label at index 1
                 [True, False],  # sample4 has no missing labels
-                [False, False],  # sample5 has missing labels at both indices
+                [
+                    False,
+                    False,
+                ],  # sample5 has missing labels at both indices ("labels": [None, None])
             ]
         )
 

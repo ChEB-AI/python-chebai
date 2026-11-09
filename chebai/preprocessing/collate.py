@@ -67,7 +67,14 @@ class RaggedCollator(Collator):
             - Example: [[True, False], None, [False, None]] would result in `non_null_labels` = [0, 2].
             - This is used to filter out predictions for unlabeled samples during evaluation.
 
-        `valid_label_mask`: Stores a per-sample, per-label-position boolean mask for valid entries inside a label row, like the True in [1, None, 0].
+        `valid_label_mask`: A boolean tensor aligned with the original label rows,
+            where `True` marks a non-`None` label and `False` marks a missing
+            label, an all-`None` label row, or right-padding added to shorter
+            rows. Its shape is `(batch_size, max_label_row_length)`. The mask
+            is computed before rows with `labels=None` are filtered from `y`;
+            it is `None` when there are no missing label positions.
+            For example, labels `([1, None, 0], None, [1])` produce:
+            `[[True, False, True], [False, False, False], [True, False, False]]`.
 
         Args:
             data (List[Union[Dict, Tuple]]): List of ragged data samples. Each sample can be a dictionary or tuple
