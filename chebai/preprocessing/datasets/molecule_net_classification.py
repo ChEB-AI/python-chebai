@@ -30,9 +30,9 @@ class MoleculeNetDataExtractor(_DynamicDataset, ABC):
     ):
         if test_split is not None or validation_split is not None:
             raise ValueError(
-                "Custom splits are not supported for MoleculeNet datasets. "
-                "Please use the predefined splits provided by the deepchem community"
-                "by using `--splits_file_path=<path/to/splits.csv>`"
+                "Custom split ratios are not supported for MoleculeNet datasets. "
+                "The predefined splits provided by DeepChem are used by default. "
+                "To use other splits, pass `--splits_file_path=<path/to/splits.csv>`."
             )
         super().__init__(
             test_split=test_split, validation_split=validation_split, **kwargs
@@ -121,11 +121,19 @@ class MoleculeNetDataExtractor(_DynamicDataset, ABC):
         pass
 
     def _generate_dynamic_splits(self) -> None:
-        raise ValueError(
-            "Custom splits are not supported for MoleculeNet datasets. "
-            "Please use the predefined splits provided by the deepchem community"
-            "by using `--splits_file_path=<path/to/splits.csv>`"
-        )
+        """
+        Load the predefined DeepChem splits instead of generating new ones.
+
+        The splits are written to `splits.csv` in `processed_dir_main` by `_load_dict` during setup.
+        """
+        splits_file_path = os.path.join(self.processed_dir_main, "splits.csv")
+        if not os.path.isfile(splits_file_path):
+            raise FileNotFoundError(
+                f"Predefined DeepChem splits not found at {splits_file_path}. "
+                f"Delete the processed data in {self.processed_dir} to regenerate it."
+            )
+        self.splits_file_path = splits_file_path
+        self._retrieve_splits_from_csv()
 
     @property
     def base_dir(self) -> str:

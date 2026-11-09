@@ -1,13 +1,10 @@
 from typing import Optional
 
 import torch
+import torch.nn.functional as F
 
 
 class BCELogitLossWithValidLabels(torch.nn.BCEWithLogitsLoss):
-    def __init__(self, **kwargs):
-        kwargs["reduction"] = "none"
-        super().__init__(**kwargs)
-
     def forward(
         self,
         input: torch.Tensor,
@@ -15,15 +12,22 @@ class BCELogitLossWithValidLabels(torch.nn.BCEWithLogitsLoss):
         valid_label_mask: Optional[torch.Tensor] = None,
         **kwargs,
     ) -> torch.Tensor:
-        loss_mat = super().forward(input, target)
-
         if valid_label_mask is None:
-            return loss_mat.mean()
+            return super().forward(input, target)
 
-        loss_mat = torch.where(
-            valid_label_mask,
-            loss_mat,
-            torch.zeros_like(loss_mat),
+        loss_mat = F.binary_cross_entropy_with_logits(
+            input,
+            target,
+            weight=self.weight,
+            pos_weight=self.pos_weight,
+            reduction="none",
         )
+        loss_mat = loss_mat.masked_fill(~valid_label_mask, 0.0)
 
-        return loss_mat.sum() / valid_label_mask.sum().clamp_min(1)
+        if self.reduction == "mean":
+            return loss_mat.sum() / valid_label_mask.sum().clamp_min(1)
+        elif self.reduction == "sum":
+            return loss_mat.sum()
+        elif self.reduction == "none":
+            return loss_mat
+        raise ValueError(f"Invalid reduction mode: {self.reduction}")

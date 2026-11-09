@@ -95,8 +95,8 @@ class DataReader:
         return raw
 
     def _read_components(self, row: Dict[str, Any]) -> Dict[str, Any]:
-        """Read and return components from the row. If the data contains any missing labels (`None`), they are tracked
-        under the additional `missing_labels` keyword."""
+        """Read and return components from the row. Missing labels (`None`) are kept as-is and turned into a
+        `valid_label_mask` by the collator."""
         labels = self._get_raw_label(row)
         additional_kwargs = self._get_additional_kwargs(row)
         return dict(
