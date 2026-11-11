@@ -1,15 +1,19 @@
-# ChEBai
+# ChEB-AI
 
-ChEBai is a deep learning library designed for the integration of deep learning methods with chemical ontologies, particularly ChEBI.
-The library emphasizes the incorporation of the semantic qualities of the ontology into the learning process.
+ChEB-AI is a deep learning library designed for the integration of deep learning methods with chemical ontologies, particularly ChEBI.
+The library emphasizes the incorporation of the semantic qualities of the ontology into the learning process. 
+Currently, we support datasets from ChEBI, PubChem and MoleculeNet and ELECTRA / FFN models. An extension for Graph Neural Networks is available [here](https://github.com/ChEB-AI/python-chebai-graph).
 
-##  News
+- [Installation](#Installation)
+- [Usage](#Usage)
+- [Papers using ChEB-AI](#Papers-using-ChEB-AI)
 
-Starting in version 1.1, we support regression tasks!
+## News
+In version v1.4.0, support for ChEBI25 datasets and Asymmetric Loss got added. For the full changelog, see https://github.com/ChEB-AI/python-chebai/releases.
 
 ## Installation
 
-To install ChEBai, follow these steps:
+To install ChEB-AI, follow these steps:
 
 1. Clone the repository:
 ```
@@ -106,33 +110,18 @@ python -m chebai test --trainer=configs/training/default_trainer.yml --trainer.d
 
 > **Note**: It is recommended to use `devices=1` and `num_nodes=1` during testing; multi-device settings use a `DistributedSampler`, which may replicate some samples to maintain equal batch sizes, so using a single device ensures that each sample or batch is evaluated exactly once.
 
+## Papers using ChEB-AI
 
-## Cross-validation
-You can do inner k-fold cross-validation, i.e., train models on k train-validation splits that all use the same test
-set. For that, you need to specify the total_number of folds as
-```
---data.init_args.inner_k_folds=K
-```
-and the fold to be used in the current optimisation run as
-```
---data.init_args.fold_index=I
-```
-To train K models, you need to do K such calls, each with a different `fold_index`. On the first call with a given
-`inner_k_folds`, all folds will be created and stored in the data directory
+If you are using ChEB-AI, please cite: [Glauer, Martin, et al. "Chebifier: Automating Semantic Classification in ChEBI to Accelerate Data-driven Discovery." Digital Discovery, 2024, 3, 896.](https://pubs.rsc.org/en/content/articlehtml/2024/dd/d3dd00238a).
 
-## Note for developers
+ChEB-AI has since been used for several publications. If you want to reproduce the experiments from a given publications, please use the specified version:
 
-If you have used ChEBai before PR #39, the file structure in which your ChEBI-data is saved has changed. This means that
-datasets will be freshly generated. The data however is the same. If you want to keep the old data (including the old
-splits), you can use a migration script. It copies the old data to the new location for a specific ChEBI class
-(including chebi version and other parameters). The script can be called by specifying the data module from a config
-```
-python chebai/preprocessing/migration/chebi_data_migration.py migrate --datamodule=[path-to-data-config]
-```
-or by specifying the class name (e.g. `ChEBIOver50`) and arguments separately
-```
-python chebai/preprocessing/migration/chebi_data_migration.py migrate --class_name=[data-class] [--chebi_version=[version]]
-```
-The new dataset will by default generate random data splits (with a given seed).
-To reuse a fixed data split, you have to provide the path of the csv file generated during the migration:
-`--data.init_args.splits_file_path=[path-to-processed_data]/splits.csv`
+| Paper | ChEB-AI version | Comment |
+| --- | --- | --- |
+| [Glauer, Martin et al. "Ontology Pre-training for Poison Prediction" KI 2023 (Best Paper Award)](https://link.springer.com/chapter/10.1007/978-3-031-42608-7_4) | [v0.0.0-poison-opt](https://github.com/ChEB-AI/python-chebai/tree/v0.0.0-poison-opt)
+| [Glauer, Martin, et al. "Chebifier: Automating Semantic Classification in ChEBI to Accelerate Data-driven Discovery." Digital Discovery, 2024, 3, 896.](https://pubs.rsc.org/en/content/articlehtml/2024/dd/d3dd00238a). | [v0.1-chebifier](https://github.com/ChEB-AI/python-chebai/tree/v0.1-chebifier) | supplementary data is available on [Zenodo](https://zenodo.org/records/10247093) |
+| [Flügel, Simon, et al. "A Fuzzy Loss for Ontology Classification" NeSy 2024](https://link.springer.com/chapter/10.1007/978-3-031-71167-1_6) | [v1.0.0](https://github.com/ChEB-AI/python-chebai/tree/v1.0.0) | |
+| [Memariani, Adel et al. "Box embeddings for extending ontologies: a data-driven and interpretable approach" Journal of Cheminformatics, 2025](https://link.springer.com/article/10.1186/s13321-025-01086-1) | [Box4Chemi](https://github.com/adelmemariani/python-chebai/tree/Box4Chemi) | Fork of ChEB-AI, [supplementary data](https://zenodo.org/records/15286967) |
+| [Flügel, Simon and Mossakowski, Till "HyDI: A hybrid Deep Learning-Inductive Logic Programming ensemble for multi-label classification" IJCLR 2026](https://arxiv.org/pdf/2609.37740) | [v1.3.0](https://github.com/ChEB-AI/python-chebai/tree/v1.3.0) | uses the GNN extension [chebai-graph, v1.1.0](https://github.com/ChEB-AI/python-chebai-graph/tree/v1.1.0) and [chebi-utils, v0.1.1](https://github.com/ChEB-AI/python-chebi-utils/tree/v0.1.1), [supplementary material](https://zenodo.org/records/20411715) | 
+| [Flügel, Simon et al. "Chebifier 2: An ensemble for chemistry", preprint, 2026](https://www.researchsquare.com/article/rs-9023090/v2) | [v1.4.0](https://github.com/ChEB-AI/python-chebai/tree/v1.4.0) | uses the GNN extension [chebai-graph, v1.2.3](https://github.com/ChEB-AI/python-chebai-graph/tree/v1.2.3), [supplementary material](https://zenodo.org/records/23161410) |
+| [Tumescheit, Charlotte et al. "Ontology pre-training improves machine learning-based predictions for metabolites", PLOS Computational Biology, 2026 | todo | |
