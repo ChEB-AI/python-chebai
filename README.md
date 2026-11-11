@@ -116,7 +116,7 @@ ChEB-AI has since been used for several publications. If you want to reproduce t
 
 | Paper | ChEB-AI version | Comment |
 | --- | --- | --- |
-| [Glauer, Martin et al. "Ontology Pre-training for Poison Prediction" KI 2023 (Best Paper Award)](https://link.springer.com/chapter/10.1007/978-3-031-42608-7_4) | 
+| [Glauer, Martin et al. "Ontology Pre-training for Poison Prediction" KI 2023 (Best Paper Award)](https://link.springer.com/chapter/10.1007/978-3-031-42608-7_4) | [v0.0.0-poison-opt](https://github.com/ChEB-AI/python-chebai/tree/v0.0.0-poison-opt)
 | [Glauer, Martin, et al. "Chebifier: Automating Semantic Classification in ChEBI to Accelerate Data-driven Discovery." Digital Discovery, 2024, 3, 896.](https://pubs.rsc.org/en/content/articlehtml/2024/dd/d3dd00238a). | [v0.1-chebifier](https://github.com/ChEB-AI/python-chebai/tree/v0.1-chebifier) | supplementary data is available on [Zenodo](https://zenodo.org/records/10247093) |
 | [Flügel, Simon, et al. "A Fuzzy Loss for Ontology Classification" NeSy 2024](https://link.springer.com/chapter/10.1007/978-3-031-71167-1_6) | [v1.0.0](https://github.com/ChEB-AI/python-chebai/tree/v1.0.0) | |
 | [Memariani, Adel et al. "Box embeddings for extending ontologies: a data-driven and interpretable approach" Journal of Cheminformatics, 2025](https://link.springer.com/article/10.1186/s13321-025-01086-1) | [Box4Chemi](https://github.com/adelmemariani/python-chebai/tree/Box4Chemi) | Fork of ChEB-AI, [supplementary data](https://zenodo.org/records/15286967) |
