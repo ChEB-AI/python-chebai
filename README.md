@@ -5,6 +5,8 @@ The library emphasizes the incorporation of the semantic qualities of the ontolo
 Currently, we support datasets from ChEBI, PubChem and MoleculeNet and ELECTRA / FFN models. An extension for Graph Neural Networks is available [here](https://github.com/ChEB-AI/python-chebai-graph).
 
 - [Installation](#Installation)
+- [Usage](#Usage)
+- [Papers using ChEB-AI](#Papers-using-ChEB-AI)
 
 ## News
 In version v1.4.0, support for ChEBI25 datasets and Asymmetric Loss got added. For the full changelog, see https://github.com/ChEB-AI/python-chebai/releases.
