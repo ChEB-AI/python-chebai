@@ -5,12 +5,21 @@ The library emphasizes the incorporation of the semantic qualities of the ontolo
 
 ##  News
 
-Starting in version 1.1, we support regression tasks!
-
-From v1.5.0 release, we have updated model checkpointing for classification runs:
+In v1.5.0, we have updated **model checkpointing** for classification runs:
 only the best model according to validation macro-F1 will be retained. This
 replaces saving checkpoints every 25 epochs and retaining the top three models
 according to validation micro-F1, followed until previous release.
+
+Starting in v1.5.0, we now include a DeepChem-based implementation of MoleculeNet
+datasets (classification only). These are the base classes used in [chebai-graph](https://github.com/ChEB-AI/python-chebai-graph)
+for GNN training. In addition, v1.5.0 includes the MoleculeNet implementation (classification + regression)
+used in the paper
+
+    Tumescheit, Charlotte, Martin Glauer, Simon Flügel, Martin Larralde, Fabian Neuhaus, Till Mossakowski, and Janna Hastings.
+    "Ontology pre-training improves machine learning-based predictions for metabolites."
+    PLOS Computational Biology 22, no. 11 (2026): e1014925.
+    https://journals.plos.org/ploscompbiol/article?id=10.1371/journal.pcbi.1014925
+
 
 ## Installation
 
