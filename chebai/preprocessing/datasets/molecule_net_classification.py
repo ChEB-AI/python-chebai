@@ -1,3 +1,17 @@
+"""MoleculeNet classification datasets, loaded via DeepChem.
+
+The datasets are loaded through the DeepChem ``molnet`` API, which also provides the predefined
+MoleculeNet splits (scaffold or random, depending on the dataset). Custom split ratios are therefore not
+supported; pass ``--data.init_args.splits_file_path=<path/to/splits.csv>`` to use different splits.
+
+For the legacy implementation used in the OPT paper, which downloads the raw CSV files directly and
+creates its own random / group-based splits, see
+:mod:`chebai.preprocessing.datasets.molecule_classification` and
+:class:`chebai.preprocessing.datasets.tox21.Tox21MolNet`.
+
+Configs: ``configs/data/moleculenet/``
+"""
+
 import os
 from abc import ABC, abstractmethod
 from typing import Any, Generator
