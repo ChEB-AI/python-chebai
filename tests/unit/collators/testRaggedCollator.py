@@ -263,6 +263,20 @@ class TestRaggedCollator(unittest.TestCase):
             "The processed label rows tensor does not match the expected output.",
         )
 
+    def test_process_label_rows_regression(self) -> None:
+        """
+        Test that regression labels are kept as floats (not cast to bool) and missing values are filled with 0.
+        """
+        labels: Tuple = ([1.5, None], [-0.25, 2.0])
+
+        result: torch.Tensor = self.collator.process_label_rows(labels)
+
+        self.assertEqual(result.dtype, torch.float32)
+        self.assertTrue(
+            torch.equal(result, torch.tensor([[1.5, 0.0], [-0.25, 2.0]])),
+            "Regression labels have not been preserved.",
+        )
+
 
 if __name__ == "__main__":
     unittest.main()
