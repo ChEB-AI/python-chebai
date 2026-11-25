@@ -12,13 +12,13 @@ from chebai.preprocessing.datasets.base import _DynamicDataset
 
 class Zinc15Pretrain(_DynamicDataset):
     """
-    Base class for MoleculeNet dataset extraction and preprocessing.
+    ZINC15 dataset for pretraining. Uses the deepchem library (`dc.molnet.load_zinc15`) to load a 250k molecule subset of ZINC15.
 
     Reference:
         - https://deepchem.readthedocs.io/en/latest/api_reference/moleculenet.html
-        - Zhenqin Wu, Bharath Ramsundar, Evan N. Feinberg, Joseph Gomes, Caleb Geniesse,
-            Aneesh S. Pappu, Karl Leswing, Vijay Pande; MoleculeNet: a benchmark for molecular
-            machine learning. Chem. Sci. 2018; 9 (2): 513–530. https://doi.org/10.1039/c7sc02664a
+        - Sterling, T. & Irwin, J. J. ZINC 15 – Ligand Discovery for Everyone.
+          J. Chem. Inf. Model. 2015, 55(11), 2324–2337.
+          https://doi.org/10.1021/acs.jcim.5b00559
     """
 
     def __init__(
@@ -29,7 +29,7 @@ class Zinc15Pretrain(_DynamicDataset):
     ):
         if test_split is not None or validation_split is not None:
             raise ValueError(
-                "Custom splits are not supported for MoleculeNet datasets. "
+                "Custom splits are not supported for ZINC15. "
                 "Please use the predefined splits provided by the deepchem community"
                 "by using `--splits_file_path=<path/to/splits.csv>`"
             )
@@ -109,7 +109,7 @@ class Zinc15Pretrain(_DynamicDataset):
 
     def _generate_dynamic_splits(self) -> None:
         raise ValueError(
-            "Custom splits are not supported for MoleculeNet datasets. "
+            "Custom splits are not supported for ZINC15. "
             "Please use the predefined splits provided by the deepchem community"
             "by using `--splits_file_path=<path/to/splits.csv>`"
         )
