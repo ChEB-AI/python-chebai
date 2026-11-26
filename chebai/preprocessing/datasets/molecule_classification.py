@@ -387,7 +387,7 @@ class Sider(XYBaseDataModule):
     @property
     def raw_file_names(self) -> List[str]:
         """Returns a list of raw file names."""
-        return ["sider.csv"]
+        return ["sider_groups4.csv"]
 
     # @property
     # def processed_file_names(self) -> List[str]:
@@ -416,7 +416,7 @@ class Sider(XYBaseDataModule):
     def setup_processed(self) -> None:
         """Processes and splits the dataset."""
         print("Create splits")
-        data = list(self._load_data_from_file(os.path.join(self.raw_dir, "sider.csv")))
+        data = list(self._load_data_from_file(os.path.join(self.raw_dir, "sider_groups4.csv")))
         groups = np.array([d["group"] for d in data])
         if not all(g is None for g in groups):
             split_size = int(
@@ -520,12 +520,12 @@ class Sider(XYBaseDataModule):
                     bool(int(label)) if label else None
                     for label in (row[k] for k in self.HEADERS)
                 ]
-                # group = row["group"]
+                group = row["group"]
                 yield dict(
                     features=smiles,
                     labels=labels,
                     ident=i,
-                    # , group=group
+                    group=group
                 )
                 # yield self.reader.to_data(dict(features=smiles, labels=labels, ident=i))
 
