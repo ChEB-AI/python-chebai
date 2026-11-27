@@ -1,0 +1,7 @@
+class_path: torchmetrics.MetricCollection
+init_args:
+  metrics:
+    f1:
+      class_path: torchmetrics.classification.BinaryF1Score
+    roc-auc:
+      class_path: torchmetrics.classification.BinaryAUROC

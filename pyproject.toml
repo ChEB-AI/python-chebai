@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "chebai"
-version = "1.4.0"
+version = "1.5.0"
 description = "ChEBai is a deep learning library designed for the integration of deep learning methods with chemical ontologies, particularly ChEBI."
 authors = [
     { name = "MGlauer", email = "martin.glauer@ovgu.de" }
@@ -41,6 +41,11 @@ dev = [
     "deepsmiles",
     "torchmetrics",
     "chebi-utils>=0.4",
+    # In case of urllib.error.URLError: <urlopen error [SSL: CERTIFICATE_VERIFY_FAILED]
+    # `export SSL_CERT_FILE=$(python -m certifi)`
+    "certifi",
+    # deepchem==2.8.0 is only supported for python versions < 3.12
+    "deepchem>=2.8.0"
 ]
 
 linters = [

@@ -120,7 +120,7 @@ class SolCuration(XYBaseDataModule):
         self._num_of_labels = len(data_pt[0]["labels"])
         self._feature_vector_size = max(len(d["features"]) for d in data_pt)
 
-    def _load_data_from_file(self, input_file_path: str) -> List[Dict]:
+    def _load_dict(self, input_file_path: str) -> List[Dict]:
         """Loads data from a CSV file.
 
         Args:
@@ -147,9 +147,7 @@ class SolCuration(XYBaseDataModule):
         # normalise data to be between 0 and 1
         # labels_norm = [(float(label)-min(labels_l))/(max(labels_l)-min(labels_l)) for label in labels_l]
         for i in range(0, len(smiles_l)):
-            yield self.reader.to_data(
-                dict(features=smiles_l[i], labels=[labels_l[i]], ident=i)
-            )
+            yield (dict(features=smiles_l[i], labels=[labels_l[i]], ident=i))
 
     def _perform_data_preparation(self, *args, **kwargs) -> None:
         pass

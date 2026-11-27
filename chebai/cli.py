@@ -75,6 +75,8 @@ class ChebaiCLI(LightningCLI):
                 "mse",
                 "rmse",
                 "r2",
+                "pr-auc",
+                "himol-marco-roc-auc",
             ):
                 # When using lightning > 2.5.1 then need to uncomment all metrics that are not used
                 # for average in ("mse", "rmse","r2"): # for regression

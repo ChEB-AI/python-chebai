@@ -316,7 +316,7 @@ class Electra(ChebaiBaseNet):
         self,
         model_output: Dict[str, Tensor],
         labels: Tensor,
-        loss_kwargs: Dict[str, Any],
+        data: Dict[str, Any],
     ) -> Tuple[Tensor, Tensor, Dict[str, Any]]:
         """
         Process the model output for calculating the loss.
@@ -324,19 +324,16 @@ class Electra(ChebaiBaseNet):
         Args:
             model_output (Dict[str, Tensor]): The output of the model.
             labels (Tensor): The target labels.
-            loss_kwargs (Dict[str, Any]): Additional loss arguments.
+            data (Dict[str, Any]): The processed batch data.
 
         Returns:
             tuple: A tuple containing the processed model output, labels, and loss arguments.
         """
+        loss_kwargs = data.get("loss_kwargs", dict())
         kwargs_copy = dict(loss_kwargs)
         output = model_output["logits"]
         if labels is not None:
             labels = labels.float()
-        if "missing_labels" in kwargs_copy:
-            missing_labels = kwargs_copy.pop("missing_labels")
-            output = output * (~missing_labels).int() - 10000 * missing_labels.int()
-            labels = labels * (~missing_labels).int()
         if self.model_type == "classification":
             assert ((labels <= torch.tensor(1.0)) & (labels >= torch.tensor(0.0))).all()
         return output, labels, kwargs_copy
@@ -366,14 +363,6 @@ class Electra(ChebaiBaseNet):
             d = torch.sigmoid(
                 d
             )  # changing this made a difference for the roc-auc but not the f1, why?
-            if "missing_labels" in loss_kwargs:
-                missing_labels = loss_kwargs["missing_labels"]
-                d = d * (~missing_labels).int().to(
-                    device=d.device
-                )  # we set the prob of missing labels to 0
-                labels = labels * (~missing_labels).int().to(
-                    device=d.device
-                )  # we set the labels of missing labels to 0
             return d, labels.int() if labels is not None else None
         elif self.model_type == "regression":
             return d, labels

@@ -3,11 +3,12 @@ from typing import Optional
 
 import torch
 
+from chebai.loss.base import BCELogitLossWithValidLabels
 from chebai.preprocessing.datasets.base import XYBaseDataModule
 from chebai.preprocessing.datasets.chebi import _ChEBIDataExtractor
 
 
-class BCEWeighted(torch.nn.BCEWithLogitsLoss):
+class BCEWeighted(BCELogitLossWithValidLabels):
     """
     BCEWithLogitsLoss with weights automatically computed according to the beta parameter.
 
@@ -104,10 +105,9 @@ class BCEWeighted(torch.nn.BCEWithLogitsLoss):
             torch.Tensor: The computed loss.
         """
         self.set_pos_weight(input)
-        return super().forward(input, target)
+        return super().forward(input, target, **kwargs)
 
 
-class UnWeightedBCEWithLogitsLoss(torch.nn.BCEWithLogitsLoss):
+class UnWeightedBCEWithLogitsLoss(BCELogitLossWithValidLabels):
     def forward(self, input, target, **kwargs):
-        # As the custom passed kwargs are not used in BCEWithLogitsLoss, we can ignore them
-        return super().forward(input, target)
+        return super().forward(input, target, **kwargs)

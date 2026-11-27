@@ -1,3 +1,19 @@
+"""MoleculeNet classification datasets (ClinTox, BBBP, SIDER, BACE, HIV and MUV) as used in the OPT paper.
+
+Reference:
+    Tumescheit, Charlotte, Martin Glauer, Simon Flügel, Martin Larralde, Fabian Neuhaus, Till Mossakowski, and Janna Hastings.
+    "Ontology pre-training improves machine learning-based predictions for metabolites."
+    PLOS Computational Biology 22, no. 11 (2026): e1014925.
+    https://journals.plos.org/ploscompbiol/article?id=10.1371/journal.pcbi.1014925
+
+Data source:
+    Raw and processed data files can be downloaded from Zenodo: https://zenodo.org/records/19922765
+    Config files for the datasets can be found in the ``configs/data/moleculenet/opt_paper/`` directory.
+
+ChEB-AI contains another implementation of the MoleculeNet datasets, taking it's data from DeepChem and
+using the predefined (scaffold / random) MoleculeNet splits. See :mod:`chebai.preprocessing.datasets.molecule_net_classification`.
+"""
+
 import csv
 import gzip
 import os
@@ -35,7 +51,7 @@ class ClinTox(XYBaseDataModule):
     @property
     def raw_file_names(self) -> List[str]:
         """Returns a list of raw file names."""
-        return ["clintox.csv"]
+        return ["clintox_groups4.csv"]
 
     # @property
     # def processed_file_names(self) -> List[str]:
@@ -65,7 +81,7 @@ class ClinTox(XYBaseDataModule):
         """Processes and splits the dataset."""
         print("Create splits")
         data = list(
-            self._load_data_from_file(os.path.join(self.raw_dir, "clintox.csv"))
+            self._load_data_from_file(os.path.join(self.raw_dir, "clintox_groups4.csv"))
         )
         groups = np.array([d["group"] for d in data])
         if not all(g is None for g in groups):
@@ -181,7 +197,7 @@ class ClinTox(XYBaseDataModule):
 
 
 class BBBP(XYBaseDataModule):
-    """Data module for ClinTox MoleculeNet dataset."""
+    """Data module for BBBP MoleculeNet dataset."""
 
     HEADERS = [
         "p_np",
@@ -342,7 +358,7 @@ class BBBP(XYBaseDataModule):
 
 
 class Sider(XYBaseDataModule):
-    """Data module for ClinTox MoleculeNet dataset."""
+    """Data module for SIDER MoleculeNet dataset."""
 
     HEADERS = [
         "Hepatobiliary disorders",
@@ -387,7 +403,7 @@ class Sider(XYBaseDataModule):
     @property
     def raw_file_names(self) -> List[str]:
         """Returns a list of raw file names."""
-        return ["sider.csv"]
+        return ["sider_groups4.csv"]
 
     # @property
     # def processed_file_names(self) -> List[str]:
@@ -416,7 +432,9 @@ class Sider(XYBaseDataModule):
     def setup_processed(self) -> None:
         """Processes and splits the dataset."""
         print("Create splits")
-        data = list(self._load_data_from_file(os.path.join(self.raw_dir, "sider.csv")))
+        data = list(
+            self._load_data_from_file(os.path.join(self.raw_dir, "sider_groups4.csv"))
+        )
         groups = np.array([d["group"] for d in data])
         if not all(g is None for g in groups):
             split_size = int(
@@ -520,12 +538,12 @@ class Sider(XYBaseDataModule):
                     bool(int(label)) if label else None
                     for label in (row[k] for k in self.HEADERS)
                 ]
-                # group = row["group"]
+                group = row["group"]
                 yield dict(
                     features=smiles,
                     labels=labels,
                     ident=i,
-                    # , group=group
+                    group=group,
                 )
                 # yield self.reader.to_data(dict(features=smiles, labels=labels, ident=i))
 
@@ -534,7 +552,7 @@ class Sider(XYBaseDataModule):
 
 
 class Bace(XYBaseDataModule):
-    """Data module for ClinTox MoleculeNet dataset."""
+    """Data module for BACE MoleculeNet dataset."""
 
     HEADERS = [
         "class",
@@ -682,7 +700,7 @@ class Bace(XYBaseDataModule):
 
 
 class HIV(XYBaseDataModule):
-    """Data module for ClinTox MoleculeNet dataset."""
+    """Data module for HIV MoleculeNet dataset."""
 
     HEADERS = [
         "HIV_active",
@@ -840,7 +858,7 @@ class HIV(XYBaseDataModule):
 
 
 class MUV(XYBaseDataModule):
-    """Data module for ClinTox MoleculeNet dataset."""
+    """Data module for MUV MoleculeNet dataset."""
 
     HEADERS = [
         "MUV-466",

@@ -1,3 +1,23 @@
+"""Tox21 datasets.
+
+This module contains two unrelated Tox21 datasets:
+
+- :class:`Tox21MolNet` (and :class:`Tox21MolNetChem`): the Tox21 dataset as distributed by MoleculeNet,
+  used in the OPT paper. Config: ``configs/data/moleculenet/opt_paper/tox21_moleculenet.yml``.
+  Reference:
+      Tumescheit, Charlotte, Martin Glauer, Simon Flügel, Martin Larralde, Fabian Neuhaus, Till Mossakowski, and Janna Hastings.
+      "Ontology pre-training improves machine learning-based predictions for metabolites."
+      PLOS Computational Biology 22, no. 11 (2026): e1014925.
+      https://journals.plos.org/ploscompbiol/article?id=10.1371/journal.pcbi.1014925
+
+- :class:`Tox21Challenge` (and :class:`Tox21ChallengeChem`): the Tox21 Data Challenge 2014 dataset,
+  downloaded from https://tripod.nih.gov/tox21/challenge/. This one ships its own train / test / score
+  files and is independent of MoleculeNet.
+
+Note that ChEB-AI contains another implementation of the MoleculeNet datasets, taking its data from DeepChem
+directly: :class:`chebai.preprocessing.datasets.molecule_net_classification.Tox21`.
+"""
+
 import csv
 import gzip
 import os
