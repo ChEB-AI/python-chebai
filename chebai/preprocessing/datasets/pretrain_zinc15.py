@@ -108,15 +108,23 @@ class Zinc15Pretrain(_DynamicDataset):
         pass
 
     def _generate_dynamic_splits(self) -> None:
-        raise ValueError(
-            "Custom splits are not supported for ZINC15. "
-            "Please use the predefined splits provided by the deepchem community"
-            "by using `--splits_file_path=<path/to/splits.csv>`"
-        )
+        splits_file_path = os.path.join(self.processed_dir_main, "splits.csv")
+        if not os.path.isfile(splits_file_path):
+            raise FileNotFoundError(
+                f"Predefined DeepChem splits not found at {splits_file_path}. "
+                f"Delete the processed data in {self.processed_dir} to regenerate it."
+            )
+        self.splits_file_path = splits_file_path
+        self._retrieve_splits_from_csv()
 
     def _check_retrieved_splits(self) -> None:
         assert len(self._dynamic_df_train) > 0, (
             "No training data found after applying splits"
+        )
+        splits_df = pd.read_csv(self.splits_file_path)
+        assert len(splits_df) == len(self._dynamic_df_train), (
+            "For Zinc, all samples from the dataset should be used for pretraining. "
+            "The number of samples in the splits file does not match the number of training samples."
         )
 
     def val_dataloader(self, *args, **kwargs) -> None:
